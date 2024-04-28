@@ -10,7 +10,7 @@ http://prb.appaapps.com/zesal/pitchdeck/pitchDeck.html
 
 # Example:
 
-Create a chips that **and**s two input pins together and places the results in
+Create a chips that **and**s two input pins together and places the result on
 the output pin.
 
 ```
