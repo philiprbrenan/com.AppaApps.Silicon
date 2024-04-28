@@ -1,0 +1,47 @@
+# Test 2024-04-28 at 07:22:20
+
+name: Test
+
+on:
+  push:
+    paths:
+      - '**/main.yml'
+
+jobs:
+
+  test:
+    permissions: write-all
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: 'main'
+
+    - uses: actions/checkout@v3
+      with:
+        repository: philiprbrenan/DataTableText
+        path: dtt
+
+    - name: Cpan
+      run:  sudo cpan install -T Data::Dump Data::Table::Text GDS2 Digest::SHA1
+
+    - name: Install Tree
+      run:
+        sudo apt install tree
+
+    - name: Tree
+      run:
+        tree -h
+
+    - name: Test Java implemented integrated circuits
+      run: |
+        mkdir -p perl/
+        mkdir -p gds/
+        java Chip.java
+        tree
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: Chip
+        path: .
