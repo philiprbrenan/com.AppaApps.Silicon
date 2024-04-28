@@ -2,7 +2,7 @@
     <p><a href="https://github.com/philiprbrenan/com.AppaApps.Silicon"><img src="https://github.com/philiprbrenan/com.AppaApps.Silicon/workflows/Test/badge.svg"></a>
 </div>
 
-Design, simulate and layout a silicon chip made of basic gates.
+# Design, simulate and layout a silicon chip made of basic gates.
 
 Reasons why you might want to join this project:
 
@@ -35,6 +35,6 @@ the output pin.
    }
 ```
 
-To produce a chip layout such as:
+To produce a chip layout mask such as:
 
 ![Compare Greater Than](images/CompareGt4.png)
