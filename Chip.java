@@ -431,12 +431,12 @@ public class Chip                                                               
      }
 
     countAtMostCountedDistance = 0;                                             // The distance at which we have the most gates from an output
-    mostCountedDistance   = 0;                                                  // The number of gates at the distance from the drives that has the most gates
+    mostCountedDistance        = 0;                                             // The number of gates at the distance from the drives that has the most gates
     for (Integer s : distanceToOutput.keySet())
      {final TreeSet<String> d = distanceToOutput.get(s);
-      if (d.size() > mostCountedDistance)
+      if (d.size() > countAtMostCountedDistance)
        {countAtMostCountedDistance = d.size();
-        mostCountedDistance   = s;
+        mostCountedDistance        = s;
        }
      }
    }
@@ -878,12 +878,11 @@ public class Chip                                                               
    {gsx = Gsx; gsy = Gsy;
 
     final int sx =  2 * gsx, sy = 2 * gsy;                                      // Size of gate
-//FIX need better estimate of size
-    layoutX = sx * 2 * maximumDistanceToOutput;                                 // X dimension of chip
-    layoutY = sy * 2 * countAtMostCountedDistance;                              // Y dimension of chip
+
+    layoutX = sx * (2 + maximumDistanceToOutput);                               // X dimension of chip with a bit of border
+    layoutY = sy * (2 + countAtMostCountedDistance);                            // Y dimension of chip with a bit of border
 
     compileChip();
-
     for (Gate g : gates.values()) g.px = g.distanceToOutput * sx;               // Locate gate in x
 
     final TreeSet<String> drawn = new TreeSet<>();                              // Gates that have already been drawn and so do not need to be redrawn
@@ -891,10 +890,11 @@ public class Chip                                                               
     for   (Integer D : distanceToOutput.keySet())                               // Gates at each distance from the drives
      {final TreeSet<String> d = distanceToOutput.get(D);                        // Gates in this column
       final int             N = d.size();                                       // Number of gates in this column
-      final float          dy = layoutY/ (float)N - sy;                         // Extra space available to spread gates down column
+      final float          dy = layoutY/ (float)N - 2 * sy;                         // Extra space available to spread gates down column
       float             extra = 0;                                              // Extra space accumulated as we can only use it in increments of gsy
       int                   y = gsy;                                            // Current y position in column.
 
+      int i = 0;
       for (String name : sortIntoOutputGateOrder(D))                            // Gates at each distance from the drives
        {final Gate g = getGate(name);
         if (drawn.contains(name)) continue;                                     // Only draw each named gate once
@@ -947,7 +947,8 @@ public class Chip                                                               
      {layoutsDrawn.add(name);                                                   // Show that we have drawn this chip already
       diagram.gds2();                                                           // Draw the layout diagram as GDS2
      }
-    return diagram;
+
+    return diagram;                                                             // Resulting diagram
    }
 
   class Diagram                                                                 // Wiring diagram
@@ -1739,27 +1740,29 @@ public class Chip                                                               
      }
    }
 
-  static void test_chooseWordUnderMask()
-   {final int B = 3, B2 = powerTwo(B);
-    final int[]numbers =  {4, 3, 2, 1, 0, 1, 2, 3};
-    for (int i = 0; i < B2; i++)
-     {final var c = new Chip("chooseWordUnderMask "+B);
-      c.words("i", B,  numbers);
-      c.bits ("m", B2, powerTwo(i));
-      c.chooseWordUnderMask("o", "i", "m");
-      c.outputBits("out", "o");
-      c.simulate();
-      ok(c.bInt("out"), numbers[i]);
-     }
+  static void test_chooseWordUnderMask(int B, int i)
+   {final int[]numbers =  {2, 3, 2, 1,  0, 1, 2, 3,  2, 3, 2, 1,  0, 1, 2, 3};
+    final int B2 = powerTwo(B);
+    final var c = new Chip("chooseWordUnderMask "+B);
+    c.words("i", B, Arrays.copyOfRange(numbers, 0, B2));
+    c.bits ("m", B2, powerTwo(i));
+    c.chooseWordUnderMask("o", "i", "m");
+    c.outputBits("out", "o");
+    c.simulate();
+    ok(c.bInt("out"), numbers[i]);
    }
 
-  static int testsPassed = 0;
+  static void test_chooseWordUnderMask()
+   {final int N = "true".equals(System.getenv("GITHUB_ACTIONS")) ? 4 : 3;
+    for   (int B = 2; B <= N;          B++)
+      for (int i = 1; i < powerTwo(B); i++)
+        test_chooseWordUnderMask(B, i);
+   }
 
-  static void ok(Object a, Object b)
-   {if (a.equals(b)) ++testsPassed;
-    else
-     {stop(a, "does not equal", b);
-     }
+  static int testsPassed = 0;                                                   // Number of tests passed
+
+  static void ok(Object a, Object b)                                            // Check test results match expected results.
+   {if (a.equals(b)) ++testsPassed; else stop(a, "does not equal", b);
    }
 
   public static void main(String[] args)                                        // Test if called as a program
