@@ -1,4 +1,4 @@
-<div>
+<div>                                    \
     <p><a href="https://github.com/philiprbrenan/com.AppaApps.Silicon"><img src="https://github.com/philiprbrenan/com.AppaApps.Silicon/workflows/Test/badge.svg"></a>
 </div>
 
@@ -31,3 +31,7 @@ the output pin.
     ok(  c.steps ,    2);
    }
 ```
+
+To produce a chip layout such as:
+
+![Compare Greater Than](images/CompareGt4.png)
