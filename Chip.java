@@ -1392,8 +1392,11 @@ public class Chip                                                               
     final StringBuilder b = new StringBuilder();
     for(String s : p) b.append(s+"\n");
 
-    final String file = "perl/gds2.pl";
-    try (BufferedWriter w = new BufferedWriter(new FileWriter(file)))
+    final String perlFolder = "perl";
+    if (!(new File(perlFolder).exists())) new File(perlFolder).mkdirs();
+
+    final String perlFile = new File(perlFolder, "gds2.pl").toString();
+    try (BufferedWriter w = new BufferedWriter(new FileWriter(perlFile)))
      {w.write(b.toString());
      }
     catch(Exception e)
@@ -1401,7 +1404,7 @@ public class Chip                                                               
      }
 
     try                                                                         // Execute the file as a Perl script to create the GDS2 output - following code courtesey of Mike Limberger.
-     {final var pb = new ProcessBuilder("perl", file);
+     {final var pb = new ProcessBuilder("perl", perlFile);
       pb.redirectErrorStream(false);                                            // STDERR will be captured and returned to the caller
       final var P = pb.start();
 
@@ -1413,7 +1416,7 @@ public class Chip                                                               
       if (rc != 0) say("Perl script exited with code: " + rc);
      }
     catch(Exception E)
-     {say("An error occurred while executing Perl script: "+file+" error: "+ E.getMessage());
+     {say("An error occurred while executing Perl script: "+perlFile+" error: "+ E.getMessage());
       System.exit(1);
      }
    }
