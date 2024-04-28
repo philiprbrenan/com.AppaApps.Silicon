@@ -1,4 +1,4 @@
-<div>                                    \
+<div>
     <p><a href="https://github.com/philiprbrenan/com.AppaApps.Silicon"><img src="https://github.com/philiprbrenan/com.AppaApps.Silicon/workflows/Test/badge.svg"></a>
 </div>
 
