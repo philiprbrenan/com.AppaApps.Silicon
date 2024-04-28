@@ -14,6 +14,7 @@ public class Chip                                                               
   final static int          debugMask =   0;                                    // Adds a grid and fiber names to a mask to help debug fibers if true.
   final static int      pixelsPerCell =   4;                                    // Pixels per cell
   final static int     layersPerLevel =   4;                                    // There are 4 layers in each level: insulation, x cross bars, x-y connectors and insulation, y cross bars
+  final static boolean github_actions = "true".equals(System.getenv("GITHUB_ACTIONS")); // Whether we are on a github
   final static String      perlFolder = "perl", perlFile = "gds2.pl";           // Folder and file for Perl code to represent a layout in GDS2.
   final static Stack<String>  gdsPerl = new Stack<>();                          // Perl code to create GDS2 output files
   final TreeSet<String>   outputGates = new TreeSet<>();                        // Output gates
@@ -1341,9 +1342,11 @@ public class Chip                                                               
         p.push("    say STDERR dump(\"Gate\", $x, $y, $X, $Y) if $debug;");
         p.push("    $g->printBoundary(-layer=>0, -xy=>[$x,$y, $X,$y, $X,$Y, $x,$Y]);");
         p.push("    $g->printText(-xy=>[($x+$X)/2, ($y+$Y)/2], -string=>\""+g.name+" "+g.op+"\");");
-        if (g.value != null && g.value)
-         {p.push("    $g->printBoundary(-layer=>10, -xy=>[$x,$y, $x,$y+1, $x+1,$y+1, $x,$y+1]);");
-          say("AAAA", g.value;
+        if (g.value != null &&  g.value)                                        // Show a one value
+         {p.push("    $g->printBoundary(-layer=>101, -xy=>[$x+1/3,$Y-1, $x+2/3,$Y-1, $x+2/3,$Y, $x+1/3,$Y]);");
+         }
+        if (g.value != null && !g.value)                                        // Show a zero value
+         {p.push("    $g->printBoundary(-layer=>100, -xy=>[$x,$Y-1, $x+1,$Y-1, $x+1,$Y, $x,$Y]);");
          }
         p.push("   }");
        }
@@ -1648,7 +1651,7 @@ public class Chip                                                               
 
   static void test_compareEq()
    {for(int B = 2; B <= 4; ++B)
-     {final  int B2 = powerTwo(B)-1;
+     {final  int B2 = powerTwo(B);
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
          {final var c = new Chip("CompareEq "+B);
@@ -1666,7 +1669,7 @@ public class Chip                                                               
 
   static void test_compareGt()
    {for(int B = 2; B <= 4; ++B)
-     {final int B2 = powerTwo(B)-1;
+     {final int B2 = powerTwo(B);
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
          {final var c = new Chip("CompareGt "+B);
@@ -1684,7 +1687,7 @@ public class Chip                                                               
 
   static void test_compareLt()
    {for(int B = 2; B <= 4; ++B)
-     {final int B2 = powerTwo(B)-1;
+     {final int B2 = powerTwo(B);
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
          {final var c = new Chip("CompareLt "+B);
@@ -1757,7 +1760,7 @@ public class Chip                                                               
    }
 
   static void test_chooseWordUnderMask()
-   {final int N = "true".equals(System.getenv("GITHUB_ACTIONS")) ? 4 : 3;
+   {final int N = github_actions ? 4 : 3;
     for   (int B = 2; B <= N;          B++)
       for (int i = 1; i < powerTwo(B); i++)
         test_chooseWordUnderMask(B, i);
