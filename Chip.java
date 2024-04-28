@@ -1374,10 +1374,10 @@ public class Chip                                                               
         p.push("      my $xy = [$x,$y, $x+1,$y, $x+1,$y+1, $x,$y+1];");
         p.push("      my $XY = [$X,$Y, $X+1,$Y, $X+1,$Y+1, $X,$Y+1];");
 // Levels 1,2,3 have nothing in them so that we can start each new level on a multiple of 4
-        for (int i = layersPerLevel; i < w.level * layersPerLevel + (w.segments.firstElement().onX ? 0 : 2); i++)
+        for (int i = layersPerLevel; i <= w.level * layersPerLevel + (w.segments.firstElement().onX ? 0 : 2); i++)
          {p.push("      $g->printBoundary(-layer=>"+i+", -xy=>$xy);");
          }
-        for (int i = layersPerLevel; i < w.level * layersPerLevel + (w.segments. lastElement().onX ? 0 : 2); i++)
+        for (int i = layersPerLevel; i <= w.level * layersPerLevel + (w.segments. lastElement().onX ? 0 : 2); i++)
          {p.push("      $g->printBoundary(-layer=>"+i+", -xy=>$XY);");
          }
         p.push("   }");
