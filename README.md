@@ -10,7 +10,9 @@ Reasons why you might want to join this project:
 
 http://prb.appaapps.com/zesal/pitchdeck/pitchDeck.html
 
-# Example:
+# Examples
+
+## And
 
 Create a chips that **and**s two input pins together and places the result on
 the output pin.
@@ -37,6 +39,12 @@ the output pin.
    }
 ```
 
-To produce a chip layout mask such as:
+To produce a chip layout mask using [Graphics Design System 2](https://en.wikipedia.org/wiki/GDSII):
 
+![And](images/And.png)
+
+## Compare Greater Than
 ![Compare Greater Than](images/CompareGt4.png)
+
+## Choose Word Under Mask
+![Choose Word Under Mask](images/ChooseWordUnderMask2.png)
