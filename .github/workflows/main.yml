@@ -1,4 +1,4 @@
-# Test 2024-04-28 at 07:52:50
+# Test 2024-04-28 at 18:32:34
 
 name: Test
 
@@ -27,8 +27,6 @@ jobs:
 
     - name: Files - before
       run: |
-        mkdir -p perl/
-        mkdir -p gds/
         tree -h
 
     - name: Test silicon chips
