@@ -49,9 +49,7 @@ public class Chip                                                               
   final Map<String, Integer>  sizeBits = new TreeMap<>();                       // Sizes of bit buses
   final Map<String, WordBus> sizeWords = new TreeMap<>();                       // Sizes of word buses
 
-  Chip(String Name)                                                             // Create a new L<chip>.
-   {name = Name;                                                                // Name of chip
-   }
+  Chip(String Name) {name = Name; }                                             // Create a new L<chip>.
 
   int nextPowerOfTwo(int n)                                                     // If this is a power of two return it, else return the next power of two greater than this number
    {int p = 1;
@@ -67,9 +65,7 @@ public class Chip                                                               
     return -1;
    }
 
-  static int powerTwo(int n)                                                    // Power of 2
-   {return 1 << n;
-   }
+  static int powerTwo(int n) {return 1 << n;}                                   // Power of 2
 
   static String[]stackToStringArray(Stack<String> s)                            // Stack of string to array of string
    {final String[]a = new String[s.size()];
@@ -77,13 +73,8 @@ public class Chip                                                               
     return a;
    }
 
-  int nextGateNumber()                                                          // Numbers for gates
-   {return ++gateSeq;                                                           // Sequence number of gate
-   }
-
-  String nextGateName()                                                         // Create a numeric generated gate name
-   {return ""+nextGateNumber();                                                 // Sequence number of gate
-   }
+  int nextGateNumber() {return ++gateSeq;}                                      // Numbers for gates
+  String nextGateName() {return ""+nextGateNumber();}                           // Create a numeric generated gate name
 
   boolean definedGate(String name)                                              // Check whether a gate has been defined yet
    {final Gate g = gates.get(name);
