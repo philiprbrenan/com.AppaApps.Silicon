@@ -1341,6 +1341,10 @@ public class Chip                                                               
         p.push("    say STDERR dump(\"Gate\", $x, $y, $X, $Y) if $debug;");
         p.push("    $g->printBoundary(-layer=>0, -xy=>[$x,$y, $X,$y, $X,$Y, $x,$Y]);");
         p.push("    $g->printText(-xy=>[($x+$X)/2, ($y+$Y)/2], -string=>\""+g.name+" "+g.op+"\");");
+        if (g.value != null && g.value)
+         {p.push("    $g->printBoundary(-layer=>10, -xy=>[$x,$y, $x,$y+1, $x+1,$y+1, $x,$y+1]);");
+          say("AAAA", g.value;
+         }
         p.push("   }");
        }
 
