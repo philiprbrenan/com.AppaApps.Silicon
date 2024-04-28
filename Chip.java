@@ -1448,11 +1448,11 @@ public class Chip                                                               
    }
 
   static void test_and()
-   {final Chip c   = new Chip("And");
-    final Gate i1  = c.Input ("i1");
-    final Gate i2  = c.Input ("i2");
+   {final Chip   c = new Chip("And");
+    final Gate  i1 = c.Input ("i1");
+    final Gate  i2 = c.Input ("i2");
     final Gate and = c.And   ("and", "i1", "i2");
-    final Gate o   = c.Output("o", "and");
+    final Gate   o = c.Output("o", "and");
     final Inputs inputs = c.new Inputs();
     inputs.set("i1", true);
     inputs.set("i2", false);
@@ -1465,11 +1465,11 @@ public class Chip                                                               
    }
 
   static void test_delayedDefinitions()
-   {final Chip c   = new Chip("And");
-    final Gate o   = c.Output("o", "and");
+   {final Chip   c = new Chip("And");
+    final Gate   o = c.Output("o", "and");
     final Gate and = c.And   ("and", "i1", "i2");
-    final Gate i1  = c.Input ("i1");
-    final Gate i2  = c.Input ("i2");
+    final Gate  i1 = c.Input ("i1");
+    final Gate  i2 = c.Input ("i2");
     final Inputs inputs = c.new Inputs();
     inputs.set("i1", true);
     inputs.set("i2", false);
@@ -1483,10 +1483,10 @@ public class Chip                                                               
 
   static void test_or()
    {final Chip c = new Chip("Or");
-    final Gate i1  = c.Input ("i1");
-    final Gate i2  = c.Input ("i2");
+    final Gate  i1 = c.Input ("i1");
+    final Gate  i2 = c.Input ("i2");
     final Gate and = c.Or    ("or", "i1", "i2");
-    final Gate o   = c.Output("o", "or");
+    final Gate   o = c.Output("o", "or");
     final Inputs inputs = c.new Inputs();
     inputs.set("i1", true);
     inputs.set("i2", false);
