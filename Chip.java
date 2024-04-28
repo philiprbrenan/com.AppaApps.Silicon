@@ -1461,7 +1461,7 @@ public class Chip                                                               
     ok( i2.value, false);
     ok(and.value, false);
     ok(  o.value, false);
-    ok(  c.steps ,     2);
+    ok(  c.steps ,    2);
    }
 
   static void test_delayedDefinitions()
