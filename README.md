@@ -15,15 +15,18 @@ the output pin.
 
 ```
   static void test_and()
-   {final Chip c   = new Chip("And");
-    final Gate i1  = c.Input ("i1");
-    final Gate i2  = c.Input ("i2");
+   {final Chip   c = new Chip("And");
+    final Gate  i1 = c.Input ("i1");
+    final Gate  i2 = c.Input ("i2");
     final Gate and = c.And   ("and", "i1", "i2");
-    final Gate o   = c.Output("o", "and");
+    final Gate   o = c.Output("o", "and");
+
     final Inputs inputs = c.new Inputs();
     inputs.set("i1", true);
     inputs.set("i2", false);
+
     c.simulate(inputs);
+
     ok( i1.value, true);
     ok( i2.value, false);
     ok(and.value, false);
