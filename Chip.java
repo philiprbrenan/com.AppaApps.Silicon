@@ -14,6 +14,7 @@ public class Chip                                                               
   final static int          debugMask =   0;                                    // Adds a grid and fiber names to a mask to help debug fibers if true.
   final static int      pixelsPerCell =   4;                                    // Pixels per cell
   final static int     layersPerLevel =   4;                                    // There are 4 layers in each level: insulation, x cross bars, x-y connectors and insulation, y cross bars
+  final static String      perlFolder = "perl", perlFile = "gds2.pl";           // Folder and file for Perl code to represent a layout in GDS2.
   final static Stack<String>  gdsPerl = new Stack<>();                          // Perl code to create GDS2 output files
   final TreeSet<String>   outputGates = new TreeSet<>();                        // Output gates
   final TreeMap<String, TreeSet<Gate.DrivePin>>                                 // Pending gate definitions
@@ -1392,11 +1393,10 @@ public class Chip                                                               
     final StringBuilder b = new StringBuilder();
     for(String s : p) b.append(s+"\n");
 
-    final String perlFolder = "perl";
-    if (!(new File(perlFolder).exists())) new File(perlFolder).mkdirs();
+    new File(perlFolder).mkdirs();                                              // Create folder
 
-    final String perlFile = new File(perlFolder, "gds2.pl").toString();
-    try (BufferedWriter w = new BufferedWriter(new FileWriter(perlFile)))
+    final String pf = new File(perlFolder, perlFile).toString();                // Write Perl to represent the layout in GDS2
+    try (BufferedWriter w = new BufferedWriter(new FileWriter(pf)))
      {w.write(b.toString());
      }
     catch(Exception e)
@@ -1404,7 +1404,7 @@ public class Chip                                                               
      }
 
     try                                                                         // Execute the file as a Perl script to create the GDS2 output - following code courtesey of Mike Limberger.
-     {final var pb = new ProcessBuilder("perl", perlFile);
+     {final var pb = new ProcessBuilder("perl", pf);
       pb.redirectErrorStream(false);                                            // STDERR will be captured and returned to the caller
       final var P = pb.start();
 
@@ -1416,7 +1416,7 @@ public class Chip                                                               
       if (rc != 0) say("Perl script exited with code: " + rc);
      }
     catch(Exception E)
-     {say("An error occurred while executing Perl script: "+perlFile+" error: "+ E.getMessage());
+     {say("An error occurred while executing Perl script: "+pf+" error: "+ E.getMessage());
       System.exit(1);
      }
    }
