@@ -18,7 +18,7 @@ public class Chip                                                               
   final static String      perlFolder = "perl", perlFile = "gds2.pl";           // Folder and file for Perl code to represent a layout in GDS2.
   final static Stack<String>  gdsPerl = new Stack<>();                          // Perl code to create GDS2 output files
   final TreeSet<String>   outputGates = new TreeSet<>();                        // Output gates
-  final TreeMap<String, TreeSet<Gate.DrivePin>>                                 // Pending gate definitions
+  final TreeMap<String, TreeSet<Gate.WhichPin>>                                 // Pending gate definitions
                               pending = new TreeMap<>();
   int                         gateSeq =   0;                                    // Gate sequence number - this allows us to display the gates in the order they were defined to simplify the understanding of drawn layouts
   int                           steps =   0;                                    // Simulation step time
@@ -104,7 +104,7 @@ public class Chip                                                               
      {b.append(""+P+" pending gates\n");
       b.append("Source__  Target__\n");
       for(String n : pending.keySet())
-        for(Gate.DrivePin d : pending.get(n))
+        for(Gate.WhichPin d : pending.get(n))
           b.append(String.format("%8s  %8s  %c\n",
             n, d.drives, d.pin == null ? ' ' : d.pin ? '1' : '2'));
      }
@@ -117,7 +117,7 @@ public class Chip                                                               
     final Operator           op;                                                // Operation performed by gate
     Gate  iGate1,  iGate2;                                                      // Gates driving the inputs of this gate as during simulation but not during layout
     Gate soGate1, soGate2, tiGate1, tiGate2;                                    // Pin assignments on source and target gates used during layout but not during simulation
-    TreeSet<DrivePin>    drives = new TreeSet<>();                              // The names of the gates that are driven by the output of this gate with a possible pin selection attached
+    TreeSet<WhichPin>    drives = new TreeSet<>();                              // The names of the gates that are driven by the output of this gate with a possible pin selection attached
     Integer    distanceToOutput;                                                // Distance to nearest output
     Boolean               value;                                                // Current output value of this gate
     boolean             changed;                                                // Changed on current simulation step
@@ -128,20 +128,20 @@ public class Chip                                                               
 
     String drives()                                                             // Convert drives to a printable string
      {final StringBuilder b = new StringBuilder();
-      for(DrivePin s : drives) b.append(s + ", ");
+      for(WhichPin s : drives) b.append(s + ", ");
       if (b.length() > 0) b.delete(b.length() - 2, b.length());
       return b.toString();
      }
 
-    class DrivePin implements Comparable<DrivePin>                              // Shows that this gate drives another gate either on a specific pin or on any pin if the gate is commutative
+    class WhichPin implements Comparable<WhichPin>                              // Shows that this gate drives another gate either on a specific pin or on any pin if the gate is commutative
      {final String drives;                                                      // Drives this named gate
       final Boolean   pin;                                                      // Null can drive any pin on target, true - must drive input pin 1, false - must drive input pin 2
 
-      DrivePin(String Drives, Boolean Pin) {drives = Drives; pin = Pin;}        // Construct a pin drive specification targeting a specified input pin
-      DrivePin(String Drives)              {this(Drives, null);}                // Construct a pin drive specification targeting any available input pin
+      WhichPin(String Drives, Boolean Pin) {drives = Drives; pin = Pin;}        // Construct a pin drive specification targeting a specified input pin
+      WhichPin(String Drives)              {this(Drives, null);}                // Construct a pin drive specification targeting any available input pin
       Gate gate() {return getGate(drives);}                                     // Details of gate being driven
 
-      public int compareTo(DrivePin a) {return drives.compareTo(a.drives);}     // So we can add and remove entries from the set of driving gates
+      public int compareTo(WhichPin a) {return drives.compareTo(a.drives);}     // So we can add and remove entries from the set of driving gates
 
       public String toString()                                                  // Convert drive to string
        {if (pin == null) return drives;
@@ -198,11 +198,11 @@ public class Chip                                                               
         impinge(Input1, true);
         impinge(Input2, false);
        }
-      final TreeSet<DrivePin> d = pending.get(name);                            // Add any pending gate references to this gate definition
+      final TreeSet<WhichPin> d = pending.get(name);                            // Add any pending gate references to this gate definition
       if (d != null)
        {pending.remove(name);
-        for(DrivePin p : d)
-         {drives.add(new DrivePin(p.drives, p.pin));
+        for(WhichPin p : d)
+         {drives.add(new WhichPin(p.drives, p.pin));
          }
        }
      }
@@ -210,24 +210,24 @@ public class Chip                                                               
     void impinge(String Input)                                                  // Go to the named gate (which must therefore already exist) and show that it drives this gate on any input pin
      {if (definedGate(Input))
        {final Gate s = getGate(Input);
-        s.drives.add(new DrivePin(name));                                       // Show that the source gate drives this gate
+        s.drives.add(new WhichPin(name));                                       // Show that the source gate drives this gate
        }
       else                                                                      // The source gates have nbot been defined yet so add the impinging definitions to pending
-       {TreeSet<DrivePin>  d = pending.get(Input);
+       {TreeSet<WhichPin>  d = pending.get(Input);
         if (d == null)    {d = new TreeSet<>(); pending.put(Input, d);}
-        d.add(new DrivePin(name));
+        d.add(new WhichPin(name));
        }
      }
 
     void impinge(String Input, Boolean pin)                                     // Go to the named gate (which must therefore already exist) and show that it drives this gate on the specified input pin
      {if (definedGate(Input))
        {final Gate s = getGate(Input);
-        s.drives.add(new DrivePin(name, pin));                                  // Show that the source gate drives this gate
+        s.drives.add(new WhichPin(name, pin));                                  // Show that the source gate drives this gate
        }
       else                                                                      // The source gates have nbot been defined yet so add the impinging definitions to pending
-       {TreeSet<DrivePin>  d = pending.get(Input);
+       {TreeSet<WhichPin>  d = pending.get(Input);
         if (d == null)    {d = new TreeSet<>(); pending.put(Input, d);}
-        d.add(new DrivePin(name, pin));
+        d.add(new WhichPin(name, pin));
        }
      }
 
@@ -262,7 +262,7 @@ public class Chip                                                               
       if (N > 2) stop("Gate", name, "drives", N,                                // At this point each gate should have no more than two inputs
         "gates, but a gate can drive no more than 2 other gates");
 
-      for (DrivePin t : drives)                                                 // Connect targeted gates back to this gate
+      for (WhichPin t : drives)                                                 // Connect targeted gates back to this gate
        {final Gate T = t.gate();
         if      (T.iGate1 == this || T.iGate2 == this) {}                       // Already set
         else if (T.iGate1 == null && t.ok1()) T.iGate1 = this;                  // Use input pin 1
@@ -321,35 +321,35 @@ public class Chip                                                               
       if (op == Operator.Output) return;                                        // Output gates do not fan out
       if (N <= 2) return;                                                       // No fan out required
 
-      final DrivePin[]D = drives.toArray(new DrivePin[drives.size()]);
+      final WhichPin[]D = drives.toArray(new WhichPin[drives.size()]);
 
       if (N % 2 == 1)                                                           // Odd number of gates driven
        {final Gate g = new Gate(Operator.FanOut);                               // The new fan out
         for(int i = 0; i < N-1; ++i)
-         {final DrivePin d = D[i];
+         {final WhichPin d = D[i];
           g.drives.add (d);                                                     // Put the target to the newly created gate
           drives.remove(d);                                                     // Remove the target from the original gate
          }
-        drives.add(new DrivePin(g.name));                                       // The old gate drives the new gate
+        drives.add(new WhichPin(g.name));                                       // The old gate drives the new gate
         g.fanOut();                                                             // The even gate might need further fan put
         return;
        }
 
       final Gate g = new Gate(Operator.FanOut), f = new Gate(Operator.FanOut);  // Even and greater than 2
       for(int i = 0; i < N/2; ++i)                                              // Lower half
-       {final DrivePin d = D[i];
+       {final WhichPin d = D[i];
         g.drives.add(d);
         drives.remove(d);
        }
-      drives.add(new DrivePin(g.name));                                         // The old gate drives the new gate
+      drives.add(new WhichPin(g.name));                                         // The old gate drives the new gate
       g.fanOut();                                                               // The lower half gate might need further fan out
 
       for(int i = N/2; i < N; ++i)                                              // Upper half
-       {final DrivePin d = D[i];
+       {final WhichPin d = D[i];
         f.drives.add(d);
         drives.remove(d);
        }
-      drives.add(new DrivePin(f.name));                                         // The old gate drives the new gate
+      drives.add(new WhichPin(f.name));                                         // The old gate drives the new gate
       f.fanOut();                                                               // The upper half gate might need further fan out
      }
    } // Gate
@@ -859,15 +859,15 @@ public class Chip                                                               
      {source = Source;
       target = Target;
       if (source.drives.size() == 1)                                            // One drive specification on source
-       {final Gate.DrivePin p = source.drives.first();
+       {final Gate.WhichPin p = source.drives.first();
         if (p.pin != null)
          {if (p.pin) target.tiGate1 = source; else target.tiGate2 = source;     // Layout as much of the connection as we can at this point
          }
        }
       else if (source.drives.size() == 2)                                       // Two drive specifications on source
-       {final Gate.DrivePin f = source.drives.first();
-        final Gate.DrivePin l = source.drives. last();
-        final Gate.DrivePin p = f.drives.equals(target.name) ? f : l;           // The drive between the two gates
+       {final Gate.WhichPin f = source.drives.first();
+        final Gate.WhichPin l = source.drives. last();
+        final Gate.WhichPin p = f.drives.equals(target.name) ? f : l;           // The drive between the two gates
         if (p.pin != null)
          {if (p.pin) target.tiGate1 = source; else target.tiGate2 = source;     // Layout as much of the connection as we can at this point
          }
@@ -910,7 +910,7 @@ public class Chip                                                               
     for (Gate g : gates.values()) g.soGate1 = g.soGate2 = g.tiGate1 = g.tiGate2 = null;
 
     for (Gate s : gates.values())                                               // Gates
-      for (Gate.DrivePin p : s.drives)                                          // Gates driven by this gate
+      for (Gate.WhichPin p : s.drives)                                          // Gates driven by this gate
         connections.push(new Connection(s, p.gate()));                          // Connection needed
 
     for (Connection c : connections)                                            // Each possible connection
