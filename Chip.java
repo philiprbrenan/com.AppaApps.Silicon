@@ -14,6 +14,7 @@ public class Chip                                                               
   final static int          debugMask =   0;                                    // Adds a grid and fiber names to a mask to help debug fibers if true.
   final static int      pixelsPerCell =   4;                                    // Pixels per cell
   final static int     layersPerLevel =   4;                                    // There are 4 layers in each level: insulation, x cross bars, x-y connectors and insulation, y cross bars
+  final        int      layoutLTGates = 100;                                    // Always draw the layout if if it has less than this many gates in it
   final static boolean github_actions = "true".equals(System.getenv("GITHUB_ACTIONS")); // Whether we are on a github
   final static String      perlFolder = "perl", perlFile = "gds2.pl";           // Folder and file for Perl code to represent a layout in GDS2.
   final static Stack<String>  gdsPerl = new Stack<>();                          // Perl code to create GDS2 output files
@@ -96,7 +97,7 @@ public class Chip                                                               
     b.append("  mostCountedDistance: "            + mostCountedDistance);
     b.append("  countAtMostCountedDistance: "     + countAtMostCountedDistance);
     b.append("\n");
-    b.append("Seq   Name      Operator  #  11111111-P=#  22222222-P=#  C Frst Last  Dist   Nearest  Px__,Py__  Drives these gates\n");
+    b.append("Seq   Name____________________________  Operator  #  11111111111111111111111111111111-P=#  22222222222222222222222222222222-P=#  C Frst Last  Dist   Nearest  Px__,Py__  Drives these gates\n");
     for(Gate g : gates.values()) b.append(g);
 
     final int P = pending.size();                                               // Write pending gates
@@ -156,13 +157,13 @@ public class Chip                                                               
      {final char v = value == null ? '.' : value ? '1' : '0';
 
       if (op == Operator.Input)
-        return String.format("%4d  %8s  %8s  %c"+" ".repeat(59)+"%4d,%4d  ",
+        return String.format("%4d  %32s  %8s  %c"+" ".repeat(59)+"%4d,%4d  ",
           seq, name, op, v, px, py) + drives() + "\n";
 
       final Boolean pin1 = iGate1 != null ? whichPinDrivesPin1() : null;
       final Boolean pin2 = iGate2 != null ? whichPinDrivesPin2() : null;
 
-      return   String.format("%4d  %8s  %8s  %c  %8s-%c=%c  %8s-%c=%c  %c %4d %4d  %4d  %8s  %4d,%4d  ",
+      return   String.format("%4d  %32s  %8s  %c  %32s-%c=%c  %32s-%c=%c  %c %4d %4d  %4d  %32s  %4d,%4d  ",
         seq, name, op, v,
         iGate1 == null ? ""  : iGate1.name,
         pin1   == null ? '.' : pin1  ? '1' : '2',
@@ -484,22 +485,26 @@ public class Chip                                                               
     Boolean get(String s) {return inputs.get(s);}                               // Get the value of an input
    }
 
+
+  Diagram drawLayout(Diagram d)                                                 // Draw unless we have already drawn it
+   {if (!layoutsDrawn.contains(name))                                           // Only draw each named chip once
+     {layoutsDrawn.add(name);                                                   // Show that we have drawn this chip already
+      d.gds2();                                                                 // Draw the layout diagram as GDS2
+     }
+    return d;
+   }
+
+
   Diagram singleLevelLayout()                                                   // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
    {Diagram D = null;
     Integer L = null;
-    for    (int s = 2; s < 10; ++s)                                             // Various gate scaling factors
-     {for  (int y = 1; y < s;  ++y)                                             // Various gate scaling factors
-       {for(int x = 1; x < s;  ++x)
-         {if (x + y == s)                                                       // Order by overall scaling favoring x
-           {final Diagram d = layout(x, y);
-            final int l = d.levels();
-            if (l == 1) return d;
-            if (L == null || L > l) {L = l; D = d;}                             // Track smallest number of wiring levels
-           }
-         }
-       }
+    for    (int s = 1; s < 10; ++s)                                             // Various gate scaling factors
+     {final Diagram d = layout(s, s);
+      final int l = d.levels();
+      if (l == 1) return drawLayout(d);                                         // Draw the layout diagram as GDS2
+      if (L == null || L > l) {L = l; D = d;}                                   // Track smallest number of wiring levels
      }
-    return D;
+    return drawLayout(D);
    }
 
   Diagram simulate() {return simulate(null);}                                   // Simulate the operation of a chip with no input pins. If the chip has in fact got input pins an error will be reported.
@@ -510,11 +515,8 @@ public class Chip                                                               
     for(steps = 1; steps < maxSimulationSteps; ++steps)                         // Steps in time
      {for(Gate g : gates.values()) g.step();
       if (!changes())                                                           // No changes occurred
-       {final Diagram d = singleLevelLayout();
-        if (d.levels() > 1) say(String.format("%8s  %4d %4d  %2d",              // Print layouts that run into multiple levels
-          name, d.gsx, d.gsy, d.levels()));
-        return d;
-       }
+        return gates.size() < layoutLTGates ? singleLevelLayout() : null;       // Draw the layout if less than the specified number of gates
+
       noChangeGates();                                                          // Reset change indicators
      }
 
@@ -522,7 +524,9 @@ public class Chip                                                               
     return null;
    }
 
-//D1 Buses                                                                      // A bus is an array of bits or an array of arrays of bits
+//D1 Circuits                                                                   // Some useful circuits
+
+//D2 Buses                                                                      // A bus is an array of bits or an array of arrays of bits
 
   static String n(int i, String...C)                                            // Gate name from single index.
    {return String.join("_", C)+"_"+i;
@@ -532,7 +536,7 @@ public class Chip                                                               
    {return String.join("_", c)+"_"+i+"_"+j;
    }
 
-//D2 Bits                                                                       // An array of bits that can be manipulated via one name.
+//D3 Bits                                                                       // An array of bits that can be manipulated via one name.
 
   int sizeBits(String name)                                                     // Get the size of a bits bus.
    {final Integer s = sizeBits.get(name);
@@ -582,28 +586,28 @@ public class Chip                                                               
   void andBits(String name, String input)                                       // B<And> and all the bits in a bus
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
-    for (int i = 0; i < bits; ++i) b[i] = n(i, input);                          // Names of bits
+    for (int i = 1; i <= bits; ++i) b[i-1] = n(i, input);                       // Names of bits
     And(name, b);                                                               // And all the bits in the bus
    }
 
   void nandBits(String name, String input)                                      // B<Nand> all the bits in a bus
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
-    for (int i = 0; i < bits; ++i) b[i] = n(i, input);                          // Names of bits
+    for (int i = 1; i <= bits; ++i) b[i-1] = n(i, input);                       // Names of bits
     Nand(name, b);                                                              // Nand all the bits in the bus
    }
 
   void orBits(String name, String input)                                        // B<Or> an input bus of bits.
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
-    for (int i = 0; i < bits; ++i) b[i] = n(i, input);                          // Names of bits
+    for (int i = 1; i <= bits; ++i) b[i-1] = n(i, input);                       // Names of bits
     Or(name, b);                                                                // Or all the bits in the bus
    }
 
   void norBits(String name, String input)                                       // B<Nor> an input bus of bits.
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
-    for (int i = 0; i < bits; ++i) b[i] = n(i, input);                          // Names of bits
+    for (int i = 1; i <= bits; ++i) b[i-1] = n(i, input);                       // Names of bits
     Nor(name, b);                                                               // Or all the bits in the bus
    }
 
@@ -620,7 +624,13 @@ public class Chip                                                               
     return v;
    }
 
-//D2 Words                                                                      // An array of arrays of bits that can be manipulated via one name.
+  Boolean getBit(String name)                                                   // Get the current value of the named gate.
+   {final Gate g = getGate(name);                                                  // Gate providing bit
+    if (g == null) stop("No such gate named:", name);
+    return g.value;                                                             // Bit state
+   }
+
+//D3 Words                                                                      // An array of arrays of bits that can be manipulated via one name.
 
   WordBus sizeWords(String name)                                                // Size of a words bus.
    {final WordBus s = sizeWords.get(name);
@@ -725,7 +735,7 @@ public class Chip                                                               
     setSizeBits(name, wb.bits);                                                 // Record bus size
    }
 
-//D1 Comparisons                                                                // Compare unsigned binary integers of specified bit widths.
+//D2 Comparisons                                                                // Compare unsigned binary integers of specified bit widths.
 
   void compareEq(String output, String a, String b)                             // Compare two unsigned binary integers of a specified width returning B<1> if they are equal else B<0>.  Each integer is supplied as a bus.
    {final int A = sizeBits(a);                                                  // Width of first bus
@@ -733,7 +743,7 @@ public class Chip                                                               
     if (A != B) stop("Input",  a, "has width", A, "but input", b, "has width", B); // Check buses match in size
     final String eq = nextGateName();                                           // Set of gates to test equality of corresponding bits
     final String[]n = new String[B];                                            // Equal bit names
-    for (int i = 0; i <  B; i++) n[i] = n(i, eq);                               // Load array with equal bit names
+    for (int i = 1; i <= B; i++) n[i-1] = n(i, eq);                             // Load array with equal bit names
     for (int i = 1; i <= B; i++) Nxor(n[i-1], n(i, a), n(i, b));                // Test each bit pair for equality
     And(output, n);                                                             // All bits must be equal
    }
@@ -798,7 +808,7 @@ public class Chip                                                               
     setSizeBits(output, A);                                                     // Record bus size
    }
 
-//D1 Masks                                                                      // Point masks and monotone masks. A point mask has a single B<1> in a sea of B<0>s as in B<00100>.  A monotone mask has zero or more B<0>s followed by all B<1>s as in: B<00111>.
+//D2 Masks                                                                      // Point masks and monotone masks. A point mask has a single B<1> in a sea of B<0>s as in B<00100>.  A monotone mask has zero or more B<0>s followed by all B<1>s as in: B<00111>.
 
   void monotoneMaskToPointMask(String output, String input)                     // Convert a monotone mask B<i> to a point mask B<o> representing the location in the mask of the first bit set to B<1>. If the monotone mask is all B<0>s then point mask is too.
    {final int B = sizeBits(input);                                              // Number of bits in input monotone mask
@@ -827,6 +837,177 @@ public class Chip                                                               
      }
     setSizeBits(output, wb.bits);
    }
+
+//D2 B-tree                                                                     // Circuits useful in the construction and traversal of B-trees.
+
+  void BtreeNodeCompare                                                         // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
+   (int     Id,                                                                 // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
+    String  output,                                                             // Output name showing results of comarison
+    String  enable,                                                             // B bit wide bus naming the currently enabled node by its id.
+    String  find,                                                               // B bit wide bus naming the key to be found
+    String  keys,                                                               // Keys in this node, an array of N B bit wide words.
+    String  data,                                                               // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
+    String  next,                                                               // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
+    String  top,                                                                // The top next link making N+1 next links in all.
+    int     N,                                                                  // Number of keys == number of data words each B bits wide in the node.
+    int     B,                                                                  // Width of each word in the node.
+    boolean leaf                                                                // Width of each word in the node.
+   )
+   {if (N <= 2) stop("The number of keys the node can hold must be greater than 2, not", N);
+    if (N %2 == 0) stop("The number of keys the node can hold must be odd, not even:",   N);
+
+    final String  id = output+"_id";                                            // i Id for this node
+    final String dfo = output+"_dataFound";                                     // O The data corresponding to the key found or zero if not found
+    final String  df = output+"_dataFound1";
+    final String df2 = output+"_dataFound2";
+    final String  en = output+"_enabled";                                       // i Enable code
+    final String  fo = output+"_found";                                         // O Whether a matching key was found
+    final String   f = output+"_found1";
+    final String  f2 = output+"_found2";
+    final String  me = output+"_maskEqual";                                     // i Point mask showing key equal to search key
+    final String  mm = output+"_maskMore";                                      // i Monotone mask showing keys more than the search key
+    final String  mf = output+"_moreFound";                                     // i The next link for the first key greater than the search key is such a key is present int the node
+    final String  nm = output+"_noMore";                                        // i No key in the node is greater than the search key
+    final String nfo = output+"_nextLink";                                      // O The next link for the found key if any
+    final String  nf = output+"_nextLink1";
+    final String nf2 = output+"_nextLink2";
+    final String  pm = output+"_pointMore";                                     // i Point mask showing the first key in the node greater than the search key
+
+    bits(id, B, Id);                                                            // Save id of node
+    compareEq(en, id, enable);                                                  // Check whether this node is enabled
+
+    for (int i = 1; i <= N; i++)
+     {compareEq(n(i, me), n(i, keys), find);                                    // Compare equal point mask
+      if (!leaf) compareGt(n(i, mm), n(i, keys), find);                         // Compare more  monotone mask
+     }
+    setSizeBits(me, N);
+    if (!leaf) setSizeBits(mm, N);                                              // Interior nodes have next links
+
+    chooseWordUnderMask      (df2, data,  me);                                  // Choose data under equals mask
+    orBits                   (f2,         me);                                  // Show whether key was found
+
+    if (!leaf)
+     {norBits                (nm,  mm);                                         // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
+      monotoneMaskToPointMask(pm,  mm);                                         // Convert monotone more mask to point mask
+      chooseWordUnderMask    (mf,  next,  pm);                                  // Choose next link using point mask from the more monotone mask created
+      chooseFromTwoWords     (nf2, mf,    top, nm);                             // Show whether key was found
+     }
+
+    enableWord               (df,  df2,   en);                                  // Enable data found
+    outputBits               (dfo, df);                                         // Enable data found output
+
+    And                      (f,   f2,    en);                                  // Enable found flag
+    Output                   (fo,  f);                                          // Enable found flag output
+
+    if (!leaf)
+     {enableWord             (nf,  nf2,   en);                                  // Enable next link
+      outputBits             (nfo, nf);                                         // Enable next link output
+     }
+   }
+/*
+my BtreeNodeIds = 0;                                                            // Create unique ids for nodes
+
+  void newBtreeNode(%)                                                          // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
+ {my (chip, output, find, K, B, ) = @_;                                         //  Chip, name prefix for node, key to find, maximum number of keys in a node, size of key in bits, options
+
+  @_ >= 5 or confess "Five or more parameters";
+  my   void leaf(){options{leaf}}                                               //  True if the node is a leaf node
+
+  my c = chip;
+  my @b = qw(enable);    push @b, q(top)  unless leaf;                          //  Leaf nodes do not need the top word which holds the last link
+  my @w = qw(keys data); push @w, q(next) unless leaf;                          //  Leaf nodes do not need next links
+  my @B = qw(found);
+  my @W = qw(dataFound nextLink);
+
+  my id = ++BtreeNodeIds;                                                     //  Node number used to identify the node
+  my   void n()
+   {my (name) = @_;                                                            //  Options
+    "output.id.name"
+   }
+
+  c.inputBits (n(_),     B) for @b;                                         //  Input bits
+  c.inputWords(n(_), K, B) for @w;                                         //  Input words
+
+  newBtreeNodeCompare(c, id,                                                  //  B-Tree node
+    "output.id", n("enable"), find, n("keys"),
+     n("data"), n("next"), n("top"), K, B, );
+
+  genHash(__PACKAGE__."::Node",                                                 //  Node in B-Tree
+   (map {(_=>n(_))} @b, @w, @B, @W),
+    find => find,
+    chip => chip,
+    id   => id,
+   );
+ }
+
+my BtreeIds = 0;                                                               //  Create unique ids for trees
+
+  void newBtree(%)                                                           //  Create a new B-Tree of a specified name
+ {my (chip, output, find, keys, levels, bits, ) = @_;             //  Chip, name, key to find, maximum number of keys in a node, maximum number of levels in the tree, number of bits in a key, options
+  @_ >= 5 or confess "Five or more parameters";
+  BtreeIds++;                                                                  //  Each tree gets a unique name prefixed by a known label
+  BtreeNodeIds = 0;                                                            //  Reset node ids for this tree
+
+  my   void c {chip}
+  my   void o {output.".".BtreeIds}
+  my   void B {bits}
+  my   void K {keys}
+  my   void aa() {o."."._[0]}                                                    //  Create an internal gate name for this node
+  my   void f {aa "foundLevel"}                                                    //  Find status for a level
+  my   void fo{aa "foundOr"}                                                       //  Or of finds together
+  my   void ff{aa "foundOut"}                                                      //  Whether the key was found by any node
+  my   void D {aa "dataFoundLevel"}                                                //  Data found at this level for matching key if any
+  my   void Do{aa "dataFoundOr"}                                                   //  Or of all data found words
+  my   void DD{aa "dataFoundOut"}                                                  //  Data found for key
+  my   void L {aa "nextLink"}
+  my   void levels {levels}
+
+  my %n;                                                                        //  Nodes in tree
+  for my l(1..levels)                                                          //  Create each level of the tree
+   {my   void N {(keys+1)**(l-1)}                                                //  Number of nodes at this level
+    my   void leaf {l == levels}                                                  //  Final level is made of leaf nodes
+    my @l = leaf ? (leaf=>1) : ();                                              //  Final level is made of leaf nodes
+    my @n = undef;                                                              //  Start the array at 1
+
+    for my n(1..N)                                                             //  Create the requisite number of nodes for this layer each connected to the key to find
+     {push @n, n{l}{n} = newBtreeNode(c, o, find, K, B, @l);
+     }
+
+    c.or(n(f, l), [map{n[_].found} 1..N]);                                 //  Found for this level by or of found for each node
+
+    for my b(1..B)                                                             //  Bits in dataFound and nextLink for this level
+     {my D = [map {n(n[_].dataFound, b)} 1..N];
+      my L = [map {n(n[_].nextLink,  b)} 1..N];
+      c.or(nn(D, l, b), D);                                                 //  Data found
+      c.or(nn(L, l, b), L) unless leaf;                                     //  Next link
+     }
+    c.setSizeBits(n(L, l), B) unless leaf;                                    //  Size of bit bus for next link
+
+    if (l > 1)                                                                 //    voidsequent layers are enabled by previous layers
+     {my nl = n(L, l-1);                                                      //  Next link from previous layer
+      for my n(1..N)                                                           //  Each node at this level
+       {c.connectInputBits(n{l}{n}.enable, nl);                           //  Enable from previous layer
+       }
+     }
+   }
+
+  c.setSizeWords(D, levels, B);                                                 //  Data found in each level
+  c.orWordsX    (Do, D);                                                        //  Data found over all layers
+  c.outputBits  (DD, Do);                                                       //  Data found output
+
+  c.setSizeBits (f, levels);                                                    //  Found status on each layer
+
+  c.orBits      (fo, f);                                                        //  Or of found status over all layers
+  c.output      (ff, fo);                                                       //  Found status output
+
+  genHash(__PACKAGE__,                                                          //  Node in B-Tree
+    chip  => chip,                                                              //  Chip containing tree
+    found => ff,                                                                //  B<1> if a match was found for the input key otherwise B<0>
+    data  => DD,                                                                //  Data associated with matched key is any otherwise zeroes
+    nodes => \%n,                                                               //  Nodes in tree
+   )
+ }
+*/
 
 //D1 Layout                                                                     // Layout the gates and connect them with wires
 
@@ -942,11 +1123,6 @@ public class Chip                                                               
      {final Gate s = c.source, t = c.target;
       diagram.new Wire(s.px,     s.py + (s.soGate1 == t ? 0 : gsy),
                        t.px+gsx, t.py + (t.tiGate1 == s ? 0 : gsy));
-     }
-
-    if (!layoutsDrawn.contains(name))                                           // Only draw each named chip once
-     {layoutsDrawn.add(name);                                                   // Show that we have drawn this chip already
-      diagram.gds2();                                                           // Draw the layout diagram as GDS2
      }
 
     return diagram;                                                             // Resulting diagram
@@ -1766,6 +1942,31 @@ public class Chip                                                               
         test_chooseWordUnderMask(B, i);
    }
 
+  static void test_BtreeNodeCompare()
+   {final int[]keys = {2, 4, 6};
+    final int[]data = {1, 3, 5};
+    final int[]next = {1, 3, 5};
+    final int  top  = 6;
+    final int  find = 4;
+    final int  B    = 3;
+    final int  N    = 3;
+    final int  id   = 7;
+    final var c = new Chip("BtreeNodeCompare "+B);
+    c.bits ("enable", B, id);
+    c.bits ("find",   B, find);
+    c.bits ("top",    B, top);
+    c.words("keys",   B, keys);
+    c.words("data",   B, data);
+    c.words("next",   B, next);
+
+    c.BtreeNodeCompare(id, "out", "enable", "find", "keys", "data", "next", "top", N, B, false);
+    c.simulate();
+    ok(c.steps,                   11);
+    ok(c.getBit("out_found"),     true);
+    ok(c.bInt  ("out_dataFound"),  3);
+    ok(c.bInt  ("out_nextLink"),   5);
+   }
+
   static int testsPassed = 0;                                                   // Number of tests passed
 
   static void ok(Object a, Object b)                                            // Check test results match expected results.
@@ -1793,6 +1994,8 @@ public class Chip                                                               
     test_enableWord();
     test_monotoneMaskToPointMask();
     test_chooseWordUnderMask();
+
+    test_BtreeNodeCompare();
 
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     say("Passed ALL", testsPassed, "tests");
