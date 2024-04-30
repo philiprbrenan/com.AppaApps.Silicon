@@ -3,7 +3,7 @@
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 package com.AppaApps.Silicon;
-
+// Btree - Nor fanout
 import java.io.*;
 import java.util.*;
 
@@ -109,17 +109,26 @@ public class Chip                                                               
      }
 
     if (sizeBits.size() > 0)                                                    // Size of bit buses
-     {b.append("Bit buses of size: "+sizeBits.size()+"\n");
-      b.append("Bits  Bus_____\n");
-      for(String n : sizeBits.keySet()) b.append(String.format("%4d  %8s\n", sizeBits.get(n), n));
+     {b.append(""+sizeBits.size()+" Bit buses\n");
+      b.append("Bits  Bus_____________________________  Value\n");
+      for(String n : sizeBits.keySet())
+       {final Integer v = bInt(n);
+        b.append(String.format("%4d  %32s", sizeBits.get(n), n));
+        if (v != null) b.append(String.format("  %d\n", v));
+                       b.append(System.lineSeparator());
+       }
      }
 
     if (sizeWords.size() > 0)                                                   // Size of word buses
-     {b.append("Word buses of size: "+sizeWords.size()+"\n");
-      b.append("Words Bits  Bus_____\n");
+     {b.append(""+sizeWords.size()+" Word buses\n");
+      b.append("Words Bits  Bus_____________________________\n");
       for(String n : sizeWords.keySet())
        {final WordBus w = sizeWords.get(n);
-        b.append(String.format("%4d  %4d  %8s\n", w.words, w.bits, n));
+        b.append(String.format("%4d  %4d  %32s  ", w.words, w.bits, n));
+        final Integer[]v = wInt(n);
+        for(int i = 0; i < v.length; ++i) b.append(""+v[i]+", ");
+        b.delete(b.length() - 2, b.length());
+        b.append("\n");
        }
      }
     return b.toString();                                                        // String describing chip
@@ -374,13 +383,20 @@ public class Chip                                                               
     if (L == 1) return new Gate(Op, Name, Input[0], null);                      // Input gate have no driving gates
     if (L == 2) return new Gate(Op, Name, Input[0], Input[1]);                  // Input gate have no driving gates
 
+    final Operator Ao;                                                        // Only the last level of Not operators requires a not
+    switch(Op)
+     {case Nand: Ao = Operator.And; break;
+      case Nor : Ao = Operator.Or; break;
+      default:   Ao = Op;
+     }
+
     if (L % 2 == 1)                                                             // Odd fan in
-     {final Gate f = FanIn(Op, nextGateName(), Arrays.copyOfRange(Input,0,L-1));// Divisible by two
+     {final Gate f = FanIn(Ao, nextGateName(), Arrays.copyOfRange(Input,0,L-1));// Divisible by two
       return new Gate(Op, Name, f.name, Input[L-1]);                            // Consolidation of the two gates
      }
 
-    final Gate f = FanIn(Op, nextGateName(), Arrays.copyOfRange(Input, 0, L/2));// Even fan out
-    final Gate g = FanIn(Op, nextGateName(), Arrays.copyOfRange(Input, L/2, L));
+    final Gate f = FanIn(Ao, nextGateName(), Arrays.copyOfRange(Input, 0, L/2));// Even fan out
+    final Gate g = FanIn(Ao, nextGateName(), Arrays.copyOfRange(Input, L/2, L));
     return new Gate(Op, Name, f.name, g.name);                                  // Consolidation of the two gates
    }
 
@@ -596,11 +612,11 @@ public class Chip                                                               
     for (int b = 1; b <= bits; ++b) Not(n(b, name), n(b, input));               // Bus of not gates
    }
 
-  void andBits(String name, String input)                                       // B<And> all the bits in a bus to get one bit
+  Gate andBits(String name, String input)                                       // B<And> all the bits in a bus to get one bit
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
     for (int i = 1; i <= bits; ++i) b[i-1] = n(i, input);                       // Names of bits
-    And(name, b);                                                               // And all the bits in the bus
+    return And(name, b);                                                               // And all the bits in the bus
    }
 
   void and2Bits(String out, String input1, String input2)                       // B<And> two same sized bit buses together to make another bit bus of the same size
@@ -611,25 +627,25 @@ public class Chip                                                               
     sizeBits.put(out, b1);
    }
 
-  void nandBits(String name, String input)                                      // B<Nand> all the bits in a bus to get one bit
+  Gate nandBits(String name, String input)                                      // B<Nand> all the bits in a bus to get one bit
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
     for (int i = 1; i <= bits; ++i) b[i-1] = n(i, input);                       // Names of bits
-    Nand(name, b);                                                              // Nand all the bits in the bus
+    return Nand(name, b);                                                              // Nand all the bits in the bus
    }
 
-  void orBits(String name, String input)                                        // B<Or> all the bits in a bus to get one bit
+  Gate orBits(String name, String input)                                        // B<Or> all the bits in a bus to get one bit
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
     for (int i = 1; i <= bits; ++i) b[i-1] = n(i, input);                       // Names of bits
-    Or(name, b);                                                                // Or all the bits in the bus
+    return Or(name, b);                                                                // Or all the bits in the bus
    }
 
-  void norBits(String name, String input)                                       // B<Nor> all the bits in a bus to get one bit
+  Gate norBits(String name, String input)                                       // B<Nor> all the bits in a bus to get one bit
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
     for (int i = 1; i <= bits; ++i) b[i-1] = n(i, input);                       // Names of bits
-    Nor(name, b);                                                               // Or all the bits in the bus
+    return Nor(name, b);                                                        // Or all the bits in the bus
    }
 
   Integer bInt(String output)                                                   // Convert the bits represented by an output bus to an integer
@@ -754,6 +770,24 @@ public class Chip                                                               
       Or(n(b, name), words.toArray(new String[words.size()]));                  // Combine inputs using B<or> gates
      }
     setSizeBits(name, wb.bits);                                                 // Record bus size
+   }
+
+  Integer[]wInt(String name)                                                    // Convert the words on a word bus into integers
+   {final WordBus W = sizeWords(name);                                          // Size of bus
+    final Integer[]r = new Integer[W.words];                                    // Words on bus
+    loop: for (int j = 1; j <= W.words; j++)                                    // Each word on bus
+     {r[j-1] = null;                                                            // Value not known
+      int v = 0, p = 1;
+      for (int i = 1; i <= W.bits; i++)                                         // Each bit on bus
+       {final String n = nn(j, i, name);                                        // Name of gate supporting named bit
+        final Gate g = getGate(n);                                              // Gate providing bit
+        if (g.value == null) continue loop;                                     // Bit state not known
+        if (g.value) v += p;
+        p *= 2;
+       }
+      r[j-1] = v;                                                               // Save value of this word
+     }
+    return r;
    }
 
 //D2 Comparisons                                                                // Compare unsigned binary integers of specified bit widths.
@@ -885,14 +919,19 @@ public class Chip                                                               
     final String  fo = output+"_found";                                         // O Whether a matching key was found
     final String   f = output+"_found1";
     final String  f2 = output+"_found2";
-    final String  me = output+"_maskEqual";                                     // i Point mask showing key equal to search key
-    final String  mm = output+"_maskMore";                                      // i Monotone mask showing keys more than the search key
-    final String  mf = output+"_moreFound";                                     // i The next link for the first key greater than the search key is such a key is present int the node
-    final String nfo = output+"_nextLink";                                      // O The next link for the found key if any
-    final String nf1 = output+"_nextLink1";
-    final String nf2 = output+"_nextLink2";
-    final String  nm = output+"_noMore";                                        // i No key in the node is greater than the search key
-    final String  pm = output+"_pointMore";                                     // i Point mask showing the first key in the node greater than the search key
+    final String  me = output+"_maskEqual";                                     // Point mask showing key equal to search key
+    final String  mm = output+"_maskMore";                                      // Monotone mask showing keys more than the search key
+    final String  mf = output+"_moreFound";                                     // The next link for the first key greater than the search key is such a key is present int the node
+    final String  nf = output+"_notFound";                                      // True if we did not find the key
+    final String nlo = output+"_nextLink";                                      // O The next link for the found key if any
+    final String nl1 = output+"_nextLink1";                                     // Choose the next link or the top link
+    final String nl2 = output+"_nextLink2";                                     // Next link
+    final String nl3 = output+"_nextLink3";
+    final String nl4 = output+"_nextLink4";
+    final String  nm = output+"_noMore";                                        // No key in the node is greater than the search key
+    final String  pm = output+"_pointMore";                                     // Point mask showing the first key in the node greater than the search key
+    final String pmt = output+"_pointMoreTop";                                  // A single bit that tells us whether the top link is the next link
+    final String pmtNf  = output+"_pointMoreTop_notFound";                      // Top is the next link, but only if the key was not found
 
     bits(id, B, Id);                                                            // Save id of node
     compareEq(en, id, enable);                                                  // Check whether this node is enabled
@@ -911,7 +950,8 @@ public class Chip                                                               
      {norBits                (nm,  mm);                                         // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
       monotoneMaskToPointMask(pm,  mm);                                         // Convert monotone more mask to point mask
       chooseWordUnderMask    (mf,  next,  pm);                                  // Choose next link using point mask from the more monotone mask created
-      chooseFromTwoWords     (nf2, mf,    top, nm);                             // Show whether key was found
+      chooseFromTwoWords     (nl4, mf,    top, nm);                             // Show whether key was found
+      norBits                (pmt, pm);                                         // The top link is the next link
      }
 
     enableWord               (df1, df2,   en);                                  // Enable data found
@@ -921,15 +961,19 @@ public class Chip                                                               
     Output                   (fo,  f);                                          // Enable found flag output
 
     if (!leaf)
-     {enableWord             (nf1, nf2,   en);                                  // Enable next link
-      outputBits             (nfo, nf1);                                        // Enable next link output
+     {enableWord             (nl3, nl4,   en);                                  // Enable next link
+      Not                    (nf,  f);                                          // Not found
+      enableWord             (nl2, nl3,   nf);                                  // Disable next link if we found the key
+      And(pmtNf, pmt, nf);                                                      // Top is the next link, but only if the key was not found
+      chooseFromTwoWords     (nl1, nl2,   top, pmtNf);                          // Either the next link or the top link
+      outputBits             (nlo, nl1);                                        // Enable next link output
      }
    }
 /*
 my BtreeNodeIds = 0;                                                            // Create unique ids for nodes
 
   void newBtreeNode(%)                                                          // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
- {my (chip, output, find, K, B, ) = @_;                                         //  Chip, name prefix for node, key to find, maximum number of keys in a node, size of key in bits, options
+ {my (chip, output, find, K, B, ) = @_;                                         // Chip, name prefix for node, key to find, maximum number of keys in a node, size of key in bits, options
 
   @_ >= 5 or confess "Five or more parameters";
   my   void leaf(){options{leaf}}                                               //  True if the node is a leaf node
@@ -1697,6 +1741,24 @@ my BtreeIds = 0;                                                               /
     ok(  c.steps,    3);
    }
 
+  static void test_notGates()
+   {final Chip c = new Chip("NotGates");
+    c.bits("b", 5, 21);
+    final Gate   a = c. andBits(  "a",  "b");
+    final Gate   o = c.  orBits(  "o",  "b");
+    final Gate  na = c.nandBits( "na",  "b");
+    final Gate  no = c.norBits ( "no",  "b");
+    final Gate  oa = c.Output  ( "oa",  "a");
+    final Gate  oo = c.Output  ( "oo",  "o");
+    final Gate ona = c.Output  ("ona", "na");
+    final Gate ono = c.Output  ("ono", "no");
+    c.simulate();
+    ok( a.value, false);
+    ok(na.value, true);
+    ok( o.value, true);
+    ok(no.value, false);
+   }
+
   static void test_zero()
    {final Chip c = new Chip("Zero");
     c.Zero("z");
@@ -1997,7 +2059,7 @@ my BtreeIds = 0;                                                               /
 
     c.BtreeNodeCompare(id, "out", "enable", "find", "keys", "data", "next", "top", N, B, false);
     c.simulate();
-    ok(c.steps,                     11);
+    ok(c.steps,                     14);
     ok(c.getBit("out_found"),    Found);
     ok(c.bInt  ("out_dataFound"), Data);
     ok(c.bInt  ("out_nextLink"),  Next);
@@ -2005,12 +2067,12 @@ my BtreeIds = 0;                                                               /
 
   static void test_BtreeNodeCompare()
    {test_BtreeNodeCompare_find(1, false, 0, 1);
-    test_BtreeNodeCompare_find(2,  true, 1, 3); // Next should be zero
+    test_BtreeNodeCompare_find(2,  true, 1, 0);
     test_BtreeNodeCompare_find(3, false, 0, 3);
-    test_BtreeNodeCompare_find(4,  true, 3, 5); // Next should be 0
+    test_BtreeNodeCompare_find(4,  true, 3, 0);
     test_BtreeNodeCompare_find(5, false, 0, 5);
     test_BtreeNodeCompare_find(6,  true, 5, 0);
-    test_BtreeNodeCompare_find(7, false, 0, 0); // next should be 7
+    test_BtreeNodeCompare_find(7, false, 0, 7);
    }
 
   static int testsPassed = 0;                                                   // Number of tests passed
@@ -2023,6 +2085,7 @@ my BtreeIds = 0;                                                               /
    {test_and2Bits();
     test_and();
     test_or();
+    test_notGates();
     test_zero();
     test_one();
     test_andOr();
@@ -2041,9 +2104,7 @@ my BtreeIds = 0;                                                               /
     test_enableWord();
     test_monotoneMaskToPointMask();
     test_chooseWordUnderMask();
-
     test_BtreeNodeCompare();
-
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     say("Passed ALL", testsPassed, "tests");
    }
