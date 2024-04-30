@@ -1942,12 +1942,11 @@ my BtreeIds = 0;                                                               /
         test_chooseWordUnderMask(B, i);
    }
 
-  static void test_BtreeNodeCompare()
+  static void test_BtreeNodeCompare_find(int find, boolean Found, int Data, int Next)
    {final int[]keys = {2, 4, 6};
     final int[]data = {1, 3, 5};
     final int[]next = {1, 3, 5};
     final int  top  = 6;
-    final int  find = 4;
     final int  B    = 3;
     final int  N    = 3;
     final int  id   = 7;
@@ -1961,10 +1960,20 @@ my BtreeIds = 0;                                                               /
 
     c.BtreeNodeCompare(id, "out", "enable", "find", "keys", "data", "next", "top", N, B, false);
     c.simulate();
-    ok(c.steps,                   11);
-    ok(c.getBit("out_found"),     true);
-    ok(c.bInt  ("out_dataFound"),  3);
-    ok(c.bInt  ("out_nextLink"),   5);
+    ok(c.steps,                     11);
+    ok(c.getBit("out_found"),    Found);
+    ok(c.bInt  ("out_dataFound"), Data);
+    ok(c.bInt  ("out_nextLink"),  Next);
+   }
+
+  static void test_BtreeNodeCompare()
+   {test_BtreeNodeCompare_find(1, false, 0, 1);
+    test_BtreeNodeCompare_find(2,  true, 1, 3);
+    test_BtreeNodeCompare_find(3, false, 0, 3);
+    test_BtreeNodeCompare_find(4,  true, 3, 5);
+    test_BtreeNodeCompare_find(5, false, 0, 5);
+    test_BtreeNodeCompare_find(6,  true, 5, 0);
+    test_BtreeNodeCompare_find(7, false, 0, 0);
    }
 
   static int testsPassed = 0;                                                   // Number of tests passed
