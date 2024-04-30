@@ -16,6 +16,10 @@ public class Chip                                                               
   final static int     layersPerLevel =   4;                                    // There are 4 layers in each level: insulation, x cross bars, x-y connectors and insulation, y cross bars
   final        int      layoutLTGates = 100;                                    // Always draw the layout if if it has less than this many gates in it
   final static boolean github_actions = "true".equals(System.getenv("GITHUB_ACTIONS")); // Whether we are on a github
+  final String                   name;                                          // Name of chip
+  final Map<String, Gate>       gates = new TreeMap<>();                        // Gates by name
+  final Map<String, Integer> sizeBits = new TreeMap<>();                        // Sizes of bit buses
+  final Map<String, WordBus>sizeWords = new TreeMap<>();                        // Sizes of word buses
   final static String      perlFolder = "perl", perlFile = "gds2.pl";           // Folder and file for Perl code to represent a layout in GDS2.
   final static Stack<String>  gdsPerl = new Stack<>();                          // Perl code to create GDS2 output files
   final TreeSet<String>   outputGates = new TreeSet<>();                        // Output gates
@@ -46,11 +50,6 @@ public class Chip                                                               
    {return op != Operator.Gt  && op != Operator.Lt &&
            op != Operator.Ngt && op != Operator.Nlt;
    }
-
-  final String name;                                                            // Name of chip
-  final Map<String, Gate>        gates = new TreeMap<>();                       // Gates by name
-  final Map<String, Integer>  sizeBits = new TreeMap<>();                       // Sizes of bit buses
-  final Map<String, WordBus> sizeWords = new TreeMap<>();                       // Sizes of word buses
 
   Chip(String Name) {name = Name; }                                             // Create a new L<chip>.
 
@@ -100,14 +99,28 @@ public class Chip                                                               
     b.append("Seq   Name____________________________  Operator  #  11111111111111111111111111111111-P=#  22222222222222222222222222222222-P=#  C Frst Last  Dist   Nearest  Px__,Py__  Drives these gates\n");
     for(Gate g : gates.values()) b.append(g);
 
-    final int P = pending.size();                                               // Write pending gates
-    if (P > 0)
-     {b.append(""+P+" pending gates\n");
+    if (pending.size() > 0)                                                     // Write pending gates
+     {b.append(""+pending.size()+" pending gates\n");
       b.append("Source__  Target__\n");
       for(String n : pending.keySet())
         for(Gate.WhichPin d : pending.get(n))
           b.append(String.format("%8s  %8s  %c\n",
             n, d.drives, d.pin == null ? ' ' : d.pin ? '1' : '2'));
+     }
+
+    if (sizeBits.size() > 0)                                                    // Size of bit buses
+     {b.append("Bit buses of size: "+sizeBits.size()+"\n");
+      b.append("Bits  Bus_____\n");
+      for(String n : sizeBits.keySet()) b.append(String.format("%4d  %8s\n", sizeBits.get(n), n));
+     }
+
+    if (sizeWords.size() > 0)                                                   // Size of word buses
+     {b.append("Word buses of size: "+sizeWords.size()+"\n");
+      b.append("Words Bits  Bus_____\n");
+      for(String n : sizeWords.keySet())
+       {final WordBus w = sizeWords.get(n);
+        b.append(String.format("%4d  %4d  %8s\n", w.words, w.bits, n));
+       }
      }
     return b.toString();                                                        // String describing chip
    }
@@ -583,28 +596,36 @@ public class Chip                                                               
     for (int b = 1; b <= bits; ++b) Not(n(b, name), n(b, input));               // Bus of not gates
    }
 
-  void andBits(String name, String input)                                       // B<And> and all the bits in a bus
+  void andBits(String name, String input)                                       // B<And> all the bits in a bus to get one bit
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
     for (int i = 1; i <= bits; ++i) b[i-1] = n(i, input);                       // Names of bits
     And(name, b);                                                               // And all the bits in the bus
    }
 
-  void nandBits(String name, String input)                                      // B<Nand> all the bits in a bus
+  void and2Bits(String out, String input1, String input2)                       // B<And> two same sized bit buses together to make another bit bus of the same size
+   {final int b1 = sizeBits(input1);                                            // Number of bits in input bus
+    final int b2 = sizeBits(input2);                                            // Number of bits in input bus
+    if (b1 != b2) stop("Buses have different sizes", b1, b2);
+    for (int i = 1; i <= b1; ++i) And(n(i, out), n(i, input1), n(i, input2));   // And the two buses
+    sizeBits.put(out, b1);
+   }
+
+  void nandBits(String name, String input)                                      // B<Nand> all the bits in a bus to get one bit
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
     for (int i = 1; i <= bits; ++i) b[i-1] = n(i, input);                       // Names of bits
     Nand(name, b);                                                              // Nand all the bits in the bus
    }
 
-  void orBits(String name, String input)                                        // B<Or> an input bus of bits.
+  void orBits(String name, String input)                                        // B<Or> all the bits in a bus to get one bit
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
     for (int i = 1; i <= bits; ++i) b[i-1] = n(i, input);                       // Names of bits
     Or(name, b);                                                                // Or all the bits in the bus
    }
 
-  void norBits(String name, String input)                                       // B<Nor> an input bus of bits.
+  void norBits(String name, String input)                                       // B<Nor> all the bits in a bus to get one bit
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
     for (int i = 1; i <= bits; ++i) b[i-1] = n(i, input);                       // Names of bits
@@ -858,7 +879,7 @@ public class Chip                                                               
 
     final String  id = output+"_id";                                            // i Id for this node
     final String dfo = output+"_dataFound";                                     // O The data corresponding to the key found or zero if not found
-    final String  df = output+"_dataFound1";
+    final String df1 = output+"_dataFound1";
     final String df2 = output+"_dataFound2";
     final String  en = output+"_enabled";                                       // i Enable code
     final String  fo = output+"_found";                                         // O Whether a matching key was found
@@ -867,10 +888,10 @@ public class Chip                                                               
     final String  me = output+"_maskEqual";                                     // i Point mask showing key equal to search key
     final String  mm = output+"_maskMore";                                      // i Monotone mask showing keys more than the search key
     final String  mf = output+"_moreFound";                                     // i The next link for the first key greater than the search key is such a key is present int the node
-    final String  nm = output+"_noMore";                                        // i No key in the node is greater than the search key
     final String nfo = output+"_nextLink";                                      // O The next link for the found key if any
-    final String  nf = output+"_nextLink1";
+    final String nf1 = output+"_nextLink1";
     final String nf2 = output+"_nextLink2";
+    final String  nm = output+"_noMore";                                        // i No key in the node is greater than the search key
     final String  pm = output+"_pointMore";                                     // i Point mask showing the first key in the node greater than the search key
 
     bits(id, B, Id);                                                            // Save id of node
@@ -893,15 +914,15 @@ public class Chip                                                               
       chooseFromTwoWords     (nf2, mf,    top, nm);                             // Show whether key was found
      }
 
-    enableWord               (df,  df2,   en);                                  // Enable data found
-    outputBits               (dfo, df);                                         // Enable data found output
+    enableWord               (df1, df2,   en);                                  // Enable data found
+    outputBits               (dfo, df1);                                        // Enable data found output
 
     And                      (f,   f2,    en);                                  // Enable found flag
     Output                   (fo,  f);                                          // Enable found flag output
 
     if (!leaf)
-     {enableWord             (nf,  nf2,   en);                                  // Enable next link
-      outputBits             (nfo, nf);                                         // Enable next link output
+     {enableWord             (nf1, nf2,   en);                                  // Enable next link
+      outputBits             (nfo, nf1);                                        // Enable next link output
      }
    }
 /*
@@ -1781,6 +1802,22 @@ my BtreeIds = 0;                                                               /
      }
    }
 
+  static void test_and2Bits()
+   {for(int N = 3; N <= 4; ++N)
+     {final int N2 = powerTwo(N);
+      for  (int i = 0; i < N2; i++)
+       {final Chip c = new Chip("Output Bits");
+        c.bits("i1", N, 5);
+        c.bits("i2", N, i);
+        c.and2Bits("o", "i1", "i2");
+        c.outputBits("out", "o");
+        c.simulate();
+        ok(c.steps,      2);
+        ok(c.bInt("o"), 5 & i);
+       }
+     }
+   }
+
   static void test_gt()
    {final Chip c = new Chip("Gt");
     c.One ("o");
@@ -1946,7 +1983,7 @@ my BtreeIds = 0;                                                               /
    {final int[]keys = {2, 4, 6};
     final int[]data = {1, 3, 5};
     final int[]next = {1, 3, 5};
-    final int  top  = 6;
+    final int  top  = 7;
     final int  B    = 3;
     final int  N    = 3;
     final int  id   = 7;
@@ -1968,12 +2005,12 @@ my BtreeIds = 0;                                                               /
 
   static void test_BtreeNodeCompare()
    {test_BtreeNodeCompare_find(1, false, 0, 1);
-    test_BtreeNodeCompare_find(2,  true, 1, 3);
+    test_BtreeNodeCompare_find(2,  true, 1, 3); // Next should be zero
     test_BtreeNodeCompare_find(3, false, 0, 3);
-    test_BtreeNodeCompare_find(4,  true, 3, 5);
+    test_BtreeNodeCompare_find(4,  true, 3, 5); // Next should be 0
     test_BtreeNodeCompare_find(5, false, 0, 5);
     test_BtreeNodeCompare_find(6,  true, 5, 0);
-    test_BtreeNodeCompare_find(7, false, 0, 0);
+    test_BtreeNodeCompare_find(7, false, 0, 0); // next should be 7
    }
 
   static int testsPassed = 0;                                                   // Number of tests passed
@@ -1983,7 +2020,8 @@ my BtreeIds = 0;                                                               /
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {test_and();
+   {test_and2Bits();
+    test_and();
     test_or();
     test_zero();
     test_one();
