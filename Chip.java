@@ -937,7 +937,7 @@ public class Chip                                                               
     final String   dfo = Data;                                                  //O The data corresponding to the key found or zero if not found
     final String   df1 = output+"_dataFound1";
     final String   df2 = output+"_dataFound2";
-    final String    en = enable;                                                //I Enable code
+    final String    en = output+"_enabled";                                     // Whether this node is enabled for searching
     final String    fo = output;                                                //O Whether a matching key was found
     final String     f = output+"_found1";
     final String    f2 = output+"_found2";
@@ -945,11 +945,12 @@ public class Chip                                                               
     final String    mm = output+"_maskMore";                                    // Monotone mask showing keys more than the search key
     final String    mf = output+"_moreFound";                                   // The next link for the first key greater than the search key is such a key is present int the node
     final String    nf = output+"_notFound";                                    // True if we did not find the key
-    final String   nlo = Next;                                                  //O The next link for the found key if any
-    final String   nl1 = output+"_nextLink1";                                   // Choose the next link or the top link
-    final String   nl2 = output+"_nextLink2";                                   // Next link
+    final String   nlo = Next;                                                  //O The next link if the search key was not found
+    final String   nl1 = output+"_nextLink1";
+    final String   nl2 = output+"_nextLink2";
     final String   nl3 = output+"_nextLink3";
     final String   nl4 = output+"_nextLink4";
+    final String   nl5 = output+"_nextLink5";
     final String    nm = output+"_noMore";                                      // No key in the node is greater than the search key
     final String    pm = output+"_pointMore";                                   // Point mask showing the first key in the node greater than the search key
     final String   pmt = output+"_pointMoreTop";                                // A single bit that tells us whether the top link is the next link
@@ -973,7 +974,7 @@ public class Chip                                                               
      {norBits                (nm,  mm);                                         // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
       monotoneMaskToPointMask(pm,  mm);                                         // Convert monotone more mask to point mask
       chooseWordUnderMask    (mf,  next,  pm);                                  // Choose next link using point mask from the more monotone mask created
-      chooseFromTwoWords     (nl4, mf,    top, nm);                             // Show whether key was found
+      chooseFromTwoWords     (nl5, mf,    top, nm);                             // Show whether key was found
       norBits                (pmt, pm);                                         // The top link is the next link
      }
 
@@ -984,11 +985,12 @@ public class Chip                                                               
     Output                   (fo,  f);                                          // Enable found flag output
 
     if (!leaf)
-     {enableWord             (nl3, nl4,   en);                                  // Enable next link
+     {enableWord             (nl4, nl5,   en);                                  // Enable next link
       Not                    (nf,  f);                                          // Not found
-      enableWord             (nl2, nl3,   nf);                                  // Disable next link if we found the key
+      enableWord             (nl3, nl4,   nf);                                  // Disable next link if we found the key
       And(pmtNf, pmt, nf);                                                      // Top is the next link, but only if the key was not found
-      chooseFromTwoWords     (nl1, nl2,   top, pmtNf);                          // Either the next link or the top link
+      chooseFromTwoWords     (nl2, nl3,   top, pmtNf);                          // Either the next link or the top link
+      enableWord             (nl1, nl2, en);                                    // Next link only if this node is enabled
       outputBits             (nlo, nl1);                                        // Enable next link output
      }
    }
@@ -1723,6 +1725,51 @@ my BtreeIds = 0;                                                               /
      }
    }
 
+//D2 Groupings                                                                  // Group chips into two classes and see if any single bit predicts the classification.  Finding a bit that does predict a classification can help resolve edge cases.
+
+  static class Grouping                                                         // Group multiple runs into two classes and then see if any bits predict the grouping. (Grouping, bit name, bit value)
+   {final TreeMap<Boolean, TreeMap<String, Boolean>> grouping = new TreeMap<>();
+
+    Grouping()                                                                  // All of Gaul is divided into two parts
+     {for (int i = 0; i < 2; i++) grouping.put(i == 0, new TreeMap<String, Boolean>());
+     }
+
+    void put(Boolean group, Chip chip)                                          // Add the gates in a chip to the grouping
+     {for(Gate g: chip.gates.values())                                          // Each gate
+       {final String   name = g.name;
+        final Boolean value = g.value;
+        if (value != null)                                                      // Gate has a value
+         {final TreeMap<String, Boolean> t = grouping.get(group);               // Part this chip belongs too.
+          if (!t.containsKey(name)) t.put(name, value);                         // Initial placement
+          else                                                                  // Nullify unless it matches existing key
+           {final Boolean b = t.get(g.name);
+            if (b != null && b != value) t.put(name, null);
+           }
+         }
+        else  for (int i = 0; i < 2; i++) grouping.get(i == 0).put(name, null); // Nullify in all parts because the gate has no value on this chip
+       }
+     }
+
+    TreeMap<String, Boolean> analyze()                                          // Locate the names of any bits that predict the grouping. The associated boolean will be true if the relationship is positive else false if negative
+     {final TreeMap<String, Boolean> t = grouping.get(true);
+      final TreeMap<String, Boolean> f = grouping.get(false);
+      final String[]tt = t.keySet().toArray(new String[0]);
+      final String[]ff = f.keySet().toArray(new String[0]);
+
+      for(String n : tt)                                                        // Remove from true
+       {final Boolean T = t.get(n), F = f.get(n);
+        if (T == null || F == null || F == T) t.remove(n);
+       }
+
+      for(String n : ff)                                                        // Remove from false
+       {final Boolean T = t.get(n), F = f.get(n);
+        if (T == null || F == null || F == T) t.remove(n);
+       }
+
+      return t;                                                                 // Now the true set only has keys that are true for the classification while the false set contains the opposite
+     }
+   }
+
 //D0
 
   static void say(Object...O)
@@ -1735,6 +1782,11 @@ my BtreeIds = 0;                                                               /
    {final StringBuilder b = new StringBuilder();
     for(Object o: O) {b.append(" "); b.append(o);}
     System.out.println((O.length > 0 ? b.substring(1) : ""));
+   }
+
+  static void err(Object...O)
+   {say(O);
+    new Exception().printStackTrace();
    }
 
   static void stop(Object...O)
@@ -1758,6 +1810,54 @@ my BtreeIds = 0;                                                               /
     ok(and.value, false);
     ok(  o.value, false);
     ok(  c.steps ,    2);
+   }
+
+  static Chip test_and_grouping(Boolean i1, Boolean i2)
+   {final Chip c = new Chip("And Grouping");
+    c.Input ("i1");
+    c.Input ("i2");
+    c.And   ("and", "i1", "i2");
+    c.Output("o", "and");
+    final Inputs inputs = c.new Inputs();
+    inputs.set("i1", i1);
+    inputs.set("i2", i2);
+    c.simulate(inputs);
+    ok(c.getBit("o"), i1 && i2);
+    return c;
+   }
+
+  static void test_and_grouping()
+   {Grouping g = new Grouping();
+    g.put(false, test_and_grouping(true, false));
+    g.put( true, test_and_grouping(true, true));
+    final var a = g.analyze();
+    ok(a.size(), 3);
+    ok(a.get("and"), true);
+    ok(a.get( "i2"), true);
+    ok(a.get(  "o"), true);
+   }
+
+  static Chip test_or_grouping(Boolean i1, Boolean i2)
+   {final Chip c = new Chip("Or Grouping");
+    c.Input ("i1");
+    c.Input ("i2");
+    c.Or    ("or", "i1", "i2");
+    c.Output("o", "or");
+    final Inputs inputs = c.new Inputs();
+    inputs.set("i1", i1);
+    inputs.set("i2", i2);
+    c.simulate(inputs);
+    ok(c.getBit("o"), i1 || i2);
+    return c;
+   }
+
+  static void test_or_grouping()
+   {Grouping g = new Grouping();
+    g.put(false, test_or_grouping(true, false));
+    g.put( true, test_or_grouping(true, true));
+    final var a = g.analyze();
+    ok(a.size(), 1);
+    ok(a.get( "i2"), true);
    }
 
   static void test_delayedDefinitions()
@@ -1830,7 +1930,7 @@ my BtreeIds = 0;                                                               /
     ok(o.value , true);
    }
 
-  static void test_and3a(boolean A, boolean B, boolean C, boolean D)
+  static Chip test_and3a(boolean A, boolean B, boolean C, boolean D)
    {final Chip c = new Chip("And3");
     c.Input( "i11");
     c.Input( "i12");
@@ -1851,27 +1951,34 @@ my BtreeIds = 0;                                                               /
 
     ok(c.steps,  3);
     ok(o.value, (A && B) || (C && D));
+    return c;
    }
 
   static void test_andOr()
    {final boolean t = true, f = false;
-     test_and3a(t, t, t, t);
-     test_and3a(t, t, t, f);
-     test_and3a(t, t, f, t);
-     test_and3a(t, t, f, f);
-     test_and3a(t, f, t, t);
-     test_and3a(t, f, t, f);
-     test_and3a(t, f, f, t);
-     test_and3a(t, f, f, f);
+    Grouping g = new Grouping();
+    g.put(false,  test_and3a(t, t, t, t));
+    g.put(false,  test_and3a(t, t, t, f));
+    g.put(false,  test_and3a(t, t, f, t));
+    g.put(false,  test_and3a(t, t, f, f));
+    g.put(false,  test_and3a(t, f, t, t));
+    g.put(false,  test_and3a(t, f, t, f));
+    g.put(false,  test_and3a(t, f, f, t));
+    g.put(false,  test_and3a(t, f, f, f));
 
-     test_and3a(f, t, t, t);
-     test_and3a(f, t, t, f);
-     test_and3a(f, t, f, t);
-     test_and3a(f, t, f, f);
-     test_and3a(f, f, t, t);
-     test_and3a(f, f, t, f);
-     test_and3a(f, f, f, t);
-     test_and3a(f, f, f, f);
+    g.put( true,  test_and3a(f, t, t, t));
+    g.put( true,  test_and3a(f, t, t, f));
+    g.put( true,  test_and3a(f, t, f, t));
+    g.put( true,  test_and3a(f, t, f, f));
+    g.put( true,  test_and3a(f, f, t, t));
+    g.put( true,  test_and3a(f, f, t, f));
+    g.put( true,  test_and3a(f, f, f, t));
+    g.put( true,  test_and3a(f, f, f, f));
+
+    final var a = g.analyze();
+    ok(a.size(), 1);
+    ok(a.containsKey("i11"), true);
+    ok(a.get("i11"),         false);
    }
 
   static void test_expand()
@@ -2094,53 +2201,55 @@ my BtreeIds = 0;                                                               /
         test_chooseWordUnderMask(B, i);
    }
 
-  static void test_BtreeNodeCompare_find(int find, int enable, boolean Found, int Data, int Next)
+  static Chip test_BtreeNodeCompare(int find, int enable, boolean Found, int Data, int Next)
    {final int[]keys = {2, 4, 6};
     final int[]data = {1, 3, 5};
     final int[]next = {1, 3, 5};
-    final int  top  = 7;
-    final int  B    = 3;
-    final int  N    = 3;
-    final int  id   = 7;
-
-    final var    c = new Chip("BtreeCompare "+B);
+    final int   top = 7;
+    final int     B = 3;
+    final int     N = 3;
+    final int    id = 7;
+    final var     c = new Chip("BtreeCompare "+B);
 
     c.BtreeNode(id, B, N, false, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
     c.simulate();
-    //ok(c.steps,              14);
-    //ok(c.getBit("found"), Found);
-    //ok(c.bInt  ("data"),   Data);
-    //ok(c.bInt  ("next"),   Next);
-    say(c);
+    ok(c.steps,              15);
+    ok(c.getBit("found"), Found);
+    ok(c.bInt  ("data"),   Data);
+    ok(c.bInt  ("next"),   Next);
+    return c;
    }
 
   static void test_BtreeNodeCompare()
-   {test_BtreeNodeCompare_find(1, 7, false, 0, 1);
-    test_BtreeNodeCompare_find(2, 7,  true, 1, 0);
-    test_BtreeNodeCompare_find(3, 7, false, 0, 3);
-    test_BtreeNodeCompare_find(4, 7,  true, 3, 0);
-    test_BtreeNodeCompare_find(5, 7, false, 0, 5);
-    test_BtreeNodeCompare_find(6, 7,  true, 5, 0);
-    test_BtreeNodeCompare_find(7, 7, false, 0, 7);
+   {test_BtreeNodeCompare(1, 7, false, 0, 1);
+    test_BtreeNodeCompare(2, 7,  true, 1, 0);
+    test_BtreeNodeCompare(3, 7, false, 0, 3);
+    test_BtreeNodeCompare(4, 7,  true, 3, 0);
+    test_BtreeNodeCompare(5, 7, false, 0, 5);
+    test_BtreeNodeCompare(6, 7,  true, 5, 0);
+    test_BtreeNodeCompare(7, 7, false, 0, 7);
 
-    test_BtreeNodeCompare_find(1, 1, false, 0, 0);
-    test_BtreeNodeCompare_find(2, 1, false, 0, 0);
-    test_BtreeNodeCompare_find(3, 1, false, 0, 0);
-    test_BtreeNodeCompare_find(4, 1, false, 0, 0);
-    test_BtreeNodeCompare_find(5, 1, false, 0, 0);
-    test_BtreeNodeCompare_find(6, 1, false, 0, 7); // 7 should be 0
-    test_BtreeNodeCompare_find(7, 1, false, 0, 7); // 7 should be 0
+    test_BtreeNodeCompare(1, 1, false, 0, 0);
+    test_BtreeNodeCompare(2, 1, false, 0, 0);
+    test_BtreeNodeCompare(3, 1, false, 0, 0);
+    test_BtreeNodeCompare(4, 1, false, 0, 0);
+    test_BtreeNodeCompare(5, 1, false, 0, 0);
+    test_BtreeNodeCompare(6, 1, false, 0, 0);
+    test_BtreeNodeCompare(7, 1, false, 0, 0);
    }
 
-  static int testsPassed = 0;                                                   // Number of tests passed
+  static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
 
   static void ok(Object a, Object b)                                            // Check test results match expected results.
-   {if (a.equals(b)) ++testsPassed; else stop(a, "does not equal", b);
+   {if (a.equals(b)) ++testsPassed;
+    else {testsFailed++; err(a, "does not equal", b);}
    }
 
   public static void main(String[] args)                                        // Test if called as a program
    {test_and2Bits();
     test_and();
+    test_and_grouping();
+    test_or_grouping();
     test_or();
     test_notGates();
     test_zero();
@@ -2163,6 +2272,7 @@ my BtreeIds = 0;                                                               /
     test_chooseWordUnderMask();
     test_BtreeNodeCompare();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
-    say("Passed ALL", testsPassed, "tests");
+    if (testsFailed == 0) say("Passed ALL", testsPassed, "tests");
+    else say("Passed ", testsPassed, "FAILED:", testsFailed, "tests");
    }
  }
