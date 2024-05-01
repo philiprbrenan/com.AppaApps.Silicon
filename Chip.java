@@ -278,6 +278,8 @@ public class Chip                                                               
 
       if (N == 0)                                                               // An output gate does not drive any other gate
        {if (op == Operator.Output) return;
+        say(Chip.this);
+        say(this);
         stop("Gate", name, "does not drive any other gate");
         return;
        }
@@ -1009,16 +1011,16 @@ public class Chip                                                               
     String    Data,                                                             // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
     String    Next                                                              // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
    )
-   {if (N != keys.length) stop("Wrong number of keys, need", N, "got", keys.length);
-    if (N != data.length) stop("Wrong number of data, need", N, "got", data.length);
-    if (N != next.length) stop("Wrong number of next, need", N, "got", next.length);
+   {if (                N != keys.length) stop("Wrong number of keys, need", N, "got", keys.length);
+    if (                N != data.length) stop("Wrong number of data, need", N, "got", data.length);
+    if (next != null && N != next.length) stop("Wrong number of next, need", N, "got", next.length);
 
     final String e = bits (B, enable);
     final String f = bits (B, find);
     final String k = words(B, keys);
     final String d = words(B, data);
-    final String n = words(B, next);
-    final String t = bits (B, top);
+    final String n = next != null ? words(B, next) : null;
+    final String t = next != null ? bits (B, top)  : null;
 
     BtreeNodeCompare(Id, B, N, next == null, e, f, k, d, n, t, output, Data, Next);
    }
@@ -2249,10 +2251,9 @@ my BtreeIds = 0;                                                               /
 
     c.BtreeNode(id, B, N, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
     c.simulate();
-    ok(c.steps,              15);
+    ok(c.steps,               7);
     ok(c.getBit("found"), Found);
     ok(c.bInt  ("data"),   Data);
-    ok(c.bInt  ("next"),   Next);
     return c;
    }
 
