@@ -51,6 +51,16 @@ public class Chip                                                               
            op != Operator.Ngt && op != Operator.Nlt;
    }
 
+  boolean zerad(Operator op)                                                    // Whether the gate takes zero inputs
+   {return op != Operator.Input && op != Operator.One &&
+           op != Operator.Zero;
+   }
+
+  boolean monad(Operator op)                                                    // Whether the gate takes a single input or not
+   {return op != Operator.Continue && op != Operator.Not &&
+           op != Operator.Output;
+   }
+
   Chip(String Name) {name = Name; }                                             // Create a new L<chip>.
 
   int nextPowerOfTwo(int n)                                                     // If this is a power of two return it, else return the next power of two greater than this number
@@ -68,6 +78,9 @@ public class Chip                                                               
    }
 
   static int powerTwo(int n) {return 1 << n;}                                   // Power of 2
+  static int powerOf (int a, int b)                                             // Raise a to the power b
+   {int v = 1; for(int i = 0; i < b; ++i) v *= a; return v;
+   }
 
   static String[]stackToStringArray(Stack<String> s)                            // Stack of string to array of string
    {final String[]a = new String[s.size()];
@@ -75,7 +88,7 @@ public class Chip                                                               
     return a;
    }
 
-  int nextGateNumber() {return ++gateSeq;}                                      // Numbers for gates
+  int nextGateNumber()  {return ++gateSeq;}                                     // Numbers for gates
   String nextGateName() {return ""+nextGateNumber();}                           // Create a numeric generated gate name
 
   boolean definedGate(String name)                                              // Check whether a gate has been defined yet
@@ -83,10 +96,9 @@ public class Chip                                                               
     return g != null;
    }
 
-  Gate getGate(String name)                                                     // Get details of named gate
+  Gate getGate(String name)                                                     // Get details of named gate. Gates that have not been created yet will return null even though their details are pending.
    {if (name == null) stop("No gate name provided");
     final Gate g = gates.get(name);
-    //if (g == null) stop("No such gate:", name, ". Gates must be created before they can be referenced.");
     return g;
    }
 
@@ -917,7 +929,7 @@ public class Chip                                                               
 
 //D2 B-tree                                                                     // Circuits useful in the construction and traversal of B-trees.
 
-  void BtreeNodeCompare                                                         // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
+  void BtreeNodeTestCompare                                                         // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
    (int         Id,                                                             // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
     int          B,                                                             // Width of each word in the node.
     int          N,                                                             // Number of keys == number of data words each B bits wide in the node.
@@ -997,7 +1009,7 @@ public class Chip                                                               
      }
    }
 
-  void BtreeNode                                                                // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
+  void BtreeNodeTest                                                                // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
    (int         Id,                                                             // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
     int          B,                                                             // Width of each word in the node.
     int          N,                                                             // Number of keys == number of data words each B bits wide in the node.
@@ -1022,44 +1034,10 @@ public class Chip                                                               
     final String n = next != null ? words(B, next) : null;
     final String t = next != null ? bits (B, top)  : null;
 
-    BtreeNodeCompare(Id, B, N, next == null, e, f, k, d, n, t, output, Data, Next);
+    BtreeNodeTestCompare(Id, B, N, next == null, e, f, k, d, n, t, output, Data, Next);
    }
 
 /*
-my BtreeNodeIds = 0;                                                            // Create unique ids for nodes
-
-  void newBtreeNode(%)                                                          // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
- {my (chip, output, find, K, B, ) = @_;                                         // Chip, name prefix for node, key to find, maximum number of keys in a node, size of key in bits, options
-
-  @_ >= 5 or confess "Five or more parameters";
-  my   void leaf(){options{leaf}}                                               //  True if the node is a leaf node
-
-  my c = chip;
-  my @b = qw(enable);    push @b, q(top)  unless leaf;                          //  Leaf nodes do not need the top word which holds the last link
-  my @w = qw(keys data); push @w, q(next) unless leaf;                          //  Leaf nodes do not need next links
-  my @B = qw(found);
-  my @W = qw(dataFound nextLink);
-
-  my id = ++BtreeNodeIds;                                                     //  Node number used to identify the node
-  my   void n()
-   {my (name) = @_;                                                            //  Options
-    "output.id.name"
-   }
-
-  c.inputBits (n(_),     B) for @b;                                         //  Input bits
-  c.inputWords(n(_), K, B) for @w;                                         //  Input words
-
-  newBtreeNodeCompare(c, id,                                                  //  B-Tree node
-    "output.id", n("enable"), find, n("keys"),
-     n("data"), n("next"), n("top"), K, B, );
-
-  genHash(__PACKAGE__."::Node",                                                 //  Node in B-Tree
-   (map {(_=>n(_))} @b, @w, @B, @W),
-    find => find,
-    chip => chip,
-    id   => id,
-   );
- }
 
 my BtreeIds = 0;                                                               //  Create unique ids for trees
 
@@ -1067,7 +1045,7 @@ my BtreeIds = 0;                                                               /
  {my (chip, output, find, keys, levels, bits, ) = @_;             //  Chip, name, key to find, maximum number of keys in a node, maximum number of levels in the tree, number of bits in a key, options
   @_ >= 5 or confess "Five or more parameters";
   BtreeIds++;                                                                  //  Each tree gets a unique name prefixed by a known label
-  BtreeNodeIds = 0;                                                            //  Reset node ids for this tree
+  BtreeNodeTestIds = 0;                                                            //  Reset node ids for this tree
 
   my   void c {chip}
   my   void o {output.".".BtreeIds}
@@ -1091,7 +1069,7 @@ my BtreeIds = 0;                                                               /
     my @n = undef;                                                              //  Start the array at 1
 
     for my n(1..N)                                                             //  Create the requisite number of nodes for this layer each connected to the key to find
-     {push @n, n{l}{n} = newBtreeNode(c, o, find, K, B, @l);
+     {push @n, n{l}{n} = newBtreeNodeTest(c, o, find, K, B, @l);
      }
 
     c.or(n(f, l), [map{n[_].found} 1..N]);                                 //  Found for this level by or of found for each node
@@ -2202,7 +2180,7 @@ my BtreeIds = 0;                                                               /
         test_chooseWordUnderMask(B, i);
    }
 
-  static Chip test_BtreeNodeCompare(int find, int enable, boolean Found, int Data, int Next)
+  static Chip test_BtreeNode(int find, int enable, boolean Found, int Data, int Next)
    {final int[]keys = {2, 4, 6};
     final int[]data = {1, 3, 5};
     final int[]next = {1, 3, 5};
@@ -2210,9 +2188,9 @@ my BtreeIds = 0;                                                               /
     final int     B = 3;
     final int     N = 3;
     final int    id = 7;
-    final var     c = new Chip("BtreeNodeCompare "+B);
+    final var     c = new Chip("BtreeNodeTestCompare "+B);
 
-    c.BtreeNode(id, B, N, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
+    c.BtreeNodeTest(id, B, N, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
     c.simulate();
     ok(c.steps,              15);
     ok(c.getBit("found"), Found);
@@ -2221,22 +2199,22 @@ my BtreeIds = 0;                                                               /
     return c;
    }
 
-  static void test_BtreeNodeCompare()
-   {test_BtreeNodeCompare(1, 7, false, 0, 1);
-    test_BtreeNodeCompare(2, 7,  true, 1, 0);
-    test_BtreeNodeCompare(3, 7, false, 0, 3);
-    test_BtreeNodeCompare(4, 7,  true, 3, 0);
-    test_BtreeNodeCompare(5, 7, false, 0, 5);
-    test_BtreeNodeCompare(6, 7,  true, 5, 0);
-    test_BtreeNodeCompare(7, 7, false, 0, 7);
+  static void test_BtreeNode()
+   {test_BtreeNode(1, 7, false, 0, 1);
+    test_BtreeNode(2, 7,  true, 1, 0);
+    test_BtreeNode(3, 7, false, 0, 3);
+    test_BtreeNode(4, 7,  true, 3, 0);
+    test_BtreeNode(5, 7, false, 0, 5);
+    test_BtreeNode(6, 7,  true, 5, 0);
+    test_BtreeNode(7, 7, false, 0, 7);
 
-    test_BtreeNodeCompare(1, 1, false, 0, 0);
-    test_BtreeNodeCompare(2, 1, false, 0, 0);
-    test_BtreeNodeCompare(3, 1, false, 0, 0);
-    test_BtreeNodeCompare(4, 1, false, 0, 0);
-    test_BtreeNodeCompare(5, 1, false, 0, 0);
-    test_BtreeNodeCompare(6, 1, false, 0, 0);
-    test_BtreeNodeCompare(7, 1, false, 0, 0);
+    test_BtreeNode(1, 1, false, 0, 0);
+    test_BtreeNode(2, 1, false, 0, 0);
+    test_BtreeNode(3, 1, false, 0, 0);
+    test_BtreeNode(4, 1, false, 0, 0);
+    test_BtreeNode(5, 1, false, 0, 0);
+    test_BtreeNode(6, 1, false, 0, 0);
+    test_BtreeNode(7, 1, false, 0, 0);
    }
 
   static Chip test_BtreeLeafCompare(int find, int enable, boolean Found, int Data, int Next)
@@ -2249,7 +2227,7 @@ my BtreeIds = 0;                                                               /
     final int    id = 7;
     final var     c = new Chip("BtreeLeafCompare "+B);
 
-    c.BtreeNode(id, B, N, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
+    c.BtreeNodeTest(id, B, N, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
     c.simulate();
     ok(c.steps,               7);
     ok(c.getBit("found"), Found);
@@ -2307,7 +2285,7 @@ my BtreeIds = 0;                                                               /
     test_enableWord();
     test_monotoneMaskToPointMask();
     test_chooseWordUnderMask();
-    test_BtreeNodeCompare();
+    test_BtreeNode();
     test_BtreeLeafCompare();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("Passed ALL", testsPassed, "tests");
