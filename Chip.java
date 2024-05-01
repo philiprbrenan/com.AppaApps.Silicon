@@ -999,7 +999,6 @@ public class Chip                                                               
    (int         Id,                                                             // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
     int          B,                                                             // Width of each word in the node.
     int          N,                                                             // Number of keys == number of data words each B bits wide in the node.
-    boolean   leaf,                                                             // Width of each word in the node.
     int     enable,                                                             // B bit wide bus naming the currently enabled node by its id.
     int       find,                                                             // B bit wide bus naming the key to be found
     int[]     keys,                                                             // Keys in this node, an array of N B bit wide words.
@@ -1021,7 +1020,7 @@ public class Chip                                                               
     final String n = words(B, next);
     final String t = bits (B, top);
 
-    BtreeNodeCompare(Id, B, N, leaf, e, f, k, d, n, t, output, Data, Next);
+    BtreeNodeCompare(Id, B, N, next == null, e, f, k, d, n, t, output, Data, Next);
    }
 
 /*
@@ -2209,9 +2208,9 @@ my BtreeIds = 0;                                                               /
     final int     B = 3;
     final int     N = 3;
     final int    id = 7;
-    final var     c = new Chip("BtreeCompare "+B);
+    final var     c = new Chip("BtreeNodeCompare "+B);
 
-    c.BtreeNode(id, B, N, false, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
+    c.BtreeNode(id, B, N, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
     c.simulate();
     ok(c.steps,              15);
     ok(c.getBit("found"), Found);
@@ -2236,6 +2235,43 @@ my BtreeIds = 0;                                                               /
     test_BtreeNodeCompare(5, 1, false, 0, 0);
     test_BtreeNodeCompare(6, 1, false, 0, 0);
     test_BtreeNodeCompare(7, 1, false, 0, 0);
+   }
+
+  static Chip test_BtreeLeafCompare(int find, int enable, boolean Found, int Data, int Next)
+   {final int[]keys = {2, 4, 6};
+    final int[]data = {1, 3, 5};
+    final int[]next = null;
+    final int   top = 7;
+    final int     B = 3;
+    final int     N = 3;
+    final int    id = 7;
+    final var     c = new Chip("BtreeLeafCompare "+B);
+
+    c.BtreeNode(id, B, N, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
+    c.simulate();
+    ok(c.steps,              15);
+    ok(c.getBit("found"), Found);
+    ok(c.bInt  ("data"),   Data);
+    ok(c.bInt  ("next"),   Next);
+    return c;
+   }
+
+  static void test_BtreeLeafCompare()
+   {test_BtreeLeafCompare(1, 7, false, 0, 1);
+    test_BtreeLeafCompare(2, 7,  true, 1, 0);
+    test_BtreeLeafCompare(3, 7, false, 0, 3);
+    test_BtreeLeafCompare(4, 7,  true, 3, 0);
+    test_BtreeLeafCompare(5, 7, false, 0, 5);
+    test_BtreeLeafCompare(6, 7,  true, 5, 0);
+    test_BtreeLeafCompare(7, 7, false, 0, 7);
+
+    test_BtreeLeafCompare(1, 1, false, 0, 0);
+    test_BtreeLeafCompare(2, 1, false, 0, 0);
+    test_BtreeLeafCompare(3, 1, false, 0, 0);
+    test_BtreeLeafCompare(4, 1, false, 0, 0);
+    test_BtreeLeafCompare(5, 1, false, 0, 0);
+    test_BtreeLeafCompare(6, 1, false, 0, 0);
+    test_BtreeLeafCompare(7, 1, false, 0, 0);
    }
 
   static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
@@ -2271,6 +2307,7 @@ my BtreeIds = 0;                                                               /
     test_monotoneMaskToPointMask();
     test_chooseWordUnderMask();
     test_BtreeNodeCompare();
+    test_BtreeLeafCompare();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("Passed ALL", testsPassed, "tests");
     else say("Passed ", testsPassed, "FAILED:", testsFailed, "tests");
