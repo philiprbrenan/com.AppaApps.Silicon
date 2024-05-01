@@ -41,6 +41,8 @@ public class Chip                                                               
   Stack<Connection>       connections;                                          // Pairs of gates to be connected
   Diagram                     diagram;                                          // Diagram specifying the layout of the chip
 
+  Chip(String Name) {name = Name; }                                             // Create a new L<chip>.
+
   enum Operator                                                                 // Gate operations
    {And, Continue, FanOut, Gt, Input, Lt, Nand, Ngt, Nlt, Nor, Not, Nxor,
     One, Or, Output, Xor, Zero;
@@ -61,7 +63,7 @@ public class Chip                                                               
            op != Operator.Output;
    }
 
-  Chip(String Name) {name = Name; }                                             // Create a new L<chip>.
+  boolean dyadic(Operator op) {return !zerad(op) &&! monad(op);}                // Whether the gate takes two inputs or not
 
   int nextPowerOfTwo(int n)                                                     // If this is a power of two return it, else return the next power of two greater than this number
    {int p = 1;
@@ -161,6 +163,34 @@ public class Chip                                                               
     String        nearestOutput;                                                // The name of the nearest output so we can sort each layer to position each gate vertically so that it is on approximately the same Y value as its nearest output.
     int                  px, py;                                                // Position in x and y of gate in latest layout
 
+    private Gate(Operator Op)                                                   // System created gate of a specified type with a unique system generated name. As yet the inputs are unknonw.
+     {op = Op;
+      name = ""+seq;
+      gates.put(name,  this);
+     }
+
+    public Gate(Operator Op, String Name, String Input1, String Input2)         // User created gate with a user supplied name and inputs
+     {name = validateName(Name);
+      op   = Op;
+      gates.put(name, this);
+      if (commutative(op))                                                      // Any input pin will do
+       {if (Input1 != null) impinge(Input1);
+        if (Input2 != null) impinge(Input2);
+       }
+      else                                                                      // Input pin order is important
+       {if (Input1 == null || Input2 == null) stop("Non commutative gates must have two inputs", Name, Op, Input1, Input2);
+        impinge(Input1, true);
+        impinge(Input2, false);
+       }
+      final TreeSet<WhichPin> d = pending.get(name);                            // Add any pending gate references to this gate definition
+      if (d != null)
+       {pending.remove(name);
+        for(WhichPin p : d)
+         {drives.add(new WhichPin(p.drives, p.pin));
+         }
+       }
+     }
+
     String drives()                                                             // Convert drives to a printable string
      {final StringBuilder b = new StringBuilder();
       for(WhichPin s : drives) b.append(s + ", ");
@@ -212,34 +242,6 @@ public class Chip                                                               
         nearestOutput != null ? nearestOutput : "",
         px, py
         ) + drives() + "\n";
-     }
-
-    private Gate(Operator Op)                                                   // System created gate of a specified type with a unique system generated name. As yet the inputs are unknonw.
-     {op = Op;
-      name = ""+seq;
-      gates.put(name,  this);
-     }
-
-    public Gate(Operator Op, String Name, String Input1, String Input2)         // User created gate with a user supplied name and inputs
-     {name = validateName(Name);
-      op   = Op;
-      gates.put(name, this);
-      if (commutative(op))                                                      // Any input pin will do
-       {if (Input1 != null) impinge(Input1);
-        if (Input2 != null) impinge(Input2);
-       }
-      else                                                                      // Input pin order is important
-       {if (Input1 == null || Input2 == null) stop("Non commutative gates must have two inputs", Name, Op, Input1, Input2);
-        impinge(Input1, true);
-        impinge(Input2, false);
-       }
-      final TreeSet<WhichPin> d = pending.get(name);                            // Add any pending gate references to this gate definition
-      if (d != null)
-       {pending.remove(name);
-        for(WhichPin p : d)
-         {drives.add(new WhichPin(p.drives, p.pin));
-         }
-       }
      }
 
     void impinge(String Input)                                                  // Go to the named gate (which must therefore already exist) and show that it drives this gate on any input pin
@@ -397,7 +399,7 @@ public class Chip                                                               
     if (L == 1) return new Gate(Op, Name, Input[0], null);                      // Input gate have no driving gates
     if (L == 2) return new Gate(Op, Name, Input[0], Input[1]);                  // Input gate have no driving gates
 
-    final Operator Ao;                                                        // Only the last level of Not operators requires a not
+    final Operator Ao;                                                          // Only the last level of Not operators requires a not
     switch(Op)
      {case Nand: Ao = Operator.And; break;
       case Nor : Ao = Operator.Or; break;
@@ -1705,7 +1707,7 @@ my BtreeIds = 0;                                                               /
    }
 
 //D2 Groupings                                                                  // Group chips into two classes and see if any single bit predicts the classification.  Finding a bit that does predict a classification can help resolve edge cases.
-
+// Could usefully test all dyadic gates to see if there is any correlation between their outputs any other pins indicating that the gate might be redundant
   static class Grouping                                                         // Group multiple runs into two classes and then see if any bits predict the grouping. (Grouping, bit name, bit value)
    {final TreeMap<Boolean, TreeMap<String, Boolean>> grouping = new TreeMap<>();
 
