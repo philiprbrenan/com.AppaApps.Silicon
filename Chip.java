@@ -803,6 +803,7 @@ public class Chip                                                               
     for  (int w = 1; w <= wb.words; ++w)                                        // Each word on the bus
      {final Stack<String> bits = new Stack<>();
       for(int b = 1; b <= wb.bits; ++b) bits.push(nn(w, b, input));             // Bits to or
+say("EEEE", n(w, name), stackToStringArray(bits));
       Or(n(w, name), stackToStringArray(bits));                                 // Or bits
      }
     setSizeBits(name, wb.bits);                                                 // Record number of bits in bit bus
@@ -2427,8 +2428,8 @@ say("CCCC", eI);
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {oldTests();
-    //newTests();
+   {//oldTests();
+    newTests();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("Passed ALL", testsPassed, "tests");
     else say("Passed ", testsPassed, "FAILED:", testsFailed, "tests");
