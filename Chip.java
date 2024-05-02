@@ -1174,9 +1174,9 @@ public class Chip                                                               
           final String iD = inputWords(nn(l, n, id), keys, bits);               // Bus of input words representing the data in this node
           final String iN = leaf ? null : inputWords(nn(l, n, in), keys, bits); // Bus of input words representing the next links in this node
           final String iT = leaf ? null : inputBits (nn(l, n, it),       bits); // Bus representing the top next link
-          final String oF = nn(l, n, nf);                                       // Whether the key was found by this node
-          final String oD = nn(l, n, nd);                                       // Bus of input words representing the data in this node
-          final String oN = nn(l, n, nn);                                       // Bus of input words representing the next links in this node
+          final String oF = root ? n(l, lf) : nn(l, n, nf);                     // On the root we do not need to combine the found flags for each node - on other levels we do
+          final String oD = root ? n(l, nd) : nn(l, n, nd);                     // Output data element if found
+          final String oN = root ? n(l, ln) : nn(l, n, nn);                     // Next link if node is not a leaf
 
           final BtreeNode node = new BtreeNode(nn(l, n, output, "node"),        // Create the node
             nodeId, bits, keys, leaf, eI, find, iK, iD, iN, iT, oF, oD, oN);
@@ -1186,13 +1186,17 @@ public class Chip                                                               
           node.level = l; node.index = n;                                       // Position of node in tree
          }
 
-        setSizeBits   (          n(l, nf), N);                                  // Found bits for this level
-        orBits        (n(l, lf), n(l, nf));                                     // Collect all the find output fields in this level and Or them together to see if any node found the key. At most one node will find the key if the data has been correctly structured.
+        if (!root)                                                              // Or the found flags together for this level. Not necessary on the root because there is only one node.
+         {setSizeBits   (          n(l, nf), N);                                // Found bits for this level
+          orBits        (n(l, lf), n(l, nf));                                   // Collect all the find output fields in this level and Or them together to see if any node found the key. At most one node will find the key if the data has been correctly structured.
+         }
 
-        setSizeWords  (          n(l, nd), N, bits);                            // Data found on this level.  all the data fields will be zero unless a key matched in which case it will have the value matching the key
-        orWords       (n(l, ld), n(l, nd));                                     // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
+        if (!root)                                                              // Or the data elements together for this level. Not necessary on the root because there is only one node.
+         {setSizeWords  (          n(l, nd), N, bits);                          // Data found on this level.  all the data fields will be zero unless a key matched in which case it will have the value matching the key
+          orWords       (n(l, ld), n(l, nd));                                   // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
+         }
 
-        if (!leaf)                                                              // Next link found on this level so we can place it into the next level
+        if (!root && !leaf)                                                     // Next link found on this level so we can place it into the next level
          {setSizeWords(n(l,           nn), N, bits);                            // Next link found on this level.  All the next link fields will be zero except that from the enable node unless a key matched in which case it will have the value matching the key
           orWords     (n(l, ln), n(l, nn));                                     // Collect all next links nodes on this level
          }
