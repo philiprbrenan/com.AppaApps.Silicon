@@ -1028,7 +1028,6 @@ public class Chip                                                               
        }
 
       setSizeBits(me, K);
-      if (!Leaf) setSizeBits    (mm, K);                                        // Interior nodes have next links
 
       chooseWordUnderMask       (df, Data, me);                                 // Choose data under equals mask
       orBits                    (f2,       me);                                 // Show whether key was found
@@ -1036,7 +1035,8 @@ public class Chip                                                               
       And                    (Found, f2,   en);                                 // Enable found flag
 
       if (!Leaf)
-       {norBits                 (nm, mm);                                       // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
+       {setSizeBits             (mm, K);                                        // Interior nodes have next links
+        norBits                 (nm, mm);                                       // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
         monotoneMaskToPointMask (pm, mm);                                       // Convert monotone more mask to point mask
         chooseWordUnderMask     (mf, Next, pm);                                 // Choose next link using point mask from the more monotone mask created
         chooseFromTwoWords      (n4, mf,   Top, nm);                            // Show whether key was found
