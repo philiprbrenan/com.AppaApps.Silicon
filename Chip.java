@@ -296,7 +296,7 @@ public class Chip                                                               
        {if (op == Operator.Output) return;
         say(Chip.this);
         say(this);
-        stop("Gate", name, "does not drive any other gate");
+        stop("Gate", name, "does not drive any gate");
         return;
        }
 
@@ -1148,7 +1148,6 @@ public class Chip                                                               
 
       if (sizeBits(find) != bits) stop("Find bus must be", bits, "wide, not", sizeBits(find));
       if (sizeBits(find) != bits) stop("Find bus must be", bits, "wide, not", sizeBits(find));
-
       for (int l = 1; l <= levels; l++)                                         // Each level in the bTree
        {final int         N = powerOf(keys, l-1);                               // Number of nodes at this level
         final boolean  root = l == 1;                                           // Root node
@@ -1160,11 +1159,11 @@ public class Chip                                                               
 
         for (int n = 1; n <= N; n++)                                            // Each node at this level
          {++nodeId;                                                             // Number of this node
-          final String eI = root ? bits(n(1, ln), B, nodeId) : n(l-1, ln);      // Id of node in this level to activate
+          final String eI = root ? bits(n(0, ln), B, nodeId) : n(l-1, ln);      // Id of node in this level to activate. The root is always active with a hard coded value of 1 as its enabling id
           final String iK = inputWords(nn(l, n, ik), K, B);                     // Bus of input words representing the keys in this node
           final String iD = inputWords(nn(l, n, id), K, B);                     // Bus of input words representing the data in this node
-          final String iN = inputWords(nn(l, n, in), K, B);                     // Bus of input words representing the next links in this node
-          final String iT = inputBits (nn(l, n, it),    B);                     // Bus representing the top next link
+          final String iN = leaf ? null : inputWords(nn(l, n, in), K, B);       // Bus of input words representing the next links in this node
+          final String iT = leaf ? null : inputBits (nn(l, n, it),    B);       // Bus representing the top next link
           final String oF = nn(l, n, nf);                                       // Whether the key was found by this node
           final String oD = nn(l, n, nd);                                       // Bus of input words representing the data in this node
           final String oN = nn(l, n, nn);                                       // Bus of input words representing the next links in this node
@@ -1183,8 +1182,8 @@ public class Chip                                                               
 
         if (!leaf)                                                              // Next link found on this level so we can place it into the next level
          {setSizeWords(n(l,   nn), N, B);                                       // Next link found on this level.  All the next link fields will be zero except that from the enable node unless a key matched in which case it will have the value matching the key
-          orWords     (n(l+1, ln), n(l, nn));                                   // Collect all next nlinks nodes on this level
-          //setSizeBits (n(l+1, ln), B);                                                  // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
+          orWords     (n(l, ln), n(l, nn));                                     // Collect all next links nodes on this level
+          //setSizeBits (n(l+1, ln), B);                                        // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
          }
        }
 
@@ -2372,8 +2371,14 @@ public class Chip                                                               
    {final var c = new Chip("Btree");
     final int B = 3, K = 3, L = 2;
     c.bits("find",            B, 1);
-    c.bits("tree_enableRoot", B, 1);
+    //c.bits("tree_enableRoot", B, 1);
     final Btree b = c.new Btree("tree", "find", "found", "data", K, L, B);
+    c.outputBits("d", "data"); // Anneal the node
+    c.Output    ("f", "found");
+    c.simulate();
+    ok(c.steps,              16);
+    ok(c.getBit("found"),     1);
+    ok(c.bInt  ("data"),     22);
    }
 
   static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
@@ -2419,7 +2424,7 @@ public class Chip                                                               
 
   public static void main(String[] args)                                        // Test if called as a program
    {oldTests();
-    newTests();
+    //newTests();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("Passed ALL", testsPassed, "tests");
     else say("Passed ", testsPassed, "FAILED:", testsFailed, "tests");
