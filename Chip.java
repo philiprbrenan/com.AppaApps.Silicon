@@ -963,27 +963,21 @@ public class Chip                                                               
     final String OutData;                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
     final String OutNext;                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
     final String      id;                                                       // Id for this node
-    final String     dfo;                                                       //O The data corresponding to the key found or zero if not found
-    final String     df1;
-    final String     df2;
+    final String      df;                                                       // Data found before application of enable
     final String      en;                                                       // Whether this node is enabled for searching
-    final String      fo;                                                       //O Whether a matching key was found
-    final String      ff;
-    final String      f2;
+    final String      f2;                                                       // Whether the key was found or not but before application of enable
     final String      me;                                                       // Point mask showing key equal to search key
     final String      mm;                                                       // Monotone mask showing keys more than the search key
     final String      mf;                                                       // The next link for the first key greater than the search key is such a key is present int the node
     final String      nf;                                                       // True if we did not find the key
-    final String     nlo;                                                       //O The next link if the search key was not found
-    final String     nl1;
-    final String     nl2;
-    final String     nl3;
-    final String     nl4;
-    final String     nl5;
+    final String      n2;
+    final String      n3;
+    final String      n4;
     final String      nm;                                                       // No key in the node is greater than the search key
     final String      pm;                                                       // Point mask showing the first key in the node greater than the search key
-    final String     pmt;                                                       // A single bit that tells us whether the top link is the next link
-    final String   pmtNf;                                                       // Top is the next link, but only if the key was not found
+    final String      pt;                                                       // A single bit that tells us whether the top link is the next link
+    final String      pn;                                                       // Top is the next link, but only if the key was not found
+    int level, index;                                                           // Level and position in  level for this node
 
     BtreeNode                                                                   // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
      (String  Output,                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
@@ -1008,28 +1002,21 @@ public class Chip                                                               
       this.Data   = Data;   this.Next    = Next;    this.Top     = Top;
       this.Found  = Found;  this.OutData = OutData; this.OutNext = OutNext;
 
-         id = concatenateNames(Output, "id");                                   // Id for this node
-        dfo = OutData;                                                          //O The data corresponding to the key found or zero if not found
-        df1 = concatenateNames(Output, "dataFound1");
-        df2 = concatenateNames(Output, "dataFound2");
-         en = concatenateNames(Output, "enabled");                              // Whether this node is enabled for searching
-         fo = Found;                                                            //O Whether a matching key was found
-         ff = concatenateNames(Output, "found1");
-         f2 = concatenateNames(Output, "found2");
-         me = concatenateNames(Output, "maskEqual");                            // Point mask showing key equal to search key
-         mm = concatenateNames(Output, "maskMore");                             // Monotone mask showing keys more than the search key
-         mf = concatenateNames(Output, "moreFound");                            // The next link for the first key greater than the search key is such a key is present int the node
-         nf = concatenateNames(Output, "notFound");                             // True if we did not find the key
-        nlo = OutNext;                                                          //O The next link if the search key was not found
-        nl1 = concatenateNames(Output, "nextLink1");
-        nl2 = concatenateNames(Output, "nextLink2");
-        nl3 = concatenateNames(Output, "nextLink3");
-        nl4 = concatenateNames(Output, "nextLink4");
-        nl5 = concatenateNames(Output, "nextLink5");
-         nm = concatenateNames(Output, "noMore");                               // No key in the node is greater than the search key
-         pm = concatenateNames(Output, "pointMore");                            // Point mask showing the first key in the node greater than the search key
-        pmt = concatenateNames(Output, "pointMoreTop");                         // A single bit that tells us whether the top link is the next link
-      pmtNf = concatenateNames(Output, "pointMoreTop_notFound");                // Top is the next link, but only if the key was not found
+      id = concatenateNames(Output, "id");                                      // Id for this node
+      df = concatenateNames(Output, "dataFound");                               // Data found before application of enable
+      en = concatenateNames(Output, "enabled");                                 // Whether this node is enabled for searching
+      f2 = concatenateNames(Output, "foundBeforeEnable");                       // Whether the key was found or not but before application of enable
+      me = concatenateNames(Output, "maskEqual");                               // Point mask showing key equal to search key
+      mm = concatenateNames(Output, "maskMore");                                // Monotone mask showing keys more than the search key
+      mf = concatenateNames(Output, "moreFound");                               // The next link for the first key greater than the search key if such a key is present int the node
+      nf = concatenateNames(Output, "notFound");                                // True if we did not find the key
+      n2 = concatenateNames(Output, "nextLink2");
+      n3 = concatenateNames(Output, "nextLink3");
+      n4 = concatenateNames(Output, "nextLink4");
+      nm = concatenateNames(Output, "noMore");                                  // No key in the node is greater than the search key
+      pm = concatenateNames(Output, "pointMore");                               // Point mask showing the first key in the node greater than the search key
+      pt = concatenateNames(Output, "pointMoreTop");                            // A single bit that tells us whether the top link is the next link
+      pn = concatenateNames(Output, "pointMoreTop_notFound");                   // Top is the next link, but only if the key was not found
 
       bits(id, B, Id);                                                          // Save id of node
 
@@ -1039,38 +1026,26 @@ public class Chip                                                               
        {compareEq(n(i, me), n(i, Keys), Find);                                  // Compare equal point mask
         if (!Leaf) compareGt(n(i, mm), n(i, Keys), Find);                       // Compare more  monotone mask
        }
+
       setSizeBits(me, K);
-      if (!Leaf) setSizeBits(mm, K);                                            // Interior nodes have next links
+      if (!Leaf) setSizeBits    (mm, K);                                        // Interior nodes have next links
 
-      chooseWordUnderMask      (df2, Data,  me);                                // Choose data under equals mask
-      orBits                   (f2,         me);                                // Show whether key was found
-
-      if (!Leaf)
-       {norBits                (nm,  mm);                                       // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
-        monotoneMaskToPointMask(pm,  mm);                                       // Convert monotone more mask to point mask
-        chooseWordUnderMask    (mf,  Next,  pm);                                // Choose next link using point mask from the more monotone mask created
-        chooseFromTwoWords     (nl5, mf,    Top, nm);                           // Show whether key was found
-        norBits                (pmt, pm);                                       // The top link is the next link
-       }
-
-      //enableWord               (df1, df2,   en);                                // Enable data found
-      enableWord               (dfo, df2,   en);                                // Enable data found
-      //outputBits               (dfo, df1);                                      // Enable data found output
-
-      //And                      (ff,   f2,    en);                                // Enable found flag
-      And                      (fo,   f2,    en);                                // Enable found flag
-      //Output                   (fo,  f);                                        // Enable found flag output
+      chooseWordUnderMask       (df, Data, me);                                 // Choose data under equals mask
+      orBits                    (f2,       me);                                 // Show whether key was found
+      enableWord           (OutData, df,   en);                                 // Enable data found
+      And                    (Found, f2,   en);                                 // Enable found flag
 
       if (!Leaf)
-       {enableWord             (nl4, nl5,   en);                                // Enable next link
-//      Not                    (nf,  ff);                                       // Not found
-        Not                    (nf,  fo);                                       // Not found
-        enableWord             (nl3, nl4,   nf);                                // Disable next link if we found the key
-        And(pmtNf, pmt, nf);                                                    // Top is the next link, but only if the key was not found
-        chooseFromTwoWords     (nl2, nl3,   Top, pmtNf);                        // Either the next link or the top link
-//      enableWord             (nl1, nl2, en);                                  // Next link only if this node is enabled
-        enableWord             (nlo, nl2, en);                                  // Next link only if this node is enabled
-        //outputBits             (nlo, nl1);                                      // Enable next link output
+       {norBits                 (nm, mm);                                       // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
+        monotoneMaskToPointMask (pm, mm);                                       // Convert monotone more mask to point mask
+        chooseWordUnderMask     (mf, Next, pm);                                 // Choose next link using point mask from the more monotone mask created
+        chooseFromTwoWords      (n4, mf,   Top, nm);                            // Show whether key was found
+        norBits                 (pt, pm);                                       // The top link is the next link
+        Not                     (nf, Found);                                    // Not found
+        enableWord              (n3, n4,   nf);                                 // Disable next link if we found the key
+        And                     (pn, pt,   nf);                                 // Top is the next link, but only if the key was not found
+        chooseFromTwoWords      (n2, n3,   Top, pn);                            // Either the next link or the top link
+        enableWord         (OutNext, n2,   en);                                 // Next link only if this node is enabled
        }
      }
 
@@ -1106,19 +1081,23 @@ public class Chip                                                               
    }
 
   class Btree                                                                   // Construct and search a Btree.
-   {final int     B;                                                            // Number of bits in a key, dataum, or next link
-    final int     K;                                                            // Number of keys in a node
-//  final String er;                                                            // Set to the id of the root node so that it is always active and ready to start a search
-    final String id;                                                            // Input data
-    final String ik;                                                            // Input keys
-    final String in;                                                            // Input next links
-    final String it;                                                            // Input top link
-    final String ld;                                                            // The data out from a level
-    final String lf;                                                            // Find status for a level
-    final String ln;                                                            // Next link to search
-    final String nd;                                                            // The data out from a node
-    final String nf;                                                            // The found flag output by each node
-    final String nn;                                                            // The next link output by this node
+   {final int      bits;                                                        // Number of bits in a key, dataum, or next link
+    final int      keys;                                                        // Number of keys in a node
+    final int    levels;                                                        // Number of levels in the tree
+    final String output;                                                        // The name of this tree. This name will be prepended to generate the names of the gates used to construct this tree.
+    final String   find;                                                        //i The search key bus
+    final String  found;                                                        //o A bit indicating whether the key was found in the tree or not
+    final String   data;                                                        //o The data corresponding to the search key if the found bit is set, else all zeros
+    final String     id;                                                        // Input data
+    final String     ik;                                                        // Input keys
+    final String     in;                                                        // Input next links
+    final String     it;                                                        // Input top link
+    final String     ld;                                                        // The data out from a level
+    final String     lf;                                                        // Find status for a level
+    final String     ln;                                                        // Next link to search
+    final String     nd;                                                        // The data out from a node
+    final String     nf;                                                        // The found flag output by each node
+    final String     nn;                                                        // The next link output by this node
     final TreeMap<Integer, TreeMap<Integer, BtreeNode>> tree = new TreeMap<>(); // Nodes within tree by level and position in level
     final TreeMap<Integer,                  BtreeNode> nodes = new TreeMap<>(); // Nodes within tree by id number
 
@@ -1131,9 +1110,13 @@ public class Chip                                                               
       int    levels,                                                            // Number of levels in the tree
       int      bits                                                             // Number of bits in each key, data, node identifier
      )
-     { B = bits;                                                                // Number of bits in a key, datum, or next link
-       K = keys;                                                                // Number of keys in a node
-      //er = concatenateNames(output, "enableRoot");                              // Set to the id of the root node so that it is always active and ready to start a search
+     {this.  bits = bits;                                                       // Number of bits in a key, datum, or next link
+      this.  keys = keys;                                                       // Number of keys in a node
+      this.levels = levels;                                                     // Number of levels in the tree
+      this.output = output;                                                     // The name of this tree. This name will be prepended to generate the names of the gates used to construct this tree.
+      this.  find = find;                                                       //i The search key bus
+      this. found = found;                                                      //o A bit indicating whether the key was found in the tree or not
+      this.  data = data;                                                       //o The data corresponding to the search key if the found bit is set, else all zeros
       id = concatenateNames(output, "inputData");                               // Input data
       ik = concatenateNames(output, "inputKeys");                               // Input keys
       in = concatenateNames(output, "inputNext");                               // Input next links
@@ -1159,35 +1142,35 @@ public class Chip                                                               
 
         for (int n = 1; n <= N; n++)                                            // Each node at this level
          {++nodeId;                                                             // Number of this node
-          final String eI = root ? bits(n(0, ln), B, nodeId) : n(l-1, ln);      // Id of node in this level to activate. The root is always active with a hard coded value of 1 as its enabling id
-          final String iK = inputWords(nn(l, n, ik), K, B);                     // Bus of input words representing the keys in this node
-          final String iD = inputWords(nn(l, n, id), K, B);                     // Bus of input words representing the data in this node
-          final String iN = leaf ? null : inputWords(nn(l, n, in), K, B);       // Bus of input words representing the next links in this node
-          final String iT = leaf ? null : inputBits (nn(l, n, it),    B);       // Bus representing the top next link
+          final String eI = root ? bits(n(0, ln), bits, nodeId) : n(l-1, ln);   // Id of node in this level to activate. The root is always active with a hard coded value of 1 as its enabling id
+          final String iK = inputWords(nn(l, n, ik), keys, bits);               // Bus of input words representing the keys in this node
+          final String iD = inputWords(nn(l, n, id), keys, bits);               // Bus of input words representing the data in this node
+          final String iN = leaf ? null : inputWords(nn(l, n, in), keys, bits); // Bus of input words representing the next links in this node
+          final String iT = leaf ? null : inputBits (nn(l, n, it),       bits); // Bus representing the top next link
           final String oF = nn(l, n, nf);                                       // Whether the key was found by this node
           final String oD = nn(l, n, nd);                                       // Bus of input words representing the data in this node
           final String oN = nn(l, n, nn);                                       // Bus of input words representing the next links in this node
 
           final BtreeNode node = new BtreeNode(nn(l, n, output, "node"),        // Create the node
-            nodeId, B, K, leaf, eI, find, iK, iD, iN, iT, oF, oD, oN);
+            nodeId, bits, keys, leaf, eI, find, iK, iD, iN, iT, oF, oD, oN);
           level.put(n,      node);                                              // Add the node to this level
           nodes.put(nodeId, node);                                              // Index the node
+          node.level = l; node.index = n;                                       // Position of node in tree
          }
 
         setSizeBits   (          n(l, nf), N);                                  // Found bits for this level
         orBits        (n(l, lf), n(l, nf));                                     // Collect all the find output fields in this level and Or them together to see if any node found the key. At most one node will find the key if the data has been correctly structured.
 
-        setSizeWords  (          n(l, nd), N, B);                               // Data found on this level.  all the data fields will be zero unless a key matched in which case it will have the value matching the key
+        setSizeWords  (          n(l, nd), N, bits);                            // Data found on this level.  all the data fields will be zero unless a key matched in which case it will have the value matching the key
         orWords       (n(l, ld), n(l, nd));                                     // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
 
         if (!leaf)                                                              // Next link found on this level so we can place it into the next level
-         {setSizeWords(n(l,   nn), N, B);                                       // Next link found on this level.  All the next link fields will be zero except that from the enable node unless a key matched in which case it will have the value matching the key
+         {setSizeWords(n(l,   nn), N, bits);                                    // Next link found on this level.  All the next link fields will be zero except that from the enable node unless a key matched in which case it will have the value matching the key
           orWords     (n(l, ln), n(l, nn));                                     // Collect all next links nodes on this level
-          //setSizeBits (n(l+1, ln), B);                                        // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
          }
        }
 
-      setSizeWords    (ld, levels, B);                                          // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
+      setSizeWords    (ld, levels, bits);                                       // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
       orWords         (data,      ld);                                          // Data found over all layers
       setSizeBits     (lf,    levels);                                          // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
       orBits          (found,     lf);                                          // Or of found status over all layers
@@ -2304,7 +2287,7 @@ public class Chip                                                               
     c.outputBits("n", "next");
     c.Output    ("f", "found");
     c.simulate();
-    ok(c.steps,              16);
+    ok(c.steps,              15);
     ok(c.getBit("found"), Found);
     ok(c.bInt  ("data"),   Data);
     ok(c.bInt  ("next"),   Next);
