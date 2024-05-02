@@ -2,7 +2,7 @@
 // Design, simulate and layout a silicon chip made of basic gates.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
-package com.AppaApps.Silicon;
+//package com.AppaApps.Silicon;
 
 import java.io.*;
 import java.util.*;
