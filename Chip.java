@@ -1175,7 +1175,7 @@ public class Chip                                                               
           final String iN = leaf ? null : inputWords(nn(l, n, in), keys, bits); // Bus of input words representing the next links in this node
           final String iT = leaf ? null : inputBits (nn(l, n, it),       bits); // Bus representing the top next link
           final String oF = root ? n(l, lf) : nn(l, n, nf);                     // On the root we do not need to combine the found flags for each node - on other levels we do
-          final String oD = root ? n(l, nd) : nn(l, n, nd);                     // Output data element if found
+          final String oD = root ? n(l, ld) : nn(l, n, nd);                     // Output data element if found
           final String oN = root ? n(l, ln) : nn(l, n, nn);                     // Next link if node is not a leaf
 
           final BtreeNode node = new BtreeNode(nn(l, n, output, "node"),        // Create the node
@@ -2411,9 +2411,8 @@ public class Chip                                                               
     c.outputBits("d", "data"); // Anneal the tree
     c.Output    ("f", "found");
     c.simulate(i);
-    say(c);
-    ok(c.steps,              16);
-    ok(c.getBit("found"),     1);
+    ok(c.steps,              23);
+    ok(c.getBit("found"),   true);
     ok(c.bInt  ("data"),     22);
    }
 
@@ -2460,7 +2459,7 @@ public class Chip                                                               
 
   public static void main(String[] args)                                        // Test if called as a program
    {oldTests();
-    //newTests();
+    newTests();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("Passed ALL", testsPassed, "tests");
     else say("Passed ", testsPassed, "FAILED:", testsFailed, "tests");
