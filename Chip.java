@@ -55,16 +55,16 @@ public class Chip                                                               
    }
 
   boolean zerad(Operator op)                                                    // Whether the gate takes zero inputs
-   {return op != Operator.Input && op != Operator.One &&
-           op != Operator.Zero;
+   {return op == Operator.Input    || op == Operator.One ||
+           op == Operator.Zero;
    }
 
   boolean monad(Operator op)                                                    // Whether the gate takes a single input or not
-   {return op != Operator.Continue && op != Operator.Not &&
-           op != Operator.Output;
+   {return op == Operator.Continue || op == Operator.Not ||
+           op == Operator.Output;
    }
 
-  boolean dyadic(Operator op) {return !zerad(op) &&! monad(op);}                // Whether the gate takes two inputs or not
+  boolean dyad(Operator op) {return !(zerad(op) || monad(op));}                 // Whether the gate takes two inputs or not
 
   int nextPowerOfTwo(int n)                                                     // If this is a power of two return it, else return the next power of two greater than this number
    {int p = 1;
@@ -397,9 +397,20 @@ public class Chip                                                               
 
   Gate FanIn(Operator Op, String Name, String...Input)                          // Normal gate - not a fan out gate
    {final int L = Input.length;
-    if (L == 0) return new Gate(Op, Name, null,     null);                      // Input gates have no driving gates
-    if (L == 1) return new Gate(Op, Name, Input[0], null);                      // Input gate have no driving gates
-    if (L == 2) return new Gate(Op, Name, Input[0], Input[1]);                  // Input gate have no driving gates
+    if (L == 0)                                                                 // Zerad
+     {if (!zerad(Op)) stop(Op, "gate:", Name, "does not accept zero inputs");
+      return new Gate(Op, Name, null,     null);
+     }
+
+    if (L == 1)                                                                 // Monad
+     {if (!monad(Op)) stop(Op, "gate:", Name, "does not accept just one input");
+      return new Gate(Op, Name, Input[0], null);
+     }
+
+    if (L == 2)                                                                 // Dyad
+     {if (!dyad(Op)) stop(Op, "gate:", Name, "does not accept two inputs");
+      return new Gate(Op, Name, Input[0], Input[1]);
+     }
 
     final Operator Ao;                                                          // Only the last level of Not operators requires a not
     switch(Op)
@@ -529,6 +540,20 @@ public class Chip                                                               
       inputs.put(s, value);
      }
 
+    void set(String input, int value)                                           // Set the value of an input bit bus
+     {final int bits = sizeBits(input);                                         // Get the size of the input bit bus
+      final Stack<Boolean> b = bitStack(bits, value);                           // Bits to set
+      for (int i = 1; i <= bits; i++) set(n(i, input), b.elementAt(i-1));       // Load the bits into the input bit bus
+     }
+
+    void set(String input, int...values)                                        // Set the value of an input word bus
+     {final WordBus wb = sizeWords(input);                                      // Get the size of the input word bus
+      for   (int w = 1; w <= wb.words; w++)                                     // Each word
+       {final Stack<Boolean> b = bitStack(wb.bits, values[w-1]);                // Bits from current word
+        for (int i = 1; i <= wb.bits; i++) set(nn(w, i, input), b.elementAt(i-1)); // Load the bits into the input bit bus
+       }
+     }
+
     Boolean get(String s) {return inputs.get(s);}                               // Get the value of an input
    }
 
@@ -608,16 +633,18 @@ public class Chip                                                               
    {if (value > 0) One(name); else Zero(name);
    }
 
-  String bits(String name, int bits, int value)                                 // Create a bus set to a specified number.
+  Stack<Boolean> bitStack(int bits, int value)                                  // Create a stack of bits, padded with zeroes if necessary, representing an unsigned integer with the least significant bit lowest.
    {final String         s = Integer.toBinaryString(value);                     // Bit in number
     final Stack<Boolean> b = new Stack<>();
-    for(int i = s.length(); i > 0; --i)                                         // Stack of bits with least significant lowest
-     {b.push(s.charAt(i-1) == '1' ? true : false);                              // Bits of the number
-     }
-    for(int i = b.size(); i <= bits; ++i) b.push(false);                        // Extend to the left with zeroes
+    for(int i = s.length(); i > 0;     --i) b.push(s.charAt(i-1) == '1');       // Stack of bits with least significant lowest
+    for(int i = b.size();   i <= bits; ++i) b.push(false);                      // Extend to the left with zeroes
+    return b;
+   }
+
+  String bits(String name, int bits, int value)                                 // Create a bus set to a specified number.
+   {final Stack<Boolean> b = bitStack(bits, value);                             // Number as a stack of bits padded to specified width
     for(int i = 1; i <= bits; ++i)                                              // Generate constant
       if (b.elementAt(i-1)) One(n(i, name)); else Zero(n(i, name));             // Set bit
-
     setSizeBits(name, bits);                                                    // Record bus width
     return name;
    }
@@ -628,20 +655,20 @@ public class Chip                                                               
     return n;                                                                   // Generated bus name
    }
 
-  String inputBits(String name, int bits)                                         // Create an B<input> bus made of bits.
+  String inputBits(String name, int bits)                                       // Create an B<input> bus made of bits.
    {setSizeBits(name, bits);                                                    // Record bus width
     for (int b = 1; b <= bits; ++b) Input(n(b, name));                          // Bus of input gates
     return name;
    }
 
-  String outputBits(String name, String input)                                    // Create an B<output> bus made of bits.
+  String outputBits(String name, String input)                                  // Create an B<output> bus made of bits.
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     for (int i = 1; i <= bits; i++) Output(n(i, name), n(i, input));            // Bus of output gates
     setSizeBits(name, bits);                                                    // Record bus width
     return name;
    }
 
-  String notBits(String name, String input)                                       // Create a B<not> bus made of bits.
+  String notBits(String name, String input)                                     // Create a B<not> bus made of bits.
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     for (int b = 1; b <= bits; ++b) Not(n(b, name), n(b, input));               // Bus of not gates
     return name;
@@ -651,10 +678,10 @@ public class Chip                                                               
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
     for (int i = 1; i <= bits; ++i) b[i-1] = n(i, input);                       // Names of bits
-    return And(name, b);                                                               // And all the bits in the bus
+    return And(name, b);                                                        // And all the bits in the bus
    }
 
-  String and2Bits(String name, String input1, String input2)                    // B<And> two same sized bit buses together to make another bit bus of the same size
+  String andBits(String name, String input1, String input2)                     // B<And> two same sized bit buses together to make another bit bus of the same size
    {final int b1 = sizeBits(input1);                                            // Number of bits in input bus
     final int b2 = sizeBits(input2);                                            // Number of bits in input bus
     if (b1 != b2) stop("Buses have different sizes", b1, b2);
@@ -667,14 +694,14 @@ public class Chip                                                               
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
     for (int i = 1; i <= bits; ++i) b[i-1] = n(i, input);                       // Names of bits
-    return Nand(name, b);                                                              // Nand all the bits in the bus
+    return Nand(name, b);                                                       // Nand all the bits in the bus
    }
 
   Gate orBits(String name, String input)                                        // B<Or> all the bits in a bus to get one bit
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
     for (int i = 1; i <= bits; ++i) b[i-1] = n(i, input);                       // Names of bits
-    return Or(name, b);                                                                // Or all the bits in the bus
+    return Or(name, b);                                                         // Or all the bits in the bus
    }
 
   Gate norBits(String name, String input)                                       // B<Nor> all the bits in a bus to get one bit
@@ -889,7 +916,7 @@ public class Chip                                                               
      }
 
     final Stack<String> or = new Stack<>();
-    for (int i = 2; i <= B; i++) or.push(n(i, output, "c"));                    // Equals  followed by less than
+    for (int i = 2; i <= B; i++) or.push(n(i, output, "c"));                    // Equals followed by less than
                                  or.push(n(B, output, "l"));
     Or(output, stackToStringArray(or));                                         // Any set bit indicates that first is less than second
    }
@@ -1132,7 +1159,7 @@ public class Chip                                                               
       if (sizeBits(find) != bits) stop("Find bus must be", bits, "wide, not", sizeBits(find));
       if (sizeBits(find) != bits) stop("Find bus must be", bits, "wide, not", sizeBits(find));
       for (int l = 1; l <= levels; l++)                                         // Each level in the bTree
-       {final int         N = powerOf(keys, l-1);                               // Number of nodes at this level
+       {final int         N = powerOf(keys+1, l-1);                             // Number of nodes at this level
         final boolean  root = l == 1;                                           // Root node
         final boolean  leaf = l == levels;                                      // Final level is made of leaf nodes
         final String enable = concatenateNames(output, "nextLink");             // Next link to search
@@ -1153,6 +1180,7 @@ public class Chip                                                               
 
           final BtreeNode node = new BtreeNode(nn(l, n, output, "node"),        // Create the node
             nodeId, bits, keys, leaf, eI, find, iK, iD, iN, iT, oF, oD, oN);
+
           level.put(n,      node);                                              // Add the node to this level
           nodes.put(nodeId, node);                                              // Index the node
           node.level = l; node.index = n;                                       // Position of node in tree
@@ -1165,7 +1193,7 @@ public class Chip                                                               
         orWords       (n(l, ld), n(l, nd));                                     // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
 
         if (!leaf)                                                              // Next link found on this level so we can place it into the next level
-         {setSizeWords(n(l,   nn), N, bits);                                    // Next link found on this level.  All the next link fields will be zero except that from the enable node unless a key matched in which case it will have the value matching the key
+         {setSizeWords(n(l,           nn), N, bits);                            // Next link found on this level.  All the next link fields will be zero except that from the enable node unless a key matched in which case it will have the value matching the key
           orWords     (n(l, ln), n(l, nn));                                     // Collect all next links nodes on this level
          }
        }
@@ -2074,13 +2102,13 @@ public class Chip                                                               
    {for(int N = 3; N <= 4; ++N)
      {final int N2 = powerTwo(N);
       for  (int i = 0; i < N2; i++)
-       {final Chip c = new Chip("Output Bits");
+       {final Chip c = new Chip("OutputBits");
         c.bits("i1", N, 5);
         c.bits("i2", N, i);
-        c.and2Bits("o", "i1", "i2");
+        c.andBits("o", "i1", "i2");
         c.outputBits("out", "o");
         c.simulate();
-        ok(c.steps,      2);
+        ok(c.steps,     2);
         ok(c.bInt("o"), 5 & i);
        }
      }
@@ -2131,17 +2159,19 @@ public class Chip                                                               
    }
 
 /*
-  101   0 And horizontally   1 Or horizontally
+  101   0 AndX horizontally  1 OrX horizontally
   100   0                    1
-  101   1                    1
+  111   1                    1
+  110   0                    1
+  111   1                    1
 
-  100 AndX words vertically
-  111  OrX words vertically
+  100 And words vertically
+  111  Or words vertically
  */
 
   static void test_aix()
    {final int B = 3;
-    final int[]bits =  {5, 4, 7};
+    final int[]bits =  {5, 4, 7, 6, 7};
     final var c = new Chip("chooseWordUnderMask "+B);
     c.     words("i", B, bits);
     c. andWords ("a", "i"); c.outputBits("oa", "a");
@@ -2149,10 +2179,10 @@ public class Chip                                                               
     c. andWordsX("A", "i"); c.outputBits("oA", "A");
     c.  orWordsX("O", "i"); c.outputBits("oO", "O");
     c.simulate();
-    ok(c.bInt("oa"), 4);
-    ok(c.bInt("oo"), 7);
-    ok(c.bInt("oA"), 4);
-    ok(c.bInt("oO"), 7);
+    ok(c.bInt("oa"),  4);
+    ok(c.bInt("oo"),  7);
+    ok(c.bInt("oA"), 20);
+    ok(c.bInt("oO"), 31);
    }
 
   static void test_compareEq()
@@ -2352,13 +2382,32 @@ public class Chip                                                               
 
   static void test_Btree()
    {final var c = new Chip("Btree");
-    final int B = 3, K = 3, L = 2;
-    c.bits("find",            B, 1);
-    //c.bits("tree_enableRoot", B, 1);
-    final Btree b = c.new Btree("tree", "find", "found", "data", K, L, B);
-    c.outputBits("d", "data"); // Anneal the node
+    final int B = 8, K = 3, L = 2;
+    c.bits("find", B, 20);
+    final Btree  b = c.new Btree("tree", "find", "found", "data", K, L, B);
+    final Inputs i = c.new Inputs();
+    final BtreeNode r = b.tree.get(1).get(1);
+    i.set(r.Find, 2);
+    i.set(r.Keys,   10,  20, 30);
+    i.set(r.Data,   11,  22, 33);
+    i.set(r.Next,  2,  3,  4);
+    i.set(r.Top,               5);
+    final BtreeNode l1 = b.tree.get(2).get(1);
+    i.set(l1.Keys,   2,  4,  6);
+    i.set(l1.Data,  22, 44, 66);
+    final BtreeNode l2 = b.tree.get(2).get(2);
+    i.set(l2.Keys,  13, 15, 17);
+    i.set(l2.Data,  31, 51, 71);
+    final BtreeNode l3 = b.tree.get(2).get(3);
+    i.set(l3.Keys,  22, 24, 26);
+    i.set(l3.Data,  22, 42, 62);
+    final BtreeNode l4 = b.tree.get(2).get(4);
+    i.set(l4.Keys,  33, 35, 37);
+    i.set(l4.Data,  33, 53, 73);
+    c.outputBits("d", "data"); // Anneal the tree
     c.Output    ("f", "found");
-    c.simulate();
+    c.simulate(i);
+    say(c);
     ok(c.steps,              16);
     ok(c.getBit("found"),     1);
     ok(c.bInt  ("data"),     22);
