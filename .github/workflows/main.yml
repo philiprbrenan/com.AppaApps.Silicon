@@ -1,4 +1,4 @@
-# Test 2024-05-02 at 01:58:40
+# Test 2024-05-02 at 02:03:26
 
 name: Test
 
@@ -17,6 +17,11 @@ jobs:
     - uses: actions/checkout@v3
       with:
         ref: 'main'
+
+    - name: 'JDK 22'
+      uses: oracle-actions/setup-java@v1
+      with:
+        website: jdk.java.net
 
     - name: Cpan
       run:  sudo cpan install -T Data::Dump Data::Table::Text GDS2 Digest::SHA1
