@@ -2,7 +2,7 @@
 // Design, simulate and layout a silicon chip made of basic gates.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
-//package com.AppaApps.Silicon;
+//pckage com.AppaApps.Silicon;
 
 import java.io.*;
 import java.util.*;
@@ -115,10 +115,10 @@ public class Chip                                                               
 
     if (pending.size() > 0)                                                     // Write pending gates
      {b.append(""+pending.size()+" pending gates\n");
-      b.append("Source__  Target__\n");
+      b.append("Source__________________________  Target__________________________\n");
       for(String n : pending.keySet())
         for(Gate.WhichPin d : pending.get(n))
-          b.append(String.format("%8s  %8s  %c\n",
+          b.append(String.format("%32s  %32s  %c\n",
             n, d.drives, d.pin == null ? ' ' : d.pin ? '1' : '2'));
      }
 
@@ -140,8 +140,8 @@ public class Chip                                                               
        {final WordBus w = sizeWords.get(n);
         b.append(String.format("%4d  %4d  %32s  ", w.words, w.bits, n));
         final Integer[]v = wInt(n);
-        for(int i = 0; i < v.length; ++i) b.append(""+v[i]+", ");
-        b.delete(b.length() - 2, b.length());
+        if (v != null) for(int i = 0; i < v.length; ++i) b.append(""+v[i]+", ");
+        if (b.length() > 1) b.delete(b.length() - 2, b.length());
         b.append("\n");
        }
      }
@@ -595,8 +595,11 @@ public class Chip                                                               
 
   void setSizeBits(String name, int bits)                                       // Set the size of a bits bus.
    {final Integer s = sizeBits.get(name);
-    if (s != null) stop("A bit bus with name:", name, "has already been defined");
-    sizeBits.put(name, bits);
+
+    if (s != null)
+     {if (s != bits) stop("A bit bus with name:", name, "and width", s,  "has already been defined versus bits:", bits);
+     }
+    else sizeBits.put(name, bits);
    }
 
   void bit(String name, int value)                                              // Set an individual bit to true if the supplied number is non zero else false
@@ -684,6 +687,10 @@ public class Chip                                                               
     for (int i = 1; i <= B; i++)                                                // Each bit on bus
      {final String n = n(i, output);                                            // Name of gate supporting named bit
       final Gate g = getGate(n);                                                // Gate providing bit
+      if (g == null)
+       {say("No such gate as:", n);
+        return null;
+       }
       if (g.value == null) return null;                                         // Bit state not known
       if (g.value) v += p;
       p *= 2;
@@ -822,6 +829,10 @@ public class Chip                                                               
       for (int i = 1; i <= W.bits; i++)                                         // Each bit on bus
        {final String n = nn(j, i, name);                                        // Name of gate supporting named bit
         final Gate g = getGate(n);                                              // Gate providing bit
+        if (g == null)
+         {say("No such word as:", name);
+          return null;
+         }
         if (g.value == null) continue loop;                                     // Bit state not known
         if (g.value) v += p;
         p *= 2;
@@ -938,7 +949,8 @@ public class Chip                                                               
 //D2 B-tree                                                                     // Circuits useful in the construction and traversal of B-trees.
 
   class BtreeNode                                                               // Description of a node in a binary tree
-   {final int         Id;                                                       // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
+   {final String  Output;                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+    final int         Id;                                                       // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
     final int          B;                                                       // Width of each word in the node.
     final int          K;                                                       // Number of keys == number of data words each B bits wide in the node.
     final boolean   Leaf;                                                       // Width of each word in the node.
@@ -948,7 +960,7 @@ public class Chip                                                               
     final String    Data;                                                       // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
     final String    Next;                                                       // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
     final String     Top;                                                       // The top next link making N+1 next links in all.
-    final String  Output;                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+    final String   Found;                                                       // Found the search key
     final String OutData;                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
     final String OutNext;                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
     final String      id;                                                       // Id for this node
@@ -975,7 +987,8 @@ public class Chip                                                               
     final String   pmtNf;                                                       // Top is the next link, but only if the key was not found
 
     BtreeNode                                                                   // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
-     (int         Id,                                                           // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
+     (String  Output,                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+      int         Id,                                                           // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
       int          B,                                                           // Width of each word in the node.
       int          K,                                                           // Number of keys == number of data words each B bits wide in the node.
       boolean   Leaf,                                                           // Width of each word in the node.
@@ -985,22 +998,23 @@ public class Chip                                                               
       String    Data,                                                           // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
       String    Next,                                                           // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
       String     Top,                                                           // The top next link making N+1 next links in all.
-      String  Output,                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+      String   Found,                                                           // Found the search key
       String OutData,                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
       String OutNext)                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
      {if (K     <= 2) stop("The number of keys the node can hold must be greater than 2, not", K);
       if (K % 2 == 0) stop("The number of keys the node can hold must be odd, not even:",      K);
+      this.Output = Output;
       this.Id     = Id;     this.B       = B;       this.K       = K; this.Leaf = Leaf;
       this.Enable = Enable; this.Find    = Find;    this.Keys    = Keys;
       this.Data   = Data;   this.Next    = Next;    this.Top     = Top;
-      this.Output = Output; this.OutData = OutData; this.OutNext = OutNext;
+      this.Found  = Found;  this.OutData = OutData; this.OutNext = OutNext;
 
          id = concatenateNames(Output, "id");                                   // Id for this node
         dfo = OutData;                                                          //O The data corresponding to the key found or zero if not found
         df1 = concatenateNames(Output, "dataFound1");
         df2 = concatenateNames(Output, "dataFound2");
          en = concatenateNames(Output, "enabled");                              // Whether this node is enabled for searching
-         fo =                  Output;                                          //O Whether a matching key was found
+         fo = Found;                                                            //O Whether a matching key was found
           f = concatenateNames(Output, "found1");
          f2 = concatenateNames(Output, "found2");
          me = concatenateNames(Output, "maskEqual");                            // Point mask showing key equal to search key
@@ -1059,6 +1073,7 @@ public class Chip                                                               
 
     static void Test                                                            // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
      (Chip         c,                                                           // Chip to contain node
+      String  Output,                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
       int         Id,                                                           // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
       int          B,                                                           // Width of each word in the node.
       int          N,                                                           // Number of keys == number of data words each B bits wide in the node.
@@ -1068,7 +1083,7 @@ public class Chip                                                               
       int[]     data,                                                           // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
       int[]     next,                                                           // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
       int        top,                                                           // The top next link making N+1 next links in all.
-      String  output,                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+      String   Found,                                                           // Found the search key
       String    Data,                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
       String    Next                                                            // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
      )
@@ -1083,7 +1098,7 @@ public class Chip                                                               
       final String n = next != null ? c.words(B, next) : null;
       final String t = next != null ? c.bits (B, top)  : null;
 
-      c.new BtreeNode(Id, B, N, next == null, e, f, k, d, n, t, output, Data, Next);
+      c.new BtreeNode(Output, Id, B, N, next == null, e, f, k, d, n, t, Found, Data, Next);
      }
    }
 
@@ -1131,46 +1146,49 @@ public class Chip                                                               
       if (sizeBits(find) != bits) stop("Find bus must be", bits, "wide, not", sizeBits(find));
       if (sizeBits(find) != bits) stop("Find bus must be", bits, "wide, not", sizeBits(find));
 
-      for (int l = 1; l < levels; l++)                                            // Each level in the bTree
-       {final int         N = powerOf(keys, l);                                   // Number of nodes at this level
-        final boolean  root = l == 1;                                             // Root node
-        final boolean  leaf = l == levels;                                        // Final level is made of leaf nodes
-        final String enable = concatenateNames(output, "nextLink");               // Next link to search
-        final TreeMap<Integer, BtreeNode> level = new TreeMap<>();                // Current level in tree
+      for (int l = 1; l < levels; l++)                                          // Each level in the bTree
+       {final int         N = powerOf(keys, l);                                 // Number of nodes at this level
+        final boolean  root = l == 1;                                           // Root node
+        final boolean  leaf = l == levels;                                      // Final level is made of leaf nodes
+        final String enable = concatenateNames(output, "nextLink");             // Next link to search
+        final TreeMap<Integer, BtreeNode> level = new TreeMap<>();              // Current level in tree
 
-        tree.put(l, level);                                                       // Add the level ot the tree
+        tree.put(l, level);                                                     // Add the level ot the tree
 
-        for (int n = 1; n <= N; n++)                                              // Each node at this level
-         {final String eI = root ? er   : n(l-1,ln);                              // Id of node in this level to activate
-          final String eO = leaf ? null : n(l,  nn);                              // Id of node in next level down to activate after failure to find in this level
-          final String iK = inputWords(nn(l, n, ik), K, B);                       // Bus of input words representing the keys in this node
-          final String iD = inputWords(nn(l, n, id), K, B);                       // Bus of input words representing the data in this node
-          final String iN = inputWords(nn(l, n, in), K, B);                       // Bus of input words representing the next links in this node
-          final String iT = inputBits (nn(l, n, it),    B);                       // Bus representing the top next link
-          final String oD = inputBits (nn(l, n, nd),    B);                       // Bus of input words representing the data in this node
-          final String oN = inputWords(nn(l, n, nn), K, B);                       // Bus of input words representing the next links in this node
-          final String oF = nn(l, n, nf);                                         // Whether the key was found by this node
+        for (int n = 1; n <= N; n++)                                            // Each node at this level
+         {final String eI = root ? er   : n(l-1,ln);                            // Id of node in this level to activate
+          final String eO = leaf ? null : n(l,  nn);                            // Id of node in next level down to activate after failure to find in this level
+          final String iK = inputWords(nn(l, n, ik), K, B);                     // Bus of input words representing the keys in this node
+          final String iD = inputWords(nn(l, n, id), K, B);                     // Bus of input words representing the data in this node
+          final String iN = inputWords(nn(l, n, in), K, B);                     // Bus of input words representing the next links in this node
+          final String iT = inputBits (nn(l, n, it),    B);                     // Bus representing the top next link
+          final String oD = nn(l, n, nd);                                       // Bus of input words representing the data in this node
+          final String oN = nn(l, n, nn);                                       // Bus of input words representing the next links in this node
+          final String oF = nn(l, n, nf);                                       // Whether the key was found by this node
 
-          final BtreeNode node = new BtreeNode                                    // Create the node
-           (++nodeId, B, K, leaf, eI, find, iK, iD, iN, iT, oF, oD, eO);
-          level.put(n,      node);                                                // Add the node to this level
-          nodes.put(nodeId, node);                                                // Index the node
+          final BtreeNode node = new BtreeNode(nn(l, n, output, "node"),        // Create the node
+            ++nodeId, B, K, leaf, eI, find, iK, iD, iN, iT, oF, oD, oN);
+          level.put(n,      node);                                              // Add the node to this level
+          nodes.put(nodeId, node);                                              // Index the node
          }
 
-        setSizeBits   (n(l, nf), N);                                              // Found bits for this level
-        orBits        (n(l, lf), n(l, nf));                                       // Collect all the find output fields in this level and Or them together to see if any node found the key. At most one node will find the key if the data has been correctly structured.
+        setSizeBits   (n(l, nf), N);                                            // Found bits for this level
+        orBits        (n(l, lf), n(l, nf));                                     // Collect all the find output fields in this level and Or them together to see if any node found the key. At most one node will find the key if the data has been correctly structured.
 
-        setSizeWords  (n(l, nd), N, B);                                           // Data found on this level.  all the data fields will be zero unless a key matched in which case it will have the value matching the key
-        orWords       (n(l, ld), n(l, nd));                                       // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
+        setSizeWords  (n(l, nd), N, B);                                         // Data found on this level.  all the data fields will be zero unless a key matched in which case it will have the value matching the key
+        orWords       (n(l, ld), n(l, nd));                                     // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
 
-        if (!leaf)                                                                // Next link found on this level so we can place it into the next level
-         {setSizeWords(n(l,   nn), N, B);                                         // Next link found on this level.  All the next link fields will be zero except that from the enable node unless a key matched in which case it will have the value matching the key
-          orWords     (n(l+1, ln), n(l, nn));                                     // Collect all next nlinks nodes on this level
+        if (!leaf)                                                              // Next link found on this level so we can place it into the next level
+         {setSizeWords(n(l,   nn), N, B);                                       // Next link found on this level.  All the next link fields will be zero except that from the enable node unless a key matched in which case it will have the value matching the key
+          orWords     (n(l+1, ln), n(l, nn));                                   // Collect all next nlinks nodes on this level
+          setSizeBits (ln, B);                                                  // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
          }
        }
 
-      orWords         (data,  ld);                                                // Data found over all layers
-      orBits          (found, lf);                                                // Or of found status over all layers
+      setSizeWords    (ld, levels, B);                                          // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
+      orWords         (data,      ld);                                          // Data found over all layers
+      setSizeBits     (lf,         B);                                          // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
+      orBits          (found,     lf);                                          // Or of found status over all layers
      }
    }
 
@@ -2281,9 +2299,9 @@ public class Chip                                                               
     final int    id = 7;
     final var     c = new Chip("BtreeNode "+B);
 
-    BtreeNode.Test(c, id, B, N, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
+    BtreeNode.Test(c, "node", id, B, N, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
     c.simulate();
-    ok(c.steps,              15);
+    ok(c.steps,              16);
     ok(c.getBit("found"), Found);
     ok(c.bInt  ("data"),   Data);
     ok(c.bInt  ("next"),   Next);
@@ -2318,7 +2336,7 @@ public class Chip                                                               
     final int    id = 7;
     final var     c = new Chip("BtreeLeafCompare "+B);
 
-    BtreeNode.Test(c, id, B, N, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
+    BtreeNode.Test(c, "node", id, B, N, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
     c.simulate();
     ok(c.steps,               7);
     ok(c.getBit("found"), Found);
@@ -2344,6 +2362,15 @@ public class Chip                                                               
     test_BtreeLeafCompare(7, 1, false, 0, 0);
    }
 
+  static void test_Btree()
+   {final var c = new Chip("Btree");
+    final int B = 3, K = 3, L = 2;
+    c.bits("find",            B, 1);
+    c.bits("tree_enableRoot", B, 1);
+    final Btree b = c.new Btree("tree", "find", "found", "data", K, L, B);
+    say(c);
+   }
+
   static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
 
   static void ok(Object a, Object b)                                            // Check test results match expected results.
@@ -2351,7 +2378,7 @@ public class Chip                                                               
     else {testsFailed++; err(a, "does not equal", b);}
    }
 
-  public static void main(String[] args)                                        // Test if called as a program
+  static void oldTests()                                                        // Test if called as a program
    {test_and2Bits();
     test_and();
     test_and_grouping();
@@ -2379,6 +2406,15 @@ public class Chip                                                               
     test_chooseWordUnderMask();
     test_BtreeNode();
     test_BtreeLeafCompare();
+   }
+
+  static void newTests()                                                        // Test if called as a program
+   {test_Btree();
+   }
+
+  public static void main(String[] args)                                        // Test if called as a program
+   {oldTests();
+    //newTests();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("Passed ALL", testsPassed, "tests");
     else say("Passed ", testsPassed, "FAILED:", testsFailed, "tests");
