@@ -10,7 +10,8 @@ import java.util.*;
 //D1 Construct                                                                  // Construct a L<silicon> L<chip> using standard L<lgs>, components and sub chips combined via buses.
 
 public class Chip                                                               // Describe a chip and emulate its operation.
- {final static int maxSimulationSteps = 100;                                    // Maximum simulation steps
+ {final static boolean makeSayStop    = false;                                  // Turn say into stop if true
+  final static int maxSimulationSteps = 100;                                    // Maximum simulation steps
   final static int          debugMask =   0;                                    // Adds a grid and fiber names to a mask to help debug fibers if true.
   final static int      pixelsPerCell =   4;                                    // Pixels per cell
   final static int     layersPerLevel =   4;                                    // There are 4 layers in each level: insulation, x cross bars, x-y connectors and insulation, y cross bars
@@ -774,37 +775,23 @@ public class Chip                                                               
     return name;
    }
 
-  String andWords(String name, String input)                                    // Create a bit bus of the same width as each word in a word bus by and-ing corresponding bits in each word to make the corresponding bit in the output word.
+  String andWordsX(String name, String input)                                   // Create a bit bus of width equal to the number of words in a word bus by and-ing the bits in each word to make the bits of the resulting word.
    {final WordBus wb = sizeWords(input);
     for  (int w = 1; w <= wb.words; ++w)                                        // Each word on the bus
      {final Stack<String> bits = new Stack<>();
       for(int b = 1; b <= wb.bits; ++b) bits.push(nn(w, b, input));             // Bits to and
       And(n(w, name), stackToStringArray(bits));                                // And bits
      }
-    setSizeBits(name, wb.bits);                                                 // Record number of bits in bit bus
-    return name;
-   }
-
-  String andWordsX(String name, String input)                                   // Create a bit bus of width equal to the number of words in a word bus by and-ing the bits in each word to make the bits of the resulting word.
-   {final WordBus wb = sizeWords(input);
-    for  (int b = 1; b <= wb.bits;  ++b)                                        // Each bit in the words on the bus
-     {final Stack<String> words = new Stack<>();
-      for(int w = 1; w <= wb.words; ++w)                                        // Each word on the bus
-       {words.push(nn(w, b, input));
-       }
-      And(n(b, name), words.toArray(new String[words.size()]));                 // Combine inputs using B<and> gates
-     }
     setSizeBits(name, wb.words);                                                // Record bus size
     return name;
    }
 
-  String orWords(String name, String input)                                     // Create a bit bus of the same width as each word in a word bus by or-ing corresponding bits in each word to make the corresponding bit in the output word.
+  String andWords(String name, String input)                                    // Create a bit bus of the same width as each word in a word bus by and-ing corresponding bits in each word to make the corresponding bit in the output word.
    {final WordBus wb = sizeWords(input);
-    for  (int w = 1; w <= wb.words; ++w)                                        // Each word on the bus
-     {final Stack<String> bits = new Stack<>();
-      for(int b = 1; b <= wb.bits; ++b) bits.push(nn(w, b, input));             // Bits to or
-say("EEEE", n(w, name), stackToStringArray(bits));
-      Or(n(w, name), stackToStringArray(bits));                                 // Or bits
+    for  (int b = 1; b <= wb.bits;  ++b)                                        // Each bit in the words on the bus
+     {final Stack<String> words = new Stack<>();
+      for(int w = 1; w <= wb.words; ++w) words.push(nn(w, b, input));           // Each word on the bus
+      And(n(b, name), words.toArray(new String[words.size()]));                 // Combine inputs using B<and> gates
      }
     setSizeBits(name, wb.bits);                                                 // Record number of bits in bit bus
     return name;
@@ -812,14 +799,23 @@ say("EEEE", n(w, name), stackToStringArray(bits));
 
   String orWordsX(String name, String input)                                    // Create a bit bus of width equal to the number of words in a word bus by or-ing the bits in each word to make the bits of the resulting word.
    {final WordBus wb = sizeWords(input);
+    for  (int w = 1; w <= wb.words; ++w)                                        // Each word on the bus
+     {final Stack<String> bits = new Stack<>();
+      for(int b = 1; b <= wb.bits; ++b) bits.push(nn(w, b, input));             // Bits to or
+      Or(n(w, name), stackToStringArray(bits));                                 // Or bits
+     }
+    setSizeBits(name, wb.words);                                                // Record number of bits in bit bus
+    return name;
+   }
+
+  String orWords(String name, String input)                                     // Create a bit bus of the same width as each word in a word bus by or-ing corresponding bits in each word to make the corresponding bit in the output word.
+   {final WordBus wb = sizeWords(input);
     for  (int b = 1; b <= wb.bits;  ++b)                                        // Each bit in the words on the bus
      {final Stack<String> words = new Stack<>();
-      for(int w = 1; w <= wb.words; ++w)                                        // Each word on the bus
-       {words.push(nn(w, b, input));
-       }
+      for(int w = 1; w <= wb.words; ++w) words.push(nn(w, b, input));           // Each word on the bus
       Or(n(b, name), words.toArray(new String[words.size()]));                  // Combine inputs using B<or> gates
      }
-    setSizeBits(name, wb.words);                                                // Record bus size
+    setSizeBits(name, wb.bits);                                                 // Record bus size
     return name;
    }
 
@@ -1162,12 +1158,9 @@ say("EEEE", n(w, name), stackToStringArray(bits));
 
         tree.put(l, level);                                                     // Add the level ot the tree
 
-say("AAAA", l, N);
         for (int n = 1; n <= N; n++)                                            // Each node at this level
          {++nodeId;                                                             // Number of this node
-say("BBBB", n, root, nodeId);
           final String eI = root ? bits(n(1, ln), B, nodeId) : n(l-1, ln);      // Id of node in this level to activate
-say("CCCC", eI);
           final String iK = inputWords(nn(l, n, ik), K, B);                     // Bus of input words representing the keys in this node
           final String iD = inputWords(nn(l, n, id), K, B);                     // Bus of input words representing the data in this node
           final String iN = inputWords(nn(l, n, in), K, B);                     // Bus of input words representing the next links in this node
@@ -1849,12 +1842,10 @@ say("CCCC", eI);
    {final StringBuilder b = new StringBuilder();
     for(Object o: O) {b.append(" "); b.append(o);}
     System.err.println((O.length > 0 ? b.substring(1) : ""));
-   }
-
-  static void out(Object...O)
-   {final StringBuilder b = new StringBuilder();
-    for(Object o: O) {b.append(" "); b.append(o);}
-    System.out.println((O.length > 0 ? b.substring(1) : ""));
+    if (makeSayStop)
+     {new Exception().printStackTrace();
+      System.exit(1);
+     }
    }
 
   static void err(Object...O)
@@ -2162,8 +2153,8 @@ say("CCCC", eI);
   100   0                    1
   101   1                    1
 
-  100 And words vertically
-  111 Or words vertically
+  100 AndX words vertically
+  111  OrX words vertically
  */
 
   static void test_aix()
@@ -2383,7 +2374,6 @@ say("CCCC", eI);
     c.bits("find",            B, 1);
     c.bits("tree_enableRoot", B, 1);
     final Btree b = c.new Btree("tree", "find", "found", "data", K, L, B);
-    say(c);
    }
 
   static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
@@ -2428,7 +2418,7 @@ say("CCCC", eI);
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {//oldTests();
+   {oldTests();
     newTests();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("Passed ALL", testsPassed, "tests");
