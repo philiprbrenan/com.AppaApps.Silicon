@@ -558,26 +558,6 @@ public class Chip                                                               
     Boolean get(String s) {return inputs.get(s);}                               // Get the value of an input
    }
 
-  Diagram drawLayout(Diagram d)                                                 // Draw unless we have already drawn it
-   {if (!layoutsDrawn.contains(name))                                           // Only draw each named chip once
-     {layoutsDrawn.add(name);                                                   // Show that we have drawn this chip already
-      d.gds2();                                                                 // Draw the layout diagram as GDS2
-     }
-    return d;
-   }
-
-  Diagram singleLevelLayout()                                                   // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
-   {Diagram D = null;
-    Integer L = null;
-    for    (int s = 1; s < 10; ++s)                                             // Various gate scaling factors
-     {final Diagram d = layout(s, s);
-      final int l = d.levels();
-      if (l == 1) return drawLayout(d);                                         // Draw the layout diagram as GDS2
-      if (L == null || L > l) {L = l; D = d;}                                   // Track smallest number of wiring levels
-     }
-    return drawLayout(D);
-   }
-
   Diagram simulate() {return simulate(null);}                                   // Simulate the operation of a chip with no input pins. If the chip has in fact got input pins an error will be reported.
 
   Diagram simulate(Inputs inputs)                                               // Simulate the operation of a chip
@@ -1211,6 +1191,26 @@ public class Chip                                                               
    }
 
 //D1 Layout                                                                     // Layout the gates and connect them with wires
+
+  Diagram drawLayout(Diagram d)                                                 // Draw unless we have already drawn it
+   {if (!layoutsDrawn.contains(name))                                           // Only draw each named chip once
+     {layoutsDrawn.add(name);                                                   // Show that we have drawn this chip already
+      d.gds2();                                                                 // Draw the layout diagram as GDS2
+     }
+    return d;
+   }
+
+  Diagram singleLevelLayout()                                                   // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
+   {Diagram D = null;
+    Integer L = null;
+    for    (int s = 1; s < 10; ++s)                                             // Various gate scaling factors
+     {final Diagram d = layout(s, s);
+      final int l = d.levels();
+      if (l == 1) return drawLayout(d);                                         // Draw the layout diagram as GDS2
+      if (L == null || L > l) {L = l; D = d;}                                   // Track smallest number of wiring levels
+     }
+    return drawLayout(D);
+   }
 
   Stack<String> sortIntoOutputGateOrder(int Distance)                           // Order the gates in this column to match the order of the output gates
    {final Stack<String> r = new Stack<>();                                      // Order of gates
@@ -2433,7 +2433,7 @@ public class Chip                                                               
     test_Btree(c, i, 20, 22);
     test_Btree(c, i, 30, 33);
 
-    test_Btree(c, i,  2, 22);
+    test_Btree(c, i,  2, 22); c.singleLevelLayout();
     test_Btree(c, i,  4, 44);
     test_Btree(c, i,  6, 66);
 
