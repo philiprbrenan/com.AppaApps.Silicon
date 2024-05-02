@@ -2,10 +2,12 @@
 // Design, simulate and layout a silicon chip made of basic gates.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
-//pckage com.AppaApps.Silicon;
+// pckage com.AppaApps.Silicon;
+// Test all dyadic gates to see if there is any correlation between their outputs and any other pins indicating that the gate might be redundant. Use class Grouping to achieve this.
 
 import java.io.*;
 import java.util.*;
+import java.util.stream.*;
 
 //D1 Construct                                                                  // Construct a L<silicon> L<chip> using standard L<lgs>, components and sub chips combined via buses.
 
@@ -536,8 +538,7 @@ public class Chip                                                               
    {private final Map<String,Boolean> inputs = new TreeMap<>();
 
     void set(String s, boolean value)                                           // Set the value of an input
-     {if (inputs.containsKey(s)) stop("Input", s, "already defined");
-      inputs.put(s, value);
+     {inputs.put(s, value);
      }
 
     void set(String input, int value)                                           // Set the value of an input bit bus
@@ -1806,7 +1807,7 @@ public class Chip                                                               
    }
 
 //D2 Groupings                                                                  // Group chips into two classes and see if any single bit predicts the classification.  Finding a bit that does predict a classification can help resolve edge cases.
-// Could usefully test all dyadic gates to see if there is any correlation between their outputs any other pins indicating that the gate might be redundant
+
   static class Grouping                                                         // Group multiple runs into two classes and then see if any bits predict the grouping. (Grouping, bit name, bit value)
    {final TreeMap<Boolean, TreeMap<String, Boolean>> grouping = new TreeMap<>();
 
@@ -2384,14 +2385,33 @@ public class Chip                                                               
     test_BtreeLeafCompare(7, 1, false, 0, 0);
    }
 
+  static void test_Btree(Chip c, Inputs i, int find, int found)
+   {i.set("find", find);
+    c.simulate(i);
+    ok(c.steps,              22);
+    ok(c.getBit("found"),   true);
+    ok(c.bInt  ("data"),   found);
+   }
+
+  static void test_Btree(Chip c, Inputs i, int find)
+   {i.set("find", find);
+    c.simulate(i);
+    ok(c.steps,               22);
+    ok(c.getBit("found"),  false);
+    ok(c.bInt  ("data"),       0);
+   }
+
   static void test_Btree()
-   {final var c = new Chip("Btree");
-    final int B = 8, K = 3, L = 2;
-    c.bits("find", B, 20);
+   {final int B = 8, K = 3, L = 2;
+
+    final var c = new Chip("Btree");
+    c.inputBits("find", B);
     final Btree  b = c.new Btree("tree", "find", "found", "data", K, L, B);
+    c.outputBits("d", "data"); // Anneal the tree
+    c.Output    ("f", "found");
+
     final Inputs i = c.new Inputs();
     final BtreeNode r = b.tree.get(1).get(1);
-    i.set(r.Find, 2);
     i.set(r.Keys,   10,  20, 30);
     i.set(r.Data,   11,  22, 33);
     i.set(r.Next,  2,  3,  4);
@@ -2408,12 +2428,31 @@ public class Chip                                                               
     final BtreeNode l4 = b.tree.get(2).get(4);
     i.set(l4.Keys,  33, 35, 37);
     i.set(l4.Data,  33, 53, 73);
-    c.outputBits("d", "data"); // Anneal the tree
-    c.Output    ("f", "found");
-    c.simulate(i);
-    ok(c.steps,              23);
-    ok(c.getBit("found"),   true);
-    ok(c.bInt  ("data"),     22);
+
+    test_Btree(c, i, 10, 11);
+    test_Btree(c, i, 20, 22);
+    test_Btree(c, i, 30, 33);
+
+    test_Btree(c, i,  2, 22);
+    test_Btree(c, i,  4, 44);
+    test_Btree(c, i,  6, 66);
+
+    test_Btree(c, i, 13, 31);
+    test_Btree(c, i, 15, 51);
+    test_Btree(c, i, 17, 71);
+
+    test_Btree(c, i, 22, 22);
+    test_Btree(c, i, 24, 42);
+    test_Btree(c, i, 26, 62);
+
+    test_Btree(c, i, 33, 33);
+    test_Btree(c, i, 35, 53);
+    test_Btree(c, i, 37, 73);
+
+    final int[]skip = {10, 20, 30,  2,4,6,  13,15,17, 22,24,26, 33,35,37};
+    for (final int f : IntStream.rangeClosed(0, 100).toArray())
+      if (Arrays.stream(skip).noneMatch(x -> x == f)) test_Btree(c, i, f);
+
    }
 
   static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
@@ -2451,10 +2490,11 @@ public class Chip                                                               
     test_chooseWordUnderMask();
     test_BtreeNode();
     test_BtreeLeafCompare();
+    test_Btree();
    }
 
   static void newTests()                                                        // Test if called as a program
-   {test_Btree();
+   {
    }
 
   public static void main(String[] args)                                        // Test if called as a program
