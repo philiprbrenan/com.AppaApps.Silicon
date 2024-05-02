@@ -113,15 +113,6 @@ public class Chip                                                               
     b.append("Seq   Name____________________________  Operator  #  11111111111111111111111111111111-P=#  22222222222222222222222222222222-P=#  C Frst Last  Dist   Nearest  Px__,Py__  Drives these gates\n");
     for(Gate g : gates.values()) b.append(g);
 
-    if (pending.size() > 0)                                                     // Write pending gates
-     {b.append(""+pending.size()+" pending gates\n");
-      b.append("Source__________________________  Target__________________________\n");
-      for(String n : pending.keySet())
-        for(Gate.WhichPin d : pending.get(n))
-          b.append(String.format("%32s  %32s  %c\n",
-            n, d.drives, d.pin == null ? ' ' : d.pin ? '1' : '2'));
-     }
-
     if (sizeBits.size() > 0)                                                    // Size of bit buses
      {b.append(""+sizeBits.size()+" Bit buses\n");
       b.append("Bits  Bus_____________________________  Value\n");
@@ -145,6 +136,16 @@ public class Chip                                                               
         b.append("\n");
        }
      }
+
+    if (pending.size() > 0)                                                     // Write pending gates
+     {b.append(""+pending.size()+" pending gates\n");
+      b.append("Source__________________________  Target__________________________\n");
+      for(String n : pending.keySet())
+        for(Gate.WhichPin d : pending.get(n))
+          b.append(String.format("%32s  %32s  %c\n",
+            n, d.drives, d.pin == null ? ' ' : d.pin ? '1' : '2'));
+     }
+
     return b.toString();                                                        // String describing chip
    }
 
@@ -606,7 +607,7 @@ public class Chip                                                               
    {if (value > 0) One(name); else Zero(name);
    }
 
-  void bits(String name, int bits, int value)                                   // Create a bus set to a specified number.
+  String bits(String name, int bits, int value)                                 // Create a bus set to a specified number.
    {final String         s = Integer.toBinaryString(value);                     // Bit in number
     final Stack<Boolean> b = new Stack<>();
     for(int i = s.length(); i > 0; --i)                                         // Stack of bits with least significant lowest
@@ -617,6 +618,7 @@ public class Chip                                                               
       if (b.elementAt(i-1)) One(n(i, name)); else Zero(n(i, name));             // Set bit
 
     setSizeBits(name, bits);                                                    // Record bus width
+    return name;
    }
 
   String bits(int bits, int value)                                              // Create an unnamed bus set to a specified number.
@@ -688,7 +690,7 @@ public class Chip                                                               
      {final String n = n(i, output);                                            // Name of gate supporting named bit
       final Gate g = getGate(n);                                                // Gate providing bit
       if (g == null)
-       {say("No such gate as:", n);
+       {err("No such gate as:", n);
         return null;
        }
       if (g.value == null) return null;                                         // Bit state not known
@@ -969,7 +971,7 @@ public class Chip                                                               
     final String     df2;
     final String      en;                                                       // Whether this node is enabled for searching
     final String      fo;                                                       //O Whether a matching key was found
-    final String       f;
+    final String      ff;
     final String      f2;
     final String      me;                                                       // Point mask showing key equal to search key
     final String      mm;                                                       // Monotone mask showing keys more than the search key
@@ -1015,7 +1017,7 @@ public class Chip                                                               
         df2 = concatenateNames(Output, "dataFound2");
          en = concatenateNames(Output, "enabled");                              // Whether this node is enabled for searching
          fo = Found;                                                            //O Whether a matching key was found
-          f = concatenateNames(Output, "found1");
+         ff = concatenateNames(Output, "found1");
          f2 = concatenateNames(Output, "found2");
          me = concatenateNames(Output, "maskEqual");                            // Point mask showing key equal to search key
          mm = concatenateNames(Output, "maskMore");                             // Monotone mask showing keys more than the search key
@@ -1054,20 +1056,24 @@ public class Chip                                                               
         norBits                (pmt, pm);                                       // The top link is the next link
        }
 
-      enableWord               (df1, df2,   en);                                // Enable data found
-      outputBits               (dfo, df1);                                      // Enable data found output
+      //enableWord               (df1, df2,   en);                                // Enable data found
+      enableWord               (dfo, df2,   en);                                // Enable data found
+      //outputBits               (dfo, df1);                                      // Enable data found output
 
-      And                      (f,   f2,    en);                                // Enable found flag
-      Output                   (fo,  f);                                        // Enable found flag output
+      //And                      (ff,   f2,    en);                                // Enable found flag
+      And                      (fo,   f2,    en);                                // Enable found flag
+      //Output                   (fo,  f);                                        // Enable found flag output
 
       if (!Leaf)
        {enableWord             (nl4, nl5,   en);                                // Enable next link
-        Not                    (nf,  f);                                        // Not found
+//      Not                    (nf,  ff);                                       // Not found
+        Not                    (nf,  fo);                                       // Not found
         enableWord             (nl3, nl4,   nf);                                // Disable next link if we found the key
         And(pmtNf, pmt, nf);                                                    // Top is the next link, but only if the key was not found
         chooseFromTwoWords     (nl2, nl3,   Top, pmtNf);                        // Either the next link or the top link
-        enableWord             (nl1, nl2, en);                                  // Next link only if this node is enabled
-        outputBits             (nlo, nl1);                                      // Enable next link output
+//      enableWord             (nl1, nl2, en);                                  // Next link only if this node is enabled
+        enableWord             (nlo, nl2, en);                                  // Next link only if this node is enabled
+        //outputBits             (nlo, nl1);                                      // Enable next link output
        }
      }
 
@@ -1105,7 +1111,7 @@ public class Chip                                                               
   class Btree                                                                   // Construct and search a Btree.
    {final int     B;                                                            // Number of bits in a key, dataum, or next link
     final int     K;                                                            // Number of keys in a node
-    final String er;                                                            // Set to the id of the root node so that it is always active and ready to start a search
+//  final String er;                                                            // Set to the id of the root node so that it is always active and ready to start a search
     final String id;                                                            // Input data
     final String ik;                                                            // Input keys
     final String in;                                                            // Input next links
@@ -1130,24 +1136,24 @@ public class Chip                                                               
      )
      { B = bits;                                                                // Number of bits in a key, datum, or next link
        K = keys;                                                                // Number of keys in a node
-      er = concatenateNames(output, "enableRoot");                              // Set to the id of the root node so that it is always active and ready to start a search
+      //er = concatenateNames(output, "enableRoot");                              // Set to the id of the root node so that it is always active and ready to start a search
       id = concatenateNames(output, "inputData");                               // Input data
       ik = concatenateNames(output, "inputKeys");                               // Input keys
       in = concatenateNames(output, "inputNext");                               // Input next links
       it = concatenateNames(output, "inputTop");                                // Input top link
-      ld = concatenateNames(output, "levelDataOut");                            // The data out from a level
+      ld = concatenateNames(output, "levelData");                               // The data out from a level
       lf = concatenateNames(output, "levelFound");                              // Find status for a level
-      ln = concatenateNames(output, "levelNextLink");                           // Next link to search
-      nd = concatenateNames(output, "nodeDataOut");                             // The data out from a node
+      ln = concatenateNames(output, "levelNext");                               // Next link to search
+      nd = concatenateNames(output, "nodeData");                                // The data out from a node
       nf = concatenateNames(output, "nodeFound");                               // The found flag output by each node
-      nn = concatenateNames(output, "nodeNextLink");                            // The next link output by this node
-      int      nodeId = 0;                                                      // Gives each node in the tree a different id
+      nn = concatenateNames(output, "nodeNext");                                // The next link output by this node
+      int nodeId = 0;                                                           // Gives each node in the tree a different id
 
       if (sizeBits(find) != bits) stop("Find bus must be", bits, "wide, not", sizeBits(find));
       if (sizeBits(find) != bits) stop("Find bus must be", bits, "wide, not", sizeBits(find));
 
-      for (int l = 1; l < levels; l++)                                          // Each level in the bTree
-       {final int         N = powerOf(keys, l);                                 // Number of nodes at this level
+      for (int l = 1; l <= levels; l++)                                         // Each level in the bTree
+       {final int         N = powerOf(keys, l-1);                               // Number of nodes at this level
         final boolean  root = l == 1;                                           // Root node
         final boolean  leaf = l == levels;                                      // Final level is made of leaf nodes
         final String enable = concatenateNames(output, "nextLink");             // Next link to search
@@ -1155,39 +1161,42 @@ public class Chip                                                               
 
         tree.put(l, level);                                                     // Add the level ot the tree
 
+say("AAAA", l, N);
         for (int n = 1; n <= N; n++)                                            // Each node at this level
-         {final String eI = root ? er   : n(l-1,ln);                            // Id of node in this level to activate
-          final String eO = leaf ? null : n(l,  nn);                            // Id of node in next level down to activate after failure to find in this level
+         {++nodeId;                                                             // Number of this node
+say("BBBB", n, root, nodeId);
+          final String eI = root ? bits(n(1, ln), B, nodeId) : n(l-1, ln);      // Id of node in this level to activate
+say("CCCC", eI);
           final String iK = inputWords(nn(l, n, ik), K, B);                     // Bus of input words representing the keys in this node
           final String iD = inputWords(nn(l, n, id), K, B);                     // Bus of input words representing the data in this node
           final String iN = inputWords(nn(l, n, in), K, B);                     // Bus of input words representing the next links in this node
           final String iT = inputBits (nn(l, n, it),    B);                     // Bus representing the top next link
+          final String oF = nn(l, n, nf);                                       // Whether the key was found by this node
           final String oD = nn(l, n, nd);                                       // Bus of input words representing the data in this node
           final String oN = nn(l, n, nn);                                       // Bus of input words representing the next links in this node
-          final String oF = nn(l, n, nf);                                       // Whether the key was found by this node
 
           final BtreeNode node = new BtreeNode(nn(l, n, output, "node"),        // Create the node
-            ++nodeId, B, K, leaf, eI, find, iK, iD, iN, iT, oF, oD, oN);
+            nodeId, B, K, leaf, eI, find, iK, iD, iN, iT, oF, oD, oN);
           level.put(n,      node);                                              // Add the node to this level
           nodes.put(nodeId, node);                                              // Index the node
          }
 
-        setSizeBits   (n(l, nf), N);                                            // Found bits for this level
+        setSizeBits   (          n(l, nf), N);                                  // Found bits for this level
         orBits        (n(l, lf), n(l, nf));                                     // Collect all the find output fields in this level and Or them together to see if any node found the key. At most one node will find the key if the data has been correctly structured.
 
-        setSizeWords  (n(l, nd), N, B);                                         // Data found on this level.  all the data fields will be zero unless a key matched in which case it will have the value matching the key
+        setSizeWords  (          n(l, nd), N, B);                               // Data found on this level.  all the data fields will be zero unless a key matched in which case it will have the value matching the key
         orWords       (n(l, ld), n(l, nd));                                     // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
 
         if (!leaf)                                                              // Next link found on this level so we can place it into the next level
          {setSizeWords(n(l,   nn), N, B);                                       // Next link found on this level.  All the next link fields will be zero except that from the enable node unless a key matched in which case it will have the value matching the key
           orWords     (n(l+1, ln), n(l, nn));                                   // Collect all next nlinks nodes on this level
-          setSizeBits (ln, B);                                                  // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
+          //setSizeBits (n(l+1, ln), B);                                                  // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
          }
        }
 
       setSizeWords    (ld, levels, B);                                          // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
       orWords         (data,      ld);                                          // Data found over all layers
-      setSizeBits     (lf,         B);                                          // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
+      setSizeBits     (lf,    levels);                                          // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
       orBits          (found,     lf);                                          // Or of found status over all layers
      }
    }
@@ -2300,6 +2309,9 @@ public class Chip                                                               
     final var     c = new Chip("BtreeNode "+B);
 
     BtreeNode.Test(c, "node", id, B, N, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
+    c.outputBits("d", "data"); // Anneal the node
+    c.outputBits("n", "next");
+    c.Output    ("f", "found");
     c.simulate();
     ok(c.steps,              16);
     ok(c.getBit("found"), Found);
@@ -2337,6 +2349,8 @@ public class Chip                                                               
     final var     c = new Chip("BtreeLeafCompare "+B);
 
     BtreeNode.Test(c, "node", id, B, N, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
+    c.outputBits("d", "data"); // Anneal the node
+    c.Output    ("f", "found");
     c.simulate();
     ok(c.steps,               7);
     ok(c.getBit("found"), Found);
