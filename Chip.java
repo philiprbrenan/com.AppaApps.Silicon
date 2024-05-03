@@ -12,16 +12,16 @@ import java.util.stream.*;
 //D1 Construct                                                                  // Construct a L<silicon> L<chip> using standard L<lgs>, components and sub chips combined via buses.
 
 public class Chip                                                               // Describe a chip and emulate its operation.
- {final static boolean makeSayStop    = false;                                  // Turn say into stop if true
+ {final static boolean github_actions =                                         // Whether we are on a github
+    "true".equals(System.getenv("GITHUB_ACTIONS"));
+  final static boolean makeSayStop    = false;                                  // Turn say into stop if true
   final static int singleLevelLayoutLimit                                       // Limit on gate scaling dimensions during layout.
                                       =  16;
-  final static int maxSimulationSteps =  10;                                    // Maximum simulation steps
+  final static int maxSimulationSteps =  github_actions ? 100 : 10;             // Maximum simulation steps
   final static int          debugMask =   0;                                    // Adds a grid and fiber names to a mask to help debug fibers if true.
   final static int      pixelsPerCell =   4;                                    // Pixels per cell
   final static int     layersPerLevel =   4;                                    // There are 4 layers in each level: insulation, x cross bars, x-y connectors and insulation, y cross bars
   final        int      layoutLTGates = 100;                                    // Always draw the layout if if it has less than this many gates in it
-  final static boolean github_actions =                                         // Whether we are on a github
-    "true".equals(System.getenv("GITHUB_ACTIONS"));
   final String                   name;                                          // Name of chip
   final Map<String, Gate>       gates = new TreeMap<>();                        // Gates by name
   final Map<String, Integer> sizeBits = new TreeMap<>();                        // Sizes of bit buses
