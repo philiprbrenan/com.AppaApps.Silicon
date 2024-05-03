@@ -13,6 +13,8 @@ import java.util.stream.*;
 
 public class Chip                                                               // Describe a chip and emulate its operation.
  {final static boolean makeSayStop    = false;                                  // Turn say into stop if true
+  final static int singleLevelLayoutLimit                                       // Lint on gate scaling dimensions during layout
+                                      = 20;
   final static int maxSimulationSteps = 100;                                    // Maximum simulation steps
   final static int          debugMask =   0;                                    // Adds a grid and fiber names to a mask to help debug fibers if true.
   final static int      pixelsPerCell =   4;                                    // Pixels per cell
@@ -502,6 +504,8 @@ public class Chip                                                               
        }
      }
    }
+
+  int gates() {return gates.size();}                                            // Number of gates in this diagram
 
   void compileChip()                                                            // Check that an input value has been provided for every input pin on the chip.
    {final Gate[]G = gates.values().toArray(new Gate[0]);
@@ -1203,11 +1207,14 @@ public class Chip                                                               
   Diagram singleLevelLayout()                                                   // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
    {Diagram D = null;
     Integer L = null;
-    for    (int s = 1; s < 10; ++s)                                             // Various gate scaling factors
-     {final Diagram d = layout(s, s);
-      final int l = d.levels();
-      if (l == 1) return drawLayout(d);                                         // Draw the layout diagram as GDS2
-      if (L == null || L > l) {L = l; D = d;}                                   // Track smallest number of wiring levels
+    for    (int s =   1; s < singleLevelLayoutLimit; ++s)                       // Various gate scaling factors
+     {for  (int t = s/2; t <= s;                     ++t)                       // Scale up in x more gradually than y as the current layout wiring technique tends to use more space in y than x.
+       {if (t < 1 || s < 1) continue;                                           // Check for unrealistic scaling factors
+        final Diagram d = layout(t, s);                                         // Draw diagram
+        final int l = d.levels();                                               // Number of levels in diagram
+        if (l == 1) return drawLayout(d);                                       // Draw the layout diagram as GDS2
+        if (L == null || L > l) {L = l; D = d;}                                 // Track smallest number of wiring levels
+       }
      }
     return drawLayout(D);
    }
@@ -1668,7 +1675,8 @@ public class Chip                                                               
          {if (s.corner != q && !s.add(q))
            {final Segment t = new Segment(s.last);
             segments.add(t);
-            if (t.add(q)) s = t; else stop("Cannot add next pixel to new segment:", q);
+            if (t.add(q)) s = t;
+            else stop("Cannot add next pixel to new segment:", q);
            }
          }
        }
@@ -1677,12 +1685,14 @@ public class Chip                                                               
        {Segment q = segments.firstElement();
         for(Segment p : segments)
          {if (q.onX != p.onX)                                                   // Changing levels with previous layer
-           {final int qx = q.corner.x, qy = q.corner.y, px = p.corner.x, py = p.corner.y;
+           {final int qx = q.corner.x, qy = q.corner.y,
+                      px = p.corner.x, py = p.corner.y;
             final int qX = q.X(), qY = q.Y(), pX = p.X(), pY = p.Y();
-            if      (qx == px && qy == py) crossBarInterConnects.push(new Pixel(qx,   qy));
-            else if (qX == pX && qy == py) crossBarInterConnects.push(new Pixel(qX-1, qy));
-            else if (qX == pX && qY == pY) crossBarInterConnects.push(new Pixel(qX-1, qY-1));
-            else if (qx == px && qY == pY) crossBarInterConnects.push(new Pixel(qx,   qY-1));
+            final var s = crossBarInterConnects;
+            if      (qx == px && qy == py) s.push(new Pixel(qx,   qy));
+            else if (qX == pX && qy == py) s.push(new Pixel(qX-1, qy));
+            else if (qX == pX && qY == pY) s.push(new Pixel(qX-1, qY-1));
+            else if (qx == px && qY == pY) s.push(new Pixel(qx,   qY-1));
             else stop ("No intersection between adjacent segments");
            }
           q = p;
@@ -1693,7 +1703,10 @@ public class Chip                                                               
     public void gds2()                                                          // Represent as Graphic Design System 2 via Perl
      {final Stack<String> p = gdsPerl;
       if (p.size() == 0)
-       {p.push("use v5.34;\nuse Data::Table::Text qw(:all);\nuse Data::Dump qw(dump);\nuse GDS2;");
+       {p.push("use v5.34;");
+        p.push("use Data::Table::Text qw(:all);");
+        p.push("use Data::Dump qw(dump);");
+        p.push("use GDS2;");
         p.push("clearFolder(\"gds/\", 999);");
         p.push("my $debug = 0;");
        }
@@ -1707,6 +1720,13 @@ public class Chip                                                               
       p.push("  $g->printInitLib(-name=>$gdsOut);");
       p.push("  $g->printBgnstr (-name=>$gdsOut);");
 
+      final String title = name+                                                // Title of the piece
+        ", gsx="+gsx+", gsy="+gsy+", gates="+gates()+
+        ", levels="+levels();
+      final int tx = 10, ty = height  + 10;                                     // Title position
+      p.push("  $g->printText(-layer=>102, -xy=>["+tx+", "+ty+"], "+
+             " -string=>\""+title+"\");");
+
       for  (Gate g : gates.values())                                            // Each gate
        {p.push("# Gate: "+g);
         p.push("  if (1)");
@@ -1717,13 +1737,18 @@ public class Chip                                                               
         p.push("    my $X   = $x + 6 * "+gsx+";");
         p.push("    my $Y   = $y + 6 * "+gsy+";");
         p.push("    say STDERR dump(\"Gate\", $x, $y, $X, $Y) if $debug;");
-        p.push("    $g->printBoundary(-layer=>0, -xy=>[$x,$y, $X,$y, $X,$Y, $x,$Y]);");
-        p.push("    $g->printText(-xy=>[($x+$X)/2, ($y+$Y)/2], -string=>\""+g.name+" "+g.op+"\");");
+        p.push("    $g->printBoundary(-layer=>0,"+
+               " -xy=>[$x,$y, $X,$y, $X,$Y, $x,$Y]);");
+        p.push("    $g->printText(-xy=>[($x+$X)/2, ($y+$Y)/2],"+
+               " -string=>\""+g.name+" "+g.op+"\");");
+
         if (g.value != null &&  g.value)                                        // Show a one value
-         {p.push("    $g->printBoundary(-layer=>101, -xy=>[$x+1/3,$Y-1, $x+2/3,$Y-1, $x+2/3,$Y, $x+1/3,$Y]);");
+         {p.push("    $g->printBoundary(-layer=>101,"+
+                 " -xy=>[$x+1/3,$Y-1, $x+2/3,$Y-1, $x+2/3,$Y, $x+1/3,$Y]);");
          }
         if (g.value != null && !g.value)                                        // Show a zero value
-         {p.push("    $g->printBoundary(-layer=>100, -xy=>[$x,$Y-1, $x+1,$Y-1, $x+1,$Y, $x,$Y]);");
+         {p.push("    $g->printBoundary(-layer=>100, "+
+                 "-xy=>[$x,$Y-1, $x+1,$Y-1, $x+1,$Y, $x,$Y]);");
          }
         p.push("   }");
        }
@@ -1739,7 +1764,8 @@ public class Chip                                                               
           p.push("      my $X = $x+"+(s.width  == null ? 1 : s.width)  +";");
           p.push("      my $Y = $y+"+(s.height == null ? 1 : s.height) +";");
           p.push("      say STDERR dump(\"Wire\", $x, $y, $X, $Y, $L) if $debug;");
-          p.push("      $g->printBoundary(-layer=>$L+"+ (s.onX ? 1 : 3)+", -xy=>[$x,$y, $X,$y, $X,$Y, $x,$Y]);");
+          p.push("      $g->printBoundary(-layer=>$L+"+ (s.onX ? 1 : 3)+
+                 ", -xy=>[$x,$y, $X,$y, $X,$Y, $x,$Y]);");
           p.push("     }");
          }
         for(Pixel P : w.crossBarInterConnects)                                  // Each connection between X and Y cross bars between adjacent segments
@@ -1747,7 +1773,8 @@ public class Chip                                                               
           p.push("     {my $x = "   + P.x +";");
           p.push("      my $y = "   + P.y +";");
           p.push("      say STDERR dump(\"Interconnect\", $x, $y, $L) if $debug;");
-          p.push("      $g->printBoundary(-layer=>$L+2, -xy=>[$x,$y, $x+1,$y, $x+1,$y+1, $x,$y+1]);");
+          p.push("      $g->printBoundary(-layer=>$L+2,"+
+                 " -xy=>[$x,$y, $x+1,$y, $x+1,$y+1, $x,$y+1]);");
           p.push("     }");
          }
         p.push("    if (1)");                                                   // Each wire starts at a unique location and so the via can drop down from the previous layer all the way down to the gates.
@@ -1757,11 +1784,15 @@ public class Chip                                                               
         p.push("      my $Y = "   + w.finish.y                         +";");
         p.push("      my $xy = [$x,$y, $x+1,$y, $x+1,$y+1, $x,$y+1];");
         p.push("      my $XY = [$X,$Y, $X+1,$Y, $X+1,$Y+1, $X,$Y+1];");
-// Levels 1,2,3 have nothing in them so that we can start each new level on a multiple of 4
-        for (int i = layersPerLevel; i <= w.level * layersPerLevel + (w.segments.firstElement().onX ? 0 : 2); i++)
+
+        final int ll = w.level * layersPerLevel;
+        final int nx = ll + (w.segments.firstElement().onX ? 0 : 2);
+        final int ny = ll + (w.segments. lastElement().onX ? 0 : 2);
+
+        for (int i = layersPerLevel; i <= nx; i++)                              // Levels 1,2,3 have nothing in them so that we can start each new level on a multiple of 4
          {p.push("      $g->printBoundary(-layer=>"+i+", -xy=>$xy);");
          }
-        for (int i = layersPerLevel; i <= w.level * layersPerLevel + (w.segments. lastElement().onX ? 0 : 2); i++)
+        for (int i = layersPerLevel; i <= ny; i++)
          {p.push("      $g->printBoundary(-layer=>"+i+", -xy=>$XY);");
          }
         p.push("   }");
@@ -1801,7 +1832,8 @@ public class Chip                                                               
       if (rc != 0) say("Perl script exited with code: " + rc);
      }
     catch(Exception E)
-     {say("An error occurred while executing Perl script: "+pf+" error: "+ E.getMessage());
+     {say("An error occurred while executing Perl script: "+pf+
+          " error: "+ E.getMessage());
       System.exit(1);
      }
    }
@@ -1812,7 +1844,8 @@ public class Chip                                                               
    {final TreeMap<Boolean, TreeMap<String, Boolean>> grouping = new TreeMap<>();
 
     Grouping()                                                                  // All of Gaul is divided into two parts
-     {for (int i = 0; i < 2; i++) grouping.put(i == 0, new TreeMap<String, Boolean>());
+     {for (int i = 0; i < 2; i++)
+        grouping.put(i == 0, new TreeMap<String, Boolean>());
      }
 
     void put(Boolean group, Chip chip)                                          // Add the gates in a chip to the grouping
@@ -1851,9 +1884,9 @@ public class Chip                                                               
      }
    }
 
-//D0
+//D1 Logging                                                                    // Logging and tracing
 
-  static void say(Object...O)
+  static void say(Object...O)                                                   // Say something
    {final StringBuilder b = new StringBuilder();
     for(Object o: O) {b.append(" "); b.append(o);}
     System.err.println((O.length > 0 ? b.substring(1) : ""));
@@ -1863,16 +1896,18 @@ public class Chip                                                               
      }
    }
 
-  static void err(Object...O)
+  static void err(Object...O)                                                   // Say something and provide an error tarce.
    {say(O);
     new Exception().printStackTrace();
    }
 
-  static void stop(Object...O)
+  static void stop(Object...O)                                                  // Say something. provide an error trace and stop,
    {say(O);
     new Exception().printStackTrace();
     System.exit(1);
    }
+
+//D0
 
   static void test_and()
    {final Chip   c = new Chip("And");
@@ -2433,7 +2468,7 @@ public class Chip                                                               
     test_Btree(c, i, 20, 22);
     test_Btree(c, i, 30, 33);
 
-    test_Btree(c, i,  2, 22); c.singleLevelLayout();
+    test_Btree(c, i,  2, 22); if (github_actions) c.singleLevelLayout();
     test_Btree(c, i,  4, 44);
     test_Btree(c, i,  6, 66);
 
