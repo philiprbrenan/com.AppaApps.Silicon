@@ -14,7 +14,7 @@ import java.util.stream.*;
 public class Chip                                                               // Describe a chip and emulate its operation.
  {final static boolean makeSayStop    = false;                                  // Turn say into stop if true
   final static int singleLevelLayoutLimit                                       // Limit on gate scaling dimensions during layout.
-                                      =  20;
+                                      =  16;
   final static int maxSimulationSteps = 100;                                    // Maximum simulation steps
   final static int          debugMask =   0;                                    // Adds a grid and fiber names to a mask to help debug fibers if true.
   final static int      pixelsPerCell =   4;                                    // Pixels per cell
