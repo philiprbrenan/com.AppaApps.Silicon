@@ -14,13 +14,14 @@ import java.util.stream.*;
 public class Chip                                                               // Describe a chip and emulate its operation.
  {final static boolean makeSayStop    = false;                                  // Turn say into stop if true
   final static int singleLevelLayoutLimit                                       // Lint on gate scaling dimensions during layout
-                                      = 20;
+                                      =  20;
   final static int maxSimulationSteps = 100;                                    // Maximum simulation steps
   final static int          debugMask =   0;                                    // Adds a grid and fiber names to a mask to help debug fibers if true.
   final static int      pixelsPerCell =   4;                                    // Pixels per cell
   final static int     layersPerLevel =   4;                                    // There are 4 layers in each level: insulation, x cross bars, x-y connectors and insulation, y cross bars
   final        int      layoutLTGates = 100;                                    // Always draw the layout if if it has less than this many gates in it
-  final static boolean github_actions = "true".equals(System.getenv("GITHUB_ACTIONS")); // Whether we are on a github
+  final static boolean github_actions =                                         // Whether we are on a github
+    "true".equals(System.getenv("GITHUB_ACTIONS"));
   final String                   name;                                          // Name of chip
   final Map<String, Gate>       gates = new TreeMap<>();                        // Gates by name
   final Map<String, Integer> sizeBits = new TreeMap<>();                        // Sizes of bit buses
@@ -59,13 +60,11 @@ public class Chip                                                               
    }
 
   boolean zerad(Operator op)                                                    // Whether the gate takes zero inputs
-   {return op == Operator.Input    || op == Operator.One ||
-           op == Operator.Zero;
+   {return op == Operator.Input || op == Operator.One || op == Operator.Zero;
    }
 
   boolean monad(Operator op)                                                    // Whether the gate takes a single input or not
-   {return op == Operator.Continue || op == Operator.Not ||
-           op == Operator.Output;
+   {return op == Operator.Continue || op == Operator.Not || op==Operator.Output;
    }
 
   boolean dyad(Operator op) {return !(zerad(op) || monad(op));}                 // Whether the gate takes two inputs or not
@@ -111,12 +110,17 @@ public class Chip                                                               
 
   public String toString()                                                      // Convert chip to string
    {final StringBuilder b = new StringBuilder();
-    b.append("Chip: "+name+" # Gates: "+ gates.size()+"  Maximum distance: " + maximumDistanceToOutput);
+    b.append("Chip: "+name+" # Gates: "+ gates.size()+
+             "  Maximum distance: " + maximumDistanceToOutput);
     b.append("  mostCountedDistance: "            + mostCountedDistance);
     b.append("  countAtMostCountedDistance: "     + countAtMostCountedDistance);
     b.append("\n");
-    b.append("Seq   Name____________________________  Operator  #  11111111111111111111111111111111-P=#  22222222222222222222222222222222-P=#  C Frst Last  Dist   Nearest  Px__,Py__  Drives these gates\n");
-    for(Gate g : gates.values()) b.append(g);
+    b.append("Seq   Name____________________________  " +
+     "Operator  #  11111111111111111111111111111111-P=#"+
+                "  22222222222222222222222222222222-P=# "+
+     " C Frst Last  Dist   Nearest  Px__,Py__  Drives these gates\n");
+
+    for(Gate g : gates.values()) b.append(g);                                   // Print each gate
 
     if (sizeBits.size() > 0)                                                    // Size of bit buses
      {b.append(""+sizeBits.size()+" Bit buses\n");
@@ -144,7 +148,8 @@ public class Chip                                                               
 
     if (pending.size() > 0)                                                     // Write pending gates
      {b.append(""+pending.size()+" pending gates\n");
-      b.append("Source__________________________  Target__________________________\n");
+      b.append("Source__________________________  "+
+               "Target__________________________\n");
       for(String n : pending.keySet())
         for(Gate.WhichPin d : pending.get(n))
           b.append(String.format("%32s  %32s  %c\n",
@@ -184,7 +189,9 @@ public class Chip                                                               
         if (Input2 != null) impinge(Input2);
        }
       else                                                                      // Input pin order is important
-       {if (Input1 == null || Input2 == null) stop("Non commutative gates must have two inputs", Name, Op, Input1, Input2);
+       {if (Input1 == null || Input2 == null)
+          stop("Non commutative gates must have two inputs",
+               Name, Op, Input1, Input2);
         impinge(Input1, true);
         impinge(Input2, false);
        }
@@ -233,7 +240,8 @@ public class Chip                                                               
       final Boolean pin1 = iGate1 != null ? whichPinDrivesPin1() : null;
       final Boolean pin2 = iGate2 != null ? whichPinDrivesPin2() : null;
 
-      return   String.format("%4d  %32s  %8s  %c  %32s-%c=%c  %32s-%c=%c  %c %4d %4d  %4d  %32s  %4d,%4d  ",
+      return   String.format("%4d  %32s  %8s  %c  %32s-%c=%c  %32s-%c=%c"+
+                             "  %c %4d %4d  %4d  %32s  %4d,%4d  ",
         seq, name, op, v,
         iGate1 == null ? ""  : iGate1.name,
         pin1   == null ? '.' : pin1  ? '1' : '2',
@@ -609,7 +617,8 @@ public class Chip                                                               
    {final Integer s = sizeBits.get(name);
 
     if (s != null)
-     {if (s != bits) stop("A bit bus with name:", name, "and width", s,  "has already been defined versus bits:", bits);
+     {if (s != bits) stop("A bit bus with name:", name, "and width", s,
+                          "has already been defined versus bits:", bits);
      }
     else sizeBits.put(name, bits);
    }
@@ -714,7 +723,7 @@ public class Chip                                                               
    }
 
   Boolean getBit(String name)                                                   // Get the current value of the named gate.
-   {final Gate g = getGate(name);                                                  // Gate providing bit
+   {final Gate g = getGate(name);                                               // Gate providing bit
     if (g == null) stop("No such gate named:", name);
     return g.value;                                                             // Bit state
    }
@@ -723,13 +732,15 @@ public class Chip                                                               
 
   WordBus sizeWords(String name)                                                // Size of a words bus.
    {final WordBus s = sizeWords.get(name);
-    if (s == null) stop( "No words width specified or defaulted for word bus:", name);
+    if (s == null)
+      stop( "No words width specified or defaulted for word bus:", name);
     return s;
    }
 
   void setSizeWords(String name, int words, int bits)                           // Set the size of a bits bus.
    {final WordBus w = sizeWords.get(name);                                      // Chip, bits bus name, words, bits per word, options
-    if (w != null) stop("A word bus with name:", name, "has already been defined");
+    if (w != null)
+      stop("A word bus with name:", name, "has already been defined");
     sizeWords.put(name, new WordBus(words, bits));
     for(int b = 1; b <= words; ++b) setSizeBits(n(b, name), bits);              // Size of bit bus for each word in the word bus
    }
@@ -765,7 +776,7 @@ public class Chip                                                               
     return name;
    }
 
-  String outputWords(String name, String input)                                   // Create an B<output> bus made of words.
+  String outputWords(String name, String input)                                 // Create an B<output> bus made of words.
    {final WordBus wb = sizeWords(input);
     for  (int w = 1; w <= wb.words; ++w)                                        // Each word on the bus
      {for(int b = 1; b <= wb.bits;  ++b)                                        // Each word on the bus
@@ -870,7 +881,8 @@ public class Chip                                                               
   void compareGt(String output, String a, String b)                             // Compare two unsigned binary integers for greater than.
    {final int A = sizeBits(a);
     final int B = sizeBits(b);
-    if (A != B) stop("First input bus", a, "has width", A, ", but second input bus", b, "has width", B);
+    if (A != B) stop("First input bus", a, "has width", A,
+                     ", but second input bus", b, "has width", B);
     for (int i = 2; i <= B; i++) Nxor(n(i, output, "e"), n(i, a), n(i, b));     // Test all but the lowest bit pair for equality
     for (int i = 1; i <= B; i++) Gt  (n(i, output, "g"), n(i, a), n(i, b));     // Test each bit pair for more than
 
@@ -889,7 +901,8 @@ public class Chip                                                               
 
   void compareLt(String output, String a, String b)                             // Compare two unsigned binary integers for less than.
    {final int A = sizeBits(a), B = sizeBits(b);
-    if (A != B) stop("First input bus", a, "has width", A, ", but second input bus", b, "has width", B);
+    if (A != B) stop("First input bus", a, "has width", A,
+                     ", but second input bus", b, "has width", B);
     for (int i = 2; i <= B; i++) Nxor(n(i, output, "e"), n(i, a), n(i, b));     // Test all but the lowest bit pair for equality
     for (int i = 1; i <= B; i++) Lt  (n(i, output, "l"), n(i, a), n(i, b));     // Test each bit pair for more than
 
@@ -908,7 +921,8 @@ public class Chip                                                               
 
   void chooseFromTwoWords(String output, String a, String b, String choose)     // Choose one of two words depending on a choice bit.  The first word is chosen if the bit is B<0> otherwise the second word is chosen.
    {final int A = sizeBits(a), B = sizeBits(b);
-    if (A != B) stop("First input bus", a, "has width", A, ", but second input bus", b, "has width", B);
+    if (A != B) stop("First input bus", a, "has width", A,
+                     ", but second input bus", b, "has width", B);
 
     final String notChoose = nextGateName();                                    // Opposite of choice
     Not(notChoose, choose);                                                     // Invert choice
@@ -1143,6 +1157,7 @@ public class Chip                                                               
 
       if (sizeBits(find) != bits) stop("Find bus must be", bits, "wide, not", sizeBits(find));
       if (sizeBits(find) != bits) stop("Find bus must be", bits, "wide, not", sizeBits(find));
+
       for (int l = 1; l <= levels; l++)                                         // Each level in the bTree
        {final int         N = powerOf(keys+1, l-1);                             // Number of nodes at this level
         final boolean  root = l == 1;                                           // Root node
@@ -1296,7 +1311,8 @@ public class Chip                                                               
 
     connections = new Stack<>();                                                // Connections required
 
-    for (Gate g : gates.values()) g.soGate1 = g.soGate2 = g.tiGate1 = g.tiGate2 = null;
+    for (Gate g : gates.values())
+      g.soGate1 = g.soGate2 = g.tiGate1 = g.tiGate2 = null;
 
     for (Gate s : gates.values())                                               // Gates
       for (Gate.WhichPin p : s.drives)                                          // Gates driven by this gate
@@ -1304,24 +1320,27 @@ public class Chip                                                               
 
     for (Connection c : connections)                                            // Each possible connection
      {final Gate s = c.source, t = c.target;
+      final boolean s1 = s.tiGate1 == null, s2 = s.tiGate2 == null;
+      final boolean t1 = t.tiGate1 == null, t2 = t.tiGate2 == null;
+      final boolean T1 = t.tiGate1 == s || t1, T2 = t.tiGate2 == s || t2;
 
       if (t.py < s.py)                                                          // Target is lower than source
-       {if      ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate1 == null) {t.tiGate2 = s; s.soGate1 = t;}
-        else if ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate1 == null) {t.tiGate1 = s; s.soGate1 = t;}
-        else if ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate2 == null) {t.tiGate2 = s; s.soGate2 = t;}
-        else if ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate2 == null) {t.tiGate1 = s; s.soGate2 = t;}
+       {if      (T2 && s1) {t.tiGate2 = s; s.soGate1 = t;}
+        else if (T1 && s1) {t.tiGate1 = s; s.soGate1 = t;}
+        else if (T2 && s2) {t.tiGate2 = s; s.soGate2 = t;}
+        else if (T1 && s2) {t.tiGate1 = s; s.soGate2 = t;}
        }
       else if (t.py > s.py)                                                     // Target is higher than source
-       {if      ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate2 == null) {t.tiGate1 = s; s.soGate2 = t;}
-        else if ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate1 == null) {t.tiGate1 = s; s.soGate1 = t;}
-        else if ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate2 == null) {t.tiGate2 = s; s.soGate2 = t;}
-        else if ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate1 == null) {t.tiGate1 = s; s.soGate1 = t;}
+       {if      (T1 && s2) {t.tiGate1 = s; s.soGate2 = t;}
+        else if (T1 && s1) {t.tiGate1 = s; s.soGate1 = t;}
+        else if (T2 && s2) {t.tiGate2 = s; s.soGate2 = t;}
+        else if (T2 && s1) {t.tiGate1 = s; s.soGate1 = t;}
        }
       else                                                                      // Target is same height as source
-       {if      ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate1 == null) {t.tiGate1 = s; s.soGate1 = t;}
-        else if ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate2 == null) {t.tiGate2 = s; s.soGate2 = t;}
-        else if ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate2 == null) {t.tiGate1 = s; s.soGate2 = t;}
-        else if ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate1 == null) {t.tiGate2 = s; s.soGate1 = t;}
+       {if      (T1 && s1) {t.tiGate1 = s; s.soGate1 = t;}
+        else if (T2 && s2) {t.tiGate2 = s; s.soGate2 = t;}
+        else if (T1 && s2) {t.tiGate1 = s; s.soGate2 = t;}
+        else if (T2 && s1) {t.tiGate2 = s; s.soGate1 = t;}
        }
      }
 
@@ -1560,23 +1579,12 @@ public class Chip                                                               
        {level = Level; start = Start; finish = Finish;
         final int x = start.x, y = start.y, X = finish.x, Y = finish.y;
 
-        if (x < 0 || y < 0)                                                     // Validate start and finish
-          stop("Start out side of diagram", "x", x, "y", y);
-
-        if (x >= width || y >= height)
-          stop("Start out side of diagram", "x", x, "y", y, "width", width, "height", height);
-
-        if (X < 0 || Y < 0)
-          stop("Finish out side of diagram", "X", X, "Y", Y);
-
-        if (X >= width || Y >= height)
-          stop("Finish out side of diagram", "X", X, "Y", Y, width, height);
-
-        if (x % interViaX > 0 || y % interViaY > 0)
-          stop("Start not on a via", "x", x, "y", y, "gsx", gsx, "gsy", gsy);
-
-        if (X % interViaX > 0 || Y % interViaY > 0)
-          stop("Finish not on a via", "X", X, "Y", Y, "gsx", gsx, "gsy", gsy);
+        if (x < 0      || y < 0)                    stop("Start out side of diagram",  "x", x, "y", y);
+        if (x >= width || y >= height)              stop("Start out side of diagram",  "x", x, "y", y, "width", width, "height", height);
+        if (X < 0 || Y < 0)                         stop("Finish out side of diagram", "X", X, "Y", Y);
+        if (X >= width || Y >= height)              stop("Finish out side of diagram", "X", X, "Y", Y, width,   height);
+        if (x % interViaX > 0 || y % interViaY > 0) stop("Start not on a via",         "x", x, "y", y, "gsx",   gsx,   "gsy",    gsy);
+        if (X % interViaX > 0 || Y % interViaY > 0) stop("Finish not on a via",        "X", X, "Y", Y, "gsx",   gsx,   "gsy",    gsy);
 
         for   (int i = 0; i < width;  ++i)                                      // Clear the searched space
           for (int j = 0; j < height; ++j)
