@@ -17,11 +17,13 @@ public class Chip                                                               
   final static boolean makeSayStop    = false;                                  // Turn say into stop if true
   final static int singleLevelLayoutLimit                                       // Limit on gate scaling dimensions during layout.
                                       =  16;
-  final static int maxSimulationSteps =  github_actions ? 100 : 10;             // Maximum simulation steps
+  final static int maxSimulationSteps =  github_actions ? 100 : 20;             // Maximum simulation steps
+  final static int         clockWidth =   8;                                    // Number of bits in system clock. Zero implies no clock.
   final static int          debugMask =   0;                                    // Adds a grid and fiber names to a mask to help debug fibers if true.
   final static int      pixelsPerCell =   4;                                    // Pixels per cell
   final static int     layersPerLevel =   4;                                    // There are 4 layers in each level: insulation, x cross bars, x-y connectors and insulation, y cross bars
-  final        int      layoutLTGates = 100;                                    // Always draw the layout if if it has less than this many gates in it
+  final static int      layoutLTGates = 100;                                    // Always draw the layout if it has less than this many gates in it
+  final static String           clock = "Clock";                                // Clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
   final String                   name;                                          // Name of chip
   final Map<String, Gate>       gates = new TreeMap<>();                        // Gates by name
   final Map<String, Integer> sizeBits = new TreeMap<>();                        // Sizes of bit buses
@@ -31,6 +33,8 @@ public class Chip                                                               
   final TreeSet<String>   outputGates = new TreeSet<>();                        // Output gates
   final TreeMap<String, TreeSet<Gate.WhichPin>>                                 // Pending gate definitions
                               pending = new TreeMap<>();
+  final TreeMap<String, Gate> connectedToOutput                                 // Gates that are connected to an output gate
+                                      = new TreeMap<>();
   int                         gateSeq =   0;                                    // Gate sequence number - this allows us to display the gates in the order they were defined to simplify the understanding of drawn layouts
   int                           steps =   0;                                    // Simulation step time
   int         maximumDistanceToOutput;                                          // Maximum distance from an output
@@ -42,12 +46,16 @@ public class Chip                                                               
                                columns = new TreeMap<>();
   final static TreeSet<String>
                           layoutsDrawn = new TreeSet<>();                       // Avoid redrawing the same layout multiple times
-  int                        gsx, gsy;                                          // The global scaling factors to be applied to the dimensions of the gates during layout
-  int                layoutX, layoutY;                                          // Dimensions of chip
-  Stack<Connection>       connections;                                          // Pairs of gates to be connected
-  Diagram                     diagram;                                          // Diagram specifying the layout of the chip
+  int                         gsx, gsy;                                         // The global scaling factors to be applied to the dimensions of the gates during layout
+  int                 layoutX, layoutY;                                         // Dimensions of chip
+  Stack<Connection>        connections;                                         // Pairs of gates to be connected
+  Diagram                      diagram;                                         // Diagram specifying the layout of the chip
 
-  Chip(String Name) {name = Name; }                                             // Create a new L<chip>.
+  Chip(String Name)                                                             // Create a new L<chip>.
+   {name = Name;
+    if (clockWidth > 0) inputBits(clock, clockWidth);                           // Create the system clock
+    for (Gate g : gates.values()) g.systemGate = true;                          // Mark all gates produced so far as system gates
+   }
 
   enum Operator                                                                 // Gate operations
    {And, Continue, FanOut, Gt, Input, Lt, Nand, Ngt, Nlt, Nor, Not, Nxor,
@@ -115,7 +123,7 @@ public class Chip                                                               
     b.append("  mostCountedDistance: "            + mostCountedDistance);
     b.append("  countAtMostCountedDistance: "     + countAtMostCountedDistance);
     b.append("\n");
-    b.append("Seq   Name____________________________  " +
+    b.append("Seq   Name____________________________ S  " +
      "Operator  #  11111111111111111111111111111111-P=#"+
                 "  22222222222222222222222222222222-P=# "+
      " C Frst Last  Dist                           Nearest  Px__,Py__"+
@@ -166,6 +174,7 @@ public class Chip                                                               
     Gate  iGate1,  iGate2;                                                      // Gates driving the inputs of this gate as during simulation but not during layout
     Gate soGate1, soGate2, tiGate1, tiGate2;                                    // Pin assignments on source and target gates used during layout but not during simulation
     TreeSet<WhichPin>    drives = new TreeSet<>();                              // The names of the gates that are driven by the output of this gate with a possible pin selection attached
+    boolean          systemGate = false;                                        // System gate if true
     Integer    distanceToOutput;                                                // Distance to nearest output
     Boolean               value;                                                // Current output value of this gate
     Boolean           nextValue;                                                // Next value to be assumed by the gate
@@ -232,18 +241,19 @@ public class Chip                                                               
      }
 
     public String toString()                                                    // Convert to string
-     {final char v = value == null ? '.' : value ? '1' : '0';
+     {final char v = value == null ? '.' : value ? '1' : '0';                   // Value of gate
+      final char s = systemGate ? 's' : ' ';                                    // System gate
 
       if (op == Operator.Input)
-        return String.format("%4d  %32s  %8s  %c"+" ".repeat(131)+"%4d,%4d  ",
-          seq, name, op, v, px, py) + drives() + "\n";
+        return String.format("%4d  %32s %c  %8s  %c"+" ".repeat(131)+"%4d,%4d  ",
+          seq, name, s, op, v, px, py) + drives() + "\n";
 
       final Boolean pin1 = iGate1 != null ? whichPinDrivesPin1() : null;
       final Boolean pin2 = iGate2 != null ? whichPinDrivesPin2() : null;
 
-      return   String.format("%4d  %32s  %8s  %c  %32s-%c=%c  %32s-%c=%c"+
+      return   String.format("%4d  %32s %c  %8s  %c  %32s-%c=%c  %32s-%c=%c"+
                              "  %c %4d %4d  %4d  %32s  %4d,%4d  ",
-        seq, name, op, v,
+        seq, name, s, op, v,
         iGate1 == null ? ""  : iGate1.name,
         pin1   == null ? '.' : pin1  ? '1' : '2',
         iGate1 == null ? '.' : iGate1.value == null ? '.' : iGate1.value ? '1' : '0',
@@ -305,7 +315,7 @@ public class Chip                                                               
     void compileGate()                                                          // Locate inputs for gate so we do not have to look them up every time
      {final int N = drives.size();
 
-      if (N == 0)                                                               // An output gate does not drive any other gate
+      if (N == 0 && !systemGate)                                                // Check for user defined gates that do not drive any other gate
        {if (op == Operator.Output) return;
         say(Chip.this);
         say(this);
@@ -343,7 +353,7 @@ public class Chip                                                               
      }
 
     void updateValue()                                                          // Update the value of the gate
-     {changed = nextValue != value;
+     {changed = !systemGate && nextValue != value;
       value   = nextValue;
      }
 
@@ -468,7 +478,7 @@ public class Chip                                                               
 
   void distanceToOutput()                                                       // Distance to the nearest output
    {outputGates.clear();
-    for(Gate g : gates.values())                                                // Each gate
+    for(Gate g : gates.values())                                                // Start at the output gates
      {g.distanceToOutput = null;                                                // Reset distance
       if (g.op == Operator.Output)                                              // Locate drives
        {outputGates.add(g.name);
@@ -476,7 +486,9 @@ public class Chip                                                               
        }
      }
 
-    TreeSet<String> check = outputGates;                                        // Search from the drives
+    connectedToOutput.clear();                                                  // Gates that are connected to an output gate
+
+    TreeSet<String> check = outputGates;                                        // Search backwards from the output gates
     for (int d = 0; d < gates.size() && check.size() > 0; ++d)                  // Set distance to nearest output
      {final TreeSet<String> next = new TreeSet<>();
       maximumDistanceToOutput    = d;                                           // Maximum distance from an output
@@ -488,6 +500,7 @@ public class Chip                                                               
        {final Gate g = getGate(name);
         if (g.distanceToOutput == null)                                         // New gate
          {to.add(name);                                                         // Classify gate by distance from gate
+          connectedToOutput.put(g.name, g);                                     // Gates that have connections to output gates
           g.distanceToOutput = d;                                               // Distance to nearest output
           if (g.iGate1 != null)
            {next.add(g.iGate1.name);
@@ -515,6 +528,8 @@ public class Chip                                                               
 
   int gates() {return gates.size();}                                            // Number of gates in this diagram
 
+// Simulation                                                                   // Simulate the behavior of the chip
+
   void compileChip()                                                            // Check that an input value has been provided for every input pin on the chip.
    {final Gate[]G = gates.values().toArray(new Gate[0]);
     for(Gate g : G) g.fanOut();                                                 // Fan the output of each gate if necessary which might introduce more gates
@@ -531,11 +546,12 @@ public class Chip                                                               
     return false;
    }
 
-  void initializeInputGates(Inputs inputs)                                      // Initialize the output of each input gate
+  void initializeGates(Inputs inputs)                                           // Initialize each gate
    {noChangeGates();
-    for(Gate g : gates.values())
-     {g.value = null; g.lastStepChanged = 0;
-      if (g.op == Operator.Input)                                               // Input gate
+
+    for(Gate g : gates.values())                                                // Initialize each gate
+     {g.value = null; g.lastStepChanged = 0;                                    // Make the value of the gate unknown.  An unknown value should not be used to compute a known value.
+      if (g.op == Operator.Input && ! g.systemGate)                             // User input gate
        {if (inputs != null)                                                     // Initialize
          {final Boolean v = inputs.get(g.name);
           if (v != null) g.value = v;
@@ -544,6 +560,12 @@ public class Chip                                                               
         else stop("Input gate", g.name, "has no initial value");
        }
      }
+   }
+
+  void loadClock()                                                              // Load the value of the clock into the clock input bus
+   {if (clockWidth == 0) return;                                                // No clock
+    final boolean[]b = bitStack(clockWidth, steps);                             // Current step as bits
+    for (int i = 1; i <= b.length; i++) getGate(n(i, clock)).value = b[i-1];    // Set clock bit
    }
 
   class Inputs                                                                  // Set values on input gates prior to simulation
@@ -555,15 +577,15 @@ public class Chip                                                               
 
     void set(String input, int value)                                           // Set the value of an input bit bus
      {final int bits = sizeBits(input);                                         // Get the size of the input bit bus
-      final Stack<Boolean> b = bitStack(bits, value);                           // Bits to set
-      for (int i = 1; i <= bits; i++) set(n(i, input), b.elementAt(i-1));       // Load the bits into the input bit bus
+      final boolean[]b = bitStack(bits, value);                                 // Bits to set
+      for (int i = 1; i <= bits; i++) set(n(i, input), b[i-1]);                 // Load the bits into the input bit bus
      }
 
     void set(String input, int...values)                                        // Set the value of an input word bus
      {final WordBus wb = sizeWords(input);                                      // Get the size of the input word bus
       for   (int w = 1; w <= wb.words; w++)                                     // Each word
-       {final Stack<Boolean> b = bitStack(wb.bits, values[w-1]);                // Bits from current word
-        for (int i = 1; i <= wb.bits; i++) set(nn(w, i, input), b.elementAt(i-1)); // Load the bits into the input bit bus
+       {final boolean[]b = bitStack(wb.bits, values[w-1]);                      // Bits from current word
+        for (int i = 1; i <= wb.bits; i++) set(nn(w, i, input), b[i-1]);        // Load the bits into the input bit bus
        }
      }
 
@@ -577,10 +599,10 @@ public class Chip                                                               
 
   Diagram simulate(Inputs inputs)                                               // Simulate the operation of a chip
    {compileChip();                                                              // Check that the inputs to each gate are defined
-    for(Gate g : gates.values()) g.value = null;                                // Reset gate values
-    initializeInputGates(inputs);                                               // Set the value of each input gate
-    for(steps = 1; steps < maxSimulationSteps; ++steps)                         // Steps in time
-     {for(Gate g : gates.values()) g.nextValue = null;                          // Reset next values
+    initializeGates(inputs);                                                    // Set the value of each input gate
+    for (steps = 1; steps < maxSimulationSteps; ++steps)                        // Steps in time
+     {loadClock();                                                              // Load the value of the clock into the clock input bus
+      for(Gate g : gates.values()) g.nextValue = null;                          // Reset next values
       for(Gate g : gates.values()) g.step();                                    // Compute next value for  each gate
       for(Gate g : gates.values()) g.updateValue();                             // Update each gate
       if (simulationStep != null) simulationStep.step();                        // Call the simulation step
@@ -634,20 +656,17 @@ public class Chip                                                               
    {if (value > 0) One(name); else Zero(name);
    }
 
-  Stack<Boolean> bitStack(int bits, int value)                                  // Create a stack of bits, padded with zeroes if necessary, representing an unsigned integer with the least significant bit lowest.
-   {final String         s = Integer.toBinaryString(value);                     // Bit in number
-    final Stack<Boolean> b = new Stack<>();
-    for(int i = s.length(); i > 0;     --i) b.push(s.charAt(i-1) == '1');       // Stack of bits with least significant lowest
-    for(int i = b.size();   i <= bits; ++i) b.push(false);                      // Extend to the left with zeroes
+  static boolean[]bitStack(int bits, int value)                                 // Create a stack of bits, padded with zeroes if necessary, representing an unsigned integer with the least significant bit lowest.
+   {final boolean[]b = new boolean[bits];
+    for (int i = 0; i < bits; ++i) b[i] = (value & (1 << i)) != 0;
     return b;
    }
 
-  String bits(String name, int bits, int value)                                 // Create a bus set to a specified number.
-   {final Stack<Boolean> b = bitStack(bits, value);                             // Number as a stack of bits padded to specified width
-    for(int i = 1; i <= bits; ++i)                                              // Generate constant
-      if (b.elementAt(i-1)) One(n(i, name)); else Zero(n(i, name));             // Set bit
-    setSizeBits(name, bits);                                                    // Record bus width
-    return name;
+  String bits(String n, int bits, int value)                                    // Create a bus set to a specified number.
+   {final boolean[]b = bitStack(bits, value);                                   // Number as a stack of bits padded to specified width
+    for(int i = 1; i <= bits; ++i) if (b[i-1]) One(n(i, n)); else Zero(n(i, n));// Generate constant
+    setSizeBits(n, bits);                                                       // Record bus width
+    return n;
    }
 
   String bits(int bits, int value)                                              // Create an unnamed bus set to a specified number.
@@ -1230,7 +1249,7 @@ public class Chip                                                               
    {Diagram D = null;
     Integer L = null;
     for (int s = 1; s < singleLevelLayoutLimit; ++s)                            // Various gate scaling factors
-     {final Diagram d = layout(s, 1 + s / 2);                                   // Draw diagram
+     {final Diagram d = layout(s, s);                                           // Layout gates
       final int l = d.levels();                                                 // Number of levels in diagram
       if (l == 1) return drawLayout(d);                                         // Draw the layout diagram as GDS2
       if (L == null || L > l) {L = l; D = d;}                                   // Track smallest number of wiring levels
@@ -1292,14 +1311,14 @@ public class Chip                                                               
     layoutY = sy * (2 + countAtMostCountedDistance);                            // Y dimension of chip with a bit of border
 
     compileChip();
-    for (Gate g : gates.values()) g.px = g.distanceToOutput * sx;               // Locate gate in x
+    for (Gate g : connectedToOutput.values())  g.px = g.distanceToOutput * sx;  // Position each gate in x as long as it is eventually connected to an output, or it is an output that has a gate
 
     final TreeSet<String> drawn = new TreeSet<>();                              // Gates that have already been drawn and so do not need to be redrawn
 
     for   (Integer D : distanceToOutput.keySet())                               // Gates at each distance from the drives
      {final TreeSet<String> d = distanceToOutput.get(D);                        // Gates in this column
       final int             N = d.size();                                       // Number of gates in this column
-      final float          dy = layoutY/ (float)N - 2 * sy;                         // Extra space available to spread gates down column
+      final float          dy = layoutY/ (float)N - 2 * sy;                     // Extra space available to spread gates down column
       float             extra = 0;                                              // Extra space accumulated as we can only use it in increments of gsy
       int                   y = gsy;                                            // Current y position in column.
 
@@ -1318,7 +1337,7 @@ public class Chip                                                               
     for (Gate g : gates.values())
       g.soGate1 = g.soGate2 = g.tiGate1 = g.tiGate2 = null;
 
-    for (Gate s : gates.values())                                               // Gates
+    for (Gate s : connectedToOutput.values())                                   // Gates connected to outputs
       for (Gate.WhichPin p : s.drives)                                          // Gates driven by this gate
         connections.push(new Connection(s, p.gate()));                          // Connection needed
 
@@ -1739,7 +1758,7 @@ public class Chip                                                               
       p.push("  $g->printText(-layer=>102, -xy=>["+tx+", "+ty+"], "+
              " -string=>\""+title+"\");");
 
-      for  (Gate g : gates.values())                                            // Each gate
+      for  (Gate g : connectedToOutput.values())                                // Each gate that is connected to an output
        {p.push("# Gate: "+g);
         p.push("  if (1)");
         p.push("   {my $gsx = "+gsx+";");
@@ -2056,7 +2075,7 @@ public class Chip                                                               
     ok(o.value , true);
    }
 
-  static Chip test_and3a(boolean A, boolean B, boolean C, boolean D)
+  static Chip test_and3(boolean A, boolean B, boolean C, boolean D)
    {final Chip c = new Chip("And3");
     c.Input( "i11");
     c.Input( "i12");
@@ -2083,23 +2102,23 @@ public class Chip                                                               
   static void test_andOr()
    {final boolean t = true, f = false;
     Grouping g = new Grouping();
-    g.put(false,  test_and3a(t, t, t, t));
-    g.put(false,  test_and3a(t, t, t, f));
-    g.put(false,  test_and3a(t, t, f, t));
-    g.put(false,  test_and3a(t, t, f, f));
-    g.put(false,  test_and3a(t, f, t, t));
-    g.put(false,  test_and3a(t, f, t, f));
-    g.put(false,  test_and3a(t, f, f, t));
-    g.put(false,  test_and3a(t, f, f, f));
+    g.put(false,  test_and3(t, t, t, t));
+    g.put(false,  test_and3(t, t, t, f));
+    g.put(false,  test_and3(t, t, f, t));
+    g.put(false,  test_and3(t, t, f, f));
+    g.put(false,  test_and3(t, f, t, t));
+    g.put(false,  test_and3(t, f, t, f));
+    g.put(false,  test_and3(t, f, f, t));
+    g.put(false,  test_and3(t, f, f, f));
 
-    g.put( true,  test_and3a(f, t, t, t));
-    g.put( true,  test_and3a(f, t, t, f));
-    g.put( true,  test_and3a(f, t, f, t));
-    g.put( true,  test_and3a(f, t, f, f));
-    g.put( true,  test_and3a(f, f, t, t));
-    g.put( true,  test_and3a(f, f, t, f));
-    g.put( true,  test_and3a(f, f, f, t));
-    g.put( true,  test_and3a(f, f, f, f));
+    g.put( true,  test_and3(f, t, t, t));
+    g.put( true,  test_and3(f, t, t, f));
+    g.put( true,  test_and3(f, t, f, t));
+    g.put( true,  test_and3(f, t, f, f));
+    g.put( true,  test_and3(f, f, t, t));
+    g.put( true,  test_and3(f, f, t, f));
+    g.put( true,  test_and3(f, f, f, t));
+    g.put( true,  test_and3(f, f, f, f));
 
     final var a = g.analyze();
     ok(a.size(), 1);
@@ -2527,14 +2546,14 @@ public class Chip                                                               
    }
 
   static void test_clock()
-   {final var c = new Chip("Btree");
-    final Stack<Integer> s = new Stack<>();
-    c.simulationStep = ()->{s.push(c.steps); say(c);};
-    c.And ("a", n(1, "Clock"), n(2, "Clock"));
+   {final var c = new Chip("Clock");
+    final Stack<Boolean> s = new Stack<>();
+    c.simulationStep = ()->{s.push(c.getBit("a"));};
+    c.And ("a", n(1, clock), n(2, clock));
     c.Output("o", "a");
     c.simulate();
-    ok(c.steps,  12);
-    ok(s.size(), 12);
+    ok(c.steps,  6);
+    for (int i = 0; i < s.size(); i++) ok(s.elementAt(i), i == 2);
    }
 
   static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
@@ -2545,7 +2564,8 @@ public class Chip                                                               
    }
 
   static void oldTests()                                                        // Test if called as a program
-   {test_and2Bits();
+   {if (!github_actions) return;
+    test_and2Bits();
     test_and();
     test_and_grouping();
     test_or_grouping();
@@ -2554,7 +2574,7 @@ public class Chip                                                               
     test_zero();
     test_one();
     test_andOr();
-    if (!github_actions) return;
+    test_clock();
     test_delayedDefinitions();
     test_expand();
     test_expand2();
@@ -2579,14 +2599,13 @@ public class Chip                                                               
 
   static void newTests()                                                        // Test if called as a program
    {if (github_actions) return;
-   // test_clockDivide();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
    {oldTests();
     newTests();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
-    if (testsFailed == 0) say("Passed ALL", testsPassed, "tests");
-    else say("Passed ", testsPassed, "FAILED:", testsFailed, "tests");
+    if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
+    else say("Passed "+testsPassed+",    FAILed:", testsFailed, "tests.");
    }
  }
