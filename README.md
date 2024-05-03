@@ -49,9 +49,12 @@ To produce a chip layout mask using [Graphics Design System 2](https://en.wikipe
 ## Choose Word Under Mask
 ![Choose Word Under Mask](images/ChooseWordUnderMask2.png)
 
+## Btree Leaf Compare
+![Btree Leaf Compare](images/BtreeLeafCompare.png)
+
 # Buses
 
-Buses behave like variables.
+Buses behave like variables and arrays of variables.
 
 ## Bit buses
 
