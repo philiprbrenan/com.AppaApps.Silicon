@@ -13,7 +13,7 @@ import java.util.stream.*;
 
 public class Chip                                                               // Describe a chip and emulate its operation.
  {final static boolean makeSayStop    = false;                                  // Turn say into stop if true
-  final static int singleLevelLayoutLimit                                       // Lint on gate scaling dimensions during layout
+  final static int singleLevelLayoutLimit                                       // Limit on gate scaling dimensions during layout.
                                       =  20;
   final static int maxSimulationSteps = 100;                                    // Maximum simulation steps
   final static int          debugMask =   0;                                    // Adds a grid and fiber names to a mask to help debug fibers if true.
@@ -118,8 +118,8 @@ public class Chip                                                               
     b.append("Seq   Name____________________________  " +
      "Operator  #  11111111111111111111111111111111-P=#"+
                 "  22222222222222222222222222222222-P=# "+
-     " C Frst Last  Dist   Nearest  Px__,Py__  Drives these gates\n");
-
+     " C Frst Last  Dist                           Nearest  Px__,Py__"+
+     "  Drives these gates\n");
     for(Gate g : gates.values()) b.append(g);                                   // Print each gate
 
     if (sizeBits.size() > 0)                                                    // Size of bit buses
@@ -168,6 +168,7 @@ public class Chip                                                               
     TreeSet<WhichPin>    drives = new TreeSet<>();                              // The names of the gates that are driven by the output of this gate with a possible pin selection attached
     Integer    distanceToOutput;                                                // Distance to nearest output
     Boolean               value;                                                // Current output value of this gate
+    Boolean           nextValue;                                                // Next value to be assumed by the gate
     boolean             changed;                                                // Changed on current simulation step
     int        firstStepChanged;                                                // First step at which we changed
     int         lastStepChanged;                                                // Last step at which we changed
@@ -234,7 +235,7 @@ public class Chip                                                               
      {final char v = value == null ? '.' : value ? '1' : '0';
 
       if (op == Operator.Input)
-        return String.format("%4d  %32s  %8s  %c"+" ".repeat(59)+"%4d,%4d  ",
+        return String.format("%4d  %32s  %8s  %c"+" ".repeat(131)+"%4d,%4d  ",
           seq, name, op, v, px, py) + drives() + "\n";
 
       final Boolean pin1 = iGate1 != null ? whichPinDrivesPin1() : null;
@@ -341,31 +342,30 @@ public class Chip                                                               
       return name;
      }
 
-    void updateValue(Boolean Value)                                             // Update the value of the gate
-     {changed = value != Value;
-      value   = Value;
+    void updateValue()                                                          // Update the value of the gate
+     {changed = nextValue != value;
+      value   = nextValue;
      }
 
     void step()                                                                 // One step in the simulation
      {final Boolean g = iGate1 != null ? iGate1.value : null,
                     G = iGate2 != null ? iGate2.value : null;
-      Boolean value = null;
       switch(op)                                                                // Gate operation
-       {case And: if (g != null && G != null) updateValue(  g &&  G);  return;
-        case Gt:  if (g != null && G != null) updateValue(  g && !G);  return;
-        case Lt:  if (g != null && G != null) updateValue( !g &&  G);  return;
-        case Nand:if (g != null && G != null) updateValue(!(g &&  G)); return;
-        case Ngt: if (g != null && G != null) updateValue( !g ||  G);  return;
-        case Nlt: if (g != null && G != null) updateValue(  g || !G);  return;
-        case Nor: if (g != null && G != null) updateValue(!(g ||  G)); return;
-        case Not: if (g != null)              updateValue( !g);        return;
-        case Nxor:if (g != null && G != null) updateValue(!(g ^   G)); return;
-        case One:                             updateValue(true);       return;
-        case Or:  if (g != null && G != null) updateValue(  g ||  G);  return;
-        case Xor: if (g != null && G != null) updateValue(  g ^   G);  return;
-        case Zero:                            updateValue( false);     return;
-        case Continue: case FanOut: case Output:
-                                              updateValue(g);          return;
+       {case And: if (g != null && G != null)    nextValue =   g &&  G;  return;
+        case Gt:  if (g != null && G != null)    nextValue =   g && !G;  return;
+        case Lt:  if (g != null && G != null)    nextValue =  !g &&  G;  return;
+        case Nand:if (g != null && G != null)    nextValue = !(g &&  G); return;
+        case Ngt: if (g != null && G != null)    nextValue =  !g ||  G;  return;
+        case Nlt: if (g != null && G != null)    nextValue =   g || !G;  return;
+        case Nor: if (g != null && G != null)    nextValue = !(g ||  G); return;
+        case Not: if (g != null)                 nextValue =  !g;        return;
+        case Nxor:if (g != null && G != null)    nextValue = !(g ^   G); return;
+        case One:                                nextValue = true;       return;
+        case Or:  if (g != null && G != null)    nextValue =   g ||  G;  return;
+        case Xor: if (g != null && G != null)    nextValue =   g ^   G;  return;
+        case Zero:                               nextValue = false;      return;
+        case Input:                              nextValue = value;      return;
+        case Continue: case FanOut: case Output: nextValue =   g;        return;
        }
      }
 
@@ -570,13 +570,20 @@ public class Chip                                                               
     Boolean get(String s) {return inputs.get(s);}                               // Get the value of an input
    }
 
+  interface SimulationStep {void step();}                                       // Called each simulation step
+  SimulationStep simulationStep = null;                                         // Called each simulation step
+
   Diagram simulate() {return simulate(null);}                                   // Simulate the operation of a chip with no input pins. If the chip has in fact got input pins an error will be reported.
 
   Diagram simulate(Inputs inputs)                                               // Simulate the operation of a chip
    {compileChip();                                                              // Check that the inputs to each gate are defined
-    initializeInputGates(inputs);                                               // Set the drives of each input gate
+    for(Gate g : gates.values()) g.value = null;                                // Reset gate values
+    initializeInputGates(inputs);                                               // Set the value of each input gate
     for(steps = 1; steps < maxSimulationSteps; ++steps)                         // Steps in time
-     {for(Gate g : gates.values()) g.step();
+     {for(Gate g : gates.values()) g.nextValue = null;                          // Reset next values
+      for(Gate g : gates.values()) g.step();                                    // Compute next value for  each gate
+      for(Gate g : gates.values()) g.updateValue();                             // Update each gate
+      if (simulationStep != null) simulationStep.step();                        // Call the simulation step
       if (!changes())                                                           // No changes occurred
         return gates.size() < layoutLTGates ? singleLevelLayout() : null;       // Draw the layout if less than the specified number of gates
 
@@ -1931,7 +1938,7 @@ public class Chip                                                               
     ok( i2.value, false);
     ok(and.value, false);
     ok(  o.value, false);
-    ok(  c.steps ,    2);
+    ok(  c.steps ,   3);
    }
 
   static Chip test_and_grouping(Boolean i1, Boolean i2)
@@ -1996,7 +2003,7 @@ public class Chip                                                               
     ok( i2.value, false);
     ok(and.value, false);
     ok(  o.value, false);
-    ok(  c.steps ,     2);
+    ok(  c.steps ,     3);
    }
 
   static void test_or()
@@ -2048,7 +2055,7 @@ public class Chip                                                               
     c.One ("O");
     final Gate o = c.Output("o", "O");
     c.simulate();
-    ok(c.steps  , 2);
+    ok(c.steps  , 3);
     ok(o.value , true);
    }
 
@@ -2071,7 +2078,7 @@ public class Chip                                                               
 
     c.simulate(i);
 
-    ok(c.steps,  3);
+    ok(c.steps,  4);
     ok(o.value, (A && B) || (C && D));
     return c;
    }
@@ -2128,7 +2135,7 @@ public class Chip                                                               
     final Gate o2 = c.Output("o2", "and");
     final Gate o3 = c.Output("o3", "xor");
     c.simulate();
-    ok(c.steps,  4);
+    ok(c.steps,  5);
     ok(o1.value, true);
     ok(o2.value, false);
     ok(o3.value, true);
@@ -2141,7 +2148,7 @@ public class Chip                                                               
       c.bits("c", N, i);
       c.outputBits("o", "c");
       c.simulate();
-      ok(c.steps,      2);
+      ok(c.steps,     3);
       ok(c.bInt("o"), i);
      }
    }
@@ -2156,7 +2163,7 @@ public class Chip                                                               
         c.andBits("o", "i1", "i2");
         c.outputBits("out", "o");
         c.simulate();
-        ok(c.steps,     2);
+        ok(c.steps,     4);
         ok(c.bInt("o"), 5 & i);
        }
      }
@@ -2244,7 +2251,7 @@ public class Chip                                                               
           c.compareEq("o", "i", "j");
           final Gate o = c.Output("O", "o");
           c.simulate();
-          ok(c.steps, B == 2 ? 4 : 5);
+          ok(c.steps, B == 2 ? 5 : 6);
           ok(o.value, i == j);
          }
        }
@@ -2262,7 +2269,7 @@ public class Chip                                                               
           c.compareGt("o", "i", "j");
           final Gate o = c.Output("O", "o");
           c.simulate();
-          ok(c.steps, B == 2 || B == 3 ? 5 : 6);
+          ok(c.steps, B == 2 ? 6 : B == 3 ? 8 : 9);
           ok(o.value, i > j);
          }
        }
@@ -2280,7 +2287,7 @@ public class Chip                                                               
           c.compareLt("o", "i", "j");
           final Gate o = c.Output("O", "o");
           c.simulate();
-          ok(c.steps, B == 2 || B == 3 ? 5 : 6);
+          ok(c.steps, B == 2 ? 6 : B == 3 ? 8 : 9);
           ok(o.value, i < j);
          }
        }
@@ -2297,7 +2304,7 @@ public class Chip                                                               
       c.chooseFromTwoWords("o", "a", "b", "c");
       c.outputBits("out",  "o");
       c.simulate();
-      ok(c.steps, 5);
+      ok(c.steps, 9);
       ok(c.bInt("out"), i == 0 ? 3 : 12);
      }
    }
@@ -2311,7 +2318,7 @@ public class Chip                                                               
       c.enableWord("o", "a", "e");
       c.outputBits("out",  "o");
       c.simulate();
-      ok(c.steps, 3);
+      ok(c.steps, 5);
       ok(c.bInt("out"), i == 0 ? 0 : 3);
      }
    }
@@ -2365,7 +2372,7 @@ public class Chip                                                               
     c.outputBits("n", "next");
     c.Output    ("f", "found");
     c.simulate();
-    ok(c.steps,              15);
+    ok(c.steps,              23);
     ok(c.getBit("found"), Found);
     ok(c.bInt  ("data"),   Data);
     ok(c.bInt  ("next"),   Next);
@@ -2404,7 +2411,7 @@ public class Chip                                                               
     c.outputBits("d", "data"); // Anneal the node
     c.Output    ("f", "found");
     c.simulate();
-    ok(c.steps,               7);
+    ok(c.steps,              12);
     ok(c.getBit("found"), Found);
     ok(c.bInt  ("data"),   Data);
     return c;
@@ -2431,7 +2438,7 @@ public class Chip                                                               
   static void test_Btree(Chip c, Inputs i, int find, int found)
    {i.set("find", find);
     c.simulate(i);
-    ok(c.steps,              22);
+    ok(c.steps,              46);
     ok(c.getBit("found"),   true);
     ok(c.bInt  ("data"),   found);
    }
@@ -2439,7 +2446,7 @@ public class Chip                                                               
   static void test_Btree(Chip c, Inputs i, int find)
    {i.set("find", find);
     c.simulate(i);
-    ok(c.steps,               22);
+    ok(c.steps,               46);
     ok(c.getBit("found"),  false);
     ok(c.bInt  ("data"),       0);
    }
@@ -2498,6 +2505,29 @@ public class Chip                                                               
 
    }
 
+  static void test_simulationStep()
+   {final var c = new Chip("Btree");
+    final Stack<Integer> s = new Stack<>();
+    c.simulationStep = ()->{s.push(c.steps);};
+    c.One("i");
+    c.Not("n9", "i");
+    c.Not("n8", "n9");
+    c.Not("n7", "n8");
+    c.Not("n6", "n7");
+    c.Not("n5", "n6");
+    c.Not("n4", "n5");
+    c.Not("n3", "n4");
+    c.Not("n2", "n3");
+    c.Not("n1", "n2");
+    c.Output("o", "n1");
+
+    final Inputs i = c.new Inputs();
+    i.set("i", true);
+    c.simulate();
+    ok(c.steps,  12);
+    ok(s.size(), 12);
+   }
+
   static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
 
   static void ok(Object a, Object b)                                            // Check test results match expected results.
@@ -2534,6 +2564,7 @@ public class Chip                                                               
     test_BtreeNode();
     test_BtreeLeafCompare();
     test_Btree();
+    test_simulationStep();
    }
 
   static void newTests()                                                        // Test if called as a program
