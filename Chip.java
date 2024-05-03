@@ -2598,8 +2598,8 @@ public class Chip                                                               
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {//oldTests();
-    newTests();
+   {oldTests();
+    //newTests();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("Passed ALL", testsPassed, "tests");
     else say("Passed ", testsPassed, "FAILED:", testsFailed, "tests");
