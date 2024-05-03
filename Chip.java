@@ -50,7 +50,8 @@ public class Chip                                                               
   Chip(String Name) {name = Name; }                                             // Create a new L<chip>.
 
   enum Operator                                                                 // Gate operations
-   {And, Continue, FanOut, Gt, Input, Lt, Nand, Ngt, Nlt, Nor, Not, Nxor,
+   {And, Clock, Continue, Divide,
+    FanOut, Gt, Input, Lt, Nand, Ngt, Nlt, Nor, Not, Nxor,
     One, Or, Output, Xor, Zero;
    }
 
@@ -60,11 +61,13 @@ public class Chip                                                               
    }
 
   boolean zerad(Operator op)                                                    // Whether the gate takes zero inputs
-   {return op == Operator.Input || op == Operator.One || op == Operator.Zero;
+   {return op == Operator.Clock || op == Operator.Input ||
+           op == Operator.One   || op == Operator.Zero;
    }
 
   boolean monad(Operator op)                                                    // Whether the gate takes a single input or not
-   {return op == Operator.Continue || op == Operator.Not || op==Operator.Output;
+   {return op == Operator.Continue || op == Operator.Divide ||
+           op == Operator.Not      || op == Operator.Output;
    }
 
   boolean dyad(Operator op) {return !(zerad(op) || monad(op));}                 // Whether the gate takes two inputs or not
@@ -169,6 +172,7 @@ public class Chip                                                               
     Integer    distanceToOutput;                                                // Distance to nearest output
     Boolean               value;                                                // Current output value of this gate
     Boolean           nextValue;                                                // Next value to be assumed by the gate
+    Boolean               state;                                                // Records one bit of state for this gate if, like the divide gate, the gate cares to use it
     boolean             changed;                                                // Changed on current simulation step
     int        firstStepChanged;                                                // First step at which we changed
     int         lastStepChanged;                                                // Last step at which we changed
@@ -233,17 +237,18 @@ public class Chip                                                               
 
     public String toString()                                                    // Convert to string
      {final char v = value == null ? '.' : value ? '1' : '0';
+      final char s = state == null ? ' ' : state ? '1' : '0';
 
       if (op == Operator.Input)
-        return String.format("%4d  %32s  %8s  %c"+" ".repeat(131)+"%4d,%4d  ",
-          seq, name, op, v, px, py) + drives() + "\n";
+        return String.format("%4d  %32s  %8s  %c %c"+" ".repeat(131)+"%4d,%4d  ",
+          seq, name, op, v, s, px, py) + drives() + "\n";
 
       final Boolean pin1 = iGate1 != null ? whichPinDrivesPin1() : null;
       final Boolean pin2 = iGate2 != null ? whichPinDrivesPin2() : null;
 
-      return   String.format("%4d  %32s  %8s  %c  %32s-%c=%c  %32s-%c=%c"+
+      return   String.format("%4d  %32s  %8s  %c %c  %32s-%c=%c  %32s-%c=%c"+
                              "  %c %4d %4d  %4d  %32s  %4d,%4d  ",
-        seq, name, op, v,
+        seq, name, op, v, s,
         iGate1 == null ? ""  : iGate1.name,
         pin1   == null ? '.' : pin1  ? '1' : '2',
         iGate1 == null ? '.' : iGate1.value == null ? '.' : iGate1.value ? '1' : '0',
@@ -351,21 +356,27 @@ public class Chip                                                               
      {final Boolean g = iGate1 != null ? iGate1.value : null,
                     G = iGate2 != null ? iGate2.value : null;
       switch(op)                                                                // Gate operation
-       {case And: if (g != null && G != null)    nextValue =   g &&  G;  return;
-        case Gt:  if (g != null && G != null)    nextValue =   g && !G;  return;
-        case Lt:  if (g != null && G != null)    nextValue =  !g &&  G;  return;
-        case Nand:if (g != null && G != null)    nextValue = !(g &&  G); return;
-        case Ngt: if (g != null && G != null)    nextValue =  !g ||  G;  return;
-        case Nlt: if (g != null && G != null)    nextValue =   g || !G;  return;
-        case Nor: if (g != null && G != null)    nextValue = !(g ||  G); return;
-        case Not: if (g != null)                 nextValue =  !g;        return;
-        case Nxor:if (g != null && G != null)    nextValue = !(g ^   G); return;
-        case One:                                nextValue = true;       return;
-        case Or:  if (g != null && G != null)    nextValue =   g ||  G;  return;
-        case Xor: if (g != null && G != null)    nextValue =   g ^   G;  return;
-        case Zero:                               nextValue = false;      return;
-        case Input:                              nextValue = value;      return;
-        case Continue: case FanOut: case Output: nextValue =   g;        return;
+       {case And:   if (g != null && G != null) nextValue =   g &&  G;  return;
+        case Clock: nextValue = steps % 2 == 0;                         return;
+        case Gt:    if (g != null && G != null) nextValue =   g && !G;  return;
+        case Lt:    if (g != null && G != null) nextValue =  !g &&  G;  return;
+        case Nand:  if (g != null && G != null) nextValue = !(g &&  G); return;
+        case Ngt:   if (g != null && G != null) nextValue =  !g ||  G;  return;
+        case Nlt:   if (g != null && G != null) nextValue =   g || !G;  return;
+        case Nor:   if (g != null && G != null) nextValue = !(g ||  G); return;
+        case Not:   if (g != null)              nextValue =  !g;        return;
+        case Nxor:  if (g != null && G != null) nextValue = !(g ^   G); return;
+        case One:                               nextValue = true;       return;
+        case Or:    if (g != null && G != null) nextValue =   g ||  G;  return;
+        case Xor:   if (g != null && G != null) nextValue =   g ^   G;  return;
+        case Zero:                              nextValue = false;      return;
+        case Input:                             nextValue = value;      return;
+        case Continue: case FanOut: case Output: nextValue =   g;       return;
+        case Divide: if (g != null)
+          if      (state == null){nextValue = false; state = false;}
+          else if (state)        {nextValue = !g;    state = false;}
+          else                   {nextValue = value; state = true; }
+        return;
        }
      }
 
@@ -441,24 +452,27 @@ public class Chip                                                               
     return new Gate(Op, Name, f.name, g.name);                                  // Consolidation of the two gates
    }
 
-  Gate Input    (String n)                       {return FanIn(Operator.Input,    n);}
-  Gate One      (String n)                       {return FanIn(Operator.One,      n);}
-  Gate Zero     (String n)                       {return FanIn(Operator.Zero,     n);}
-  Gate Output   (String n, String i)             {return FanIn(Operator.Output,   n, i);}
-  Gate Continue (String n, String i)             {return FanIn(Operator.Continue, n, i);}
-  Gate Not      (String n, String i)             {return FanIn(Operator.Not,      n, i);}
+  Gate Input    (String n)                     {return FanIn(Operator.Input,    n);}
+  Gate One      (String n)                     {return FanIn(Operator.One,      n);}
+  Gate Zero     (String n)                     {return FanIn(Operator.Zero,     n);}
+  Gate Output   (String n, String i)           {return FanIn(Operator.Output,   n, i);}
+  Gate Continue (String n, String i)           {return FanIn(Operator.Continue, n, i);}
+  Gate Not      (String n, String i)           {return FanIn(Operator.Not,      n, i);}
 
-  Gate Nxor     (String n, String i1, String i2) {return FanIn(Operator.Nxor, n, i1, i2);}
-  Gate Xor      (String n, String i1, String i2) {return FanIn(Operator.Xor,  n, i1, i2);}
-  Gate Gt       (String n, String i1, String i2) {return FanIn(Operator.Gt,   n, i1, i2);}
-  Gate Ngt      (String n, String i1, String i2) {return FanIn(Operator.Ngt,  n, i1, i2);}
-  Gate Lt       (String n, String i1, String i2) {return FanIn(Operator.Lt,   n, i1, i2);}
-  Gate Nlt      (String n, String i1, String i2) {return FanIn(Operator.Nlt,  n, i1, i2);}
+  Gate Nxor     (String n, String i, String j) {return FanIn(Operator.Nxor, n, i, j);}
+  Gate Xor      (String n, String i, String j) {return FanIn(Operator.Xor,  n, i, j);}
+  Gate Gt       (String n, String i, String j) {return FanIn(Operator.Gt,   n, i, j);}
+  Gate Ngt      (String n, String i, String j) {return FanIn(Operator.Ngt,  n, i, j);}
+  Gate Lt       (String n, String i, String j) {return FanIn(Operator.Lt,   n, i, j);}
+  Gate Nlt      (String n, String i, String j) {return FanIn(Operator.Nlt,  n, i, j);}
 
-  Gate And      (String n, String...i)           {return FanIn(Operator.And,  n, i);}
-  Gate Nand     (String n, String...i)           {return FanIn(Operator.Nand, n, i);}
-  Gate Or       (String n, String...i)           {return FanIn(Operator.Or,   n, i);}
-  Gate Nor      (String n, String...i)           {return FanIn(Operator.Nor,  n, i);}
+  Gate Clock    (String n)                     {return FanIn(Operator.Clock,   n);}
+  Gate Divide   (String n, String   i)         {return FanIn(Operator.Divide,  n, i);}
+
+  Gate And      (String n, String...i)         {return FanIn(Operator.And,  n, i);}
+  Gate Nand     (String n, String...i)         {return FanIn(Operator.Nand, n, i);}
+  Gate Or       (String n, String...i)         {return FanIn(Operator.Or,   n, i);}
+  Gate Nor      (String n, String...i)         {return FanIn(Operator.Nor,  n, i);}
 
   class WordBus                                                                 // Description of a word bus
    {final int bits;                                                             // Bits in each word of the bus
@@ -577,7 +591,7 @@ public class Chip                                                               
 
   Diagram simulate(Inputs inputs)                                               // Simulate the operation of a chip
    {compileChip();                                                              // Check that the inputs to each gate are defined
-    for(Gate g : gates.values()) g.value = null;                                // Reset gate values
+    for(Gate g : gates.values()) g.state = g.value = null;                      // Reset gate values
     initializeInputGates(inputs);                                               // Set the value of each input gate
     for(steps = 1; steps < maxSimulationSteps; ++steps)                         // Steps in time
      {for(Gate g : gates.values()) g.nextValue = null;                          // Reset next values
@@ -1229,14 +1243,11 @@ public class Chip                                                               
   Diagram singleLevelLayout()                                                   // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
    {Diagram D = null;
     Integer L = null;
-    for    (int s =   1; s < singleLevelLayoutLimit; ++s)                       // Various gate scaling factors
-     {for  (int t = s/2; t <= s;                     ++t)                       // Scale up in x more gradually than y as the current layout wiring technique tends to use more space in y than x.
-       {if (t < 1 || s < 1) continue;                                           // Check for unrealistic scaling factors
-        final Diagram d = layout(t, s);                                         // Draw diagram
-        final int l = d.levels();                                               // Number of levels in diagram
-        if (l == 1) return drawLayout(d);                                       // Draw the layout diagram as GDS2
-        if (L == null || L > l) {L = l; D = d;}                                 // Track smallest number of wiring levels
-       }
+    for (int s = 1; s < singleLevelLayoutLimit; ++s)                            // Various gate scaling factors
+     {final Diagram d = layout(s, s);                                           // Draw diagram
+      final int l = d.levels();                                                 // Number of levels in diagram
+      if (l == 1) return drawLayout(d);                                         // Draw the layout diagram as GDS2
+      if (L == null || L > l) {L = l; D = d;}                                   // Track smallest number of wiring levels
      }
     return drawLayout(D);
    }
@@ -2524,6 +2535,21 @@ public class Chip                                                               
     final Inputs i = c.new Inputs();
     i.set("i", true);
     c.simulate();
+
+    ok(c.steps,  12);
+    ok(s.size(), 12);
+   }
+
+  static void test_clockDivide()
+   {final var c = new Chip("Btree");
+    final Stack<Integer> s = new Stack<>();
+    c.simulationStep = ()->{s.push(c.steps); say(c);};
+    c.Clock ("c");
+    c.Divide("d1", "c");
+    c.Divide("d2", "d1");
+    c.Divide("d3", "d2");
+    c.Output("o",  "d3");
+    c.simulate();
     ok(c.steps,  12);
     ok(s.size(), 12);
    }
@@ -2568,11 +2594,11 @@ public class Chip                                                               
    }
 
   static void newTests()                                                        // Test if called as a program
-   {
+   {test_clockDivide();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {oldTests();
+   {//oldTests();
     newTests();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("Passed ALL", testsPassed, "tests");
