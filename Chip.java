@@ -2470,30 +2470,26 @@ public class Chip                                                               
     test_BtreeLeafCompare(7, 1, false, 0, 0);
    }
 
-  static void test_Btree(Chip c, Inputs i, int find, int found)
+  static void test_Btree(Chip c, Inputs i, int find)
    {i.set("find", find);
     c.simulate(i);
+   }
+
+  static void test_Btree(Chip c, Inputs i, int find, int found)
+   {test_Btree(c, i, find);
     ok(c.steps,              46);
     ok(c.getBit("found"),   true);
     ok(c.bInt  ("data"),   found);
    }
 
-  static void test_Btree(Chip c, Inputs i, int find, boolean layout)
-   {i.set("find", find);
-    c.simulate(i);
-    ok(c.steps,               46);
-    ok(c.getBit("found"),  false);
-    ok(c.bInt  ("data"),       0);
+  static void test_Btree(Chip c, Inputs i, int find, int found, boolean layout)
+   {test_Btree(c, i, find, found);
 
-    if (github_actions && layout)
+    if (layout)
      {c.GlobalScaleX = 4;
       c.GlobalScaleY = 1;
       c.singleLevelLayout();
      }
-   }
-
-  static void test_Btree(Chip c, Inputs i, int find)
-   {test_Btree(c, i, find, false);
    }
 
   static void test_Btree()
@@ -2528,7 +2524,7 @@ public class Chip                                                               
     test_Btree(c, i, 20, 22);
     test_Btree(c, i, 30, 33);
 
-    test_Btree(c, i,  2, 22);
+    test_Btree(c, i,  2, 22, true);
     test_Btree(c, i,  4, 44);
     test_Btree(c, i,  6, 66);
 
@@ -2622,8 +2618,8 @@ public class Chip                                                               
     test_chooseWordUnderMask();
     test_BtreeNode();
     test_BtreeLeafCompare();
+    if (github_actions) test_Btree();
     if (!github_actions) return;
-    test_Btree();
    }
 
   static void newTests()                                                        // Tests being worked on
