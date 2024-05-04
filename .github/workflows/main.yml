@@ -1,16 +1,22 @@
-# Test 2024-05-04 at 19:22:07
+# Test 2024-05-04 at 19:23:20
 
 name: Test
-run-name: #!/usr/bin/perl -I/home/phil/perl/cpan/SvgSimple/lib/ -I/home/phil/perl/cpan/SiliconChip/lib/ -I/home/phil/perl/cpan/SiliconChipLayout/lib/ -I/home/phil/perl/cpan/SiliconChipWiring/lib/ -I/home/phil/perl/cpan/Math-Intersection-Circle-Line/lib
-#-------------------------------------------------------------------------------
-# Implement a B-Tree as a silicon chip.
-# Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2023
-#-------------------------------------------------------------------------------
-# Database on a chip: high speed low power database look ups save data center operators money on their electricity bills.
-use v5.34;
-package Silicon::Chip::Btree;
-our $VERSION = 20240331;                                                        # Version
-use warnings FATAL => qw(all
+run-name: //------------------------------------------------------------------------------
+// Design, simulate and layout a silicon chip made of basic gates.
+// Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
+//------------------------------------------------------------------------------
+// pckage com.AppaApps.Silicon;
+// Test all dyadic gates to see if there is any correlation between their outputs and any other pins indicating that the gate might be redundant. Use class Grouping to achieve this.
+
+import java.io.*;
+import java.util.*;
+import java.util.stream.*;
+
+//D1 Construct                                                                  // Construct a L<silicon> L<chip> using standard L<lgs>, components and sub chips combined via buses.
+
+public class Chip                                                               // Describe a chip and emulate its operation.
+ {final static boolean github_actions =                                         // Whether we are on a github
+    "true".equals(System.getenv("GITHUB_ACTIONS"
 
 on:
   push:
