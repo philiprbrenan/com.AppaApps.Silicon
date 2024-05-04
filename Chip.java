@@ -2693,6 +2693,7 @@ say("BBBB", D.chip().name, D.gsx, D.gsy, S);
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
+    test_and();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
