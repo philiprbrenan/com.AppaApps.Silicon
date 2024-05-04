@@ -34,8 +34,8 @@ public class Chip                                                               
   final TreeSet<String>   outputGates = new TreeSet<>();                        // Output gates
   final TreeMap<String, TreeSet<Gate.WhichPin>>                                 // Pending gate definitions
                               pending = new TreeMap<>();
-  final TreeMap<String, Gate> connectedToOutput                                 // Gates that are connected to an output gate
-                                      = new TreeMap<>();
+  final TreeMap<String, Gate>                                                   // Gates that are connected to an output gate
+                    connectedToOutput = new TreeMap<>();
   int                         gateSeq =   0;                                    // Gate sequence number - this allows us to display the gates in the order they were defined to simplify the understanding of drawn layouts
   int                           steps =   0;                                    // Simulation step time
   int         maximumDistanceToOutput;                                          // Maximum distance from an output
@@ -45,8 +45,8 @@ public class Chip                                                               
                       distanceToOutput = new TreeMap<>();
   final TreeMap<Integer, Stack<String>>                                         // Each column of gates ordered by Y coordinate in layout
                                columns = new TreeMap<>();
-  final static TreeSet<String>
-                          layoutsDrawn = new TreeSet<>();                       // Avoid redrawing the same layout multiple times
+  final static TreeMap<String, Diagram>
+                          diagramsDrawn = new TreeMap<>();                       // Avoid redrawing the same layout multiple times by only redrawing a new layout if it has a smaller number of levels or is closer to a square
   int                         gsx, gsy;                                         // The global scaling factors to be applied to the dimensions of the gates during layout
   int                 layoutX, layoutY;                                         // Dimensions of chip
   Stack<Connection>        connections;                                         // Pairs of gates to be connected
@@ -84,25 +84,6 @@ public class Chip                                                               
    }
 
   boolean dyad(Operator op) {return !(zerad(op) || monad(op));}                 // Whether the gate takes two inputs or not
-
-  int nextPowerOfTwo(int n)                                                     // If this is a power of two return it, else return the next power of two greater than this number
-   {int p = 1;
-    for (int i = 0; i < 32; ++i, p *= 2) if (p >= n) return p;
-    stop("Cannot find next power of two for", n);
-    return -1;
-   }
-
-  int logTwo(int n)                                                             // Log 2 of containing power of 2
-   {int p = 1;
-    for (int i = 0; i < 32; ++i, p *= 2) if (p >= n) return i;
-    stop("Cannot find log two for", n);
-    return -1;
-   }
-
-  static int powerTwo(int n) {return 1 << n;}                                   // Power of 2
-  static int powerOf (int a, int b)                                             // Raise a to the power b
-   {int v = 1; for (int i = 0; i < b; ++i) v *= a; return v;
-   }
 
   static String[]stackToStringArray(Stack<String> s)                            // Stack of string to array of string
    {final String[]a = new String[s.size()];
@@ -614,7 +595,7 @@ public class Chip                                                               
       for (Gate g : gates.values()) g.updateValue();                            // Update each gate
       if (simulationStep != null) simulationStep.step();                        // Call the simulation step
       if (!changes())                                                           // No changes occurred
-       {return gates.size() < layoutLTGates ? singleLevelLayout() : null;       // Draw the layout if it has less than the specified maximum number of gates for being drawn automatically with out a specific request.
+       {return gates.size() < layoutLTGates ? drawSingleLevelLayout() : null;   // Draw the layout if it has less than the specified maximum number of gates for being drawn automatically with out a specific request.
        }
       noChangeGates();                                                          // Reset change indicators
      }
@@ -1244,19 +1225,17 @@ public class Chip                                                               
 
 //D1 Layout                                                                     // Layout the gates and connect them with wires
 
-  Diagram drawLayout(Diagram d)                                                 // Draw unless we have already drawn it
-   {if (!layoutsDrawn.contains(name))                                           // Only draw each named chip once
-     {layoutsDrawn.add(name);                                                   // Show that we have drawn this chip already
-      d.gds2();                                                                 // Draw the layout diagram as GDS2
-     }
+  Diagram drawLayout(Diagram d)                                                 // Draw unless we have already drawn it at a lower number of levels or we are forced to draw regardless
+   {final Diagram D = diagramsDrawn.get(name);                                  // Have we already drawn this diagram
+    if (D == null || d.betterThan(D)) d.gds2();                                 // Never drawn or this drawing is better
     return d;
    }
 
-  Diagram singleLevelLayout(int GlobalScaleX, int GlobalScaleY)                 // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
+  Diagram drawSingleLevelLayout(int GlobalScaleX, int GlobalScaleY)             // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
    {Diagram D = null;
     Integer L = null;
     for (int s = 1; s < singleLevelLayoutLimit; ++s)                            // Various gate scaling factors
-     {final Diagram d = layout(GlobalScaleX*s, GlobalScaleY*s);                 // LLLL Layout gates
+     {final Diagram d = layout(GlobalScaleX*s, GlobalScaleY*s);                 // Layout chip as a diagram
       final int l = d.levels();                                                 // Number of levels in diagram
       if (l == 1) return drawLayout(d);                                         // Draw the layout diagram as GDS2
       if (L == null || L > l) {L = l; D = d;}                                   // Track smallest number of wiring levels
@@ -1264,7 +1243,7 @@ public class Chip                                                               
     return drawLayout(D);
    }
 
-  Diagram singleLevelLayout() {return singleLevelLayout(1,1);}                  // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
+  Diagram drawSingleLevelLayout() {return drawSingleLevelLayout(1,1);}          // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
 
   Stack<String> sortIntoOutputGateOrder(int Distance)                           // Order the gates in this column to match the order of the output gates
    {final Stack<String> r = new Stack<>();                                      // Order of gates
@@ -1413,6 +1392,17 @@ public class Chip                                                               
       interViaX = gsx * pixelsPerCell;
       interViaY = gsy * pixelsPerCell;
       new Level();                                                              // A diagram has at least one level
+     }
+
+    Chip chip() {return Chip.this;}                                             // Chip for this diagram
+
+    boolean betterThan(Diagram D)                                               // Whether this diagram is better then some other diagram in terms of having fewer levels or being more square
+     {if (levels() < D.levels()) return true;                                   // Fewer levels
+      final double s = min(  width,   height) / max(  width,   height);
+      final double S = min(D.width, D.height) / max(D.width, D.height);
+say("AAAA", chip().name,     gsx,   gsy, s);
+say("BBBB", D.chip().name, D.gsx, D.gsy, S);
+      return s > S;                                                             // Closer to square
      }
 
     int p(int coord) {return pixelsPerCell * coord;}                            // Convert a gate coordinate into a pixel coordinate
@@ -1756,6 +1746,11 @@ public class Chip                                                               
 
     public void gds2()                                                          // Represent as Graphic Design System 2 via Perl
      {final Stack<String> p = gdsPerl;
+      final Diagram bestDiagramYet = diagramsDrawn.get(Chip.this.name);         // Best levels so far
+      if (bestDiagramYet == null || betterThan(bestDiagramYet))                 // Record best level so far
+       {diagramsDrawn.put(Chip.this.name, this);                                // Show that we have drawn this chip at this smallest number of level
+       }
+
       if (p.size() == 0)
        {p.push("use v5.34;");
         p.push("use Data::Table::Text qw(:all);");
@@ -1777,7 +1772,7 @@ public class Chip                                                               
       final String title = name+                                                // Title of the piece
         ", gsx="+gsx+", gsy="+gsy+", gates="+gates()+
         ", levels="+levels();
-      final int tx = 10, ty = height  + 10;                                     // Title position
+      final int tx = 8*gsx, ty = height;                                        // Title position
       p.push("  $g->printText(-layer=>102, -xy=>["+tx+", "+ty+"], "+
              " -string=>\""+title+"\");");
 
@@ -1971,6 +1966,39 @@ public class Chip                                                               
       }
     }
 
+ //D1 Numeric routines                                                          // Numeric routines
+
+  static double max(double n, double...rest)                                    // Maximum number from a list of one or more numbers
+   {double m = n;
+    for (int i = 0; i < rest.length; ++i) m = rest[i] > m ? rest[i] : m;
+    return m;
+   }
+
+  static double min(double n, double...rest)                                    // Minimum number from a list of one or more numbers
+   {double m = n;
+    for (int i = 0; i < rest.length; ++i) m = rest[i] < m ? rest[i] : m;
+    return m;
+   }
+
+  int nextPowerOfTwo(int n)                                                     // If this is a power of two return it, else return the next power of two greater than this number
+   {int p = 1;
+    for (int i = 0; i < 32; ++i, p *= 2) if (p >= n) return p;
+    stop("Cannot find next power of two for", n);
+    return -1;
+   }
+
+  int logTwo(int n)                                                             // Log 2 of containing power of 2
+   {int p = 1;
+    for (int i = 0; i < 32; ++i, p *= 2) if (p >= n) return i;
+    stop("Cannot find log two for", n);
+    return -1;
+   }
+
+  static int powerTwo(int n) {return 1 << n;}                                   // Power of 2
+  static int powerOf (int a, int b)                                             // Raise a to the power b
+   {int v = 1; for (int i = 0; i < b; ++i) v *= a; return v;
+   }
+
 //D1 Logging                                                                    // Logging and tracing
 
   static void say(Object...O)                                                   // Say something
@@ -1995,6 +2023,11 @@ public class Chip                                                               
    }
 
 //D0
+
+  static void test_max_min()
+   {ok(min(3, 2, 1), 1d);
+    ok(max(1, 2, 3), 3d);
+   }
 
   static void test_and()
    {final Chip   c = new Chip("And");
@@ -2299,7 +2332,7 @@ public class Chip                                                               
   static void test_aix()
    {final int B = 3;
     final int[]bits =  {5, 4, 7, 6, 7};
-    final var c = new Chip("chooseWordUnderMask "+B);
+    final var c = new Chip("Aix "+B);
     c.     words("i", B, bits);
     c. andWords ("a", "i"); c.outputBits("oa", "a");
     c.  orWords ("o", "i"); c.outputBits("oo", "o");
@@ -2343,6 +2376,7 @@ public class Chip                                                               
           c.simulate();
           ok(c.steps, B == 2 ? 6 : B == 3 ? 8 : 9);
           ok(o.value, i > j);
+          if (B == 4 && i == 1 && j == 2) c.drawSingleLevelLayout(3, 2);
          }
        }
      }
@@ -2420,6 +2454,7 @@ public class Chip                                                               
     c.outputBits("out", "o");
     c.simulate();
     ok(c.bInt("out"), numbers[i]);
+    c.drawSingleLevelLayout(3, 1);
    }
 
   static void test_chooseWordUnderMask()
@@ -2522,7 +2557,7 @@ public class Chip                                                               
   static void test_Btree(Chip c, Inputs i, int find, int found, boolean layout)
    {test_Btree(c, i, find, found);
 
-    if (layout) c.singleLevelLayout(6, 1);
+    if (layout) c.drawSingleLevelLayout(6, 1);
    }
 
   static void test_Btree()
@@ -2622,7 +2657,8 @@ public class Chip                                                               
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
-   {test_and2Bits();
+   {test_max_min();
+    test_and2Bits();
     test_and();
     test_and_grouping();
     test_or_grouping();
@@ -2660,7 +2696,7 @@ public class Chip                                                               
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {oldTests();
+   {//oldTests();
     newTests();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
