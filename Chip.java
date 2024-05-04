@@ -144,7 +144,7 @@ public class Chip                                                               
 
     if (sizeWords.size() > 0)                                                   // Size of word buses
      {b.append(""+sizeWords.size()+" Word buses\n");
-      b.append("Words Bits  Bus_____________________________\n");
+      b.append("Words Bits  Bus_____________________________  Values\n");
       for(String n : sizeWords.keySet())
        {final WordBus w = sizeWords.get(n);
         b.append(String.format("%4d  %4d  %32s  ", w.words, w.bits, n));
@@ -606,7 +606,7 @@ public class Chip                                                               
       for(Gate g : gates.values()) g.updateValue();                             // Update each gate
       if (simulationStep != null) simulationStep.step();                        // Call the simulation step
       if (!changes())                                                           // No changes occurred
-       {return gates.size() < layoutLTGates ? singleLevelLayout() : null;       // Draw the layout if less than the specified number of gates
+       {return gates.size() < layoutLTGates ? singleLevelLayout() : null;       // Draw the layout if it has less than the specified maximum number of gates for being drawn automatically with out a specific request.
        }
       noChangeGates();                                                          // Reset change indicators
      }
