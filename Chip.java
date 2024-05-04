@@ -102,6 +102,7 @@ public class Chip                                                               
     return a;
    }
 
+  int gates()           {return gates.size();}                                  // Number of gates in this chip
   int nextGateNumber()  {return ++gateSeq;}                                     // Numbers for gates
   String nextGateName() {return ""+nextGateNumber();}                           // Create a numeric generated gate name
 
@@ -171,8 +172,8 @@ public class Chip                                                               
    {final int               seq = nextGateNumber();                             // Sequence number for this gate
     final String           name;                                                // Name of the gate.  This is also the name of the output of the gate. FanOut gates have a second output which is the name suffixed by the secondary marker. The secondary marker is not normally used in a gate name so a name that ends in ! is easily recognized as the second output of a fan out gate.
     final Operator           op;                                                // Operation performed by gate
-    Gate  iGate1,  iGate2;                                                      // Gates driving the inputs of this gate as during simulation but not during layout
-    Gate soGate1, soGate2, tiGate1, tiGate2;                                    // Pin assignments on source and target gates used during layout but not during simulation
+    Gate                 iGate1,  iGate2;                                       // Gates driving the inputs of this gate as during simulation but not during layout
+    Gate       soGate1, soGate2, tiGate1, tiGate2;                              // Pin assignments on source and target gates used during layout but not during simulation
     TreeSet<WhichPin>    drives = new TreeSet<>();                              // The names of the gates that are driven by the output of this gate with a possible pin selection attached
     boolean          systemGate = false;                                        // System gate if true
     Integer    distanceToOutput;                                                // Distance to nearest output
@@ -525,8 +526,6 @@ public class Chip                                                               
        }
      }
    }
-
-  int gates() {return gates.size();}                                            // Number of gates in this diagram
 
 // Simulation                                                                   // Simulate the behavior of the chip
 
@@ -1373,59 +1372,6 @@ public class Chip                                                               
         else stop("Failed to connect same");
        }
      }
-
-//    for (Connection c : connections)                                            // Each possible connection
-//     {final Gate s = c.source, t = c.target;
-//      final boolean S1 = s.soGate1 == t || s.soGate1 == null,
-//                    S2 = s.soGate2 == t || s.soGate2 == null;
-//      final boolean T1 = t.tiGate1 == s || t.tiGate1 == null,
-//                    T2 = t.tiGate2 == s || t.tiGate2 == null;
-//
-//      if (t.py < s.py)                                                          // Target is lower than source
-//       {if      (T2 && S1) {t.tiGate2 = s; s.soGate1 = t;}
-//        else if (T1 && S1) {t.tiGate1 = s; s.soGate1 = t;}
-//        else if (T2 && S2) {t.tiGate2 = s; s.soGate2 = t;}
-//        else if (T1 && S2) {t.tiGate1 = s; s.soGate2 = t;}
-//        else stop("Failed to connect lower");
-//       }
-//      else if (t.py > s.py)                                                     // Target is higher than source
-//       {if      (T1 && S2) {t.tiGate1 = s; s.soGate2 = t;}
-//        else if (T1 && S1) {t.tiGate1 = s; s.soGate1 = t;}
-//        else if (T2 && S2) {t.tiGate2 = s; s.soGate2 = t;}
-//        else if (T2 && S1) {t.tiGate1 = s; s.soGate1 = t;}
-//        else stop("Failed to connect higher");
-//        }
-//      else                                                                      // Target is same height as source
-//       {if      (T1 && s1) {t.tiGate1 = s; s.soGate1 = t;}
-//        else if (T2 && s2) {t.tiGate2 = s; s.soGate2 = t;}
-//        else if (T1 && s2) {t.tiGate1 = s; s.soGate2 = t;}
-//        else if (T2 && s1) {t.tiGate2 = s; s.soGate1 = t;}
-//        else stop("Failed to connect same");
-//        }
-//      }
-
-//    for (Connection c : connections)                                          // Each possible connection
-//     {final Gate s = c.source, t = c.target;
-//
-//      if (t.py < s.py)                                                          // Target is lower than source
-//       {if      ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate1 == null) {t.tiGate2 = s; s.soGate1 = t;}
-//        else if ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate1 == null) {t.tiGate1 = s; s.soGate1 = t;}
-//        else if ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate2 == null) {t.tiGate2 = s; s.soGate2 = t;}
-//        else if ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate2 == null) {t.tiGate1 = s; s.soGate2 = t;}
-//       }
-//      else if (t.py > s.py)                                                     // Target is higher than source
-//       {if      ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate2 == null) {t.tiGate1 = s; s.soGate2 = t;}
-//        else if ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate1 == null) {t.tiGate1 = s; s.soGate1 = t;}
-//        else if ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate2 == null) {t.tiGate2 = s; s.soGate2 = t;}
-//        else if ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate1 == null) {t.tiGate1 = s; s.soGate1 = t;}
-//       }
-//      else                                                                      // Target is same height as source
-//       {if      ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate1 == null) {t.tiGate1 = s; s.soGate1 = t;}
-//        else if ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate2 == null) {t.tiGate2 = s; s.soGate2 = t;}
-//        else if ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate2 == null) {t.tiGate1 = s; s.soGate2 = t;}
-//        else if ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate1 == null) {t.tiGate2 = s; s.soGate1 = t;}
-//       }
-//     }
 
     diagram = new Diagram(layoutX, layoutY, gsx, gsy);                          // Layout the chip as a wiring diagram
 
@@ -2635,7 +2581,7 @@ public class Chip                                                               
     else {testsFailed++; err(a, "does not equal", b);}
    }
 
-  static void oldTests()                                                        // Test if called as a program
+  static void oldTests()                                                        // Tests thought to be in good shape
    {test_and2Bits();
     test_and();
     test_and_grouping();
@@ -2669,7 +2615,7 @@ public class Chip                                                               
     test_Btree();
    }
 
-  static void newTests()                                                        // Test if called as a program
+  static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
    }
 
