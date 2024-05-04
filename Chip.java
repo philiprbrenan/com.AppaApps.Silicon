@@ -57,9 +57,9 @@ public class Chip                                                               
     final KeyWords p =  new KeyWords(keyWords,                                  // Optional keywords
       "singleLevelLayoutLimit maxSimulationSteps clockWidth");
 
-    singleLevelLayoutLimit = p.integer(1, 16);                                  // Limit on gate scaling dimensions during layout.
-        maxSimulationSteps = p.integer(2, github_actions ? 1000 : 100);         // Maximum simulation steps
-                clockWidth = p.integer(3,  0);                                  // Number of bits in system clock. Zero implies no clock.
+    singleLevelLayoutLimit = (int)p.get(1, 16);                                 // Limit on gate scaling dimensions during layout.
+        maxSimulationSteps = (int)p.get(2, github_actions ? 1000 : 100);        // Maximum simulation steps
+                clockWidth = (int)p.get(3,  0);                                 // Number of bits in system clock. Zero implies no clock.
 
     if (clockWidth > 0) inputBits(clock, clockWidth);                           // Create the system clock
     for (Gate g : gates.values()) g.systemGate = true;                          // Mark all gates produced so far as system gates
@@ -1953,20 +1953,20 @@ public class Chip                                                               
       {if (user.length % 2 == 1) stop("Pairs of (keyword, value) required");
        final String[]keys = Keys.split("\\s+");                                 // Parse keyword string
        int keyNo = 0; for(String k: keys) {kw.put(k, null); ko.put(++keyNo, k);}// Load keyword names and numbers
-       final Stack<Object> s = new Stack<>();
-       for (int i = user.length; i > 0; --i) s.push(user[i-1]);
+       final Stack<Object> s = new Stack<>();                                   // Stack of keywords and values
+       for (int i = user.length; i > 0; --i) s.push(user[i-1]);                 // Load stack of keyword values
 
        while(s.size() > 0)                                                      // Parse the keyword value pairs
-        {final String k = s.pop().toString();
-         if (!kw.containsKey(k)) stop("Invalid keyword:", k);
-         kw.put(k, s.pop());
+        {final String k = s.pop().toString();                                   // Latest keyword
+         if (!kw.containsKey(k)) stop("Invalid keyword:", k);                   // Conform valid keyword
+         kw.put(k, s.pop());                                                    // Save keyword and value
         }
       }
 
-     int integer(int k, int def)                                                // An integer keyword referenced by keyword number
-      {if (!ko.containsKey(k)) stop("Invalid keyword number:", k);
-       final Object v = kw.get(ko.get(k));
-       return v == null ? def : (int)v;
+     Object get(int k, Object def)                                              // The value of a keyword referenced by keyword number
+      {if (!ko.containsKey(k)) stop("Invalid keyword number:", k);              // Check keyword number
+       final Object v = kw.get(ko.get(k));                                      // Get value associated with keyword number
+       return v == null ? def : v;                                              // Return value or default if no value found
       }
     }
 
