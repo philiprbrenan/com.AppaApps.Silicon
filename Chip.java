@@ -14,28 +14,28 @@ import java.util.stream.*;
 public class Chip                                                               // Describe a chip and emulate its operation.
  {final static boolean github_actions =                                         // Whether we are on a github
     "true".equals(System.getenv("GITHUB_ACTIONS"));
-  final static int          debugMask =   0;                                    // Adds a grid and fiber names to a mask to help debug fibers if true.
+
+  final String                   name;                                          // Name of chip
+  final int    singleLevelLayoutLimit;                                          // Limit on gate scaling dimensions during layout.
+  final int        maxSimulationSteps;                                          // Maximum simulation steps
+  final int                clockWidth;                                          // Number of bits in system clock. Zero implies no clock.
+
+  final int             layoutLTGates = 100;                                    // Always draw the layout if it has less than this many gates in it
+  final static boolean    makeSayStop = false;                                  // Turn say into stop if true which is occasionally useful for locating unlabeled say statements.
   final static int      pixelsPerCell =   4;                                    // Pixels per cell
   final static int     layersPerLevel =   4;                                    // There are 4 layers in each level: insulation, x cross bars, x-y connectors and insulation, y cross bars
-  final static int      layoutLTGates = 100;                                    // Always draw the layout if it has less than this many gates in it
   final static String           clock = "Clock";                                // Clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
-  final String                   name;                                          // Name of chip
+  final static String      perlFolder = "perl", perlFile = "gds2.pl";           // Folder and file for Perl code to represent a layout in GDS2.
+  final static Stack<String>  gdsPerl = new Stack<>();                          // Perl code to create GDS2 output files
+
   final Map<String, Gate>       gates = new TreeMap<>();                        // Gates by name
   final Map<String, Integer> sizeBits = new TreeMap<>();                        // Sizes of bit buses
   final Map<String, WordBus>sizeWords = new TreeMap<>();                        // Sizes of word buses
-  final static String      perlFolder = "perl", perlFile = "gds2.pl";           // Folder and file for Perl code to represent a layout in GDS2.
-  final static Stack<String>  gdsPerl = new Stack<>();                          // Perl code to create GDS2 output files
   final TreeSet<String>   outputGates = new TreeSet<>();                        // Output gates
   final TreeMap<String, TreeSet<Gate.WhichPin>>                                 // Pending gate definitions
                               pending = new TreeMap<>();
   final TreeMap<String, Gate> connectedToOutput                                 // Gates that are connected to an output gate
                                       = new TreeMap<>();
-  int          singleLevelLayoutLimit =  16;                                    // Limit on gate scaling dimensions during layout.
-  int              maxSimulationSteps =  github_actions ? 1000 : 100;           // Maximum simulation steps
-  int                      clockWidth =   8;                                    // Number of bits in system clock. Zero implies no clock.
-  static boolean          makeSayStop = false;                                  // Turn say into stop if true which is occasionally useful for locating unlabeled say statements.
-  int                    GlobalScaleX =   1;                                    // Stretch the chip by this factor in X
-  int                    GlobalScaleY =   1;                                    // Stretch the chip by this factor in Y
   int                         gateSeq =   0;                                    // Gate sequence number - this allows us to display the gates in the order they were defined to simplify the understanding of drawn layouts
   int                           steps =   0;                                    // Simulation step time
   int         maximumDistanceToOutput;                                          // Maximum distance from an output
@@ -52,8 +52,15 @@ public class Chip                                                               
   Stack<Connection>        connections;                                         // Pairs of gates to be connected
   Diagram                      diagram;                                         // Diagram specifying the layout of the chip
 
-  Chip(String Name)                                                             // Create a new L<chip>.
-   {name = Name;
+  Chip(String Name, Object...keyWords)                                          // Create a new L<chip>.
+   {name = Name;                                                                // Name of chip
+    final KeyWords p =  new KeyWords(keyWords,                                  // Optional keywords
+      "singleLevelLayoutLimit maxSimulationSteps clockWidth");
+
+    singleLevelLayoutLimit = p.integer(1, 16);                                  // Limit on gate scaling dimensions during layout.
+        maxSimulationSteps = p.integer(2, github_actions ? 1000 : 100);         // Maximum simulation steps
+                clockWidth = p.integer(3,  0);                                  // Number of bits in system clock. Zero implies no clock.
+
     if (clockWidth > 0) inputBits(clock, clockWidth);                           // Create the system clock
     for (Gate g : gates.values()) g.systemGate = true;                          // Mark all gates produced so far as system gates
    }
@@ -1245,7 +1252,7 @@ public class Chip                                                               
     return d;
    }
 
-  Diagram singleLevelLayout()                                                   // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
+  Diagram singleLevelLayout(int GlobalScaleX, int GlobalScaleY)                 // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
    {Diagram D = null;
     Integer L = null;
     for (int s = 1; s < singleLevelLayoutLimit; ++s)                            // Various gate scaling factors
@@ -1256,6 +1263,8 @@ public class Chip                                                               
      }
     return drawLayout(D);
    }
+
+  Diagram singleLevelLayout() {return singleLevelLayout(1,1);}                  // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
 
   Stack<String> sortIntoOutputGateOrder(int Distance)                           // Order the gates in this column to match the order of the output gates
    {final Stack<String> r = new Stack<>();                                      // Order of gates
@@ -1934,6 +1943,33 @@ public class Chip                                                               
      }
    }
 
+//D1 Keywords                                                                   // Parse keywords and their values
+
+   class KeyWords                                                               // Parse keywords and their values
+    {final TreeMap<String, Object>  kw = new TreeMap<>();                       // Valid keywords
+     final TreeMap<Integer, String> ko = new TreeMap<>();                       // Keyrod order so we can refer to a keyword by a number which saves duplicating keyword names
+
+     KeyWords(Object[]user, String Keys)                                        // User supplied keyword value pairs, keyword definitions string
+      {if (user.length % 2 == 1) stop("Pairs of (keyword, value) required");
+       final String[]keys = Keys.split("\\s+");                                 // Parse keyword string
+       int keyNo = 0; for(String k: keys) {kw.put(k, null); ko.put(++keyNo, k);}// Load keyword names and numbers
+       final Stack<Object> s = new Stack<>();
+       for (int i = user.length; i > 0; --i) s.push(user[i-1]);
+
+       while(s.size() > 0)                                                      // Parse the keyword value pairs
+        {final String k = s.pop().toString();
+         if (!kw.containsKey(k)) stop("Invalid keyword:", k);
+         kw.put(k, s.pop());
+        }
+      }
+
+     int integer(int k, int def)                                                // An integer keyword referenced by keyword number
+      {if (!ko.containsKey(k)) stop("Invalid keyword number:", k);
+       final Object v = kw.get(ko.get(k));
+       return v == null ? def : (int)v;
+      }
+    }
+
 //D1 Logging                                                                    // Logging and tracing
 
   static void say(Object...O)                                                   // Say something
@@ -2485,11 +2521,7 @@ public class Chip                                                               
   static void test_Btree(Chip c, Inputs i, int find, int found, boolean layout)
    {test_Btree(c, i, find, found);
 
-    if (layout)
-     {c.GlobalScaleX = 4;
-      c.GlobalScaleY = 1;
-      c.singleLevelLayout();
-     }
+    if (layout) c.singleLevelLayout(4, 1);
    }
 
   static void test_Btree()
@@ -2571,7 +2603,7 @@ public class Chip                                                               
    }
 
   static void test_clock()
-   {final var c = new Chip("Clock");
+   {final var c = new Chip("Clock", "clockWidth", 8);
     final Stack<Boolean> s = new Stack<>();
     c.simulationStep = ()->{s.push(c.getBit("a"));};
     c.And ("a", n(1, clock), n(2, clock));
