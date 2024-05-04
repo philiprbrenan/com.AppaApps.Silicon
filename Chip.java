@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Design, simulate and layout a silicon chip made of basic gates.
+// Design, simulate and layout a binary tree on a silicon chip.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 // pckage com.AppaApps.Silicon;
@@ -54,7 +54,7 @@ public class Chip                                                               
 
   Chip(String Name, Object...keyWords)                                          // Create a new L<chip>.
    {name = Name;                                                                // Name of chip
-    final KeyWords p =  new KeyWords(keyWords,                                  // Optional keywords
+    final KeyWords p = new KeyWords(keyWords,                                   // Optional keywords
       "singleLevelLayoutLimit maxSimulationSteps clockWidth");
 
     singleLevelLayoutLimit = (int)p.get(1, 16);                                 // Limit on gate scaling dimensions during layout.
@@ -87,21 +87,21 @@ public class Chip                                                               
 
   int nextPowerOfTwo(int n)                                                     // If this is a power of two return it, else return the next power of two greater than this number
    {int p = 1;
-    for(int i = 0; i < 32; ++i, p *= 2) if (p >= n) return p;
+    for (int i = 0; i < 32; ++i, p *= 2) if (p >= n) return p;
     stop("Cannot find next power of two for", n);
     return -1;
    }
 
   int logTwo(int n)                                                             // Log 2 of containing power of 2
    {int p = 1;
-    for(int i = 0; i < 32; ++i, p *= 2) if (p >= n) return i;
+    for (int i = 0; i < 32; ++i, p *= 2) if (p >= n) return i;
     stop("Cannot find log two for", n);
     return -1;
    }
 
   static int powerTwo(int n) {return 1 << n;}                                   // Power of 2
   static int powerOf (int a, int b)                                             // Raise a to the power b
-   {int v = 1; for(int i = 0; i < b; ++i) v *= a; return v;
+   {int v = 1; for (int i = 0; i < b; ++i) v *= a; return v;
    }
 
   static String[]stackToStringArray(Stack<String> s)                            // Stack of string to array of string
@@ -137,12 +137,12 @@ public class Chip                                                               
                 "  22222222222222222222222222222222-P=# "+
      " C Frst Last  Dist                           Nearest  Px__,Py__"+
      "  Drives these gates\n");
-    for(Gate g : gates.values()) b.append(g);                                   // Print each gate
+    for (Gate g : gates.values()) b.append(g);                                  // Print each gate
 
     if (sizeBits.size() > 0)                                                    // Size of bit buses
      {b.append(""+sizeBits.size()+" Bit buses\n");
       b.append("Bits  Bus_____________________________  Value\n");
-      for(String n : sizeBits.keySet())
+      for (String n : sizeBits.keySet())
        {final Integer v = bInt(n);
         b.append(String.format("%4d  %32s", sizeBits.get(n), n));
         if (v != null) b.append(String.format("  %d\n", v));
@@ -153,7 +153,7 @@ public class Chip                                                               
     if (sizeWords.size() > 0)                                                   // Size of word buses
      {b.append(""+sizeWords.size()+" Word buses\n");
       b.append("Words Bits  Bus_____________________________  Values\n");
-      for(String n : sizeWords.keySet())
+      for (String n : sizeWords.keySet())
        {final WordBus w = sizeWords.get(n);
         b.append(String.format("%4d  %4d  %32s  ", w.words, w.bits, n));
         final Integer[]v = wInt(n);
@@ -167,8 +167,8 @@ public class Chip                                                               
      {b.append(""+pending.size()+" pending gates\n");
       b.append("Source__________________________  "+
                "Target__________________________\n");
-      for(String n : pending.keySet())
-        for(Gate.WhichPin d : pending.get(n))
+      for   (String        n : pending.keySet())
+        for (Gate.WhichPin d : pending.get(n))
           b.append(String.format("%32s  %32s  %c\n",
             n, d.drives, d.pin == null ? ' ' : d.pin ? '1' : '2'));
      }
@@ -193,7 +193,7 @@ public class Chip                                                               
     String        nearestOutput;                                                // The name of the nearest output so we can sort each layer to position each gate vertically so that it is on approximately the same Y value as its nearest output.
     int                  px, py;                                                // Position in x and y of gate in latest layout
 
-    private Gate(Operator Op)                                                   // System created gate of a specified type with a unique system generated name. As yet the inputs are unknonw.
+    private Gate(Operator Op)                                                   // System created gate of a specified type with a unique system generated name. As yet the inputs are unknown.
      {op = Op;
       name = ""+seq;
       gates.put(name,  this);
@@ -217,7 +217,7 @@ public class Chip                                                               
       final TreeSet<WhichPin> d = pending.get(name);                            // Add any pending gate references to this gate definition
       if (d != null)
        {pending.remove(name);
-        for(WhichPin p : d)
+        for (WhichPin p : d)
          {drives.add(new WhichPin(p.drives, p.pin));
          }
        }
@@ -225,7 +225,7 @@ public class Chip                                                               
 
     String drives()                                                             // Convert drives to a printable string
      {final StringBuilder b = new StringBuilder();
-      for(WhichPin s : drives) b.append(s + ", ");
+      for (WhichPin s : drives) b.append(s + ", ");
       if (b.length() > 0) b.delete(b.length() - 2, b.length());
       return b.toString();
      }
@@ -283,7 +283,7 @@ public class Chip                                                               
        {final Gate s = getGate(Input);
         s.drives.add(new WhichPin(name));                                       // Show that the source gate drives this gate
        }
-      else                                                                      // The source gates have nbot been defined yet so add the impinging definitions to pending
+      else                                                                      // The source gates have not been defined yet so add the impinging definitions to pending
        {TreeSet<WhichPin>  d = pending.get(Input);
         if (d == null)    {d = new TreeSet<>(); pending.put(Input, d);}
         d.add(new WhichPin(name));
@@ -295,7 +295,7 @@ public class Chip                                                               
        {final Gate s = getGate(Input);
         s.drives.add(new WhichPin(name, pin));                                  // Show that the source gate drives this gate
        }
-      else                                                                      // The source gates have nbot been defined yet so add the impinging definitions to pending
+      else                                                                      // The source gates have not been defined yet so add the impinging definitions to pending
        {TreeSet<WhichPin>  d = pending.get(Input);
         if (d == null)    {d = new TreeSet<>(); pending.put(Input, d);}
         d.add(new WhichPin(name, pin));
@@ -397,7 +397,7 @@ public class Chip                                                               
 
       if (N % 2 == 1)                                                           // Odd number of gates driven
        {final Gate g = new Gate(Operator.FanOut);                               // The new fan out
-        for(int i = 0; i < N-1; ++i)
+        for (int i = 0; i < N-1; ++i)
          {final WhichPin d = D[i];
           g.drives.add (d);                                                     // Put the target to the newly created gate
           drives.remove(d);                                                     // Remove the target from the original gate
@@ -408,7 +408,7 @@ public class Chip                                                               
        }
 
       final Gate g = new Gate(Operator.FanOut), f = new Gate(Operator.FanOut);  // Even and greater than 2
-      for(int i = 0; i < N/2; ++i)                                              // Lower half
+      for (int i = 0; i < N/2; ++i)                                             // Lower half
        {final WhichPin d = D[i];
         g.drives.add(d);
         drives.remove(d);
@@ -416,7 +416,7 @@ public class Chip                                                               
       drives.add(new WhichPin(g.name));                                         // The old gate drives the new gate
       g.fanOut();                                                               // The lower half gate might need further fan out
 
-      for(int i = N/2; i < N; ++i)                                              // Upper half
+      for (int i = N/2; i < N; ++i)                                             // Upper half
        {final WhichPin d = D[i];
         f.drives.add(d);
         drives.remove(d);
@@ -487,7 +487,7 @@ public class Chip                                                               
 
   void distanceToOutput()                                                       // Distance to the nearest output
    {outputGates.clear();
-    for(Gate g : gates.values())                                                // Start at the output gates
+    for (Gate g : gates.values())                                               // Start at the output gates
      {g.distanceToOutput = null;                                                // Reset distance
       if (g.op == Operator.Output)                                              // Locate drives
        {outputGates.add(g.name);
@@ -505,7 +505,7 @@ public class Chip                                                               
       final TreeSet<String>   to = new TreeSet<>();                             // Gates at this distance from drives
       distanceToOutput.put(d, to);
 
-      for(String name : check)                                                  // Expand search one level
+      for (String name : check)                                                 // Expand search one level
        {final Gate g = getGate(name);
         if (g.distanceToOutput == null)                                         // New gate
          {to.add(name);                                                         // Classify gate by distance from gate
@@ -539,24 +539,24 @@ public class Chip                                                               
 
   void compileChip()                                                            // Check that an input value has been provided for every input pin on the chip.
    {final Gate[]G = gates.values().toArray(new Gate[0]);
-    for(Gate g : G) g.fanOut();                                                 // Fan the output of each gate if necessary which might introduce more gates
-    for(Gate g : gates.values()) g.compileGate();                               // Each gate on chip
+    for (Gate g : G) g.fanOut();                                                // Fan the output of each gate if necessary which might introduce more gates
+    for (Gate g : gates.values()) g.compileGate();                              // Each gate on chip
     distanceToOutput();                                                         // Output gates
    }
 
   void noChangeGates()                                                          // Mark each gate as unchanged
-   {for(Gate g : gates.values()) g.changed = false;
+   {for (Gate g : gates.values()) g.changed = false;
    }
 
   boolean changes()                                                             // Check whether any changes were made
-   {for(Gate g : gates.values()) if (g.changed) return true;
+   {for (Gate g : gates.values()) if (g.changed) return true;
     return false;
    }
 
   void initializeGates(Inputs inputs)                                           // Initialize each gate
    {noChangeGates();
 
-    for(Gate g : gates.values())                                                // Initialize each gate
+    for (Gate g : gates.values())                                               // Initialize each gate
      {g.value = null; g.lastStepChanged = 0;                                    // Make the value of the gate unknown.  An unknown value should not be used to compute a known value.
       if (g.op == Operator.Input && ! g.systemGate)                             // User input gate
        {if (inputs != null)                                                     // Initialize
@@ -609,9 +609,9 @@ public class Chip                                                               
     initializeGates(inputs);                                                    // Set the value of each input gate
     for (steps = 1; steps < maxSimulationSteps; ++steps)                        // Steps in time
      {loadClock();                                                              // Load the value of the clock into the clock input bus
-      for(Gate g : gates.values()) g.nextValue = null;                          // Reset next values
-      for(Gate g : gates.values()) g.step();                                    // Compute next value for  each gate
-      for(Gate g : gates.values()) g.updateValue();                             // Update each gate
+      for (Gate g : gates.values()) g.nextValue = null;                         // Reset next values
+      for (Gate g : gates.values()) g.step();                                   // Compute next value for  each gate
+      for (Gate g : gates.values()) g.updateValue();                            // Update each gate
       if (simulationStep != null) simulationStep.step();                        // Call the simulation step
       if (!changes())                                                           // No changes occurred
        {return gates.size() < layoutLTGates ? singleLevelLayout() : null;       // Draw the layout if it has less than the specified maximum number of gates for being drawn automatically with out a specific request.
@@ -637,7 +637,7 @@ public class Chip                                                               
 
   static String concatenateNames(Object...O)                                    // Concatenate names to construct a gate name
    {final StringBuilder b = new StringBuilder();
-    for(Object o: O) {b.append("_"); b.append(o);}
+    for (Object o: O) {b.append("_"); b.append(o);}
     return O.length > 0 ? b.substring(1) : "";
    }
 
@@ -775,19 +775,19 @@ public class Chip                                                               
     if (w != null)
       stop("A word bus with name:", name, "has already been defined");
     sizeWords.put(name, new WordBus(words, bits));
-    for(int b = 1; b <= words; ++b) setSizeBits(n(b, name), bits);              // Size of bit bus for each word in the word bus
+    for (int b = 1; b <= words; ++b) setSizeBits(n(b, name), bits);             // Size of bit bus for each word in the word bus
    }
 
   void words(String name, int bits, int[]values)                                // Create a word bus set to specified numbers.
-   {for(int w = 1; w <= values.length; ++w)                                     // Each value to put on the bus
+   {for (int w = 1; w <= values.length; ++w)                                    // Each value to put on the bus
      {final int value = values[w-1];                                            // Each value to put on the bus
       final String  s = Integer.toBinaryString(value);                          // Bit in number
       final Stack<Boolean> b = new Stack<>();
-      for(int i = s.length(); i > 0; --i)                                       // Stack of bits with least significant lowest
+      for (int i = s.length(); i > 0; --i)                                      // Stack of bits with least significant lowest
        {b.push(s.charAt(i-1) == '1' ? true : false);
        }
-      for(int i = b.size(); i <= bits; ++i) b.push(false);                      // Extend to requested bits
-      for(int i = 1; i <= bits; ++i)                                            // Generate constant
+      for (int i = b.size(); i <= bits; ++i) b.push(false);                     // Extend to requested bits
+      for (int i = 1; i <= bits; ++i)                                           // Generate constant
        {final boolean B = b.elementAt(i-1);                                     // Bit value
         if (B) One(nn(w, i, name)); else Zero(nn(w, i, name));                  // Set bit
        }
@@ -802,8 +802,8 @@ public class Chip                                                               
    }
 
   String inputWords(String name, int words, int bits)                           // Create an B<input> bus made of words.
-   {for  (int w = 1; w <= words; ++w)                                           // Each word on the bus
-      for(int b = 1; b <= bits;  ++b) Input(nn(w, b, name));                    // Each word on the bus
+   {for   (int w = 1; w <= words; ++w)                                          // Each word on the bus
+      for (int b = 1; b <= bits;  ++b) Input(nn(w, b, name));                   // Each word on the bus
 
     setSizeWords(name, words, bits);                                            // Record bus size
     return name;
@@ -811,8 +811,8 @@ public class Chip                                                               
 
   String outputWords(String name, String input)                                 // Create an B<output> bus made of words.
    {final WordBus wb = sizeWords(input);
-    for  (int w = 1; w <= wb.words; ++w)                                        // Each word on the bus
-     {for(int b = 1; b <= wb.bits;  ++b)                                        // Each word on the bus
+    for   (int w = 1; w <= wb.words; ++w)                                       // Each word on the bus
+     {for (int b = 1; b <= wb.bits;  ++b)                                       // Each word on the bus
        {Output(nn(wb.words, wb.bits, name), nn(wb.words, wb.bits, input));      // Bus of output gates
        }
      }
@@ -822,8 +822,8 @@ public class Chip                                                               
 
   String notWords(String name, String input)                                    // Create a B<not> bus made of words.
    {final WordBus wb = sizeWords(input);
-    for  (int w = 1; w <= wb.words; ++w)                                        // Each word on the bus
-     {for(int b = 1; b <= wb.bits;  ++b)                                        // Each word on the bus
+    for   (int w = 1; w <= wb.words; ++w)                                       // Each word on the bus
+     {for (int b = 1; b <= wb.bits;  ++b)                                       // Each word on the bus
        {Not(nn(wb.words, wb.bits, name), nn(wb.words, wb.bits, input));         // Bus of not gates
        }
      }
@@ -833,9 +833,9 @@ public class Chip                                                               
 
   String andWordsX(String name, String input)                                   // Create a bit bus of width equal to the number of words in a word bus by and-ing the bits in each word to make the bits of the resulting word.
    {final WordBus wb = sizeWords(input);
-    for  (int w = 1; w <= wb.words; ++w)                                        // Each word on the bus
+    for   (int w = 1; w <= wb.words; ++w)                                       // Each word on the bus
      {final Stack<String> bits = new Stack<>();
-      for(int b = 1; b <= wb.bits; ++b) bits.push(nn(w, b, input));             // Bits to and
+      for (int b = 1; b <= wb.bits; ++b) bits.push(nn(w, b, input));            // Bits to and
       And(n(w, name), stackToStringArray(bits));                                // And bits
      }
     setSizeBits(name, wb.words);                                                // Record bus size
@@ -844,9 +844,9 @@ public class Chip                                                               
 
   String andWords(String name, String input)                                    // Create a bit bus of the same width as each word in a word bus by and-ing corresponding bits in each word to make the corresponding bit in the output word.
    {final WordBus wb = sizeWords(input);
-    for  (int b = 1; b <= wb.bits;  ++b)                                        // Each bit in the words on the bus
+    for   (int b = 1; b <= wb.bits;  ++b)                                       // Each bit in the words on the bus
      {final Stack<String> words = new Stack<>();
-      for(int w = 1; w <= wb.words; ++w) words.push(nn(w, b, input));           // Each word on the bus
+      for (int w = 1; w <= wb.words; ++w) words.push(nn(w, b, input));          // Each word on the bus
       And(n(b, name), words.toArray(new String[words.size()]));                 // Combine inputs using B<and> gates
      }
     setSizeBits(name, wb.bits);                                                 // Record number of bits in bit bus
@@ -855,9 +855,9 @@ public class Chip                                                               
 
   String orWordsX(String name, String input)                                    // Create a bit bus of width equal to the number of words in a word bus by or-ing the bits in each word to make the bits of the resulting word.
    {final WordBus wb = sizeWords(input);
-    for  (int w = 1; w <= wb.words; ++w)                                        // Each word on the bus
+    for   (int w = 1; w <= wb.words; ++w)                                       // Each word on the bus
      {final Stack<String> bits = new Stack<>();
-      for(int b = 1; b <= wb.bits; ++b) bits.push(nn(w, b, input));             // Bits to or
+      for (int b = 1; b <= wb.bits; ++b) bits.push(nn(w, b, input));            // Bits to or
       Or(n(w, name), stackToStringArray(bits));                                 // Or bits
      }
     setSizeBits(name, wb.words);                                                // Record number of bits in bit bus
@@ -866,9 +866,9 @@ public class Chip                                                               
 
   String orWords(String name, String input)                                     // Create a bit bus of the same width as each word in a word bus by or-ing corresponding bits in each word to make the corresponding bit in the output word.
    {final WordBus wb = sizeWords(input);
-    for  (int b = 1; b <= wb.bits;  ++b)                                        // Each bit in the words on the bus
+    for   (int b = 1; b <= wb.bits;  ++b)                                       // Each bit in the words on the bus
      {final Stack<String> words = new Stack<>();
-      for(int w = 1; w <= wb.words; ++w) words.push(nn(w, b, input));           // Each word on the bus
+      for (int w = 1; w <= wb.words; ++w) words.push(nn(w, b, input));          // Each word on the bus
       Or(n(b, name), words.toArray(new String[words.size()]));                  // Combine inputs using B<or> gates
      }
     setSizeBits(name, wb.bits);                                                 // Record bus size
@@ -919,7 +919,7 @@ public class Chip                                                               
     for (int i = 2; i <= B; i++) Nxor(n(i, output, "e"), n(i, a), n(i, b));     // Test all but the lowest bit pair for equality
     for (int i = 1; i <= B; i++) Gt  (n(i, output, "g"), n(i, a), n(i, b));     // Test each bit pair for more than
 
-    for(int j = 2; j <= B; ++j)                                                 // More than on one bit and all preceding bits are equal
+    for (int j = 2; j <= B; ++j)                                                // More than on one bit and all preceding bits are equal
      {final Stack<String> and = new Stack<>();
       and.push(n(j-1, output, "g"));
       for (int i = j; i <= B; i++) and.push(n(i, output, "e"));
@@ -939,7 +939,7 @@ public class Chip                                                               
     for (int i = 2; i <= B; i++) Nxor(n(i, output, "e"), n(i, a), n(i, b));     // Test all but the lowest bit pair for equality
     for (int i = 1; i <= B; i++) Lt  (n(i, output, "l"), n(i, a), n(i, b));     // Test each bit pair for more than
 
-    for(int j = 2; j <= B; ++j)                                                 // More than on one bit and all preceding bits are equal
+    for (int j = 2; j <= B; ++j)                                                // More than on one bit and all preceding bits are equal
      {final Stack<String> and = new Stack<>();
       and.push(n(j-1, output, "l"));
       for (int i = j; i <= B; i++) and.push(n(i, output, "e"));
@@ -1140,7 +1140,7 @@ public class Chip                                                               
    }
 
   class Btree                                                                   // Construct and search a Btree.
-   {final int      bits;                                                        // Number of bits in a key, dataum, or next link
+   {final int      bits;                                                        // Number of bits in a key, datum, or next link
     final int      keys;                                                        // Number of keys in a node
     final int    levels;                                                        // Number of levels in the tree
     final String output;                                                        // The name of this tree. This name will be prepended to generate the names of the gates used to construct this tree.
@@ -1270,13 +1270,13 @@ public class Chip                                                               
    {final Stack<String> r = new Stack<>();                                      // Order of gates
 
     if (Distance == 0)                                                          // Start at the output gates
-     {for(String o : outputGates) r.push(o);                                    // Load output gates in name order
+     {for (String o : outputGates) r.push(o);                                   // Load output gates in name order
       columns.put(Distance, r);                                                 // Save the gates in this column ordered by y position
       return r;                                                                 // Return output gates
      }
 
     final TreeMap<String, TreeSet<String>> order = new TreeMap<>();             // Gates connected to nearest gates in previous column
-    for(String G : columns.get(Distance-1))
+    for (String G : columns.get(Distance-1))                                    // Find gates in current column that connect to gates in the previous column
      {final TreeSet<String> p = new TreeSet<>();                                // Gates nearest
       order.put(G, p);
       final Gate g = getGate(G);                                                // Gate details
@@ -1284,7 +1284,7 @@ public class Chip                                                               
       if (g.iGate2 != null) p.add(g.iGate2.name);
      }
 
-    for(String o: order.keySet()) for(String g: order.get(o)) r.push(g);        // Stack the gates in this column in output gate order
+    for (String o: order.keySet()) for (String g: order.get(o)) r.push(g);      // Stack the gates in this column in output gate order
     columns.put(Distance, r);                                                   // The gates in this column ordered by y position
     return r;                                                                   // The gates in this column ordered by y position
    }
@@ -1311,7 +1311,7 @@ public class Chip                                                               
      }
    }
 
-  Diagram layout(int Gsx, int Gsy)                                              // Layout with gates scaled by gsx and gsy.  Normally gates are 2 by 2 in size, unless globally magnified by these factors.
+  Diagram layout(int Gsx, int Gsy)                                              // Layout with gates scaled by in x and y.  Normally gates are 2 by 2 in size, unless globally magnified by these factors.
    {gsx = Gsx; gsy = Gsy;
 
     final int sx =  2 * gsx, sy = 2 * gsy;                                      // Size of gate
@@ -1337,7 +1337,7 @@ public class Chip                                                               
         if (drawn.contains(name)) continue;                                     // Only draw each named gate once
         drawn.add(name);                                                        // Show that we have drawn this gate already
         g.py = y; y += sy; extra += dy;
-        for(; extra >= gsy; extra -= gsy) y += gsy;                             // Enough extra has accumulated to be distributed
+        for (; extra >= gsy; extra -= gsy) y += gsy;                            // Enough extra has accumulated to be distributed
        }
      }
 
@@ -1435,9 +1435,9 @@ public class Chip                                                               
       public String toString()                                                  // Display a level as a string
        {final StringBuilder s = new StringBuilder();
         s.append("      0----+----1----+----2----+----3----+----4----+----5----+----6----+----7----+----8----+----9----+----0\n");
-        for  (int j = 0; j < height; ++j)                                       // Each y cross bar
+        for   (int j = 0; j < height; ++j)                                      // Each y cross bar
          {s.append(String.format("%4d  ", j));
-          for(int i = 0; i < width;  ++i)                                       // Each x cross bar
+          for (int i = 0; i < width;  ++i)                                      // Each x cross bar
            {final boolean x = ix[i][j], y = iy[i][j];
             final char c = x && y ? '3' : y ? '2' : x ? '1' : ' ';              // Only used for debugging so these values have no long term meaning
             s.append(c);
@@ -1530,7 +1530,8 @@ public class Chip                                                               
 
         for  (int y = 0; y < height; ++y)                                       // Print body
          {b.append(String.format("%3d ", y));
-          for(int x = 0; x < width;  ++x) b.append(String.format("%2d ", d[x][y]));
+          for (int x = 0; x < width;  ++x)
+            b.append(String.format("%2d ", d[x][y]));
           say(b);
          }
        }
@@ -1546,7 +1547,7 @@ public class Chip                                                               
        }
 
       boolean search()                                                          // Breadth first search
-       {for(depth = 2; depth < 999999; ++depth)                                 // Depth of search
+       {for (depth = 2; depth < 999999; ++depth)                                // Depth of search
          {if (o.size() == 0) break;                                             // Keep going until we cannot go any further
 
           n = new Stack<>();                                                    // Cells at new edge of search
@@ -1569,14 +1570,14 @@ public class Chip                                                               
         return d[x][y] == D;
        }
 
-      void path(boolean favorX)                                                 // Finds a shortest path and returns the number of changes of direction and the path itself
+      void path(boolean favorX)                                                 // Shortest path and returns the number of changes of direction and the path itself
        {int x = finish.x, y = finish.y;                                         // Work back from end point
         final short N = d[x][y];                                                // Length of path
         final Stack<Pixel> p = new Stack<>();                                   // Path
         p.push(finish);
         Integer s = null, S = null;                                             // Direction of last step
         int c = 0;                                                              // Number of changes
-        for(int D = N-1; D >= 1; --D)                                           // Work backwards
+        for (int D = N-1; D >= 1; --D)                                          // Work backwards
          {final boolean f = favorX ? s != null && s == 0 : s == null || s == 0; // Preferred direction
           if (f)                                                                // Preference for step in X
            {if      (step(x-1, y, D)) {x--; S = 0;}
@@ -1632,16 +1633,16 @@ public class Chip                                                               
           for (int j = 0; j < height; ++j)
             d[i][j] = 0;
 
-        for  (int i = -crossBarOffset; i <= interViaX - crossBarOffset; ++i)    // Add metal around via
-         {for(int j = -crossBarOffset; j <= interViaY - crossBarOffset; ++j)
+        for   (int i = -crossBarOffset; i <= interViaX - crossBarOffset; ++i)   // Add metal around via
+         {for (int j = -crossBarOffset; j <= interViaY - crossBarOffset; ++j)
            {setIx(x+i, y, true); setIx(X+i, Y, true);
             setIy(x, y+j, true); setIy(X, Y+j, true);
            }
          }
 
         found = findShortestPath();                                             // Shortest path
-        for  (int i = -crossBarOffset; i <= interViaX - crossBarOffset; ++i)    // Remove metal around via
-         {for(int j = -crossBarOffset; j <= interViaY - crossBarOffset; ++j)
+        for   (int i = -crossBarOffset; i <= interViaX - crossBarOffset; ++i)   // Remove metal around via
+         {for (int j = -crossBarOffset; j <= interViaY - crossBarOffset; ++j)
            {setIx(x+i, y, false); setIx(X+i, Y, false);
             setIy(x, y+j, false); setIy(X, Y+j, false);
            }
@@ -1653,7 +1654,7 @@ public class Chip                                                               
           final Stack<Pixel> r = new Stack<>();
           Pixel p = path.pop(); r.push(p);                                      // Start point
 
-          for(int i = 0; i < 999999 && path.size() > 0; ++i)                    // Reverse along path
+          for (int i = 0; i < 999999 && path.size() > 0; ++i)                   // Reverse along path
            {final Pixel q = path.pop();                                         // Current pixel
             r.push(p = q);                                                      // Save pixel in path running from start to finish instead of from finish to start
            }
@@ -1688,7 +1689,7 @@ public class Chip                                                               
          {final Search s = new Search(l, start, finish);                        // Search
           if (s.found) {S = s; break;}                                          // Found a level on which we can connect this wire
          }
-        if (S == null)                                                          // Create a new level on which we are bound to succeed of thre is no room on any existing level
+        if (S == null)                                                          // Create a new level on which we are bound to succeed of there is no room on any existing level
          {final Level l = new Level();
           S = new Search(l, start, finish);                                     // Search
          }
@@ -1701,7 +1702,7 @@ public class Chip                                                               
 
         collapsePixelsIntoSegments();                                           // Place pixels into segments
 
-        for(Segment s : segments) s.onX = s.width != null;                      // Crossbar
+        for (Segment s : segments) s.onX = s.width != null;                     // Crossbar
 
         if (segments.size() == 1)                                               // Set levels - direct connection
          {final Segment s = segments.firstElement();
@@ -1717,14 +1718,14 @@ public class Chip                                                               
           e.onX = E.onX;
          }
 
-        for(Segment s : segments) s.removeFromCrossBars(S.level);               // Remove segments from crossbars
+        for (Segment s : segments) s.removeFromCrossBars(S.level);              // Remove segments from crossbars
         crossBarInterConnects();                                                // Connect between cross bars
        }
 
       void collapsePixelsIntoSegments()                                         // Collapse pixels into segments
        {Segment s = new Segment(path.firstElement());
         segments.add(s);
-        for(Pixel q : path)
+        for (Pixel q : path)
          {if (s.corner != q && !s.add(q))
            {final Segment t = new Segment(s.last);
             segments.add(t);
@@ -1736,7 +1737,7 @@ public class Chip                                                               
 
       void crossBarInterConnects()                                              // Connects between x and y cross bars when a wore changes layer within a level
        {Segment q = segments.firstElement();
-        for(Segment p : segments)
+        for (Segment p : segments)
          {if (q.onX != p.onX)                                                   // Changing levels with previous layer
            {final int qx = q.corner.x, qy = q.corner.y,
                       px = p.corner.x, py = p.corner.y;
@@ -1834,7 +1835,7 @@ public class Chip                                                               
          {p.push("    $g->printBoundary(-layer=>"+i+", -xy=>$XY);");
          }
 
-        for(Segment s : w.segments)                                             // Each segment of each wire
+        for (Segment s : w.segments)                                            // Each segment of each wire
          {p.push("    if (1)");
           p.push("     {my $x = "   +s.corner.x                        +";");
           p.push("      my $y = "   +s.corner.y                        +";");
@@ -1845,7 +1846,7 @@ public class Chip                                                               
                  ", -xy=>[$x,$y, $X,$y, $X,$Y, $x,$Y]);");
           p.push("     }");
          }
-        for(Pixel P : w.crossBarInterConnects)                                  // Each connection between X and Y cross bars between adjacent segments
+        for (Pixel P : w.crossBarInterConnects)                                 // Each connection between X and Y cross bars between adjacent segments
          {p.push("    if (1)");
           p.push("     {my $x = "   + P.x +";");
           p.push("      my $y = "   + P.y +";");
@@ -1863,10 +1864,10 @@ public class Chip                                                               
      }
    }
 
-  static void gds2Finish()                                                      // Finish representation as Graphic Design System 2 via Perl. All the chips are written out nto one Perl file which is executed to generate the corresponding GDS2 files.
+  static void gds2Finish()                                                      // Finish representation as Graphic Design System 2 via Perl. All the chips are written out into one Perl file which is executed to generate the corresponding GDS2 files.
    {final Stack<String> p = gdsPerl;
     final StringBuilder b = new StringBuilder();
-    for(String s : p) b.append(s+"\n");
+    for (String s : p) b.append(s+"\n");
 
     new File(perlFolder).mkdirs();                                              // Create folder
 
@@ -1878,13 +1879,13 @@ public class Chip                                                               
      {say("Error writing to file: " + e.getMessage());
      }
 
-    try                                                                         // Execute the file as a Perl script to create the GDS2 output - following code courtesey of Mike Limberger.
+    try                                                                         // Execute the file as a Perl script to create the GDS2 output - following code courtesy of Mike Limberger.
      {final var pb = new ProcessBuilder("perl", pf);
       pb.redirectErrorStream(false);                                            // STDERR will be captured and returned to the caller
       final var P = pb.start();
 
       final var E = P.getErrorStream();                                         // Read and print STDERR
-      for(int c = E.read(); c > -1; c = E.read()) System.err.print((char)c);
+      for (int c = E.read(); c > -1; c = E.read()) System.err.print((char)c);
       E.close();
 
       final int rc = P.waitFor();                                               // Wait for process to finish and close it
@@ -1908,7 +1909,7 @@ public class Chip                                                               
      }
 
     void put(Boolean group, Chip chip)                                          // Add the gates in a chip to the grouping
-     {for(Gate g: chip.gates.values())                                          // Each gate
+     {for (Gate g: chip.gates.values())                                         // Each gate
        {final String   name = g.name;
         final Boolean value = g.value;
         if (value != null)                                                      // Gate has a value
@@ -1929,12 +1930,12 @@ public class Chip                                                               
       final String[]tt = t.keySet().toArray(new String[0]);
       final String[]ff = f.keySet().toArray(new String[0]);
 
-      for(String n : tt)                                                        // Remove from true
+      for (String n : tt)                                                       // Remove from true
        {final Boolean T = t.get(n), F = f.get(n);
         if (T == null || F == null || F == T) t.remove(n);
        }
 
-      for(String n : ff)                                                        // Remove from false
+      for (String n : ff)                                                       // Remove from false
        {final Boolean T = t.get(n), F = f.get(n);
         if (T == null || F == null || F == T) t.remove(n);
        }
@@ -1974,7 +1975,7 @@ public class Chip                                                               
 
   static void say(Object...O)                                                   // Say something
    {final StringBuilder b = new StringBuilder();
-    for(Object o: O) {b.append(" "); b.append(o);}
+    for (Object o: O) {b.append(" "); b.append(o);}
     System.err.println((O.length > 0 ? b.substring(1) : ""));
     if (makeSayStop)
      {new Exception().printStackTrace();
@@ -1982,7 +1983,7 @@ public class Chip                                                               
      }
    }
 
-  static void err(Object...O)                                                   // Say something and provide an error tarce.
+  static void err(Object...O)                                                   // Say something and provide an error trace.
    {say(O);
     new Exception().printStackTrace();
    }
@@ -2225,7 +2226,7 @@ public class Chip                                                               
    }
 
   static void test_and2Bits()
-   {for(int N = 3; N <= 4; ++N)
+   {for (int N = 3; N <= 4; ++N)
      {final int N2 = powerTwo(N);
       for  (int i = 0; i < N2; i++)
        {final Chip c = new Chip("OutputBits");
@@ -2312,7 +2313,7 @@ public class Chip                                                               
    }
 
   static void test_compareEq()
-   {for(int B = 2; B <= 4; ++B)
+   {for (int B = 2; B <= 4; ++B)
      {final  int B2 = powerTwo(B);
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
@@ -2330,8 +2331,8 @@ public class Chip                                                               
    }
 
   static void test_compareGt()
-   {for(int B = 2; B <= 4; ++B)
-     {final int B2 = powerTwo(B);
+   {for     (int B = 2; B <= 4; ++B)
+     {final  int B2 = powerTwo(B);
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
          {final var c = new Chip("CompareGt "+B);
@@ -2348,8 +2349,8 @@ public class Chip                                                               
    }
 
   static void test_compareLt()
-   {for(int B = 2; B <= 4; ++B)
-     {final int B2 = powerTwo(B);
+   {for     (int B = 2; B <= 4; ++B)
+     {final  int B2 = powerTwo(B);
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
          {final var c = new Chip("CompareLt "+B);
@@ -2395,9 +2396,9 @@ public class Chip                                                               
    }
 
   static void test_monotoneMaskToPointMask()
-   {for(int B = 2; B <= 4; ++B)
+   {for    (int B = 2; B <= 4; ++B)
      {final int N = powerTwo(B);
-      for (int i = 1; i <= N; i++)
+      for  (int i = 1; i <= N; i++)
        {final var c = new Chip("monotoneMaskToPointMask "+B);
         c.setSizeBits("i", N);
         for (int j = 1; j <= N; j++) c.bit(n(j, "i"), j < i ? 0 : 1);
