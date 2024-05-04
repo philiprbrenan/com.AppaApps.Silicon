@@ -17,7 +17,7 @@ public class Chip                                                               
   final static boolean makeSayStop    = false;                                  // Turn say into stop if true which is occasionally useful for locating unlabeled say statements.
   final static int singleLevelLayoutLimit                                       // Limit on gate scaling dimensions during layout.
                                       =  16;
-  final static int maxSimulationSteps =  github_actions ? 100 : 20;             // Maximum simulation steps
+  final static int maxSimulationSteps =  github_actions ? 1000 : 100;           // Maximum simulation steps
   final static int         clockWidth =   8;                                    // Number of bits in system clock. Zero implies no clock.
   final static int          debugMask =   0;                                    // Adds a grid and fiber names to a mask to help debug fibers if true.
   final static int      pixelsPerCell =   4;                                    // Pixels per cell
@@ -1295,7 +1295,7 @@ public class Chip                                                               
        {final Gate.WhichPin f = source.drives.first();
         final Gate.WhichPin l = source.drives. last();
         final Gate.WhichPin p = f.drives.equals(target.name) ? f : l;           // The drive between the two gates
-        if (p.pin != null)
+        if (p.pin != null)                                                      // If the pin is null then either pin on the target is acceptable
          {if (p.pin) target.tiGate1 = source; else target.tiGate2 = source;     // Layout as much of the connection as we can at this point
          }
        }
@@ -1343,29 +1343,89 @@ public class Chip                                                               
 
     for (Connection c : connections)                                            // Each possible connection
      {final Gate s = c.source, t = c.target;
-      final boolean s1 = s.tiGate1 == null, s2 = s.tiGate2 == null;
-      final boolean t1 = t.tiGate1 == null, t2 = t.tiGate2 == null;
-      final boolean T1 = t.tiGate1 == s || t1, T2 = t.tiGate2 == s || t2;
+      final boolean S1 = s.soGate1 == t || s.soGate1 == null,
+                    S2 = s.soGate2 == t || s.soGate2 == null;
+      final boolean T1 = t.tiGate1 == s || t.tiGate1 == null,
+                    T2 = t.tiGate2 == s || t.tiGate2 == null;
 
-      if (t.py < s.py)                                                          // Target is lower than source
-       {if      (T2 && s1) {t.tiGate2 = s; s.soGate1 = t;}
-        else if (T1 && s1) {t.tiGate1 = s; s.soGate1 = t;}
-        else if (T2 && s2) {t.tiGate2 = s; s.soGate2 = t;}
-        else if (T1 && s2) {t.tiGate1 = s; s.soGate2 = t;}
+      if      (t.py < s.py)                                                     // Lower
+       {if      (false) {}
+        else if (S1 && T2) {s.soGate1 = t; t.tiGate2 = s;}
+        else if (S2 && T2) {s.soGate2 = t; t.tiGate2 = s;}
+        else if (S2 && T1) {s.soGate2 = t; t.tiGate1 = s;}
+        else if (S1 && T1) {s.soGate1 = t; t.tiGate1 = s;}
+        else stop("Failed to connect lower");
        }
-      else if (t.py > s.py)                                                     // Target is higher than source
-       {if      (T1 && s2) {t.tiGate1 = s; s.soGate2 = t;}
-        else if (T1 && s1) {t.tiGate1 = s; s.soGate1 = t;}
-        else if (T2 && s2) {t.tiGate2 = s; s.soGate2 = t;}
-        else if (T2 && s1) {t.tiGate1 = s; s.soGate1 = t;}
+      else if (t.py > s.py)                                                     // Higher
+       {if      (false) {}
+        else if (S2 && T1) {s.soGate2 = t; t.tiGate1 = s;}
+        else if (S2 && T2) {s.soGate2 = t; t.tiGate2 = s;}
+        else if (S1 && T1) {s.soGate1 = t; t.tiGate1 = s;}
+        else if (S1 && T2) {s.soGate1 = t; t.tiGate2 = s;}
+        else stop("Failed to connect upper");
        }
-      else                                                                      // Target is same height as source
-       {if      (T1 && s1) {t.tiGate1 = s; s.soGate1 = t;}
-        else if (T2 && s2) {t.tiGate2 = s; s.soGate2 = t;}
-        else if (T1 && s2) {t.tiGate1 = s; s.soGate2 = t;}
-        else if (T2 && s1) {t.tiGate2 = s; s.soGate1 = t;}
+      else                                                                      // Same
+       {if      (false) {}
+        else if (S1 && T1) {s.soGate1 = t; t.tiGate1 = s;}
+        else if (S2 && T2) {s.soGate2 = t; t.tiGate2 = s;}
+        else if (S2 && T1) {s.soGate2 = t; t.tiGate1 = s;}
+        else if (S1 && T2) {s.soGate1 = t; t.tiGate2 = s;}
+        else stop("Failed to connect same");
        }
      }
+
+//    for (Connection c : connections)                                            // Each possible connection
+//     {final Gate s = c.source, t = c.target;
+//      final boolean S1 = s.soGate1 == t || s.soGate1 == null,
+//                    S2 = s.soGate2 == t || s.soGate2 == null;
+//      final boolean T1 = t.tiGate1 == s || t.tiGate1 == null,
+//                    T2 = t.tiGate2 == s || t.tiGate2 == null;
+//
+//      if (t.py < s.py)                                                          // Target is lower than source
+//       {if      (T2 && S1) {t.tiGate2 = s; s.soGate1 = t;}
+//        else if (T1 && S1) {t.tiGate1 = s; s.soGate1 = t;}
+//        else if (T2 && S2) {t.tiGate2 = s; s.soGate2 = t;}
+//        else if (T1 && S2) {t.tiGate1 = s; s.soGate2 = t;}
+//        else stop("Failed to connect lower");
+//       }
+//      else if (t.py > s.py)                                                     // Target is higher than source
+//       {if      (T1 && S2) {t.tiGate1 = s; s.soGate2 = t;}
+//        else if (T1 && S1) {t.tiGate1 = s; s.soGate1 = t;}
+//        else if (T2 && S2) {t.tiGate2 = s; s.soGate2 = t;}
+//        else if (T2 && S1) {t.tiGate1 = s; s.soGate1 = t;}
+//        else stop("Failed to connect higher");
+//        }
+//      else                                                                      // Target is same height as source
+//       {if      (T1 && s1) {t.tiGate1 = s; s.soGate1 = t;}
+//        else if (T2 && s2) {t.tiGate2 = s; s.soGate2 = t;}
+//        else if (T1 && s2) {t.tiGate1 = s; s.soGate2 = t;}
+//        else if (T2 && s1) {t.tiGate2 = s; s.soGate1 = t;}
+//        else stop("Failed to connect same");
+//        }
+//      }
+
+//    for (Connection c : connections)                                          // Each possible connection
+//     {final Gate s = c.source, t = c.target;
+//
+//      if (t.py < s.py)                                                          // Target is lower than source
+//       {if      ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate1 == null) {t.tiGate2 = s; s.soGate1 = t;}
+//        else if ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate1 == null) {t.tiGate1 = s; s.soGate1 = t;}
+//        else if ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate2 == null) {t.tiGate2 = s; s.soGate2 = t;}
+//        else if ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate2 == null) {t.tiGate1 = s; s.soGate2 = t;}
+//       }
+//      else if (t.py > s.py)                                                     // Target is higher than source
+//       {if      ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate2 == null) {t.tiGate1 = s; s.soGate2 = t;}
+//        else if ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate1 == null) {t.tiGate1 = s; s.soGate1 = t;}
+//        else if ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate2 == null) {t.tiGate2 = s; s.soGate2 = t;}
+//        else if ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate1 == null) {t.tiGate1 = s; s.soGate1 = t;}
+//       }
+//      else                                                                      // Target is same height as source
+//       {if      ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate1 == null) {t.tiGate1 = s; s.soGate1 = t;}
+//        else if ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate2 == null) {t.tiGate2 = s; s.soGate2 = t;}
+//        else if ((t.tiGate1 == null || t.tiGate1 == s) && s.soGate2 == null) {t.tiGate1 = s; s.soGate2 = t;}
+//        else if ((t.tiGate2 == null || t.tiGate2 == s) && s.soGate1 == null) {t.tiGate2 = s; s.soGate1 = t;}
+//       }
+//     }
 
     diagram = new Diagram(layoutX, layoutY, gsx, gsy);                          // Layout the chip as a wiring diagram
 
@@ -1481,6 +1541,8 @@ public class Chip                                                               
             else stop("Empty segment");
            }
          }
+        if      (w > 1 && c.x-1 >= 0) level.ix[c.x-1][c.y] = F;                 // Create space at start of segment
+        else if (h > 1 && c.y-1 >= 0) level.iy[c.x][c.y-1] = F;
        }
 
       public String toString()                                                  // String representation in Perl format
@@ -1747,7 +1809,7 @@ public class Chip                                                               
 
       p.push("if (1)");                                                         // Header for this chip
       p.push(" {my $gdsOut = \""+name+"\";");
-      p.push("  my @debug; my $debug = 1;");
+      p.push("  my @debug; my $debug = 0;");
       p.push("  my $f = \"gds/$gdsOut.gds\";");
       p.push("  push @debug, \"Chip: $gdsOut\" if $debug;");
       p.push("  createEmptyFile($f);");
@@ -1772,7 +1834,8 @@ public class Chip                                                               
         p.push("    my $X   = $x + 6 * "+gsx+";");
         p.push("    my $Y   = $y + 6 * "+gsy+";");
         p.push("    my $n   = \""+g.name+"\";");
-        p.push("    push @debug, sprintf(\"Gate         %4d %4d %4d %4d  %s\", $x, $y, $X, $Y, $n) if $debug;");
+        p.push("    my $o   = \""+g.op  +"\";");
+        p.push("    push @debug, sprintf(\"Gate         %4d %4d %4d %4d  %8s  %s\", $x, $y, $X, $Y, $o, $n) if $debug;");
         p.push("    $g->printBoundary(-layer=>0,"+
                " -xy=>[$x,$y, $X,$y, $X,$Y, $x,$Y]);");
         p.push("    $g->printText(-xy=>[($x+$X)/2, ($y+$Y)/2],"+
@@ -1839,7 +1902,7 @@ public class Chip                                                               
        }
       p.push("  $g->printEndstr;");                                             // End of this chip
       p.push("  $g->printEndlib;");
-      p.push("  owf(\"gds/$gdsOut.txt\", join \"\\n\", @debug);");
+      p.push("  owf(\"gds/$gdsOut.txt\", join \"\\n\", @debug) if $debug;");
       p.push(" }");
      }
    }
@@ -2531,7 +2594,7 @@ public class Chip                                                               
    }
 
   static void test_simulationStep()
-   {final var c = new Chip("Btree");
+   {final var c = new Chip("Simulation Step");
     final Stack<Integer> s = new Stack<>();
     c.simulationStep = ()->{s.push(c.steps);};
     c.One("i");
@@ -2573,8 +2636,7 @@ public class Chip                                                               
    }
 
   static void oldTests()                                                        // Test if called as a program
-   {if (!github_actions) return;
-    test_and2Bits();
+   {test_and2Bits();
     test_and();
     test_and_grouping();
     test_or_grouping();
@@ -2585,6 +2647,7 @@ public class Chip                                                               
     test_andOr();
     test_clock();
     test_delayedDefinitions();
+    test_simulationStep();
     test_expand();
     test_expand2();
     test_outputBits();
@@ -2602,13 +2665,12 @@ public class Chip                                                               
     test_chooseWordUnderMask();
     test_BtreeNode();
     test_BtreeLeafCompare();
+    if (!github_actions) return;
     test_Btree();
-    test_simulationStep();
    }
 
   static void newTests()                                                        // Test if called as a program
    {if (github_actions) return;
-    test_BtreeLeafCompare();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
