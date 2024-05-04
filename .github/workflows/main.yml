@@ -1,7 +1,22 @@
-# Test 2024-05-04 at 20:17:40
+# Test 2024-05-04 at 22:17:09
 
 name: Test
-run-name: 6, 1
+run-name: //------------------------------------------------------------------------------
+// Design, simulate and layout a binary tree on a silicon chip.
+// Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
+//------------------------------------------------------------------------------
+// pckage com.AppaApps.Silicon;
+// Test all dyadic gates to see if there is any correlation between their outputs and any other pins indicating that the gate might be redundant. Use class Grouping to achieve this.
+
+import java.io.*;
+import java.util.*;
+import java.util.stream.*;
+
+//D1 Construct                                                                  // Construct a L<silicon> L<chip> using standard L<lgs>, components and sub chips combined via buses.
+
+public class Chip                                                               // Describe a chip and emulate its operation.
+ {final static boolean github_actions =                                         // Whether we are on a github
+    "true".equals(System.getenv("GITHUB_ACTIONS"
 
 on:
   push:
