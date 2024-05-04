@@ -14,7 +14,7 @@ import java.util.stream.*;
 public class Chip                                                               // Describe a chip and emulate its operation.
  {final static boolean github_actions =                                         // Whether we are on a github
     "true".equals(System.getenv("GITHUB_ACTIONS"));
-  final static boolean makeSayStop    = false;                                  // Turn say into stop if true
+  final static boolean makeSayStop    = false;                                  // Turn say into stop if true which is occasionally useful for locating unlabeled say statements.
   final static int singleLevelLayoutLimit                                       // Limit on gate scaling dimensions during layout.
                                       =  16;
   final static int maxSimulationSteps =  github_actions ? 100 : 20;             // Maximum simulation steps
@@ -1249,7 +1249,7 @@ public class Chip                                                               
    {Diagram D = null;
     Integer L = null;
     for (int s = 1; s < singleLevelLayoutLimit; ++s)                            // Various gate scaling factors
-     {final Diagram d = layout(s, s);                                           // Layout gates
+     {final Diagram d = layout(2*s, s);                                         // LLLL Layout gates
       final int l = d.levels();                                                 // Number of levels in diagram
       if (l == 1) return drawLayout(d);                                         // Draw the layout diagram as GDS2
       if (L == null || L > l) {L = l; D = d;}                                   // Track smallest number of wiring levels
@@ -1371,7 +1371,8 @@ public class Chip                                                               
 
     for (Connection c : connections)                                            // Draw connections
      {final Gate s = c.source, t = c.target;
-      diagram.new Wire(s.px,     s.py + (s.soGate1 == t ? 0 : gsy),
+      diagram.new Wire(s, t,
+                       s.px,     s.py + (s.soGate1 == t ? 0 : gsy),
                        t.px+gsx, t.py + (t.tiGate1 == s ? 0 : gsy));
      }
 
@@ -1644,7 +1645,9 @@ public class Chip                                                               
      }
 
     class Wire                                                                  // A wired connection on the diagram
-     {final Pixel             start;                                            // Start pixel
+     {final Gate         sourceGate;                                            // Source gate
+      final Gate         targetGate;                                            // Target gate
+      final Pixel             start;                                            // Start pixel
       final Pixel            finish;                                            // End pixel
       final Stack<Pixel>       path;                                            // Path from start to finish
       final Stack<Segment> segments = new Stack<>();                            // Wires represented as a series of rectangles
@@ -1659,8 +1662,9 @@ public class Chip                                                               
           start.x, start.y, finish.x, finish.y, level);
        }
 
-      Wire(int x, int y, int X, int Y)                                          // Create a wire and place it
-       {start = new Pixel(p(x), p(y)); finish = new Pixel(p(X), p(Y));
+      Wire(Gate SourceGate, Gate TargetGate, int x, int y, int X, int Y)        // Create a wire and place it
+       {sourceGate = SourceGate; targetGate = TargetGate;
+        start = new Pixel(p(x), p(y)); finish = new Pixel(p(X), p(Y));
         Search S = null;
         for (Level l : levels)                                                  // Search each existing level for a placement
          {final Search s = new Search(l, start, finish);                        // Search
@@ -1739,13 +1743,13 @@ public class Chip                                                               
         p.push("use Data::Dump qw(dump);");
         p.push("use GDS2;");
         p.push("clearFolder(\"gds/\", 999);");
-        p.push("my $debug = 0;");
        }
 
       p.push("if (1)");                                                         // Header for this chip
       p.push(" {my $gdsOut = \""+name+"\";");
+      p.push("  my @debug; my $debug = 1;");
       p.push("  my $f = \"gds/$gdsOut.gds\";");
-      p.push("  say STDERR \"Chip: $gdsOut\" if $debug;");
+      p.push("  push @debug, \"Chip: $gdsOut\" if $debug;");
       p.push("  createEmptyFile($f);");
       p.push("  my $g = new GDS2(-fileName=>\">$f\");");
       p.push("  $g->printInitLib(-name=>$gdsOut);");
@@ -1767,7 +1771,8 @@ public class Chip                                                               
         p.push("    my $y   = "+g.py +" * 4;");
         p.push("    my $X   = $x + 6 * "+gsx+";");
         p.push("    my $Y   = $y + 6 * "+gsy+";");
-        p.push("    say STDERR dump(\"Gate\", $x, $y, $X, $Y) if $debug;");
+        p.push("    my $n   = \""+g.name+"\";");
+        p.push("    push @debug, sprintf(\"Gate         %4d %4d %4d %4d  %s\", $x, $y, $X, $Y, $n) if $debug;");
         p.push("    $g->printBoundary(-layer=>0,"+
                " -xy=>[$x,$y, $X,$y, $X,$Y, $x,$Y]);");
         p.push("    $g->printText(-xy=>[($x+$X)/2, ($y+$Y)/2],"+
@@ -1787,14 +1792,36 @@ public class Chip                                                               
       for  (Wire    w : wires)                                                  // Each wire
        {p.push("# Wire: "+w);
         p.push("  if (1)");
-        p.push("   {my $L = "   + w.level * layersPerLevel+";");
+        p.push("   {my $L = "       + w.level * layersPerLevel         +";");
+        p.push("    my $x = "       + w.start.x                        +";");
+        p.push("    my $y = "       + w.start.y                        +";");
+        p.push("    my $X = "       + w.finish.x                       +";");
+        p.push("    my $Y = "       + w.finish.y                       +";");
+        p.push("    my $s = \""     + w.sourceGate.name              +"\";");
+        p.push("    my $t = \""     + w.targetGate.name              +"\";");
+        p.push("    push @debug, sprintf(\"Wire         %4d %4d %4d %4d %4d  %32s=>%s\", $x, $y, $X, $Y, $L, $s, $t) if $debug;");
+        p.push("    my $xy = [$x,$y, $x+1,$y, $x+1,$y+1, $x,$y+1];");
+        p.push("    my $XY = [$X,$Y, $X+1,$Y, $X+1,$Y+1, $X,$Y+1];");
+
+        final int ll = w.level * layersPerLevel;                                // Each wire starts at a unique location and so the via can drop down from the previous layer all the way down to the gates.
+        final int nx = ll + (w.segments.firstElement().onX ? 0 : 2);
+        final int ny = ll + (w.segments. lastElement().onX ? 0 : 2);
+
+        for (int i = layersPerLevel; i <= nx; i++)                              // Levels 1,2,3 have nothing in them so that we can start each new level on a multiple of 4
+         {p.push("    $g->printBoundary(-layer=>"+i+", -xy=>$xy);");
+         }
+
+        for (int i = layersPerLevel; i <= ny; i++)
+         {p.push("    $g->printBoundary(-layer=>"+i+", -xy=>$XY);");
+         }
+
         for(Segment s : w.segments)                                             // Each segment of each wire
          {p.push("    if (1)");
           p.push("     {my $x = "   +s.corner.x                        +";");
           p.push("      my $y = "   +s.corner.y                        +";");
           p.push("      my $X = $x+"+(s.width  == null ? 1 : s.width)  +";");
           p.push("      my $Y = $y+"+(s.height == null ? 1 : s.height) +";");
-          p.push("      say STDERR dump(\"Wire\", $x, $y, $X, $Y, $L) if $debug;");
+          p.push("      push @debug, sprintf(\"Segment      %4d %4d %4d %4d %4d\", $x, $y, $X, $Y, $L) if $debug;");
           p.push("      $g->printBoundary(-layer=>$L+"+ (s.onX ? 1 : 3)+
                  ", -xy=>[$x,$y, $X,$y, $X,$Y, $x,$Y]);");
           p.push("     }");
@@ -1803,34 +1830,16 @@ public class Chip                                                               
          {p.push("    if (1)");
           p.push("     {my $x = "   + P.x +";");
           p.push("      my $y = "   + P.y +";");
-          p.push("      say STDERR dump(\"Interconnect\", $x, $y, $L) if $debug;");
+          p.push("      push @debug,  sprintf(\"Interconnect %4d %4d           %4d\", $x, $y, $L) if $debug;");
           p.push("      $g->printBoundary(-layer=>$L+2,"+
                  " -xy=>[$x,$y, $x+1,$y, $x+1,$y+1, $x,$y+1]);");
           p.push("     }");
          }
-        p.push("    if (1)");                                                   // Each wire starts at a unique location and so the via can drop down from the previous layer all the way down to the gates.
-        p.push("     {my $x = "   + w.start.x                          +";");
-        p.push("      my $y = "   + w.start.y                          +";");
-        p.push("      my $X = "   + w.finish.x                         +";");
-        p.push("      my $Y = "   + w.finish.y                         +";");
-        p.push("      my $xy = [$x,$y, $x+1,$y, $x+1,$y+1, $x,$y+1];");
-        p.push("      my $XY = [$X,$Y, $X+1,$Y, $X+1,$Y+1, $X,$Y+1];");
-
-        final int ll = w.level * layersPerLevel;
-        final int nx = ll + (w.segments.firstElement().onX ? 0 : 2);
-        final int ny = ll + (w.segments. lastElement().onX ? 0 : 2);
-
-        for (int i = layersPerLevel; i <= nx; i++)                              // Levels 1,2,3 have nothing in them so that we can start each new level on a multiple of 4
-         {p.push("      $g->printBoundary(-layer=>"+i+", -xy=>$xy);");
-         }
-        for (int i = layersPerLevel; i <= ny; i++)
-         {p.push("      $g->printBoundary(-layer=>"+i+", -xy=>$XY);");
-         }
-        p.push("   }");
         p.push(" }");
        }
       p.push("  $g->printEndstr;");                                             // End of this chip
       p.push("  $g->printEndlib;");
+      p.push("  owf(\"gds/$gdsOut.txt\", join \"\\n\", @debug);");
       p.push(" }");
      }
    }
@@ -2599,6 +2608,7 @@ public class Chip                                                               
 
   static void newTests()                                                        // Test if called as a program
    {if (github_actions) return;
+    test_BtreeLeafCompare();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
