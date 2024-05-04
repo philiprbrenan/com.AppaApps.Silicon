@@ -14,11 +14,6 @@ import java.util.stream.*;
 public class Chip                                                               // Describe a chip and emulate its operation.
  {final static boolean github_actions =                                         // Whether we are on a github
     "true".equals(System.getenv("GITHUB_ACTIONS"));
-  final static boolean makeSayStop    = false;                                  // Turn say into stop if true which is occasionally useful for locating unlabeled say statements.
-  final static int singleLevelLayoutLimit                                       // Limit on gate scaling dimensions during layout.
-                                      =  16;
-  final static int maxSimulationSteps =  github_actions ? 1000 : 100;           // Maximum simulation steps
-  final static int         clockWidth =   8;                                    // Number of bits in system clock. Zero implies no clock.
   final static int          debugMask =   0;                                    // Adds a grid and fiber names to a mask to help debug fibers if true.
   final static int      pixelsPerCell =   4;                                    // Pixels per cell
   final static int     layersPerLevel =   4;                                    // There are 4 layers in each level: insulation, x cross bars, x-y connectors and insulation, y cross bars
@@ -35,6 +30,12 @@ public class Chip                                                               
                               pending = new TreeMap<>();
   final TreeMap<String, Gate> connectedToOutput                                 // Gates that are connected to an output gate
                                       = new TreeMap<>();
+  int          singleLevelLayoutLimit =  16;                                    // Limit on gate scaling dimensions during layout.
+  int              maxSimulationSteps =  github_actions ? 1000 : 100;           // Maximum simulation steps
+  int                      clockWidth =   8;                                    // Number of bits in system clock. Zero implies no clock.
+  static boolean          makeSayStop = false;                                  // Turn say into stop if true which is occasionally useful for locating unlabeled say statements.
+  int                    GlobalScaleX =   1;                                    // Stretch the chip by this factor in X
+  int                    GlobalScaleY =   1;                                    // Stretch the chip by this factor in Y
   int                         gateSeq =   0;                                    // Gate sequence number - this allows us to display the gates in the order they were defined to simplify the understanding of drawn layouts
   int                           steps =   0;                                    // Simulation step time
   int         maximumDistanceToOutput;                                          // Maximum distance from an output
@@ -1248,7 +1249,7 @@ public class Chip                                                               
    {Diagram D = null;
     Integer L = null;
     for (int s = 1; s < singleLevelLayoutLimit; ++s)                            // Various gate scaling factors
-     {final Diagram d = layout(2*s, s);                                         // LLLL Layout gates
+     {final Diagram d = layout(GlobalScaleX*s, GlobalScaleY*s);                 // LLLL Layout gates
       final int l = d.levels();                                                 // Number of levels in diagram
       if (l == 1) return drawLayout(d);                                         // Draw the layout diagram as GDS2
       if (L == null || L > l) {L = l; D = d;}                                   // Track smallest number of wiring levels
@@ -2477,12 +2478,22 @@ public class Chip                                                               
     ok(c.bInt  ("data"),   found);
    }
 
-  static void test_Btree(Chip c, Inputs i, int find)
+  static void test_Btree(Chip c, Inputs i, int find, boolean layout)
    {i.set("find", find);
     c.simulate(i);
     ok(c.steps,               46);
     ok(c.getBit("found"),  false);
     ok(c.bInt  ("data"),       0);
+
+    if (github_actions && layout)
+     {c.GlobalScaleX = 4;
+      c.GlobalScaleY = 1;
+      c.singleLevelLayout();
+     }
+   }
+
+  static void test_Btree(Chip c, Inputs i, int find)
+   {test_Btree(c, i, find, false);
    }
 
   static void test_Btree()
@@ -2517,7 +2528,7 @@ public class Chip                                                               
     test_Btree(c, i, 20, 22);
     test_Btree(c, i, 30, 33);
 
-    test_Btree(c, i,  2, 22); if (github_actions) c.singleLevelLayout();
+    test_Btree(c, i,  2, 22);
     test_Btree(c, i,  4, 44);
     test_Btree(c, i,  6, 66);
 
@@ -2535,8 +2546,8 @@ public class Chip                                                               
 
     final int[]skip = {10, 20, 30,  2,4,6,  13,15,17, 22,24,26, 33,35,37};
     for (final int f : IntStream.rangeClosed(0, 100).toArray())
-      if (Arrays.stream(skip).noneMatch(x -> x == f)) test_Btree(c, i, f);
-
+     {if (Arrays.stream(skip).noneMatch(x -> x == f)) test_Btree(c, i, f);
+     }
    }
 
   static void test_simulationStep()
