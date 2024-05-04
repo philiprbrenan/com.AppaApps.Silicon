@@ -4,7 +4,7 @@
 
 # Silicon chip
 
-Design, simulate and layout a silicon chip made of basic gates.
+Design, simulate and layout a binary tree on a silicon chip.
 
 Reasons why you might want to join this project:
 
@@ -51,6 +51,12 @@ To produce a chip layout mask using [Graphics Design System 2](https://en.wikipe
 
 ## Btree Leaf Compare
 ![Btree Leaf Compare](images/BtreeLeafCompare.png)
+
+## Btree
+
+A complete binary tree:
+
+![Btree](images/Btree.png)
 
 # Buses
 
