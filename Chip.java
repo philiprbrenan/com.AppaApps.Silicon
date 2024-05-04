@@ -2521,7 +2521,7 @@ public class Chip                                                               
   static void test_Btree(Chip c, Inputs i, int find, int found, boolean layout)
    {test_Btree(c, i, find, found);
 
-    if (layout) c.singleLevelLayout(4, 1);
+    if (layout) c.singleLevelLayout(6, 1);
    }
 
   static void test_Btree()
