@@ -1964,33 +1964,6 @@ public class Chip                                                               
      }
    }
 
-//D1 Keywords                                                                   // Parse keywords and their values
-
-   class KeyWords                                                               // Parse keywords and their values
-    {final TreeMap<String, Object>  kw = new TreeMap<>();                       // Valid keywords
-     final TreeMap<Integer, String> ko = new TreeMap<>();                       // Keyrod order so we can refer to a keyword by a number which saves duplicating keyword names
-
-     KeyWords(Object[]user, String Keys)                                        // User supplied keyword value pairs, keyword definitions string
-      {if (user.length % 2 == 1) stop("Pairs of (keyword, value) required");
-       final String[]keys = Keys.split("\\s+");                                 // Parse keyword string
-       int keyNo = 0; for(String k: keys) {kw.put(k, null); ko.put(++keyNo, k);}// Load keyword names and numbers
-       final Stack<Object> s = new Stack<>();                                   // Stack of keywords and values
-       for (int i = user.length; i > 0; --i) s.push(user[i-1]);                 // Load stack of keyword values
-
-       while(s.size() > 0)                                                      // Parse the keyword value pairs
-        {final String k = s.pop().toString();                                   // Latest keyword
-         if (!kw.containsKey(k)) stop("Invalid keyword:", k);                   // Conform valid keyword
-         kw.put(k, s.pop());                                                    // Save keyword and value
-        }
-      }
-
-     Object get(int k, Object def)                                              // The value of a keyword referenced by keyword number
-      {if (!ko.containsKey(k)) stop("Invalid keyword number:", k);              // Check keyword number
-       final Object v = kw.get(ko.get(k));                                      // Get value associated with keyword number
-       return v == null ? def : v;                                              // Return value or default if no value found
-      }
-    }
-
  //D1 Numeric routines                                                          // Numeric routines
 
   static double max(double n, double...rest)                                    // Maximum number from a list of one or more numbers
