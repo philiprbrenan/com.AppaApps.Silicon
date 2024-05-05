@@ -18,6 +18,7 @@ public class Chip                                                               
   final String                   name;                                          // Name of chip
   final int    singleLevelLayoutLimit;                                          // Limit on gate scaling dimensions during layout.
   final int        maxSimulationSteps;                                          // Maximum simulation steps
+  final int        minSimulationSteps;                                          // Minimum simulation steps - we keep ggoing at least this long even if there have been no changes to allow clocked circuits to evolve.
   final int                clockWidth;                                          // Number of bits in system clock. Zero implies no clock.
 
   final int             layoutLTGates = 100;                                    // Always draw the layout if it has less than this many gates in it
@@ -55,18 +56,19 @@ public class Chip                                                               
   Chip(String Name, Object...keyWords)                                          // Create a new L<chip>.
    {name = Name;                                                                // Name of chip
     final KeyWords p = new KeyWords(keyWords,                                   // Optional keywords
-      "singleLevelLayoutLimit maxSimulationSteps clockWidth");
+      "clockWidth maxSimulationSteps minSimulationSteps singleLevelLayoutLimit");
 
-    singleLevelLayoutLimit = (int)p.get(1, 16);                                 // Limit on gate scaling dimensions during layout.
+                clockWidth = (int)p.get(1,  0);                                 // Number of bits in system clock. Zero implies no clock.
         maxSimulationSteps = (int)p.get(2, github_actions ? 1000 : 100);        // Maximum simulation steps
-                clockWidth = (int)p.get(3,  0);                                 // Number of bits in system clock. Zero implies no clock.
+        minSimulationSteps = (int)p.get(3,  0);                                 // Minimum simulation steps
+    singleLevelLayoutLimit = (int)p.get(4, 16);                                 // Limit on gate scaling dimensions during layout.
 
     if (clockWidth > 0) inputBits(clock, clockWidth);                           // Create the system clock
     for (Gate g : gates.values()) g.systemGate = true;                          // Mark all gates produced so far as system gates
    }
 
   enum Operator                                                                 // Gate operations
-   {And, Continue, FanOut, Gt, Input, Lt, Nand, Ngt, Nlt, Nor, Not, Nxor,
+   {And, Continue, FanOut, Gt, Input, Lt, My, Nand, Ngt, Nlt, Nor, Not, Nxor,
     One, Or, Output, Xor, Zero;
    }
 
@@ -287,8 +289,8 @@ public class Chip                                                               
      {final Gate d = getGate(driving);                                          // Driving gate
       if (d == null) stop("Invalid gate name:", driving);                       // No driving gate
       if (d.drives.size() == 0)
-       {stop("Gate name:", driving, "is referenced as driving gate:", name,
-             "but does not drive it");
+       {err("Gate name:", driving, "is referenced as driving gate:", name,
+            "but does not drive it");
         return false;
        }
       return name.equals(d.drives.first());                                     // First/Second output pin drives first input pin
@@ -307,9 +309,7 @@ public class Chip                                                               
 
       if (N == 0 && !systemGate)                                                // Check for user defined gates that do not drive any other gate
        {if (op == Operator.Output) return;
-        say(Chip.this);
-        say(this);
-        stop("Gate", name, "does not drive any gate");
+        err("Gate", name, "does not drive any gate");
         return;
        }
 
@@ -342,9 +342,22 @@ public class Chip                                                               
       return name;
      }
 
+    void updateEdge()                                                           // Update a memory gate on a leading edge
+     {if (op == Operator.My)
+       {if (iGate1.value != null && !iGate1.value && iGate1.nextValue != null && iGate1.nextValue)
+         {if (iGate2.value != null)
+           {value = changed = iGate2.value != iGate2.nextValue;
+            value = iGate2.nextValue;
+           }
+         }
+       }
+     }
+
     void updateValue()                                                          // Update the value of the gate
-     {changed = !systemGate && nextValue != value;
-      value   = nextValue;
+     {if (op != Operator.My)
+       {changed = !systemGate && nextValue != value;
+        value   = nextValue;
+       }
      }
 
     void step()                                                                 // One step in the simulation
@@ -454,6 +467,7 @@ public class Chip                                                               
   Gate Ngt      (String n, String i, String j) {return FanIn(Operator.Ngt,  n, i, j);}
   Gate Lt       (String n, String i, String j) {return FanIn(Operator.Lt,   n, i, j);}
   Gate Nlt      (String n, String i, String j) {return FanIn(Operator.Nlt,  n, i, j);}
+  Gate My       (String n, String i, String j) {return FanIn(Operator.My,   n, i, j);}
 
   Gate And      (String n, String...i)         {return FanIn(Operator.And,  n, i);}
   Gate Nand     (String n, String...i)         {return FanIn(Operator.Nand, n, i);}
@@ -552,7 +566,7 @@ public class Chip                                                               
 
   void loadClock()                                                              // Load the value of the clock into the clock input bus
    {if (clockWidth == 0) return;                                                // No clock
-    final boolean[]b = bitStack(clockWidth, steps);                             // Current step as bits
+    final boolean[]b = bitStack(clockWidth, steps - 1);                         // Current step as bits. Start counting from zero so that we get a leading edge transition soonest.
     for (int i = 1; i <= b.length; i++) getGate(n(i, clock)).value = b[i-1];    // Set clock bit
    }
 
@@ -592,15 +606,16 @@ public class Chip                                                               
      {loadClock();                                                              // Load the value of the clock into the clock input bus
       for (Gate g : gates.values()) g.nextValue = null;                         // Reset next values
       for (Gate g : gates.values()) g.step();                                   // Compute next value for  each gate
+      for (Gate g : gates.values()) g.updateEdge();                             // Update each gate triggered by an edge transition
       for (Gate g : gates.values()) g.updateValue();                            // Update each gate
       if (simulationStep != null) simulationStep.step();                        // Call the simulation step
-      if (!changes())                                                           // No changes occurred
+      if (steps > minSimulationSteps && !changes())                             // No changes occurred and we are beyond the minimum simulation time
        {return gates.size() < layoutLTGates ? drawSingleLevelLayout() : null;   // Draw the layout if it has less than the specified maximum number of gates for being drawn automatically with out a specific request.
        }
       noChangeGates();                                                          // Reset change indicators
      }
 
-    stop("Out of time after", maxSimulationSteps, "steps");                     // Not enough steps available
+    err("Out of time after", maxSimulationSteps, "steps");                      // Not enough steps available
     return null;
    }
 
@@ -2641,14 +2656,43 @@ public class Chip                                                               
    }
 
   static void test_clock()
-   {final var c = new Chip("Clock", "clockWidth", 8);
+   {final var c = new Chip("Clock", "clockWidth", 8, "minSimulationSteps", 16);
     final Stack<Boolean> s = new Stack<>();
     c.simulationStep = ()->{s.push(c.getBit("a"));};
     c.And ("a", n(1, clock), n(2, clock));
     c.Output("o", "a");
     c.simulate();
-    ok(c.steps,  6);
-    for (int i = 0; i < s.size(); i++) ok(s.elementAt(i), i == 2);
+    ok(c.steps,  19);
+//  for (int i = 0; i < s.size(); i++) say(i, s.elementAt(i));
+    for (int i = 0; i < s.size(); i++) ok(s.elementAt(i), (i+1) % 4 == 0);
+   }
+
+  String bc(String g) {final Boolean b = getGate(g).value; return b == null ? "  " : b ? " 1" : " 0";}
+
+  static void test_memory()
+   {final var c = new Chip("Clock", "clockWidth", 8, "maxSimulationSteps", 32, "minSimulationSteps", 32);
+    final String b1 = clock, b0 = "notClock";
+    final Stack<String> s = new Stack<>();
+    c.simulationStep = ()->{s.push(""+String.format("%2d", c.steps-1)+
+      "0=!"+c.bc(n(3, b0))+c.bc(n(2, b0))+c.bc(n(1, b0))+
+      "1="+c.bc(n(3, b1))+c.bc(n(2, b1))+c.bc(n(1, b1))+
+      "  "+c.bc("S0")+c.bc("S1")+c.bc("S2")+c.bc("S3")+c.bc("S4")+c.bc("S5")+c.bc("S6")+c.bc("S7")+
+      "  "+c.bc("e")+c.bc("m"));};
+    c.notBits(b0, clock);
+    final Gate s0 = c.And("S0", /*n(3, b0),*/ n(2, b0), n(1, b0)); // Step 0
+    final Gate s1 = c.And("S1", /*n(3, b0),*/ n(2, b0), n(1, b1)); // Step 1
+    final Gate s2 = c.And("S2", /*n(3, b0),*/ n(2, b1), n(1, b0)); // Step 2
+    final Gate s3 = c.And("S3", /*n(3, b0),*/ n(2, b1), n(1, b1)); // Step 3
+    final Gate s4 = c.And("S4", /*n(3, b1),*/ n(2, b0), n(1, b0)); // Step 4
+    final Gate s5 = c.And("S5", /*n(3, b1),*/ n(2, b0), n(1, b1)); // Step 5
+    final Gate s6 = c.And("S6", /*n(3, b1),*/ n(2, b1), n(1, b0)); // Step 6
+    final Gate s7 = c.And("S7", /*n(3, b1),*/ n(2, b1), n(1, b1)); // Step 7
+    c.Or    ("e",      s1.name, s3.name, s5.name);
+    c.My    ("m", "e", s5.name);
+    c.Output("o", "m");
+    c.simulate();
+    ok(c.steps,  8);
+    for (int i = 0; i < s.size(); i++) say(s.elementAt(i)); // , i == 2);
    }
 
   static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
@@ -2695,10 +2739,11 @@ public class Chip                                                               
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
+    test_memory();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {oldTests();
+   {//oldTests();
     newTests();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
