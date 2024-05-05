@@ -2816,12 +2816,11 @@ public class Chip                                                               
    }
 
   static void newTests()                                                        // Tests being worked on
-   {test_pulse();
-    if (github_actions) return;
+   {if (github_actions) return;
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {//oldTests();
+   {oldTests();
     newTests();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
