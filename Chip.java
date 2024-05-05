@@ -16,12 +16,13 @@ public class Chip                                                               
     "true".equals(System.getenv("GITHUB_ACTIONS"));
 
   final String                   name;                                          // Name of chip
-  final int    singleLevelLayoutLimit;                                          // Limit on gate scaling dimensions during layout.
-  final int        maxSimulationSteps;                                          // Maximum simulation steps
-  final int        minSimulationSteps;                                          // Minimum simulation steps - we keep ggoing at least this long even if there have been no changes to allow clocked circuits to evolve.
   final int                clockWidth;                                          // Number of bits in system clock. Zero implies no clock.
 
-  final int             layoutLTGates = 100;                                    // Always draw the layout if it has less than this many gates in it
+  int                   layoutLTGates = 100;                                    // Always draw the layout if it has less than this many gates in it
+  int              maxSimulationSteps = github_actions ? 1000 : 100;            // Maximum simulation steps
+  int              minSimulationSteps =   0;                                     // Minimum simulation steps - we keep ggoing at least this long even if there have been no changes to allow clocked circuits to evolve.
+  int          singleLevelLayoutLimit =  16;                                    // Limit on gate scaling dimensions during layout.
+
   final static boolean    makeSayStop = false;                                  // Turn say into stop if true which is occasionally useful for locating unlabeled say statements.
   final static int      pixelsPerCell =   4;                                    // Pixels per cell
   final static int     layersPerLevel =   4;                                    // There are 4 layers in each level: insulation, x cross bars, x-y connectors and insulation, y cross bars
@@ -54,22 +55,24 @@ public class Chip                                                               
   Stack<Connection>        connections;                                         // Pairs of gates to be connected
   Diagram                      diagram;                                         // Diagram specifying the layout of the chip
 
-  Chip(String Name, Object...keyWords)                                          // Create a new L<chip>.
+  Chip(String Name)                                                             // Create a new L<chip>.
+   {this(Name, 0);                                                              // Name of chip
+   }
+
+  Chip(String Name, int ClockWidth)                                             // Create a new L<chip>.
    {name = Name;                                                                // Name of chip
-    final KeyWords p = new KeyWords(keyWords,                                   // Optional keywords
-      "clockWidth maxSimulationSteps minSimulationSteps singleLevelLayoutLimit");
-
-                clockWidth = (int)p.get(1,  0);                                 // Number of bits in system clock. Zero implies no clock.
-        maxSimulationSteps = (int)p.get(2, github_actions ? 1000 : 100);        // Maximum simulation steps
-        minSimulationSteps = (int)p.get(3,  0);                                 // Minimum simulation steps
-    singleLevelLayoutLimit = (int)p.get(4, 16);                                 // Limit on gate scaling dimensions during layout.
-
+    clockWidth = ClockWidth;                                                    // Clock width
     if (clockWidth > 0)                                                         // Create the system clock
      {inputBits(clock0, clockWidth);
       inputBits(clock1, clockWidth);
      }
     for (Gate g : gates.values()) g.systemGate = true;                          // Mark all gates produced so far as system gates
    }
+
+  int          layoutLTGates(int          LayoutLTGates) {return          layoutLTGates =          LayoutLTGates;}  // Always draw the layout if it has less than this many gates in it
+  int     maxSimulationSteps(int     MaxSimulationSteps) {return     maxSimulationSteps =     MaxSimulationSteps;}  // Maximum simulation steps
+  int     minSimulationSteps(int     MinSimulationSteps) {return     minSimulationSteps =     MinSimulationSteps;}  // Minimum simulation steps
+  int singleLevelLayoutLimit(int SingleLevelLayoutLimit) {return singleLevelLayoutLimit = SingleLevelLayoutLimit;}  // Limit on gate scaling dimensions during layout.
 
   enum Operator                                                                 // Gate operations
    {And, Continue, FanOut, Gt, Input, Lt, My, Nand, Ngt, Nlt, Nor, Not, Nxor,
@@ -2665,7 +2668,8 @@ public class Chip                                                               
    }
 
   static void test_clock()
-   {final var c = new Chip("Clock", "clockWidth", 8, "minSimulationSteps", 16);
+   {final var c = new Chip("Clock", 8);
+    c.minSimulationSteps(16);
     final Stack<Boolean> s = new Stack<>();
     c.simulationStep = ()->{s.push(c.getBit("a"));};
     c.And ("a", n(1, clock0), n(2, clock0));
@@ -2679,24 +2683,27 @@ public class Chip                                                               
   String bc(String g) {final Boolean b = getGate(g).value; return b == null ? "  " : b ? " 1" : " 0";}
 
   static void test_memory()
-   {final var c = new Chip("Clock", "clockWidth", 8, "maxSimulationSteps", 32, "minSimulationSteps", 32);
+   {final var c = new Chip("Clock", 8);
+    c.maxSimulationSteps(32);
+    c.minSimulationSteps(32);
     final String b0 = clock0, b1 = clock1;
     final Stack<String> s = new Stack<>();
     c.simulationStep = ()->
-     {s.push(""+String.format("%2d", c.steps-1)+
+     {say(c);
+      s.push(""+String.format("%2d", c.steps-1)+
       "  b0= "+c.bc(n(3, b0))+c.bc(n(2, b0))+c.bc(n(1, b0))+
       "  b1= "+c.bc(n(3, b1))+c.bc(n(2, b1))+c.bc(n(1, b1))+
       "      "+c.bc("S7")+c.bc("S6")+c.bc("S5")+c.bc("S4")+c.bc("S3")+c.bc("S2")+c.bc("S1")+c.bc("S0"));
      };
 
-    final Gate s0 = c.And("S0", n(3, b0), n(2, b0), n(1, b0)); // Step 0
-    final Gate s1 = c.And("S1", n(3, b0), n(2, b0), n(1, b1)); // Step 1
-    final Gate s2 = c.And("S2", n(3, b0), n(2, b1), n(1, b0)); // Step 2
-    final Gate s3 = c.And("S3", n(3, b0), n(2, b1), n(1, b1)); // Step 3
-    final Gate s4 = c.And("S4", n(3, b1), n(2, b0), n(1, b0)); // Step 4
-    final Gate s5 = c.And("S5", n(3, b1), n(2, b0), n(1, b1)); // Step 5
-    final Gate s6 = c.And("S6", n(3, b1), n(2, b1), n(1, b0)); // Step 6
-    final Gate s7 = c.And("S7", n(3, b1), n(2, b1), n(1, b1)); // Step 7
+    final Gate s0 = c.And("S0", n(3, b1), n(2, b1), n(1, b1)); // Step 0
+    final Gate s1 = c.And("S1", n(3, b1), n(2, b1), n(1, b0)); // Step 1
+    final Gate s2 = c.And("S2", n(3, b1), n(2, b0), n(1, b1)); // Step 2
+    final Gate s3 = c.And("S3", n(3, b1), n(2, b0), n(1, b0)); // Step 3
+    final Gate s4 = c.And("S4", n(3, b0), n(2, b1), n(1, b1)); // Step 4
+    final Gate s5 = c.And("S5", n(3, b0), n(2, b1), n(1, b0)); // Step 5
+    final Gate s6 = c.And("S6", n(3, b0), n(2, b0), n(1, b1)); // Step 6
+    final Gate s7 = c.And("S7", n(3, b0), n(2, b0), n(1, b0)); // Step 7
     c.Or    ("e",      s1.name, s3.name, s5.name);
     c.My    ("m", "e", s5.name);
     c.Output("o", "m");
@@ -2753,8 +2760,8 @@ public class Chip                                                               
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {//oldTests();
-    newTests();
+   {oldTests();
+    //newTests();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
     else say("Passed "+testsPassed+",    FAILed:", testsFailed, "tests.");
