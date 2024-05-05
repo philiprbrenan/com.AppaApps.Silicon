@@ -1400,8 +1400,6 @@ public class Chip                                                               
      {if (levels() < D.levels()) return true;                                   // Fewer levels
       final double s = min(  width,   height) / max(  width,   height);
       final double S = min(D.width, D.height) / max(D.width, D.height);
-say("AAAA", chip().name,     gsx,   gsy, s);
-say("BBBB", D.chip().name, D.gsx, D.gsy, S);
       return s > S;                                                             // Closer to square
      }
 
@@ -2035,10 +2033,14 @@ say("BBBB", D.chip().name, D.gsx, D.gsy, S);
     final Gate  i2 = c.Input ("i2");
     final Gate and = c.And   ("and", "i1", "i2");
     final Gate   o = c.Output("o", "and");
+
     final Inputs inputs = c.new Inputs();
     inputs.set("i1", true);
     inputs.set("i2", false);
     c.simulate(inputs);
+
+    c.drawSingleLevelLayout();
+
     ok( i1.value, true);
     ok( i2.value, false);
     ok(and.value, false);
@@ -2693,11 +2695,10 @@ say("BBBB", D.chip().name, D.gsx, D.gsy, S);
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
-    test_and();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {//oldTests();
+   {oldTests();
     newTests();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
