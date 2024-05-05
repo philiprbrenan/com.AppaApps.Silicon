@@ -25,7 +25,8 @@ public class Chip                                                               
   final static boolean    makeSayStop = false;                                  // Turn say into stop if true which is occasionally useful for locating unlabeled say statements.
   final static int      pixelsPerCell =   4;                                    // Pixels per cell
   final static int     layersPerLevel =   4;                                    // There are 4 layers in each level: insulation, x cross bars, x-y connectors and insulation, y cross bars
-  final static String           clock = "Clock";                                // Clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
+  final static String          clock0 = "Clock0";                               // Negative clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
+  final static String          clock1 = "Clock1";                               // Positive clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
   final static String      perlFolder = "perl", perlFile = "gds2.pl";           // Folder and file for Perl code to represent a layout in GDS2.
   final static Stack<String>  gdsPerl = new Stack<>();                          // Perl code to create GDS2 output files
 
@@ -63,7 +64,10 @@ public class Chip                                                               
         minSimulationSteps = (int)p.get(3,  0);                                 // Minimum simulation steps
     singleLevelLayoutLimit = (int)p.get(4, 16);                                 // Limit on gate scaling dimensions during layout.
 
-    if (clockWidth > 0) inputBits(clock, clockWidth);                           // Create the system clock
+    if (clockWidth > 0)                                                         // Create the system clock
+     {inputBits(clock0, clockWidth);
+      inputBits(clock1, clockWidth);
+     }
     for (Gate g : gates.values()) g.systemGate = true;                          // Mark all gates produced so far as system gates
    }
 
@@ -110,10 +114,12 @@ public class Chip                                                               
 
   public String toString()                                                      // Convert chip to string
    {final StringBuilder b = new StringBuilder();
-    b.append("Chip: "+name+" # Gates: "+ gates.size()+
-             "  Maximum distance: " + maximumDistanceToOutput);
-    b.append("  mostCountedDistance: "            + mostCountedDistance);
-    b.append("  countAtMostCountedDistance: "     + countAtMostCountedDistance);
+    b.append("Chip: "                             + name);
+    b.append("  Step: "                           + (steps-1));
+    b.append(" # Gates: "                         + gates.size());
+    b.append("  Maximum distance: "               + maximumDistanceToOutput);
+    b.append("  MostCountedDistance: "            + mostCountedDistance);
+    b.append("  CountAtMostCountedDistance: "     + countAtMostCountedDistance);
     b.append("\n");
     b.append("Seq   Name____________________________ S  " +
      "Operator  #  11111111111111111111111111111111-P=#"+
@@ -567,7 +573,10 @@ public class Chip                                                               
   void loadClock()                                                              // Load the value of the clock into the clock input bus
    {if (clockWidth == 0) return;                                                // No clock
     final boolean[]b = bitStack(clockWidth, steps - 1);                         // Current step as bits. Start counting from zero so that we get a leading edge transition soonest.
-    for (int i = 1; i <= b.length; i++) getGate(n(i, clock)).value = b[i-1];    // Set clock bit
+    for (int i = 1; i <= b.length; i++)                                         // Set clock bits
+     {getGate(n(i, clock0)).value =  b[i-1];
+      getGate(n(i, clock1)).value = !b[i-1];
+     }
    }
 
   class Inputs                                                                  // Set values on input gates prior to simulation
@@ -2659,7 +2668,7 @@ public class Chip                                                               
    {final var c = new Chip("Clock", "clockWidth", 8, "minSimulationSteps", 16);
     final Stack<Boolean> s = new Stack<>();
     c.simulationStep = ()->{s.push(c.getBit("a"));};
-    c.And ("a", n(1, clock), n(2, clock));
+    c.And ("a", n(1, clock0), n(2, clock0));
     c.Output("o", "a");
     c.simulate();
     ok(c.steps,  19);
@@ -2671,22 +2680,23 @@ public class Chip                                                               
 
   static void test_memory()
    {final var c = new Chip("Clock", "clockWidth", 8, "maxSimulationSteps", 32, "minSimulationSteps", 32);
-    final String b1 = clock, b0 = "notClock";
+    final String b0 = clock0, b1 = clock1;
     final Stack<String> s = new Stack<>();
-    c.simulationStep = ()->{s.push(""+String.format("%2d", c.steps-1)+
-      "0=!"+c.bc(n(3, b0))+c.bc(n(2, b0))+c.bc(n(1, b0))+
-      "1="+c.bc(n(3, b1))+c.bc(n(2, b1))+c.bc(n(1, b1))+
-      "  "+c.bc("S0")+c.bc("S1")+c.bc("S2")+c.bc("S3")+c.bc("S4")+c.bc("S5")+c.bc("S6")+c.bc("S7")+
-      "  "+c.bc("e")+c.bc("m"));};
-    c.notBits(b0, clock);
-    final Gate s0 = c.And("S0", /*n(3, b0),*/ n(2, b0), n(1, b0)); // Step 0
-    final Gate s1 = c.And("S1", /*n(3, b0),*/ n(2, b0), n(1, b1)); // Step 1
-    final Gate s2 = c.And("S2", /*n(3, b0),*/ n(2, b1), n(1, b0)); // Step 2
-    final Gate s3 = c.And("S3", /*n(3, b0),*/ n(2, b1), n(1, b1)); // Step 3
-    final Gate s4 = c.And("S4", /*n(3, b1),*/ n(2, b0), n(1, b0)); // Step 4
-    final Gate s5 = c.And("S5", /*n(3, b1),*/ n(2, b0), n(1, b1)); // Step 5
-    final Gate s6 = c.And("S6", /*n(3, b1),*/ n(2, b1), n(1, b0)); // Step 6
-    final Gate s7 = c.And("S7", /*n(3, b1),*/ n(2, b1), n(1, b1)); // Step 7
+    c.simulationStep = ()->
+     {s.push(""+String.format("%2d", c.steps-1)+
+      "  b0= "+c.bc(n(3, b0))+c.bc(n(2, b0))+c.bc(n(1, b0))+
+      "  b1= "+c.bc(n(3, b1))+c.bc(n(2, b1))+c.bc(n(1, b1))+
+      "      "+c.bc("S7")+c.bc("S6")+c.bc("S5")+c.bc("S4")+c.bc("S3")+c.bc("S2")+c.bc("S1")+c.bc("S0"));
+     };
+
+    final Gate s0 = c.And("S0", n(3, b0), n(2, b0), n(1, b0)); // Step 0
+    final Gate s1 = c.And("S1", n(3, b0), n(2, b0), n(1, b1)); // Step 1
+    final Gate s2 = c.And("S2", n(3, b0), n(2, b1), n(1, b0)); // Step 2
+    final Gate s3 = c.And("S3", n(3, b0), n(2, b1), n(1, b1)); // Step 3
+    final Gate s4 = c.And("S4", n(3, b1), n(2, b0), n(1, b0)); // Step 4
+    final Gate s5 = c.And("S5", n(3, b1), n(2, b0), n(1, b1)); // Step 5
+    final Gate s6 = c.And("S6", n(3, b1), n(2, b1), n(1, b0)); // Step 6
+    final Gate s7 = c.And("S7", n(3, b1), n(2, b1), n(1, b1)); // Step 7
     c.Or    ("e",      s1.name, s3.name, s5.name);
     c.My    ("m", "e", s5.name);
     c.Output("o", "m");
