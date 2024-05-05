@@ -1,4 +1,4 @@
-# Test 2024-05-05 at 18:48:22
+# Test 2024-05-05 at 21:28:34
 
 name: Test
 run-name: and
@@ -37,7 +37,7 @@ jobs:
 
     - name: Test silicon chips
       run: |
-        java Chip.java
+        java --enable-preview --source 21  Chip.j
 
     - name: Files - after
       run: |
