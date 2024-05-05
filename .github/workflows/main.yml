@@ -1,4 +1,4 @@
-# Test 2024-05-05 at 22:24:02
+# Test 2024-05-05 at 22:59:09
 
 name: Test
 run-name: and
@@ -46,7 +46,7 @@ jobs:
 
     - run: |
         rm -f gds.zip
-        zip gds gds/
+        zip gds gds/*
         ls -lah gds.zip
         git config user.name "aaa"
         git config user.email "aaa@aaa.com"
