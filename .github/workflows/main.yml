@@ -1,4 +1,4 @@
-# Test 2024-05-05 at 21:38:54
+# Test 2024-05-05 at 21:40:51
 
 name: Test
 run-name: and
@@ -28,15 +28,14 @@ jobs:
       run:
         sudo apt install tree
 
-    - name: Files - before
-      run: |
-        tree -h
+    - name: Cpan
+      run:  sudo cpan install -T Data::Dump Data::Table::Text GDS2 Digest::SHA1
 
     - name: Test silicon chips
       run: |
         java --enable-preview --source 22  Chip.j
 
-    - name: Files - after
+    - name: Files
       run: |
         tree -h
 
