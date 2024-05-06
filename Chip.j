@@ -124,7 +124,7 @@ public class Chip                                                               
                 "  22222222222222222222222222222222-P=# "+
      " C Frst Last  Dist                           Nearest  Px__,Py__"+
      "  Drives these gates\n");
-    for (Gate g : gates.values()) b.append(g);                                  // Print each gate
+    for (Gate g : gates.values()) b.append(g.print());                          // Print each gate
 
     if (sizeBits.size() > 0)                                                    // Size of bit buses
      {b.append(""+sizeBits.size()+" Bit buses\n");
@@ -236,7 +236,7 @@ public class Chip                                                               
       boolean ok2() {return pin == null || !pin;}                               // Can drive the second pin
      }
 
-    public String toString()                                                    // Convert to string
+    String print()                                                              // Print gate
      {final char v = value == null ? '.' : value ? '1' : '0';                   // Value of gate
       final char s = systemGate ? 's' : ' ';                                    // System gate
 
@@ -263,6 +263,10 @@ public class Chip                                                               
         nearestOutput != null ? nearestOutput : "",
         px, py
         ) + drives() + "\n";
+     }
+
+    public String toString()                                                    // Convert to string
+     {return "" + (value == null ? 'x' : value ? '1' : '0');                    // Value of gate
      }
 
     void impinge(String Input)                                                  // Go to the named gate (which must therefore already exist) and show that it drives this gate on any input pin
@@ -346,7 +350,7 @@ public class Chip                                                               
       return name;
      }
 
-    void updateEdge()                                                           // Update a memory gate on a leading edge
+    void updateEdge()                                                           // Update a memory gate on a leading edge. The memory bit on pin 2 is loaded when the value on pin 1 goes from low to high.
      {if (op == Operator.My)
        {if (iGate1.value != null && !iGate1.value && iGate1.nextValue != null && iGate1.nextValue)
          {if (iGate2.value != null)
@@ -422,8 +426,6 @@ public class Chip                                                               
       drives.add(new WhichPin(f.name));                                         // The old gate drives the new gate
       f.fanOut();                                                               // The upper half gate might need further fan out
      }
-
-    char cv() {return value == null ? ' ' : value ? '1' : '0';}                 // Get the current value of the gate as a character.
    } // Gate
 
   Gate FanIn(Operator Op, String Name, String...Input)                          // Normal gate - not a fan out gate
@@ -557,7 +559,7 @@ public class Chip                                                               
      {final int i = steps % period;
       return gate.value = i > delay && i <= on+delay;                           // Set gate to current state
      }
-    char cv() {return gate.cv();}                                               // Pulse as state as a character
+    public String toString() {return ""+gate;}                                  // Pulse as state as a character
    }
 
   void loadPulses()                                                             // Load all the pulses for this chip
@@ -1048,6 +1050,38 @@ public class Chip                                                               
       Or(n(b, output), stackToStringArray(or));
      }
     setSizeBits(output, wb.bits);
+   }
+
+//D2 Registers                                                                  // Create registers
+
+  class Register                                                                // Description of a register
+   {final String output;                                                        // Name of register and corresponding output bit bus
+    final String input;                                                         // Bus from which the register is loaded
+    final String load;                                                          // Load bit: when this bit goes from low to high the register is loaded from the input bus.
+    final int width;                                                            // Width of register
+    final int loadPulseWidth;                                                   // Width of pulse needed to load the register
+
+    Register(String Output, String Input, String Load)                          // Create register
+     {final int w = sizeBits(Input);
+      output = Output; input = Input; load = Load; width = w;
+      loadPulseWidth = logTwo(w);
+      for (int i = 1; i <= w; i++) My(n(i, Output), n(i, Input), load);            // Create the memory bits
+      setSizeBits(Output, w);
+     }
+
+    public String toString()                                                    // Convert the bits on the register to a string.
+     {final StringBuilder b = new StringBuilder();
+      for (int i = 1; i <= width; i++)
+       {final Gate g = getGate(n(i, output));
+        final Boolean j = g.value;
+        b.append(j == null ? 'x' : j ? '1' : '0');
+       }
+      return b.toString();
+     }
+   }
+
+  Register register(String name, String input, String load)                     // Create a loadable register out of memory bits
+   {return new Register(name, input, load);
    }
 
 //D2 B-tree                                                                     // Circuits useful in the construction and traversal of B-trees.
@@ -2709,7 +2743,6 @@ public class Chip                                                               
     c.Output("o", "a");
     c.simulate();
     ok(c.steps,  19);
-//  for (int i = 0; i < s.size(); i++) say(i, s.elementAt(i));
     for (int i = 0; i < s.size(); i++) ok(s.elementAt(i), (i+1) % 4 == 0);
    }
 
@@ -2726,13 +2759,14 @@ public class Chip                                                               
     Gate  m  = c.   My("m", "a", "p4");
     c.Output("o", "m");
 
-    c.simulationStep = ()->{s.push(String.format("%4d  %c %c %c %c   %c %c", c.steps-1, p1.cv(), p2.cv(), p3.cv(), p4.cv(), a.cv(), m.cv()));};
+    c.simulationStep = ()->{s.push(String.format("%4d  %s %s %s %s   %s %s", c.steps-1, p1, p2, p3, p4, a, m));};
     c.simulate();
+    //stop(s(s));
     ok(STR."""
-   0  1 0 0 1
-   1  0 0 0 0   1
-   2  0 0 0 0   0
-   3  0 1 0 0   0
+   0  1 0 0 1   x x
+   1  0 0 0 0   1 x
+   2  0 0 0 0   0 x
+   3  0 1 0 0   0 x
    4  0 0 0 1   1 1
    5  0 0 1 0   1 1
    6  0 0 1 0   1 1
@@ -2770,6 +2804,66 @@ public class Chip                                                               
   38  0 0 1 0   1 1
 """, s(s));
     ok(c.steps,  39);
+   }
+
+  static void test_register()
+   {final Stack<String> s = new Stack<>();
+    final var c = new Chip("Pulse");
+    c.bits("i1", 8, 9);
+    c.bits("i2", 8, 6);
+    Pulse   pc = c.pulse("choose", 32, 16, 16);
+    Pulse   pl = c.pulse("load",    8,  1,  1);
+    c.chooseFromTwoWords("I", "i1", "i2", "choose");
+    Register r = c.register("reg",  "I", "load");
+    c.outputBits("out", "reg");
+
+    c.simulationStep = ()->{s.push(String.format("%4d  %s %s %8s", c.steps-1, pc, pl, r));};
+    c.minSimulationSteps(32);
+    c.simulate();
+    //stop(s(s));
+    ok(STR."""
+   0  0 0 xxxxxxxx
+   1  0 1 xxxxxxxx
+   2  0 0 xxxxxxxx
+   3  0 0 xxxxxxxx
+   4  0 0 xxxxxxxx
+   5  0 0 xxxxxxxx
+   6  0 0 xxxxxxxx
+   7  0 0 xxxxxxxx
+   8  0 0 xxxxxxxx
+   9  0 1 xxxxxxxx
+  10  0 0 10010000
+  11  0 0 10010000
+  12  0 0 10010000
+  13  0 0 10010000
+  14  0 0 10010000
+  15  0 0 10010000
+  16  1 0 10010000
+  17  1 1 10010000
+  18  1 0 10010000
+  19  1 0 10010000
+  20  1 0 10010000
+  21  1 0 10010000
+  22  1 0 10010000
+  23  1 0 10010000
+  24  1 0 10010000
+  25  1 1 10010000
+  26  1 0 01100000
+  27  1 0 01100000
+  28  1 0 01100000
+  29  1 0 01100000
+  30  1 0 01100000
+  31  0 0 01100000
+  32  0 0 01100000
+  33  0 1 01100000
+  34  0 0 01100000
+  35  0 0 01100000
+  36  0 0 01100000
+  37  0 0 01100000
+  38  0 0 01100000
+  39  0 0 01100000
+""", s(s));
+    ok(c.steps,  40);
    }
 
   static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
@@ -2811,12 +2905,13 @@ public class Chip                                                               
     test_chooseWordUnderMask();
     test_BtreeNode();
     test_BtreeLeafCompare();
+    test_register();
     if (github_actions) test_Btree();
-    if (!github_actions) return;
    }
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
+    test_register();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
