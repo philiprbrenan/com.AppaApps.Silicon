@@ -2970,16 +2970,16 @@ public class Chip                                                               
     test_BtreeNode();
     test_BtreeLeafCompare();
     test_register();
+    test_delay();
     if (github_actions) test_Btree();
    }
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
-    test_delay();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {//oldTests();
+   {oldTests();
     newTests();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
