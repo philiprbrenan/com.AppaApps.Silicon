@@ -20,7 +20,8 @@ public class Chip                                                               
 
   int                   layoutLTGates = 100;                                    // Always draw the layout if it has less than this many gates in it
   int              maxSimulationSteps = github_actions ? 1000 : 100;            // Maximum simulation steps
-  int              minSimulationSteps =   0;                                     // Minimum simulation steps - we keep ggoing at least this long even if there have been no changes to allow clocked circuits to evolve.
+  int              minSimulationSteps =   0;                                    // Minimum simulation steps - we keep going at least this long even if there have been no changes to allow clocked circuits to evolve.
+  Integer                   stopAfter = null;                                   // Stop cleanly on this step if set
   int          singleLevelLayoutLimit =  16;                                    // Limit on gate scaling dimensions during layout.
 
   final static boolean    makeSayStop = false;                                  // Turn say into stop if true which is occasionally useful for locating unlabeled say statements.
@@ -74,6 +75,7 @@ public class Chip                                                               
   int     maxSimulationSteps(int     MaxSimulationSteps) {return     maxSimulationSteps =     MaxSimulationSteps;}  // Maximum simulation steps
   int     minSimulationSteps(int     MinSimulationSteps) {return     minSimulationSteps =     MinSimulationSteps;}  // Minimum simulation steps
   int singleLevelLayoutLimit(int SingleLevelLayoutLimit) {return singleLevelLayoutLimit = SingleLevelLayoutLimit;}  // Limit on gate scaling dimensions during layout.
+  Integer          stopAfter(Integer StopAfter)          {return              stopAfter =              StopAfter;}  // Stop cleanly on this step if set
 
   enum Operator                                                                 // Gate operations
    {And, Continue, FanOut, Gt, Input, Lt, My, Nand, Ngt, Nlt, Nor, Not, Nxor,
@@ -98,6 +100,10 @@ public class Chip                                                               
   int gates()           {return gates.size();}                                  // Number of gates in this chip
   int nextGateNumber()  {return ++gateSeq;}                                     // Numbers for gates
   String nextGateName() {return ""+nextGateNumber();}                           // Create a numeric generated gate name
+
+  String nextGateName(String name)                                              // Create a named, numeric generated gate name
+   {return concatenateNames(name, nextGateNumber());
+   }
 
   boolean definedGate(String name)                                              // Check whether a gate has been defined yet
    {final Gate g = gates.get(name);
@@ -661,7 +667,8 @@ public class Chip                                                               
       for (Gate g : gates.values()) g.updateEdge();                             // Update each gate triggered by an edge transition
       for (Gate g : gates.values()) g.updateValue();                            // Update each gate
       if (simulationStep != null) simulationStep.step();                        // Call the simulation step
-      if (steps > minSimulationSteps && !changes())                             // No changes occurred and we are beyond the minimum simulation time
+      if ((stopAfter != null && stopAfter == steps) ||                          // Stop requested
+          (steps > minSimulationSteps && !changes()))                           // No changes occurred and we are beyond the minimum simulation time
        {return gates.size() < layoutLTGates ? drawSingleLevelLayout() : null;   // Draw the layout if it has less than the specified maximum number of gates for being drawn automatically with out a specific request.
        }
       noChangeGates();                                                          // Reset change indicators
@@ -952,7 +959,7 @@ public class Chip                                                               
     final int B = sizeBits(b);                                                  // Width of second bus
     if (A != B)                                                                 // Check buses match in size
       stop("Input",  a, "has width", A, "but input", b, "has width", B);
-    final String eq = nextGateName();                                           // Set of gates to test equality of corresponding bits
+    final String eq = nextGateName(output);                                     // Set of gates to test equality of corresponding bits
     final String[]n = new String[B];                                            // Equal bit names
     for (int i = 1; i <= B; i++) n[i-1] = n(i, eq);                             // Load array with equal bit names
     for (int i = 1; i <= B; i++) Nxor(n[i-1], n(i, a), n(i, b));                // Test each bit pair for equality
@@ -1005,7 +1012,7 @@ public class Chip                                                               
     if (A != B) stop("First input bus", a, "has width", A,
                      ", but second input bus", b, "has width", B);
 
-    final String notChoose = nextGateName();                                    // Opposite of choice
+    final String notChoose = nextGateName(output);                              // Opposite of choice
     Not(notChoose, choose);                                                     // Invert choice
 
     for (int i = 1; i <= B; i++)                                                // Each bit
@@ -1082,6 +1089,31 @@ public class Chip                                                               
 
   Register register(String name, String input, String load)                     // Create a loadable register out of memory bits
    {return new Register(name, input, load);
+   }
+
+  class Delay                                                                   // A delay achieved by placing one or more continue gates in a line
+   {final String output;                                                        // Name of delay and corresponding output bit bus
+    final String  input;                                                        // Bus from which the delay is started
+    final int    length;                                                        // Length of delay
+    final Gate lastGate;                                                        // Final gate in the delay line
+
+    Delay(String Output, String Input, int Length)                              // Create delay line
+     {output = Output; input = Input; length = Length;
+      String p = input;
+      Gate g = getGate(input);                                                  // Start at the input gate
+      for (int i = 1; i <= length; i++)                                         // All along the delay line
+       {final String q = i < length ? nextGateName(output) : output;            // Make a chain along to the end gate
+        g = Continue(q, p);
+        p = q;
+       }
+      lastGate = g;
+     }
+
+    public String toString() {return lastGate.toString();}                      // Print the delay
+   }
+
+  Delay delay(String Output, String input, int delay)                           // Create a delay chain so that one leading edge can trigger another later on as work is performed
+   {return new Delay(Output, input, delay);
    }
 
 //D2 B-tree                                                                     // Circuits useful in the construction and traversal of B-trees.
@@ -2866,6 +2898,38 @@ public class Chip                                                               
     ok(c.steps,  40);
    }
 
+  static void test_delay()
+   {final Stack<String> s = new Stack<>();
+    final var c = new Chip("Delay");
+    Pulse p = c.pulse ("pulse", 8, 4);
+    Delay d = c.delay ("load",  "pulse", 3);
+    Gate  o = c.Output("out", "load");
+
+    c.simulationStep = ()->{s.push(String.format("%4d  %s %s", c.steps-1, p, d));};
+    c.stopAfter(16);
+    c.simulate();
+
+    ok(STR."""
+   0  1 x
+   1  1 x
+   2  1 1
+   3  1 1
+   4  0 1
+   5  0 1
+   6  0 0
+   7  0 0
+   8  1 0
+   9  1 0
+  10  1 1
+  11  1 1
+  12  0 1
+  13  0 1
+  14  0 0
+  15  0 0
+""", s(s));
+    ok(c.steps,  16);
+   }
+
   static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
 
   static void ok(Object a, Object b)                                            // Check test results match expected results.
@@ -2911,11 +2975,11 @@ public class Chip                                                               
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
-    test_register();
+    test_delay();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {oldTests();
+   {//oldTests();
     newTests();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
