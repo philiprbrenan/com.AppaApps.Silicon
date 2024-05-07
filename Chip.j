@@ -544,46 +544,6 @@ public class Chip                                                               
      }
    }
 
-// Periodic Pulses                                                              // Periodic pulses that drive input buses.
-
-  class Pulse                                                                   // A periodic pulse that drives an input bit
-   {final String name;                                                          // Name of pulse - this becomes the input bit name
-    final int  period;                                                          // Length of pulses in simulations steps
-    final int      on;                                                          // How long the pulse is in the on state in each period in simulations steps
-    final int   delay;                                                          // Offset of the on phase of the pulse in simulations steps
-    final Gate   gate;                                                          // The corresponding input gate
-    Pulse(String Name, int Period, int On, int Delay)                           // Pulse definition
-     {name = Name; period = Period; on = On; delay = Delay;                     // Pulse details
-      gate = Input(name);                                                       // Input gate for pulse
-      gate.systemGate = true;                                                   // The input gate associated with this pulse. The gate will be driven by the simulator.
-      if (on    > period) stop("On", on, "is greater than period", period);
-      if (delay > period) stop("Delay", delay, "is greater than period", period);
-      if (on + delay > period) stop("On + Delay", on, "+", delay, "is greater than period", period);
-      pulses.put(name, this);                                                   // Save pulse
-     }
-    boolean setState()                                                          // Set gate to current state
-     {final int i = steps % period;
-      return gate.value = i > delay && i <= on+delay;                           // Set gate to current state
-     }
-    public String toString() {return ""+gate;}                                  // Pulse as state as a character
-   }
-
-  void loadPulses()                                                             // Load all the pulses for this chip
-   {for (Pulse p : pulses.values()) p.setState();
-   }
-
-  Pulse pulse(String Name, int Period, int On, int Delay)                       // Create a pulse
-   {return new Pulse(Name, Period, On, Delay);
-   }
-
-  Pulse pulse(String Name, int Period, int On)                                  // Create a pulse with no delay
-   {return new Pulse(Name, Period, On, 0);
-   }
-
-  Pulse pulse(String Name, int Period)                                          // Create a single step pulse with no delay
-   {return new Pulse(Name, Period, 1, 0);
-   }
-
 // Simulation                                                                   // Simulate the behavior of the chip
 
   void compileChip()                                                            // Check that an input value has been provided for every input pin on the chip.
@@ -1114,6 +1074,67 @@ public class Chip                                                               
 
   Delay delay(String Output, String input, int delay)                           // Create a delay chain so that one leading edge can trigger another later on as work is performed
    {return new Delay(Output, input, delay);
+   }
+
+//D2 Periodic Pulses                                                            // Periodic pulses that drive input buses.
+
+  class Pulse                                                                   // A periodic pulse that drives an input bit
+   {final String name;                                                          // Name of pulse - this becomes the input bit name
+    final int  period;                                                          // Length of pulses in simulations steps
+    final int      on;                                                          // How long the pulse is in the on state in each period in simulations steps
+    final int   delay;                                                          // Offset of the on phase of the pulse in simulations steps
+    final Gate   gate;                                                          // The corresponding input gate
+    Pulse(String Name, int Period, int On, int Delay)                           // Pulse definition
+     {name = Name; period = Period; on = On; delay = Delay;                     // Pulse details
+      gate = Input(name);                                                       // Input gate for pulse
+      gate.systemGate = true;                                                   // The input gate associated with this pulse. The gate will be driven by the simulator.
+      if (on    > period) stop("On", on, "is greater than period", period);
+      if (delay > period) stop("Delay", delay, "is greater than period", period);
+      if (on + delay > period) stop("On + Delay", on, "+", delay, "is greater than period", period);
+      pulses.put(name, this);                                                   // Save pulse
+     }
+    boolean setState()                                                          // Set gate to current state
+     {final int i = steps % period;
+      return gate.value = i > delay && i <= on+delay;                           // Set gate to current state
+     }
+    public String toString() {return ""+gate;}                                  // Pulse as state as a character
+   }
+
+  void loadPulses()                                                             // Load all the pulses for this chip
+   {for (Pulse p : pulses.values()) p.setState();
+   }
+
+  Pulse pulse(String Name, int Period, int On, int Delay)                       // Create a pulse
+   {return new Pulse(Name, Period, On, Delay);
+   }
+
+  Pulse pulse(String Name, int Period, int On)                                  // Create a pulse with no delay
+   {return new Pulse(Name, Period, On, 0);
+   }
+
+  Pulse pulse(String Name, int Period)                                          // Create a single step pulse with no delay
+   {return new Pulse(Name, Period, 1, 0);
+   }
+
+//D3 Select                                                                     // Send a pulse one way or another depending on a bit allowing us to execute one branch of an if statement or the other and receive a pulse notifying us when the execution of the different length paths are complete.
+
+  class Select                                                                  // Select a direction for a pulse from two possibilities depending on the setting of a bit. The pulse is transmitted along the selecetd path for as long as the control bit is true, thereafter both paths revert to false.
+   {final String    name;                                                       // Name of decision. The output along the first path selected when the control bot is true has "_then" appended to it, the other "_else";
+    final Gate      Then;                                                       // The output along the then path
+    final Gate      Else;                                                       // The output along the else path
+    final String control;                                                       // The control bit
+    final String   pulse;                                                       // The pulse that determines when the selection is made.
+    Select(String Name, String Control, String Pulse)                           // Define the selection
+     {name = Name; control = Control; pulse = Pulse;                            // Selection details
+      Gate c = Continue(nextGateName(name), control);                           // Match the length of the else path
+      Then   = And     (nextGateName(name), c.name, pulse);                     // Then path
+      Gate n = Not     (nextGateName(name), control);                           // Not of control
+      Else   = And     (nextGateName(name), n.name, pulse);                     // Else path
+     }
+   }
+
+  Select select(String Name, String Control, String Pulse)                      // Create a select element
+   {return new Select(Name, Control, Pulse);                                    // Define the selection
    }
 
 //D2 B-tree                                                                     // Circuits useful in the construction and traversal of B-trees.
@@ -2903,7 +2924,7 @@ public class Chip                                                               
     final var c = new Chip("Delay");
     Pulse p = c.pulse ("pulse", 8, 4);
     Delay d = c.delay ("load",  "pulse", 3);
-    Gate  o = c.Output("out", "load");
+    Gate  o = c.Output("out",   "load");
 
     c.simulationStep = ()->{s.push(String.format("%4d  %s %s", c.steps-1, p, d));};
     c.stopAfter(16);
@@ -2930,11 +2951,65 @@ public class Chip                                                               
     ok(c.steps,  16);
    }
 
+  static void test_select()
+   {final Stack<String> s = new Stack<>();
+    Chip   c = new Chip("Select");
+    Pulse  C = c.pulse("choose", 4, 2);
+    Pulse  P = c.pulse("pulse",  5, 3);
+    Select S = c.select("choice", "choose", "pulse");
+    Delay  d = c.delay("d", S.Then.name, 3);
+    Delay  e = c.delay("e", S.Else.name, 3);
+    c.Output("od", "d");
+    c.Output("oe", "e");
+    c.simulationStep = ()->{s.push(String.format("%4d  %s %s   %s %s", c.steps-1, C, P, d, e));};
+    c.stopAfter(32);
+    c.simulate();
+//    C P   d e    P emits 3 ones then two zeroes and these are visible in the d and e columns being switched by
+    ok(STR."""
+   0  1 1   x x
+   1  1 1   x x
+   2  0 1   x x
+   3  0 0   x x
+   4  1 0   1 0
+   5  1 1   1 0
+   6  0 1   0 0
+   7  0 1   0 0
+   8  1 0   1 0
+   9  1 0   1 0
+  10  0 1   0 1
+  11  0 1   0 0
+  12  1 1   0 0
+  13  1 0   1 0
+  14  0 0   0 1
+  15  0 1   0 1
+  16  1 1   0 0
+  17  1 1   0 0
+  18  0 0   0 1
+  19  0 0   0 1
+  20  1 1   1 0
+  21  1 1   0 0
+  22  0 1   0 0
+  23  0 0   0 1
+  24  1 0   1 0
+  25  1 1   1 0
+  26  0 1   0 0
+  27  0 1   0 0
+  28  1 0   1 0
+  29  1 0   1 0
+  30  0 1   0 1
+  31  0 1   0 0
+""", s(s));
+    ok(c.steps, 32);
+   }
+
   static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
 
   static void ok(Object a, Object b)                                            // Check test results match expected results.
-   {if (a.equals(b)) ++testsPassed;
-    else {testsFailed++; err(a, "does not equal", b);}
+   {if (a.equals(b)) {++testsPassed; return;}
+    final boolean n = b.toString().contains("\n");
+    testsFailed++;
+    if (n) err("Test failed. Got:\n"+b+"\n");
+    else   err(a, "does not equal", b);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -2976,10 +3051,11 @@ public class Chip                                                               
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
+    test_select();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {oldTests();
+   {//oldTests();
     newTests();
     gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
     if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
