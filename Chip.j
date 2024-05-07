@@ -1116,7 +1116,7 @@ public class Chip                                                               
    {return new Pulse(Name, Period, 1, 0);
    }
 
-//D3 Select                                                                     // Send a pulse one way or another depending on a bit allowing us to execute one branch of an if statement or the other and receive a pulse notifying us when the execution of the different length paths are complete.
+//D2 Select                                                                     // Send a pulse one way or another depending on a bit allowing us to execute one branch of an if statement or the other and receive a pulse notifying us when the execution of the different length paths are complete.
 
   class Select                                                                  // Select a direction for a pulse from two possibilities depending on the setting of a bit. The pulse is transmitted along the selecetd path for as long as the control bit is true, thereafter both paths revert to false.
    {final String    name;                                                       // Name of decision. The output along the first path selected when the control bot is true has "_then" appended to it, the other "_else";
@@ -1135,6 +1135,24 @@ public class Chip                                                               
 
   Select select(String Name, String Control, String Pulse)                      // Create a select element
    {return new Select(Name, Control, Pulse);                                    // Define the selection
+   }
+
+//D2 Arithmetic 1                                                               // Arithmetic in base 1
+
+  String shiftUp(String output, String input)                                   // Shift an input bus up one place to add 1 in base 1 or multiply by two in base 2
+   {final int  b = sizeBits(input);                                             // Number of bits in input monotone mask
+    final Gate z = Zero(n(1, output));                                          // The lowest but will be zero after the shift
+    for (int i = 1; i <= b; i++) Continue(n(1+i, output), n(i, input));         // Create the remaining bits of the shifted result
+    setSizeBits(output, b+1);                                                   // Shifted result is a bus one bit wider
+    return output;
+   }
+
+  String shiftDown(String output, String input)                                 // Shift an input bus down one place to subtract 1 in base 1 or divide by two in base 2
+   {final int  b = sizeBits(input);                                             // Number of bits in input monotone mask
+    final Gate o = Output(n(1, output, "free"), n(1, input));                   // Remove the lowest bit in such away that it will not be report as failing to drive anything
+    for (int i = 2; i <= b; i++) Continue(n(i-1, output), n(i, input));         // Create the remaining bits of the shifted result
+    setSizeBits(output, b-1);                                                   // Shifted result is a bus one bit narrower
+    return output;
    }
 
 //D2 B-tree                                                                     // Circuits useful in the construction and traversal of B-trees.
@@ -2964,7 +2982,7 @@ public class Chip                                                               
     c.simulationStep = ()->{s.push(String.format("%4d  %s %s   %s %s", c.steps-1, C, P, d, e));};
     c.stopAfter(32);
     c.simulate();
-//    C P   d e    P emits 3 ones then two zeroes and these are visible in the d and e columns being switched by
+//    C P   d e    P emits 3 ones then two zeroes and these are visible in the d and e columns being switched back and forth every two steps.
     ok(STR."""
    0  1 1   x x
    1  1 1   x x
@@ -3000,6 +3018,19 @@ public class Chip                                                               
   31  0 1   0 0
 """, s(s));
     ok(c.steps, 32);
+   }
+
+  static void test_shift()
+   {final Stack<String> s = new Stack<>();
+    Chip c = new Chip("ShiftUp");
+    c.bits      ("b", 4, 3);
+    c.shiftUp   ("u", "b");
+    c.outputBits("o", "u");
+    c.shiftDown ("d", "b");
+    c.outputBits("O", "d");
+    c.simulate  ();
+    ok(c.bInt("o"), 6);
+    ok(c.bInt("O"), 1);
    }
 
   static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
@@ -3047,6 +3078,7 @@ public class Chip                                                               
     test_register();
     test_delay();
     test_select();
+    test_shift();
     if (github_actions) test_Btree();
    }
 
