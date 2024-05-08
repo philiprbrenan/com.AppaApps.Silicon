@@ -31,6 +31,7 @@ public class Chip                                                               
   final static String          clock1 = "Clock1";                               // Positive clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
   final static String      perlFolder = "perl", perlFile = "gds2.pl";           // Folder and file for Perl code to represent a layout in GDS2.
   final static Stack<String>  gdsPerl = new Stack<>();                          // Perl code to create GDS2 output files
+  final static TreeSet<String> errors = new TreeSet<>();                        // Unique error messages during the compilation of a chip
 
   final Map<String, Gate>       gates = new TreeMap<>();                        // Gates by name
   final Map<String, Integer> sizeBits = new TreeMap<>();                        // Sizes of bit buses
@@ -97,14 +98,14 @@ public class Chip                                                               
 
   boolean dyad(Operator op) {return !(zerad(op) || monad(op));}                 // Whether the gate takes two inputs or not
 
-  int gates            () {return gates.size();}                                // Number of gates in this chip
-  int nextGateNumber   () {return ++gateSeq;}                                   // Numbers for gates
-  String nextGateName  () {return ""+nextGateNumber();}                         // Create a numeric generated gate name
-  String nGn           () {return nextGateName();}                              // Create a numeric generated gate name
-  String nGn(String name) {return nextGateName(name);}                          // Create a numeric generated gate name
+  int gates              () {return gates.size();}                              // Number of gates in this chip
+  int nextGateNumber     () {return ++gateSeq;}                                 // Numbers for gates
+  String nextGateName    () {return ""+nextGateNumber();}                       // Create a numeric generated gate name
+  String nGn             () {return nextGateName();}                            // Create a numeric generated gate name
+  String nGn(String...name) {return nextGateName(name);}                        // Create a numeric generated gate name
 
-  String nextGateName(String name)                                              // Create a named, numeric generated gate name
-   {return concatenateNames(name, nextGateNumber());
+  String nextGateName(String...name)                                            // Create a named, numeric generated gate name
+   {return concatenateNames(concatenateNames((Object[])name), nextGateNumber());
    }
 
   boolean definedGate(String name)                                              // Check whether a gate has been defined yet
@@ -284,7 +285,7 @@ public class Chip                                                               
        }
       else                                                                      // The source gates have not been defined yet so add the impinging definitions to pending
        {TreeSet<WhichPin>  d = pending.get(Input);
-        if (d == null)    {d = new TreeSet<>(); pending.put(Input, d);}
+        if (d == null)    {d = new TreeSet<>(); pending.put(Input, d); if (Input.equals("x"))  stop("BBBB", Input);}
         d.add(new WhichPin(name));
        }
      }
@@ -305,7 +306,7 @@ public class Chip                                                               
      {final Gate d = getGate(driving);                                          // Driving gate
       if (d == null) stop("Invalid gate name:", driving);                       // No driving gate
       if (d.drives.size() == 0)
-       {err("Gate name:", driving, "is referenced as driving gate:", name,
+       {stop("Gate name:", driving, "is referenced as driving gate:", name,
             "but does not drive it");
         return false;
        }
@@ -325,7 +326,8 @@ public class Chip                                                               
 
       if (N == 0 && !systemGate)                                                // Check for user defined gates that do not drive any other gate
        {if (op == Operator.Output) return;
-        err("Gate", name, "does not drive any gate");
+        say(Chip.this);
+        stop("Gate", name, "does not drive any gate");
         return;
        }
 
@@ -496,6 +498,8 @@ public class Chip                                                               
   Gate Or       (String n, Stack<String> i)    {return FanIn(Operator.Or,   n, stackToStringArray(i));}
   Gate Nor      (String n, Stack<String> i)    {return FanIn(Operator.Nor,  n, stackToStringArray(i));}
 
+  void anneal(String...inputs) {for (String i: inputs) Output(nGn(), i);}       // Throw away a bit by annealing it to a bogus output gate
+
   class WordBus                                                                 // Description of a word bus
    {final int bits;                                                             // Bits in each word of the bus
     final int words;                                                            // Words in bus
@@ -554,10 +558,19 @@ public class Chip                                                               
 
 // Simulation                                                                   // Simulate the behavior of the chip
 
+  void printErrors()                                                            // Print any errors and stop if thre are any
+   {if (errors.size() > 0)                                                      // Print any recorded errors and stop.
+     {say(errors.size(), "errors during compilation of chip:");
+      for (String s : errors) say(s);
+      stop("Stopping because of chip compile errors");
+     }
+   }
+
   void compileChip()                                                            // Check that an input value has been provided for every input pin on the chip.
    {final Gate[]G = gates.values().toArray(new Gate[0]);
     for (Gate g : G) g.fanOut();                                                // Fan the output of each gate if necessary which might introduce more gates
     for (Gate g : gates.values()) g.compileGate();                              // Each gate on chip
+    printErrors();
     distanceToOutput();                                                         // Output gates
    }
 
@@ -813,7 +826,7 @@ public class Chip                                                               
      {final String n = n(i, output);                                            // Name of gate supporting named bit
       final Gate g = getGate(n);                                                // Gate providing bit
       if (g == null)
-       {err("No such gate as:", n);
+       {stop("No such gate as:", n);
         return null;
        }
       if (g.value == null) return null;                                         // Bit state not known
@@ -1211,48 +1224,45 @@ public class Chip                                                               
 //D2 Arithmetic Base 2                                                          // Arithmetic in base 2
 
   String binaryAdd(String output, String input1, String input2)                 // Add two bit buses of teh same size to make a bit bus one bit wider
-   {final int    b = sizeBits(input1);                                          // Number of bits in input monotone mask
-    final int    B = sizeBits(input2);                                          // Number of bits in input monotone mask
+   {final int b = sizeBits(input1);                                             // Number of bits in input monotone mask
+    final int B = sizeBits(input2);                                             // Number of bits in input monotone mask
     if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
-    final String c = nextGateName(output);                                      // Carry bits
-    final String C = notBits(nGn(output), c);                                   // Not of carry bits
-    final String n = notBits(nGn(output), input1);                              // Not of input 1
-    final String N = notBits(nGn(output), input2);                              // Not of input 2
-    Xor(n(1, output), n(1, input1), n(2, input2));                              // Low order bit has no carry in
-    And(n(1, c),      n(1, input1), n(2, input2));                              // Low order bit carry out
+    final String c = nextGateName(output, "carry");                             // Carry bits
+    setSizeBits(c, b);                                                          // Size of carry bus
+    final String C = notBits(nGn(output,  "not_carry"), c);                     // Not of carry bits
+    setSizeBits(C, b);                                                          // Size of not of carry bus
+    final String n = notBits(nGn(output,  "not_in1"), input1);                  // Not of input 1
+    setSizeBits(n, b);                                                          // Size of not of input1 bus
+    final String N = notBits(nGn(output,  "not_in2"), input2);                  // Not of input 2
+    setSizeBits(N, b);                                                          // Size of not of input2 bus
+    Xor(n(1, output), n(1, input1), n(1, input2));                              // Low order bit has no carry in
+    And(n(1, c),      n(1, input1), n(1, input2));                              // Low order bit carry out
+    anneal(n(1, C), n(1, n), n(1, N), n(b, C));                                 // These bits are not needed, byt get defined, so we anneal them off to prevent error messages
 // #  c 1 2  R C
-// 0  0 0 0  0 0
-// 1  0 0 1  1 0
-// 2  0 1 0  1 0
-// 3  0 1 1  0 1
-// 4  1 0 0  1 0
-// 5  1 0 1  0 1
-// 6  1 1 0  0 1
-// 7  1 1 1  1 1
+// 1  0 0 0  0 0
+// 2  0 0 1  1 0
+// 3  0 1 0  1 0
+// 4  0 1 1  0 1
+// 5  1 0 0  1 0
+// 6  1 0 1  0 1
+// 7  1 1 0  0 1
+// 8  1 1 1  1 1
     final String r = output;                                                    // Result bit bus name
     final String i = input1;                                                    // Input 1
     final String I = input2;                                                    // Input 2
     for (int j = 2; j <= b; j++)                                                // Create the remaining bits of the shifted result
      {final Stack<String>rs = new Stack<>();                                    // Result
       final Stack<String>cs = new Stack<>();                                    // Carry
-      Gate r1 = Nand(nGn(output), n(j-1, C), n(j, N), n(j, N)); rs.push(""+r1);
-      Gate r2 =  And(nGn(output), n(j-1, C), n(j, N), n(j, n)); rs.push(""+r2);
-      Gate r3 =  And(nGn(output), n(j-1, C), n(j, N), n(j, N)); rs.push(""+r3);
-      Gate r4 = Nand(nGn(output), n(j-1, C), n(j, N), n(j, n)); rs.push(""+r4);
-      Gate r5 =  And(nGn(output), n(j-1, c), n(j, n), n(j, N)); rs.push(""+r5);
-      Gate r6 = Nand(nGn(output), n(j-1, c), n(j, n), n(j, n)); rs.push(""+r6);
-      Gate r7 = Nand(nGn(output), n(j-1, c), n(j, n), n(j, N)); rs.push(""+r7);
-      Gate r8 =  And(nGn(output), n(j-1, c), n(j, n), n(j, n)); rs.push(""+r8);
+      Gate r2 =  And(nGn(output), n(j-1, C), n(j, n), n(j, I)); rs.push(r2.name);
+      Gate r3 =  And(nGn(output), n(j-1, C), n(j, i), n(j, N)); rs.push(r3.name);
+      Gate r5 =  And(nGn(output), n(j-1, c), n(j, n), n(j, N)); rs.push(r5.name);
+      Gate r8 =  And(nGn(output), n(j-1, c), n(j, i), n(j, I)); rs.push(r8.name);
       Or(n(j, r), rs);
 
-      Gate c1 = Nand(nGn(output), n(j-1, C), n(j, N), n(j, N)); cs.push(""+c1);
-      Gate c2 = Nand(nGn(output), n(j-1, C), n(j, N), n(j, n)); cs.push(""+c2);
-      Gate c3 = Nand(nGn(output), n(j-1, C), n(j, N), n(j, N)); cs.push(""+c3);
-      Gate c4 =  And(nGn(output), n(j-1, C), n(j, N), n(j, n)); cs.push(""+c4);
-      Gate c5 = Nand(nGn(output), n(j-1, c), n(j, n), n(j, N)); cs.push(""+c5);
-      Gate c6 =  And(nGn(output), n(j-1, c), n(j, n), n(j, n)); cs.push(""+c6);
-      Gate c7 =  And(nGn(output), n(j-1, c), n(j, n), n(j, N)); cs.push(""+c7);
-      Gate c8 =  And(nGn(output), n(j-1, c), n(j, n), n(j, n)); cs.push(""+c8);
+      Gate c4 =  And(nGn(output), n(j-1, C), n(j, i), n(j, I)); cs.push(c4.name);
+      Gate c6 =  And(nGn(output), n(j-1, c), n(j, n), n(j, I)); cs.push(c6.name);
+      Gate c7 =  And(nGn(output), n(j-1, c), n(j, i), n(j, N)); cs.push(c7.name);
+      Gate c8 =  And(nGn(output), n(j-1, c), n(j, i), n(j, I)); cs.push(c8.name);
       Or(n(j, c), cs);
      }
 
@@ -3138,6 +3148,24 @@ public class Chip                                                               
     ok(c.bInt("O"), 1);
    }
 
+  static void test_binaryAdd()
+   {final Stack<String> s = new Stack<>();
+    for     (int B = 1; B <= (github_actions ? 4 : 3); B++)
+     {final  int B2 = powerTwo(B);
+      for   (int i = 0; i < B2; i++)
+       {for (int j = 0; j < B2; j++)
+         {Chip c = new Chip("Binary Add");
+          c.bits("i", B, i);
+          c.bits("j", B, j);
+          c.binaryAdd ("ij", "i", "j");
+          c.outputBits("o", "ij");
+          c.simulate();
+          ok(c.bInt("o"), i+j);
+         }
+       }
+     }
+   }
+
   static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
 
   static void ok(Object a, Object b)                                            // Check test results match expected results.
@@ -3149,7 +3177,8 @@ public class Chip                                                               
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
-   {test_max_min();
+   {if (!github_actions) return;
+    test_max_min();
     test_and2Bits();
     test_and();
     test_and_grouping();
@@ -3184,11 +3213,13 @@ public class Chip                                                               
     test_delay();
     test_select();
     test_shift();
+    test_binaryAdd();
     if (github_actions) test_Btree();
    }
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
+    test_binaryAdd();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
