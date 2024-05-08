@@ -97,9 +97,11 @@ public class Chip                                                               
 
   boolean dyad(Operator op) {return !(zerad(op) || monad(op));}                 // Whether the gate takes two inputs or not
 
-  int gates()           {return gates.size();}                                  // Number of gates in this chip
-  int nextGateNumber()  {return ++gateSeq;}                                     // Numbers for gates
-  String nextGateName() {return ""+nextGateNumber();}                           // Create a numeric generated gate name
+  int gates            () {return gates.size();}                                // Number of gates in this chip
+  int nextGateNumber   () {return ++gateSeq;}                                   // Numbers for gates
+  String nextGateName  () {return ""+nextGateNumber();}                         // Create a numeric generated gate name
+  String nGn           () {return nextGateName();}                              // Create a numeric generated gate name
+  String nGn(String name) {return nextGateName(name);}                          // Create a numeric generated gate name
 
   String nextGateName(String name)                                              // Create a named, numeric generated gate name
    {return concatenateNames(name, nextGateNumber());
@@ -489,6 +491,11 @@ public class Chip                                                               
   Gate Or       (String n, String...i)         {return FanIn(Operator.Or,   n, i);}
   Gate Nor      (String n, String...i)         {return FanIn(Operator.Nor,  n, i);}
 
+  Gate And      (String n, Stack<String> i)    {return FanIn(Operator.And,  n, stackToStringArray(i));}
+  Gate Nand     (String n, Stack<String> i)    {return FanIn(Operator.Nand, n, stackToStringArray(i));}
+  Gate Or       (String n, Stack<String> i)    {return FanIn(Operator.Or,   n, stackToStringArray(i));}
+  Gate Nor      (String n, Stack<String> i)    {return FanIn(Operator.Nor,  n, stackToStringArray(i));}
+
   class WordBus                                                                 // Description of a word bus
    {final int bits;                                                             // Bits in each word of the bus
     final int words;                                                            // Words in bus
@@ -724,13 +731,13 @@ public class Chip                                                               
     return And(name, b);                                                        // And all the bits in the bus
    }
 
-  String andBits(String name, String input1, String input2)                     // B<And> two same sized bit buses together to make another bit bus of the same size
-   {final int b1 = sizeBits(input1);                                            // Number of bits in input bus
-    final int b2 = sizeBits(input2);                                            // Number of bits in input bus
-    if (b1 != b2) stop("Buses have different sizes", b1, b2);
-    for (int i = 1; i <= b1; ++i) And(n(i, name), n(i, input1), n(i, input2));  // And the two buses
-    sizeBits.put(name, b1);
-    return name;
+  String andBits(String output, String input1, String input2)                   // B<And> two equal size bit buses together to make an equal sized bit bus
+   {final int b = sizeBits(input1);                                             // Number of bits in input bus
+    final int c = sizeBits(input2);                                             // Number of bits in input bus
+    if (b != c) stop("Both buses must have the same size to be anded together, got:", b, c);
+    for (int i = 1; i <= b; ++i) And(n(i, output), n(i, input1), n(i, input2)); // And each pair of bits
+    setSizeBits(output, b);                                                     // Size of resulting bus
+    return output;                                                              // Bus name
    }
 
   Gate nandBits(String name, String input)                                      // B<Nand> all the bits in a bus to get one bit
@@ -740,6 +747,15 @@ public class Chip                                                               
     return Nand(name, b);                                                       // Nand all the bits in the bus
    }
 
+  String nandBits(String output, String input1, String input2)                  // B<Nand> two equal size bit buses together to make an equal sized bit bus
+   {final int b = sizeBits(input1);                                             // Number of bits in input bus
+    final int c = sizeBits(input2);                                             // Number of bits in input bus
+    if (b != c) stop("Both buses must have the same size to be nanded together, got:", b, c);
+    for (int i = 1; i <= b; ++i) Nand(n(i, output), n(i, input1), n(i, input2));// Nand each pair of bits
+    setSizeBits(output, b);                                                     // Size of resulting bus
+    return output;                                                              // Bus name
+   }
+
   Gate orBits(String name, String input)                                        // B<Or> all the bits in a bus to get one bit
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
@@ -747,11 +763,47 @@ public class Chip                                                               
     return Or(name, b);                                                         // Or all the bits in the bus
    }
 
+  String orBits(String output, String input1, String input2)                    // B<Or> two equal size bit buses together to make an equal sized bit bus
+   {final int b = sizeBits(input1);                                             // Number of bits in input bus
+    final int c = sizeBits(input2);                                             // Number of bits in input bus
+    if (b != c) stop("Both buses must have the same size to be anded together, got:", b, c);
+    for (int i = 1; i <= b; ++i) Or(n(i, output), n(i, input1), n(i, input2));  // Or each pair of bits
+    setSizeBits(output, b);                                                     // Size of resulting bus
+    return output;                                                              // Bus name
+   }
+
   Gate norBits(String name, String input)                                       // B<Nor> all the bits in a bus to get one bit
    {final int bits = sizeBits(input);                                           // Number of bits in input bus
     final String[]b = new String[bits];                                         // Arrays of names of bits
     for (int i = 1; i <= bits; ++i) b[i-1] = n(i, input);                       // Names of bits
     return Nor(name, b);                                                        // Or all the bits in the bus
+   }
+
+  String norBits(String output, String input1, String input2)                   // B<Nor> two equal size bit buses together to make an equal sized bit bus
+   {final int b = sizeBits(input1);                                             // Number of bits in input bus
+    final int c = sizeBits(input2);                                             // Number of bits in input bus
+    if (b != c) stop("Both buses must have the same size to be nored together, got:", b, c);
+    for (int i = 1; i <= b; ++i) Nor(n(i, output), n(i, input1), n(i, input2)); // Nor each pair of bits
+    setSizeBits(output, b);                                                     // Size of resulting bus
+    return output;                                                              // Bus name
+   }
+
+  String xorBits(String output, String input1, String input2)                   // B<Xor> two equal size bit buses together to make an equal sized bit bus
+   {final int b = sizeBits(input1);                                             // Number of bits in input bus
+    final int c = sizeBits(input2);                                             // Number of bits in input bus
+    if (b != c) stop("Both buses must have the same size to be xor together, got:", b, c);
+    for (int i = 1; i <= b; ++i) Xor(n(i, output), n(i, input1), n(i, input2)); // Xor each pair of bits
+    setSizeBits(output, b);                                                     // Size of resulting bus
+    return output;                                                              // Bus name
+   }
+
+  String nxorBits(String output, String input1, String input2)                  // B<Nxor> two equal size bit buses together to make an equal sized bit bus
+   {final int b = sizeBits(input1);                                             // Number of bits in input bus
+    final int c = sizeBits(input2);                                             // Number of bits in input bus
+    if (b != c) stop("Both buses must have the same size to be nored together, got:", b, c);
+    for (int i = 1; i <= b; ++i) Nxor(n(i, output), n(i, input1), n(i, input2));// Nxor each pair of bits
+    setSizeBits(output, b);                                                     // Size of resulting bus
+    return output;                                                              // Bus name
    }
 
   Integer bInt(String output)                                                   // Convert the bits represented by an output bus to an integer
@@ -852,7 +904,7 @@ public class Chip                                                               
     for   (int w = 1; w <= wb.words; ++w)                                       // Each word on the bus
      {final Stack<String> bits = new Stack<>();
       for (int b = 1; b <= wb.bits; ++b) bits.push(nn(w, b, input));            // Bits to and
-      And(n(w, name), stackToStringArray(bits));                                // And bits
+      And(n(w, name), bits);                                                    // And bits
      }
     setSizeBits(name, wb.words);                                                // Record bus size
     return name;
@@ -874,7 +926,7 @@ public class Chip                                                               
     for   (int w = 1; w <= wb.words; ++w)                                       // Each word on the bus
      {final Stack<String> bits = new Stack<>();
       for (int b = 1; b <= wb.bits; ++b) bits.push(nn(w, b, input));            // Bits to or
-      Or(n(w, name), stackToStringArray(bits));                                 // Or bits
+      Or(n(w, name), bits);                                                     // Or bits
      }
     setSizeBits(name, wb.words);                                                // Record number of bits in bit bus
     return name;
@@ -939,13 +991,13 @@ public class Chip                                                               
      {final Stack<String> and = new Stack<>();
       and.push(n(j-1, output, "g"));
       for (int i = j; i <= B; i++) and.push(n(i, output, "e"));
-      And(n(j, output, "c"), stackToStringArray(and));
+      And(n(j, output, "c"), and);
      }
 
     final Stack<String> or = new Stack<>();
     for (int i = 2; i <= B; i++) or.push(n(i, output, "c"));                    // Equals  followed by greater than
                                  or.push(n(B, output, "g"));
-    Or(output, stackToStringArray(or));                                         // Any set bit indicates that first is greater then second
+    Or(output, or);                                                             // Any set bit indicates that first is greater then second
    }
 
   void compareLt(String output, String a, String b)                             // Compare two unsigned binary integers for less than.
@@ -959,13 +1011,13 @@ public class Chip                                                               
      {final Stack<String> and = new Stack<>();
       and.push(n(j-1, output, "l"));
       for (int i = j; i <= B; i++) and.push(n(i, output, "e"));
-      And(n(j, output, "c"), stackToStringArray(and));
+      And(n(j, output, "c"), and);
      }
 
     final Stack<String> or = new Stack<>();
     for (int i = 2; i <= B; i++) or.push(n(i, output, "c"));                    // Equals followed by less than
                                  or.push(n(B, output, "l"));
-    Or(output, stackToStringArray(or));                                         // Any set bit indicates that first is less than second
+    Or(output, or);                                                             // Any set bit indicates that first is less than second
    }
 
   void chooseFromTwoWords(String output, String a, String b, String choose)     // Choose one of two words depending on a choice bit.  The first word is chosen if the bit is B<0> otherwise the second word is chosen.
@@ -1015,7 +1067,7 @@ public class Chip                                                               
     for   (int b = 1; b <= wb.bits; ++b)                                        // Bits in each word
      {final Stack<String> or = new Stack<>();
       for (int w = 1; w <= wb.words; ++w) or.push(nn(w, b, output, "a"));       // And each bit of each word with the mask
-      Or(n(b, output), stackToStringArray(or));
+      Or(n(b, output), or);
      }
     setSizeBits(output, wb.bits);
    }
@@ -1138,7 +1190,7 @@ public class Chip                                                               
    {return new Select(Name, Control, Pulse);                                    // Define the selection
    }
 
-//D2 Arithmetic 1                                                               // Arithmetic in base 1
+//D2 Arithmetic Base 1                                                          // Arithmetic in base 1
 
   String shiftUp(String output, String input)                                   // Shift an input bus up one place to add 1 in base 1 or multiply by two in base 2
    {final int  b = sizeBits(input);                                             // Number of bits in input monotone mask
@@ -1153,6 +1205,59 @@ public class Chip                                                               
     final Gate o = Output(n(1, output, "free"), n(1, input));                   // Remove the lowest bit in such away that it will not be report as failing to drive anything
     for (int i = 2; i <= b; i++) Continue(n(i-1, output), n(i, input));         // Create the remaining bits of the shifted result
     setSizeBits(output, b-1);                                                   // Shifted result is a bus one bit narrower
+    return output;
+   }
+
+//D2 Arithmetic Base 2                                                          // Arithmetic in base 2
+
+  String binaryAdd(String output, String input1, String input2)                 // Add two bit buses of teh same size to make a bit bus one bit wider
+   {final int    b = sizeBits(input1);                                          // Number of bits in input monotone mask
+    final int    B = sizeBits(input2);                                          // Number of bits in input monotone mask
+    if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
+    final String c = nextGateName(output);                                      // Carry bits
+    final String C = notBits(nGn(output), c);                                   // Not of carry bits
+    final String n = notBits(nGn(output), input1);                              // Not of input 1
+    final String N = notBits(nGn(output), input2);                              // Not of input 2
+    Xor(n(1, output), n(1, input1), n(2, input2));                              // Low order bit has no carry in
+    And(n(1, c),      n(1, input1), n(2, input2));                              // Low order bit carry out
+// #  c 1 2  R C
+// 0  0 0 0  0 0
+// 1  0 0 1  1 0
+// 2  0 1 0  1 0
+// 3  0 1 1  0 1
+// 4  1 0 0  1 0
+// 5  1 0 1  0 1
+// 6  1 1 0  0 1
+// 7  1 1 1  1 1
+    final String r = output;                                                    // Result bit bus name
+    final String i = input1;                                                    // Input 1
+    final String I = input2;                                                    // Input 2
+    for (int j = 2; j <= b; j++)                                                // Create the remaining bits of the shifted result
+     {final Stack<String>rs = new Stack<>();                                    // Result
+      final Stack<String>cs = new Stack<>();                                    // Carry
+      Gate r1 = Nand(nGn(output), n(j-1, C), n(j, N), n(j, N)); rs.push(""+r1);
+      Gate r2 =  And(nGn(output), n(j-1, C), n(j, N), n(j, n)); rs.push(""+r2);
+      Gate r3 =  And(nGn(output), n(j-1, C), n(j, N), n(j, N)); rs.push(""+r3);
+      Gate r4 = Nand(nGn(output), n(j-1, C), n(j, N), n(j, n)); rs.push(""+r4);
+      Gate r5 =  And(nGn(output), n(j-1, c), n(j, n), n(j, N)); rs.push(""+r5);
+      Gate r6 = Nand(nGn(output), n(j-1, c), n(j, n), n(j, n)); rs.push(""+r6);
+      Gate r7 = Nand(nGn(output), n(j-1, c), n(j, n), n(j, N)); rs.push(""+r7);
+      Gate r8 =  And(nGn(output), n(j-1, c), n(j, n), n(j, n)); rs.push(""+r8);
+      Or(n(j, r), rs);
+
+      Gate c1 = Nand(nGn(output), n(j-1, C), n(j, N), n(j, N)); cs.push(""+c1);
+      Gate c2 = Nand(nGn(output), n(j-1, C), n(j, N), n(j, n)); cs.push(""+c2);
+      Gate c3 = Nand(nGn(output), n(j-1, C), n(j, N), n(j, N)); cs.push(""+c3);
+      Gate c4 =  And(nGn(output), n(j-1, C), n(j, N), n(j, n)); cs.push(""+c4);
+      Gate c5 = Nand(nGn(output), n(j-1, c), n(j, n), n(j, N)); cs.push(""+c5);
+      Gate c6 =  And(nGn(output), n(j-1, c), n(j, n), n(j, n)); cs.push(""+c6);
+      Gate c7 =  And(nGn(output), n(j-1, c), n(j, n), n(j, N)); cs.push(""+c7);
+      Gate c8 =  And(nGn(output), n(j-1, c), n(j, n), n(j, n)); cs.push(""+c8);
+      Or(n(j, c), cs);
+     }
+
+    Continue(n(b+1, r), n(b, c));                                               // The last bit of output id the final carry
+    setSizeBits(output, b+1);                                                   // Shifted result is a bus one bit wider
     return output;
    }
 
