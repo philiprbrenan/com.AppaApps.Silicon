@@ -1084,8 +1084,8 @@ public class Chip                                                               
     Not(notChoose, choose);                                                     // Invert choice
 
     for (int i = 1; i <= B; i++)                                                // Each bit
-     {And(n(i, output, "a"), a.n(i), notChoose);                               // Choose first word if not choice
-      And(n(i, output, "b"), b.n(i),    choose);                               // Choose second word if choice
+     {And(n(i, output, "a"), a.n(i), notChoose);                                // Choose first word if not choice
+      And(n(i, output, "b"), b.n(i),    choose);                                // Choose second word if choice
       Or (n(i, output),      n(i, output, "a"), n(i, output, "b"));             // Or results of choice
      }
     return setSizeBits(output, B);                                              // Record bus size
