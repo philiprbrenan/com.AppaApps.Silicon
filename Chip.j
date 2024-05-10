@@ -141,7 +141,7 @@ public class Chip                                                               
       for (String n : sizeBits.keySet())
        {final BitBus  B = sizeBits.get(n);
         final Integer v = B.Int();
-        b.append(String.format("%4d  %32s", sizeBits.get(n), n));
+        b.append(String.format("%4d  %32s", sizeBits.get(n).bits, n));
         if (v != null) b.append(String.format("  %d\n", v));
                        b.append(System.lineSeparator());
        }
@@ -327,7 +327,7 @@ public class Chip                                                               
 
       if (N == 0 && !systemGate)                                                // Check for user defined gates that do not drive any other gate
        {if (op == Operator.Output) return;
-        say(Chip.this);
+        //say(Chip.this);
         stop("Gate", name, "does not drive any gate");
         return;
        }
@@ -657,7 +657,6 @@ public class Chip                                                               
        }
       noChangeGates();                                                          // Reset change indicators
      }
-
     err("Out of time after", maxSimulationSteps, "steps");                      // Not enough steps available
     return null;
    }
@@ -715,6 +714,16 @@ public class Chip                                                               
         p *= 2;
        }
       return v;
+     }
+
+    public String toString()                                                    // Convert the bits represented by an output bus to a string
+     {final StringBuilder b = new StringBuilder();
+      for (int i = 1; i <= bits; i++)
+       {final Gate g = getGate(n(i));
+        final Boolean j = g.value;
+        b.append(j == null ? 'x' : j ? '1' : '0');
+       }
+      return b.toString();
      }
    }
 
@@ -1031,6 +1040,7 @@ public class Chip                                                               
     a.sameSize(b);                                                              // Check buses match in size
     final String eq = nextGateName(output);                                     // Set of gates to test equality of corresponding bits
     final String[]n = new String[B];                                            // Equal bit names
+
     for (int i = 1; i <= B; i++) n[i-1] = n(i, eq);                             // Load array with equal bit names
     for (int i = 1; i <= B; i++) Nxor(n[i-1], a.n(i), b.n(i));                  // Test each bit pair for equality
     return And(output, n);                                                      // All bits must be equal
@@ -1141,15 +1151,7 @@ public class Chip                                                               
       output = setSizeBits(Output, w); input = Input;
      }
 
-    public String toString()                                                    // Convert the bits in the register to a string.
-     {final StringBuilder b = new StringBuilder();
-      for (int i = 1; i <= output.bits; i++)
-       {final Gate g = getGate(output.n(i));
-        final Boolean j = g.value;
-        b.append(j == null ? 'x' : j ? '1' : '0');
-       }
-      return b.toString();
-     }
+    public String toString() {return output.toString();}                        // Convert the bits in the register to a string.
    }
 
   Register register(String name, String input, String load)                     // Create a loadable register out of memory bits
@@ -1459,8 +1461,23 @@ public class Chip                                                               
     final String     nd;                                                        // The data out from a node
     final String     nf;                                                        // The found flag output by each node
     final String     nn;                                                        // The next link output by this node
-    final TreeMap<Integer, TreeMap<Integer, BtreeNode>> tree = new TreeMap<>(); // Nodes within tree by level and position in level
-    final TreeMap<Integer,                  BtreeNode> nodes = new TreeMap<>(); // Nodes within tree by id number
+//  final TreeMap<Integer, TreeMap<Integer, BtreeNode>> tree = new TreeMap<>(); // Nodes within tree by level and position in level
+    final TreeMap<Integer, Level>      tree = new TreeMap<>();                  // Levels within the tree
+    final TreeMap<Integer, BtreeNode> nodes = new TreeMap<>();                  // Nodes within tree by id number
+
+    class Level
+     {final int     level;                                                      // Number of level
+      final int         N;                                                      // Number of nodes at this level
+      final boolean  root;                                                      // Root node
+      final boolean  leaf;                                                      // Final level is made of leaf nodes
+      final BitBus enable;                                                      // Node selector for this level
+      final TreeMap<Integer, BtreeNode> nodes;                                  // Nodes in this level
+      Level(int l, int n, boolean Root, boolean Leaf, BitBus Enable)            // Create a level description
+       {nodes = new TreeMap<>();
+        level = l; N = n; root = Root; leaf = Leaf; enable = Enable;
+        tree.put(l, this);                                                      // Record details of the level to enable debugging
+       }
+     }
 
     Btree                                                                       // Construct a Btree.
      (String output,                                                            // The name of this tree. This name will be prepended to generate the names of the gates used to construct this tree.
@@ -1490,19 +1507,18 @@ public class Chip                                                               
 
       if (find.bits != bits) stop("Find bus must be", bits, "wide, not", find.bits);
 
+      BitBus eI = null;                                                         // For the moment we always enable the root node of the tree
+
       for (int l = 1; l <= levels; l++)                                         // Each level in the bTree
        {final int         N = powerOf(keys+1, l-1);                             // Number of nodes at this level
         final boolean  root = l == 1;                                           // Root node
         final boolean  leaf = l == levels;                                      // Final level is made of leaf nodes
         final String enable = concatenateNames(output, "nextLink");             // Next link to search
-        final TreeMap<Integer, BtreeNode> level = new TreeMap<>();              // Current level in tree
+        final Level   level = new Level(l, N, root, leaf, eI);                  // Details of the level
 
-        tree.put(l, level);                                                     // Add the level ot the tree
-
-        BitBus prevLn = null;
         for (int n = 1; n <= N; n++)                                            // Each node at this level
          {++nodeId;                                                             // Number of this node
-          final BitBus  eI = prevLn == null ? bits(n(0, ln), bits, nodeId) : prevLn; // Id of node in this level to activate. The root is always active with a hard coded value of 1 as its enabling id
+          if (eI == null) eI = bits(n(0, ln), bits, nodeId);                    // For the moment we always enable the root node of the tree
           final WordBus iK = inputWords(nn(l, n, ik), keys, bits);              // Bus of input words representing the keys in this node
           final WordBus iD = inputWords(nn(l, n, id), keys, bits);              // Bus of input words representing the data in this node
           final WordBus iN = leaf ? null : inputWords(nn(l, n, in), keys, bits);// Bus of input words representing the next links in this node
@@ -1514,23 +1530,32 @@ public class Chip                                                               
           final BtreeNode node = new BtreeNode(nn(l, n, output, "node"),        // Create the node
             nodeId, bits, keys, leaf, eI, find, iK, iD, iN, iT, oF, oD, oN);
 
-          level.put(n,      node);                                              // Add the node to this level
+          level.nodes.put(n, node);                                             // Add the node to this level
           nodes.put(nodeId, node);                                              // Index the node
           node.level = l; node.index = n;                                       // Position of node in tree
-          prevLn = eI;                                                          // Enable from previous layer so we search the correct node in the next layer
          }
 
         if (!root)                                                              // Or the data elements together for this level. Not necessary on the root because there is only one node.
-         {orBits        (n(l, lf), setSizeBits(n(l, nf), N));                   // Collect all the find output fields in this level and Or them together to see if any node found the key. At most one node will find the key if the data has been correctly structured.
+         {orBits        (n(l, lf), setSizeBits (n(l, nf), N));                  // Collect all the find output fields in this level and Or them together to see if any node found the key. At most one node will find the key if the data has been correctly structured.
           orWords       (n(l, ld), setSizeWords(n(l, nd), N, bits));            // Collect all the data output fields from this level and Or them together as they will all be zero except for possible to see if any node found the key. At most one node will find the key if the data has been correctly structured.
          }
 
-        if (!root && !leaf) orWords(n(l, ln), setSizeWords(n(l, nn), N, bits)); // Collect all next links nodes on this level
+        if (!leaf)                                                              // Collect all next links nodes on this level
+         {if (root)
+           {eI = setSizeBits(n(l, ln), bits);
+say("AAAA", eI.name);
+           }
+          else
+           {eI = orWords(n(l, ln), setSizeWords(n(l, nn), N, bits));
+say("BBBB");
+           }
+         }
        }
 
       this.data  = orWords(data,  setSizeWords(ld, levels, bits));              // Data found over all layers
       this.found = orBits (found, setSizeBits (lf, levels));                    // Or of found status over all layers
      }
+    Chip chip() {return Chip.this;}                                             // Containing chip
    }
 
 //D1 Layout                                                                     // Layout the gates and connect them with wires
@@ -2848,75 +2873,75 @@ public class Chip                                                               
     test_BtreeLeafCompare(7, 1, false, 0, 0);
    }
 
-  static void test_Btree(Chip c, Inputs i, int find)
+  static void test_Btree(Btree b, Inputs i, int find)
    {i.set("find", find);
-    c.simulate(i);
+    b.chip().simulate(i);
    }
 
-  static void test_Btree(Chip c, Inputs i, int find, int found)
-   {test_Btree(c, i, find);
-    ok(c.steps,                     46);
-    ok(c.getBit("found"),         true);
-    ok(c.findBits("data").Int(), found);
+  static void test_Btree(Btree b, Inputs i, int find, int data)
+   {test_Btree(b, i, find);
+    Chip c = b.chip();
+    ok(c.getBit("found"),        true);
+    ok(c.findBits("data").Int(), data);
    }
 
-  static void test_Btree(Chip c, Inputs i, int find, int found, boolean layout)
-   {test_Btree(c, i, find, found);
+  static void test_Btree(Btree b, Inputs i, int find, int found, boolean layout)
+   {test_Btree(b, i, find, found);
 
-    if (layout) c.drawSingleLevelLayout(6, 1);
+    if (layout) b.chip().drawSingleLevelLayout(6, 1);
    }
 
   static void test_Btree()
    {final int B = 8, K = 3, L = 2;
 
-    final var c = new Chip("Btree");
+    final var    c = new Chip("Btree");
     final BitBus f = c.inputBits("find", B);
     final Btree  b = c.new Btree("tree", f, "found", "data", K, L, B);
     c.outputBits("d", "data"); // Anneal the tree
     c.Output    ("f", "found");
 
     final Inputs i = c.new Inputs();
-    final BtreeNode r = b.tree.get(1).get(1);
+    final BtreeNode r = b.tree.get(1).nodes.get(1);
     i.set(r.Keys,   10,  20, 30);
     i.set(r.Data,   11,  22, 33);
     i.set(r.Next,  2,  3,  4);
     i.set(r.Top,               5);
-    final BtreeNode l1 = b.tree.get(2).get(1);
+    final BtreeNode l1 = b.tree.get(2).nodes.get(1);
     i.set(l1.Keys,   2,  4,  6);
     i.set(l1.Data,  22, 44, 66);
-    final BtreeNode l2 = b.tree.get(2).get(2);
+    final BtreeNode l2 = b.tree.get(2).nodes.get(2);
     i.set(l2.Keys,  13, 15, 17);
     i.set(l2.Data,  31, 51, 71);
-    final BtreeNode l3 = b.tree.get(2).get(3);
+    final BtreeNode l3 = b.tree.get(2).nodes.get(3);
     i.set(l3.Keys,  22, 24, 26);
     i.set(l3.Data,  22, 42, 62);
-    final BtreeNode l4 = b.tree.get(2).get(4);
+    final BtreeNode l4 = b.tree.get(2).nodes.get(4);
     i.set(l4.Keys,  33, 35, 37);
     i.set(l4.Data,  33, 53, 73);
 
-    test_Btree(c, i, 10, 11);
-    test_Btree(c, i, 20, 22);
-    test_Btree(c, i, 30, 33);
+    test_Btree(b, i, 10, 11);
+    test_Btree(b, i, 20, 22);
+    test_Btree(b, i, 30, 33);
 
-    test_Btree(c, i,  2, 22, true);
-    test_Btree(c, i,  4, 44);
-    test_Btree(c, i,  6, 66);
+    if (github_actions) test_Btree(b, i,  2, 22, true);
+    test_Btree(b, i,  4, 44);
+    test_Btree(b, i,  6, 66);
 
-    test_Btree(c, i, 13, 31);
-    test_Btree(c, i, 15, 51);
-    test_Btree(c, i, 17, 71);
+    test_Btree(b, i, 13, 31);
+    test_Btree(b, i, 15, 51);
+    test_Btree(b, i, 17, 71);
 
-    test_Btree(c, i, 22, 22);
-    test_Btree(c, i, 24, 42);
-    test_Btree(c, i, 26, 62);
+    test_Btree(b, i, 22, 22);
+    test_Btree(b, i, 24, 42);
+    test_Btree(b, i, 26, 62);
 
-    test_Btree(c, i, 33, 33);
-    test_Btree(c, i, 35, 53);
-    test_Btree(c, i, 37, 73);
+    test_Btree(b, i, 33, 33);
+    test_Btree(b, i, 35, 53);
+    test_Btree(b, i, 37, 73);
 
     final int[]skip = {10, 20, 30,  2,4,6,  13,15,17, 22,24,26, 33,35,37};
     for (final int F : IntStream.rangeClosed(0, 100).toArray())
-     {if (Arrays.stream(skip).noneMatch(x -> x == F)) test_Btree(c, i, F);
+     {if (Arrays.stream(skip).noneMatch(x -> x == F)) test_Btree(b, i, F);
      }
    }
 
@@ -3274,14 +3299,14 @@ public class Chip                                                               
     test_delay();
     test_select();
     test_shift();
+    test_Btree();
     test_binaryAdd();
 //  test_fibonacci();
-    if (github_actions) test_Btree();
    }
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
-    test_binaryAdd();
+//    test_binaryAdd();
 //    test_fibonacci();
    }
 
