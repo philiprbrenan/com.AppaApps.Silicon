@@ -1369,25 +1369,15 @@ public class Chip                                                               
     final WordBus    Data;                                                      // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
     final WordBus    Next;                                                      // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
     final BitBus     Top;                                                       // The top next link making N+1 next links in all.
-    final String   Found;                                                       // Found the search key
-    final String OutData;                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
-    final String OutNext;                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
-    final String      id;                                                       // Id for this node
-    final String      df;                                                       // Data found before application of enable
-    final String      en;                                                       // Whether this node is enabled for searching
-    final String      f2;                                                       // Whether the key was found or not but before application of enable
-    final String      me;                                                       // Point mask showing key equal to search key
-    final String      mm;                                                       // Monotone mask showing keys more than the search key
-    final String      mf;                                                       // The next link for the first key greater than the search key is such a key is present int the node
-    final String      nf;                                                       // True if we did not find the key
-    final String      n2;
-    final String      n3;
-    final String      n4;
-    final String      nm;                                                       // No key in the node is greater than the search key
-    final String      pm;                                                       // Point mask showing the first key in the node greater than the search key
-    final String      pt;                                                       // A single bit that tells us whether the top link is the next link
-    final String      pn;                                                       // Top is the next link, but only if the key was not found
-    int level, index;                                                           // Level and position in  level for this node
+    final Bit      found;                                                       // Found the search key
+    final BitBus outData;                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+    final BitBus outNext;                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+    int     level, index;                                                       // Level and position in  level for this node
+    final BitBus  nodeId;                                                       // Save id of node
+    final Bit     enable;                                                       // Check whether this node is enabled
+    final BitBus  matches;                                                      // Bitbus showing whether each key is equal to the search key
+    final BitBus  selectedData;                                                 // Choose data under equals mask
+    final Bit     keyWasFound;                                                  // Show whether key was found
 
     BtreeNode                                                                   // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
      (String  Output,                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
@@ -1401,7 +1391,7 @@ public class Chip                                                               
       WordBus   Data,                                                           // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
       WordBus   Next,                                                           // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
       BitBus     Top,                                                           // The top next link making N+1 next links in all.
-      String   found,                                                           // Found the search key
+      String   Found,                                                           // Found the search key
       String OutData,                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
       String OutNext)                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
      {if (K     <= 2) stop("The number of keys the node can hold must be greater than 2, not", K);
@@ -1410,39 +1400,37 @@ public class Chip                                                               
       this.Id     = Id;     this.B       = B;       this.K       = K; this.Leaf = Leaf;
       this.Enable = Enable; this.Find    = Find;    this.Keys    = Keys;
       this.Data   = Data;   this.Next    = Next;    this.Top     = Top;
-      this.Found  = found;  this.OutData = OutData; this.OutNext = OutNext;
 
-      id = concatenateNames(Output, "id");                                      // Id for this node
-      df = concatenateNames(Output, "dataFound");                               // Data found before application of enable
-      en = concatenateNames(Output, "enabled");                                 // Whether this node is enabled for searching
-      f2 = concatenateNames(Output, "foundBeforeEnable");                       // Whether the key was found or not but before application of enable
-      me = concatenateNames(Output, "maskEqual");                               // Point mask showing key equal to search key
-      mm = concatenateNames(Output, "maskMore");                                // Monotone mask showing keys more than the search key
-      mf = concatenateNames(Output, "moreFound");                               // The next link for the first key greater than the search key if such a key is present int the node
-      nf = concatenateNames(Output, "notFound");                                // True if we did not find the key
-      n2 = concatenateNames(Output, "nextLink2");
-      n3 = concatenateNames(Output, "nextLink3");
-      n4 = concatenateNames(Output, "nextLink4");
-      nm = concatenateNames(Output, "noMore");                                  // No key in the node is greater than the search key
-      pm = concatenateNames(Output, "pointMore");                               // Point mask showing the first key in the node greater than the search key
-      pt = concatenateNames(Output, "pointMoreTop");                            // A single bit that tells us whether the top link is the next link
-      pn = concatenateNames(Output, "pointMoreTop_notFound");                   // Top is the next link, but only if the key was not found
+      final String id = concatenateNames(Output, "id");                         // Id for this node
+      final String df = concatenateNames(Output, "dataFound");                  // Data found before application of enable
+      final String en = concatenateNames(Output, "enabled");                    // Whether this node is enabled for searching
+      final String f2 = concatenateNames(Output, "foundBeforeEnable");          // Whether the key was found or not but before application of enable
+      final String me = concatenateNames(Output, "maskEqual");                  // Point mask showing key equal to search key
+      final String mm = concatenateNames(Output, "maskMore");                   // Monotone mask showing keys more than the search key
+      final String mf = concatenateNames(Output, "moreFound");                  // The next link for the first key greater than the search key if such a key is present int the node
+      final String nf = concatenateNames(Output, "notFound");                   // True if we did not find the key
+      final String n2 = concatenateNames(Output, "nextLink2");
+      final String n3 = concatenateNames(Output, "nextLink3");
+      final String n4 = concatenateNames(Output, "nextLink4");
+      final String nm = concatenateNames(Output, "noMore");                     // No key in the node is greater than the search key
+      final String pm = concatenateNames(Output, "pointMore");                  // Point mask showing the first key in the node greater than the search key
+      final String pt = concatenateNames(Output, "pointMoreTop");               // A single bit that tells us whether the top link is the next link
+      final String pn = concatenateNames(Output, "pointMoreTop_notFound");      // Top is the next link, but only if the key was not found
 
-      final BitBus idb = bits(id, B, Id);                                       // Save id of node
-
-      final Bit En = compareEq(en, idb, Enable);                                // Check whether this node is enabled
+      nodeId = bits     (id, B, Id);                                            // Save id of node
+      enable = compareEq(en, nodeId, Enable);                                   // Check whether this node is enabled
 
       for (int i = 1; i <= K; i++)
        {compareEq(n(i, me), Keys.n(i), Find);                                   // Compare equal point mask
         if (!Leaf) compareGt(n(i, mm), Keys.n(i), Find);                        // Compare more  monotone mask
        }
 
-      final BitBus Me = collectBits(me, K);                                     // Equal bit bus for each key
+      matches = collectBits(me, K);                                             // Equal bit bus for each key
 
-      final BitBus Df = chooseWordUnderMask(df, Data, Me);                      // Choose data under equals mask
-      final Bit    F2 = orBits             (f2,       Me);                      // Show whether key was found
-      enableWord                      (OutData, Df,   En);                      // Enable data found
-      final Bit Found = And             (found, F2,   En);                      // Enable found flag
+      selectedData = chooseWordUnderMask(df, Data, matches);                    // Choose data under equals mask
+      keyWasFound  = orBits             (f2,       matches);                    // Show whether key was found
+      outData      = enableWord    (OutData, selectedData, enable);             // Enable data found
+      found        = And             (Found, keyWasFound,  enable);             // Enable found flag
 
       if (!Leaf)                                                                // Find next link with which to enable next layer
        {final BitBus Mm = collectBits            (mm, K);                       // Interior nodes have next links
@@ -1451,12 +1439,13 @@ public class Chip                                                               
         final BitBus Mf = chooseWordUnderMask    (mf, Next, Pm);                // Choose next link using point mask from the more monotone mask created
         final BitBus N4 = chooseFromTwoWords     (n4, Mf,   Top, Nm);           // Show whether key was found
         final Bit    Pt = norBits                (pt, Pm);                      // The top link is the next link
-        final Bit    Nf = Not                    (nf, Found);                   // Not found
+        final Bit    Nf = Not                    (nf, found);                   // Not found
         final BitBus N3 = enableWord             (n3, N4,   Nf);                // Disable next link if we found the key
         final Bit    Pn = And                    (pn, Pt,   Nf);                // Top is the next link, but only if the key was not found
         final BitBus N2 = chooseFromTwoWords     (n2, N3,   Top, Pn);           // Either the next link or the top link
-        enableWord                               (OutNext,  N2,  En);           // Next link only if this node is enabled
+        outNext = enableWord                     (OutNext,  N2,  enable);       // Next link only if this node is enabled
        }
+      else outNext = null;                                                      // Not relevant in a leaf
      }
 
     static BtreeNode Test                                                       // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
