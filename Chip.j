@@ -1054,7 +1054,7 @@ public class Chip                                                               
   BitBus andWordsX(String name, WordBus wb)                                     // Create a bit bus of width equal to the number of words in a word bus by and-ing the bits in each word to make the bits of the resulting word.
    {final BitBus B = new BitBus(name, wb.words);                                // One bit for each word
     for   (int w = 1; w <= wb.words; ++w)                                       // Each word on the bus
-     {final Stack<Bit> bits = new Stack<>();
+     {final Stack<Bit> bits = new Stack<>();                                    // Select bits
       for (int b = 1; b <= wb.bits; ++b) bits.push(wb.n(w, b));                 // Bits to and
       And(B.n(w).name, bits);                                                   // And bits
      }
@@ -1064,7 +1064,7 @@ public class Chip                                                               
   BitBus andWords(String name, WordBus wb)                                      // Create a bit bus of the same width as each word in a word bus by and-ing corresponding bits in each word to make the corresponding bit in the output word.
    {final BitBus B = new BitBus(name, wb.bits);                                 // One bit for each word
     for   (int b = 1; b <= wb.bits;  ++b)                                       // Each bit in the words on the bus
-     {final Stack<Bit> words = new Stack<>();
+     {final Stack<Bit> words = new Stack<>();                                   // Select bits
       for (int w = 1; w <= wb.words; ++w) words.push(wb.n(w, b));               // The current bit in each word in the bus
       And(B.n(b).name, words.toArray(new Bit[words.size()]));                   // Combine inputs using B<and> gates
      }
@@ -1074,7 +1074,7 @@ public class Chip                                                               
   BitBus orWordsX(String name, WordBus wb)                                      // Create a bit bus of width equal to the number of words in a word bus by or-ing the bits in each word to make the bits of the resulting word.
    {final BitBus B = new BitBus(name, wb.words);                                // One bit for each word
     for   (int w = 1; w <= wb.words; ++w)                                       // Each word on the bus
-     {final Stack<Bit> bits = new Stack<>();
+     {final Stack<Bit> bits = new Stack<>();                                    // Select bits
       for (int b = 1; b <= wb.bits; ++b) bits.push(wb.n(w, b));                 // Bits to or
       Or(B.n(w).name, bits);                                                    // Or bits
      }
@@ -1084,7 +1084,7 @@ public class Chip                                                               
   BitBus orWords(String name, WordBus wb)                                       // Create a bit bus of the same width as each word in a word bus by or-ing corresponding bits in each word to make the corresponding bit in the output word.
    {final BitBus B = new BitBus(name, wb.bits);                                 // One bit for each word
     for   (int b = 1; b <= wb.bits;  ++b)                                       // Each bit in the words on the bus
-     {final Stack<Bit> words = new Stack<>();
+     {final Stack<Bit> words = new Stack<>();                                   // Select bits
       for (int w = 1; w <= wb.words; ++w) words.push(wb.n(w, b));               // Each word on the bus
       Or(B.n(b).name, words.toArray(new Bit[words.size()]));                    // Combine inputs using B<or> gates
      }
