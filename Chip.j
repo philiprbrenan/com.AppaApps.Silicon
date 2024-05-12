@@ -949,8 +949,9 @@ public class Chip                                                               
       sizeWords.put(name, this);
       for (int b = 1; b <= words; ++b)                                          // Size of bit bus for each word in the word bus
        {final String s = Chip.this.n(b, name);
-        final BitBus B = new BitBus(s, bits);
-        bitBus.push(B);
+        BitBus B = sizeBits.get(s);                                             // Check whether the component bitBus exists or not
+        if (B == null) B = new BitBus(s, bits);                                 // Create component bitBus if necessary
+        bitBus.push(B);                                                         // Bit buses associated with this word bus
        }
      }
 
@@ -1447,7 +1448,7 @@ public class Chip                                                               
       enableWord                      (OutData, Df,   En);                      // Enable data found
       final Bit Found = And             (found, F2,   En);                      // Enable found flag
 
-      if (!Leaf)
+      if (!Leaf)                                                                // Find next link with which to enable next layer
        {final BitBus Mm = setSizeBits            (mm, K);                       // Interior nodes have next links
         final Bit    Nm = norBits                (nm, Mm);                      // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
         final BitBus Pm = monotoneMaskToPointMask(pm, Mm);                      // Convert monotone more mask to point mask
@@ -1563,7 +1564,6 @@ public class Chip                                                               
        {final int         N = powerOf(keys+1, l-1);                             // Number of nodes at this level
         final boolean  root = l == 1;                                           // Root node
         final boolean  leaf = l == levels;                                      // Final level is made of leaf nodes
-        final String enable = concatenateNames(output, "nextLink");             // Next link to search
         final Level   level = new Level(l, N, root, leaf, eI);                  // Details of the level
 
         for (int n = 1; n <= N; n++)                                            // Each node at this level
@@ -2972,7 +2972,7 @@ public class Chip                                                               
     test_Btree(b, i, 20, 22);
     test_Btree(b, i, 30, 33);
 
-    if (github_actions) test_Btree(b, i,  2, 22, true);
+    test_Btree(b, i,  2, 22, github_actions);
     test_Btree(b, i,  4, 44);
     test_Btree(b, i,  6, 66);
 
@@ -3353,7 +3353,7 @@ public class Chip                                                               
     test_binaryAdd();
     test_BtreeNode();
     test_BtreeLeafCompare();
-    //test_Btree();
+    test_Btree();
 //  test_fibonacci();
    }
 
