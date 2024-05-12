@@ -4,10 +4,6 @@
 //------------------------------------------------------------------------------
 // pckage com.AppaApps.Silicon;
 // Test all dyadic gates to see if there is any correlation between their outputs and any other pins indicating that the gate might be redundant. Use class Grouping to achieve this.
-// Change gates to bits
-// Move n() and nn() into class Bit to simplify new Bit(n(
-// remove collectBits, setSizeWords
-// Replace extends Bit with implements Bit
 
 import java.io.*;
 import java.util.*;
@@ -662,7 +658,7 @@ public class Chip                                                               
        }
      }
 
-    Boolean get(Bit s) {return inputs.get(s.name);}                                  // Get the value of an input
+    Boolean get(Bit s) {return inputs.get(s.name);}                             // Get the value of an input
    }
 
   interface SimulationStep {void step();}                                       // Called each simulation step
@@ -1093,49 +1089,55 @@ public class Chip                                                               
    {final int A = a.bits;                                                       // Width of first bus
     final int B = b.bits;                                                       // Width of second bus
     a.sameSize(b);                                                              // Check buses match in size
-    final String eq = nextGateName(output);                                     // Set of gates to test equality of corresponding bits
-    final Bit[]n = new Bit[B];                                                  // Equal bit names
-
-    for (int i = 1; i <= B; i++) n[i-1] = Nxor(n(i, eq), a.n(i), b.n(i));       // Test each bit pair for equality
-    return And(output, n);                                                      // All bits must be equal
+    final BitBus eq = new BitBus(concatenateNames(output, "eq"), A);            // Compare each pair of bits
+    for (int i = 1; i <= B; i++) Nxor(eq.n(i).name, a.n(i), b.n(i));            // Test each bit pair for equality
+    return andBits(output, eq);                                                 // All bits must be equal
    }
 
   Gate compareGt(String output, BitBus a, BitBus b)                             // Compare two unsigned binary integers for greater than.
    {final int A = a.bits;
     final int B = b.bits;
     a.sameSize(b);
-    for (int i = 2; i <= B; i++) Nxor(n(i, output, "e"), a.n(i), b.n(i));       // Test all but the lowest bit pair for equality
-    for (int i = 1; i <= B; i++) Gt  (n(i, output, "g"), a.n(i), b.n(i));       // Test each bit pair for more than
+
+    final BitBus oe = new BitBus(concatenateNames(output, "e"), A);             // Bits equal in input buses
+    final BitBus og = new BitBus(concatenateNames(output, "g"), A);             // Bits greater than
+    final BitBus oc = new BitBus(concatenateNames(output, "c"), A);             // Bit greater than with all other bits equal
+
+    for (int i = 2; i <= B; i++) Nxor(oe.n(i).name, a.n(i), b.n(i));            // Test all but the lowest bit pair for equality
+    for (int i = 1; i <= B; i++) Gt  (og.n(i).name, a.n(i), b.n(i));            // Test each bit pair for more than
 
     for (int j = 2; j <= B; ++j)                                                // More than on one bit and all preceding bits are equal
-     {final Stack<Bit> and = new Stack<>();
-      and.push(new Bit(n(j-1, output, "g")));
-      for (int i = j; i <= B; i++) and.push(new Bit(n(i, output, "e")));
-      And(n(j, output, "c"), stackToBitArray(and));
+     {final Stack<Bit> and = new Stack<>(); and.push(og.n(j-1));
+      for (int i = j; i <= B; i++) and.push(oe.n(i));
+      And(oc.n(j).name, stackToBitArray(and));
      }
 
     final Stack<Bit> or = new Stack<>();
-    for (int i = 2; i <= B; i++) or.push(new Bit(n(i, output, "c")));           // Equals  followed by greater than
-                                 or.push(new Bit(n(B, output, "g")));
+    for (int i = 2; i <= B; i++) or.push(oc.n(i));                              // Equals  followed by greater than
+                                 or.push(og.n(B));
     return Or(output, or);                                                      // Any set bit indicates that first is greater then second
    }
 
   Gate compareLt(String output, BitBus a, BitBus b)                             // Compare two unsigned binary integers for less than.
    {final int A = a.bits, B = b.bits;
     a.sameSize(b);
-    for (int i = 2; i <= B; i++) Nxor(n(i, output, "e"), a.n(i), b.n(i));       // Test all but the lowest bit pair for equality
-    for (int i = 1; i <= B; i++) Lt  (n(i, output, "l"), a.n(i), b.n(i));       // Test each bit pair for more than
+
+    final BitBus oe = new BitBus(concatenateNames(output, "e"), A);             // Bits equal in input buses
+    final BitBus ol = new BitBus(concatenateNames(output, "l"), A);             // Bits less than
+    final BitBus oc = new BitBus(concatenateNames(output, "c"), A);             // Bit less than with all other bits equal
+
+    for (int i = 2; i <= B; i++) Nxor(oe.n(i).name, a.n(i), b.n(i));            // Test all but the lowest bit pair for equality
+    for (int i = 1; i <= B; i++) Lt  (ol.n(i).name, a.n(i), b.n(i));            // Test each bit pair for more than
 
     for (int j = 2; j <= B; ++j)                                                // More than on one bit and all preceding bits are equal
-     {final Stack<Bit> and = new Stack<>();
-      and.push(new Bit(n(j-1, output, "l")));
-      for (int i = j; i <= B; i++) and.push(new Bit(n(i, output, "e")));
-      And(n(j, output, "c"), and);
+     {final Stack<Bit> and = new Stack<>(); and.push(ol.n(j-1));
+      for (int i = j; i <= B; i++) and.push(oe.n(i));
+      And(oc.n(j).name, and);
      }
 
     final Stack<Bit> or = new Stack<>();
-    for (int i = 2; i <= B; i++) or.push(new Bit(n(i, output, "c")));           // Equals followed by less than
-                                 or.push(new Bit(n(B, output, "l")));
+    for (int i = 2; i <= B; i++) or.push(oc.n(i));                              // Equals followed by less than
+                                 or.push(ol.n(B));
     return Or(output, or);                                                      // Any set bit indicates that first is less than second
    }
 
@@ -1144,13 +1146,16 @@ public class Chip                                                               
     if (A != B) stop("First input bus", a, "has width", A,
                      ", but second input bus", b, "has width", B);
 
-    final BitBus o = new BitBus(output, B);
+    final BitBus         o = new BitBus(output, B);                             // Output bus
     final String notChoose = nextGateName(output);                              // Opposite of choice
-    final Gate n = Not(notChoose, choose);                                      // Invert choice
+    final Gate           n = Not(notChoose, choose);                            // Invert choice
+
+    final BitBus oa = new BitBus(concatenateNames(output, "a"), A);             // Choose first word
+    final BitBus ob = new BitBus(concatenateNames(output, "b"), A);             // Choose second word
 
     for (int i = 1; i <= B; i++)                                                // Each bit
-     {final Gate ga = And(n(i, output, "a"), a.n(i), n);                        // Choose first word if not choice
-      final Gate gb = And(n(i, output, "b"), b.n(i), choose);                   // Choose second word if choice
+     {final Gate ga = And(oa.n(i).name, a.n(i), n);                             // Choose first word if not choice
+      final Gate gb = And(ob.n(i).name, b.n(i), choose);                        // Choose second word if choice
       Or (o.n(i).name, ga, gb);                                                 // Or results of choice
      }
     return o;                                                                   // Record bus size
@@ -1158,8 +1163,9 @@ public class Chip                                                               
 
   BitBus enableWord(String output, BitBus a, Bit enable)                        // Output a word or zeros depending on a choice bit.  The word is chosen if the choice bit is B<1> otherwise all zeroes are chosen.
    {final int A = a.bits;
-    for (int i = 1; i <= A; i++) And(n(i, output), a.n(i), enable);             // Choose each bit of input word
-    return new BitBus(output, A);                                               // Record bus size
+    final BitBus o = new BitBus(output, A);                                     // Record bus size
+    for (int i = 1; i <= A; i++) And(o.n(i).name, a.n(i), enable);              // Choose each bit of input word
+    return o;
    }
 
 //D2 Masks                                                                      // Point masks and monotone masks. A point mask has a single B<1> in a sea of B<0>s as in B<00100>.  A monotone mask has zero or more B<0>s followed by all B<1>s as in: B<00111>.
@@ -1167,11 +1173,12 @@ public class Chip                                                               
   BitBus monotoneMaskToPointMask(String output, BitBus input)                   // Convert a monotone mask B<i> to a point mask B<o> representing the location in the mask of the first bit set to B<1>. If the monotone mask is all B<0>s then point mask is too.
    {final int B = input.bits;                                                   // Number of bits in input monotone mask
 
+    final BitBus o = new BitBus(output, B);                                     // Size of resulting bus representing the chosen integer
     for (int i = 1; i <= B;  i++)                                               // Each bit in each possible output number
-      if (i > 1) Lt(n(i, output), input.n(i-1), input.n(i));                    // Look for a step from 0 to 1
-      else Continue(n(i, output),               input.n(i));                    // First bit is 1 so point is in the first bit
+      if (i > 1) Lt(o.n(i).name, input.n(i-1), input.n(i));                     // Look for a step from 0 to 1
+      else Continue(o.n(i).name,               input.n(i));                     // First bit is 1 so point is in the first bit
 
-    return new BitBus(output, B);                                               // Size of resulting bus representing the chosen integer
+    return o;
    }
 
   BitBus chooseWordUnderMask(String output, WordBus input, BitBus mask)         // Choose one of a specified number of words B<w>, each of a specified width, using a point mask B<m> placing the selected word in B<o>.  If no word is selected then B<o> will be zero.
@@ -1204,7 +1211,8 @@ public class Chip                                                               
     Register(String Output, BitBus Input, Bit Load)                             // Create register
      {final int w = Input.bits;
       load = Load;
-      for (int i = 1; i <= w; i++) My(n(i, Output), Input.n(i), load);          // Create the memory bits
+      final BitBus o = new BitBus(Output, w);                                   // Register value
+      for (int i = 1; i <= w; i++) My(o.n(i).name, Input.n(i), load);           // Create the memory bits
       output = collectBits(Output, w); input = Input;
      }
 
@@ -1292,7 +1300,7 @@ public class Chip                                                               
   BitBus shiftUp(String output, BitBus input)                                   // Shift an input bus up one place to add 1 in base 1 or multiply by two in base 2
    {final int    b = input.bits;                                                // Number of bits in input monotone mask
     final BitBus o = new BitBus(output, b+1);                                   // Shifted result is a bus one bit wider
-    final Gate   z = Zero(n(1, output));                                        // The lowest but will be zero after the shift
+    final Gate   z = Zero(o.n(1).name);                                         // The lowest but will be zero after the shift
     for (int i = 1; i <= b; i++) Continue(o.n(1+i).name, input.n(i));           // Create the remaining bits of the shifted result
     return o;
    }
@@ -1322,11 +1330,11 @@ public class Chip                                                               
     final BitBus n = notBits(nextGateName(output,  "not_in1"), in1);            // Not of input 1
     final BitBus N = notBits(nextGateName(output,  "not_in2"), in2);            // Not of input 2
     Xor(n(1, output), in1.n(1), in2.n(1));                                      // Low order bit has no carry in
-    And(n(1, c.name), in1.n(1), in2.n(1));                                      // Low order bit carry out
+    And(c.n(1).name,  in1.n(1), in2.n(1));                                      // Low order bit carry out
     anneal(n.n(1), N.n(1), C.n(b));                                             // These bits are not needed, but get defined, so we anneal them off to prevent error messages
 // #  c 1 2  R C
 // 1  0 0 0  0 0
-// 2  0 0 1  1 0
+// 2  0 0 1  1 0                                                                // We only need 1 bits so do not define a full bus as we would have to anneal a lot of unused gates which would be wasteful.
 // 3  0 1 0  1 0
 // 4  0 1 1  0 1
 // 5  1 0 0  1 0
@@ -1437,7 +1445,7 @@ public class Chip                                                               
         final Bit    Nm = norBits                (nm, Mm);                      // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
         final BitBus Pm = monotoneMaskToPointMask(pm, Mm);                      // Convert monotone more mask to point mask
         final BitBus Mf = chooseWordUnderMask    (mf, Next, Pm);                // Choose next link using point mask from the more monotone mask created
-        final BitBus N4 = chooseFromTwoWords     (n4, Mf,   Top, Nm);           // Show whether key was found
+        final BitBus N4 = chooseFromTwoWords     (n4, Mf,   Top, Nm);           // Choose top or next link
         final Bit    Pt = norBits                (pt, Pm);                      // The top link is the next link
         final Bit    Nf = Not                    (nf, found);                   // Not found
         final BitBus N3 = enableWord             (n3, N4,   Nf);                // Disable next link if we found the key
@@ -1487,17 +1495,6 @@ public class Chip                                                               
     final BitBus   find;                                                        //i The search key bus
     final Gate    found;                                                        //o A bit indicating whether the key was found in the tree or not
     final BitBus   data;                                                        //o The data corresponding to the search key if the found bit is set, else all zeros
-    final String     id;                                                        // Input data
-    final String     ik;                                                        // Input keys
-    final String     in;                                                        // Input next links
-    final String     it;                                                        // Input top link
-    final String     ld;                                                        // The data out from a level
-    final String     lf;                                                        // Find status for a level
-    final String     ln;                                                        // Next link to search
-    final String     nd;                                                        // The data out from a node
-    final String     nf;                                                        // The found flag output by each node
-    final String     nn;                                                        // The next link output by this node
-//  final TreeMap<Integer, TreeMap<Integer, BtreeNode>> tree = new TreeMap<>(); // Nodes within tree by level and position in level
     final TreeMap<Integer, Level>      tree = new TreeMap<>();                  // Levels within the tree
     final TreeMap<Integer, BtreeNode> nodes = new TreeMap<>();                  // Nodes within tree by id number
 
@@ -1529,16 +1526,16 @@ public class Chip                                                               
       this.levels = levels;                                                     // Number of levels in the tree
       this.output = output;                                                     // The name of this tree. This name will be prepended to generate the names of the gates used to construct this tree.
       this.  find = find;                                                       //i The search key bus
-      id = concatenateNames(output, "inputData");                               // Input data
-      ik = concatenateNames(output, "inputKeys");                               // Input keys
-      in = concatenateNames(output, "inputNext");                               // Input next links
-      it = concatenateNames(output, "inputTop");                                // Input top link
-      ld = concatenateNames(output, "levelData");                               // The data out from a level
-      lf = concatenateNames(output, "levelFound");                              // Find status for a level
-      ln = concatenateNames(output, "levelNext");                               // Next link to search
-      nd = concatenateNames(output, "nodeData");                                // The data out from a node
-      nf = concatenateNames(output, "nodeFound");                               // The found flag output by each node
-      nn = concatenateNames(output, "nodeNext");                                // The next link output by this node
+      final String id = concatenateNames(output, "inputData");                  // Input data
+      final String ik = concatenateNames(output, "inputKeys");                  // Input keys
+      final String in = concatenateNames(output, "inputNext");                  // Input next links
+      final String it = concatenateNames(output, "inputTop");                   // Input top link
+      final String ld = concatenateNames(output, "levelData");                  // The data out from a level
+      final String lf = concatenateNames(output, "levelFound");                 // Find status for a level
+      final String ln = concatenateNames(output, "levelNext");                  // Next link to search
+      final String nd = concatenateNames(output, "nodeData");                   // The data out from a node
+      final String nf = concatenateNames(output, "nodeFound");                  // The found flag output by each node
+      final String nn = concatenateNames(output, "nodeNext");                   // The next link output by this node
       int nodeId = 0;                                                           // Gives each node in the tree a different id
 
       if (find.bits != bits) stop("Find bus must be", bits, "wide, not", find.bits);
@@ -2799,7 +2796,7 @@ public class Chip                                                               
       for  (int i = 1; i <= N; i++)
        {final Chip   c = new Chip("monotoneMaskToPointMask "+B);
         final BitBus I = c.new BitBus("i", N);
-        for (int j = 1; j <= N; j++) c.bit(n(j, "i"), j < i ? 0 : 1);
+        for (int j = 1; j <= N; j++) c.bit(I.n(j).name, j < i ? 0 : 1);
         final BitBus o = c.monotoneMaskToPointMask("o", I);
         final BitBus O = c.outputBits("out", o);
         c.simulate();
