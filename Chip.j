@@ -58,7 +58,7 @@ public class Chip                                                               
   final TreeMap<Integer, Stack<String>>                                         // Each column of gates ordered by Y coordinate in layout
                                columns = new TreeMap<>();
   final static TreeMap<String, Diagram>
-                          diagramsDrawn = new TreeMap<>();                       // Avoid redrawing the same layout multiple times by only redrawing a new layout if it has a smaller number of levels or is closer to a square
+                          diagramsDrawn = new TreeMap<>();                      // Avoid redrawing the same layout multiple times by only redrawing a new layout if it has a smaller number of levels or is closer to a square
   int                         gsx, gsy;                                         // The global scaling factors to be applied to the dimensions of the gates during layout
   int                 layoutX, layoutY;                                         // Dimensions of chip
   Stack<Connection>        connections;                                         // Pairs of gates to be connected
@@ -111,9 +111,7 @@ public class Chip                                                               
   int gates              () {return gates.size();}                              // Number of gates in this chip
   int nextGateNumber     () {return ++gateSeq;}                                 // Numbers for gates
   String nextGateName    () {return ""+nextGateNumber();}                       // Create a numeric generated gate name
-  //Bit nGn              () {return new Bit();}                                 // Create a numeric generated gate name
-  //String nGn(String...name) {return nextGateName(name);}                      // Create a numeric generated gate name
-  //
+
   String nextGateName(String...name)                                            // Create a named, numeric generated gate name
    {return concatenateNames(concatenateNames((Object[])name), nextGateNumber());
    }
@@ -678,7 +676,6 @@ public class Chip                                                               
     for (steps = 1; steps < maxSimulationSteps; ++steps)                        // Steps in time
      {loadClock();                                                              // Load the value of the clock into the clock input bus
       loadPulses();
-// Moved to step       for (Gate g : gates.values()) g.nextValue = null;                         // Reset next values
       for (Gate g : gates.values()) g.step();                                   // Compute next value for  each gate
       for (Gate g : gates.values()) g.updateEdge();                             // Update each gate triggered by an edge transition
       for (Gate g : gates.values()) g.updateValue();                            // Update each gate
@@ -697,7 +694,7 @@ public class Chip                                                               
 
 //D2 Bits                                                                       // Operations on bits
 
-  Gate bit(String name, int value)                                              // Set an individual bit to true if the supplied number is non zero else false
+  Gate bit(String name, int value)                                              // Create a constant bit as true if the supplied number is non zero else false
    {return value > 0 ? One(name) : Zero(name);
    }
 
@@ -774,7 +771,7 @@ public class Chip                                                               
    {return concatenateNames(concatenateNames((Object[])C), i);
    }
 
-  static String nn(int i, int j, String...c)                                    // Gate name from double index.
+  static String n(int i, int j, String...c)                                     // Gate name from double index.
    {return concatenateNames(concatenateNames((Object[])c), i, j);
    }
 
@@ -969,8 +966,7 @@ public class Chip                                                               
        {r[j-1] = null;                                                          // Value not known
         int v = 0, p = 1;
         for (int i = 1; i <= W.bits; i++)                                       // Each bit on bus
-         {final String n = nn(j, i, name);                                      // Name of gate supporting named bit
-          final Gate g = getGate(n);                                            // Gate providing bit
+         {final Gate g = getGate(Chip.this.n(j, i, name));                      // Gate providing bit
           if (g == null)
            {say("No such word as:", name);
             return null;
@@ -984,8 +980,8 @@ public class Chip                                                               
       return r;
      }
 
-    BitBus n(int i)        {return bitBuses.get(Chip.this.n(i, name));}         // Get a bit bus in the word bus
-    Bit    n(int i, int j) {return new Bit(Chip.this.nn(i, j, name));}          // Get a bit from a bit bus in the word bus
+    BitBus n(int i)        {return bitBuses.get(Chip.this.n(i,    name));}      // Get a bit bus in the word bus
+    Bit    n(int i, int j) {return new Bit     (Chip.this.n(i, j, name));}      // Get a bit from a bit bus in the word bus
    }
 
   WordBus findWords(String name)                                                // Find a word bus by name
@@ -1569,15 +1565,15 @@ public class Chip                                                               
         for (int n = 1; n <= N; n++)                                            // Each node at this level
          {++nodeId;                                                             // Number of this node
           if (eI == null) eI = bits(n(0, ln), bits, nodeId);                    // For the moment we always enable the root node of the tree
-          final WordBus iK = inputWords(nn(l, n, ik), keys, bits);              // Bus of input words representing the keys in this node
-          final WordBus iD = inputWords(nn(l, n, id), keys, bits);              // Bus of input words representing the data in this node
-          final WordBus iN = leaf ? null : inputWords(nn(l, n, in), keys, bits);// Bus of input words representing the next links in this node
-          final BitBus  iT = leaf ? null : inputBits (nn(l, n, it), bits);      // Bus representing the top next link
-          final String  oF = root ? n(l, lf) : nn(l, n, nf);                    // On the root we do not need to combine the found flags for each node - on other levels we do
-          final String  oD = root ? n(l, ld) : nn(l, n, nd);                    // Output data element if found
-          final String  oN = root ? n(l, ln) : nn(l, n, nn);                    // Next link if node is not a leaf
+          final WordBus iK = inputWords(n(l, n, ik), keys, bits);               // Bus of input words representing the keys in this node
+          final WordBus iD = inputWords(n(l, n, id), keys, bits);               // Bus of input words representing the data in this node
+          final WordBus iN = leaf ? null : inputWords(n(l, n, in), keys, bits); // Bus of input words representing the next links in this node
+          final BitBus  iT = leaf ? null : inputBits (n(l, n, it), bits);       // Bus representing the top next link
+          final String  oF = root ? n(l, lf) : n(l, n, nf);                     // On the root we do not need to combine the found flags for each node - on other levels we do
+          final String  oD = root ? n(l, ld) : n(l, n, nd);                     // Output data element if found
+          final String  oN = root ? n(l, ln) : n(l, n, nn);                     // Next link if node is not a leaf
 
-          final BtreeNode node = new BtreeNode(nn(l, n, output, "node"),        // Create the node
+          final BtreeNode node = new BtreeNode(n(l, n, output, "node"),         // Create the node
             nodeId, bits, keys, leaf, eI, find, iK, iD, iN, iT, oF, oD, oN);
 
           level.nodes.put(n, node);                                             // Add the node to this level
