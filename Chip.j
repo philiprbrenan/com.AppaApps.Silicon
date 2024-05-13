@@ -4,7 +4,8 @@
 //------------------------------------------------------------------------------
 // pckage com.AppaApps.Silicon;
 // Test all dyadic gates to see if there is any correlation between their outputs and any other pins indicating that the gate might be redundant. Use class Grouping to achieve this.
-// gate set method
+// Gate set method
+// Balanced fanIn and fanOut trees - so pulses do not have to be individuated
 
 import java.io.*;
 import java.util.*;
@@ -19,15 +20,16 @@ public class Chip                                                               
   final String                   name;                                          // Name of chip
   final int                clockWidth;                                          // Number of bits in system clock. Zero implies no clock.
 
-  int                   layoutLTGates = 100;                                    // Always draw the layout if it has less than this many gates in it
-  int              maxSimulationSteps = github_actions ? 1000 : 100;            // Maximum simulation steps
-  int              minSimulationSteps =   0;                                    // Minimum simulation steps - we keep going at least this long even if there have been no changes to allow clocked circuits to evolve.
-  Integer                   stopAfter = null;                                   // Stop cleanly on this step if set
-  int          singleLevelLayoutLimit =  16;                                    // Limit on gate scaling dimensions during layout.
+  int                   layoutLTGates =  100;                                   // Always draw the layout if it has less than this many gates in it
+  final int defaultMaxSimulationSteps = github_actions ? 1000 : 100;            // Default maximum simulation steps
+  final int defaultMinSimulationSteps =    0;                                   // Default minimum simulation steps - we keep going at least this long even if there have been no changes to allow clocked circuits to evolve.
+  Integer          maxSimulationSteps = null;                                   // Maximum simulation steps
+  Integer          minSimulationSteps = null;                                   // Minimum simulation steps - we keep going at least this long even if there have been no changes to allow clocked circuits to evolve.
+  int          singleLevelLayoutLimit =   16;                                   // Limit on gate scaling dimensions during layout.
 
   final static boolean    makeSayStop = false;                                  // Turn say into stop if true which is occasionally useful for locating unlabeled say statements.
-  final static int      pixelsPerCell =   4;                                    // Pixels per cell
-  final static int     layersPerLevel =   4;                                    // There are 4 layers in each level: insulation, x cross bars, x-y connectors and insulation, y cross bars
+  final static int      pixelsPerCell =    4;                                   // Pixels per cell
+  final static int     layersPerLevel =    4;                                   // There are 4 layers in each level: insulation, x cross bars, x-y connectors and insulation, y cross bars
   final static String      perlFolder = "perl", perlFile = "gds2.pl";           // Folder and file for Perl code to represent a layout in GDS2.
   final static Stack<String>  gdsPerl = new Stack<>();                          // Perl code to create GDS2 output files
   final static TreeSet<String> errors = new TreeSet<>();                        // Unique error messages during the compilation of a chip
@@ -85,7 +87,6 @@ public class Chip                                                               
   int     maxSimulationSteps(int     MaxSimulationSteps) {return     maxSimulationSteps =     MaxSimulationSteps;}  // Maximum simulation steps
   int     minSimulationSteps(int     MinSimulationSteps) {return     minSimulationSteps =     MinSimulationSteps;}  // Minimum simulation steps
   int singleLevelLayoutLimit(int SingleLevelLayoutLimit) {return singleLevelLayoutLimit = SingleLevelLayoutLimit;}  // Limit on gate scaling dimensions during layout.
-  Integer          stopAfter(Integer StopAfter)          {return              stopAfter =              StopAfter;}  // Stop cleanly on this step if set
 
   void simulationSteps(int min, int max) {minSimulationSteps(min);   maxSimulationSteps(max);}                      // Stop cleanly between the specified minimum and maximum number of steps
   void simulationSteps(int steps)        {minSimulationSteps(steps); maxSimulationSteps(steps);}                    // Stop cleanly at this number of steps
@@ -400,9 +401,7 @@ public class Chip                                                               
 
     void updateEdge()                                                           // Update a memory gate on a leading edge. The memory bit on pin 2 is loaded when the value on pin 1 goes from high to low because reasoning about trailing edges seems to be easier than reasoning about leading edges
      {if (op == Operator.My)
-       {
-        //if (iGate1.value != null && !iGate1.value && iGate1.nextValue != null && iGate1.nextValue)
-        if (iGate1.value != null && iGate1.value && iGate1.nextValue != null && !iGate1.nextValue)
+       {if (iGate1.value != null && iGate1.value && iGate1.nextValue != null && !iGate1.nextValue)
          {if (iGate2.value != null)
            {value = changed = iGate2.value != iGate2.nextValue;
             value = iGate2.nextValue;
@@ -725,7 +724,11 @@ public class Chip                                                               
    {compileChip();                                                              // Check that the inputs to each gate are defined
     initializeGates(inputs);                                                    // Set the value of each input gate
 
-    for (steps = 1; steps <= maxSimulationSteps; ++steps)                       // Steps in time
+    final int actualMaxSimulationSteps =                                        // Actual limit on number of steps
+      maxSimulationSteps != null ? maxSimulationSteps : defaultMaxSimulationSteps;
+    final boolean miss = minSimulationSteps != null;                            // Minimum simulation steps set
+
+    for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
      {loadClock();                                                              // Load the value of the clock into the clock input bus
       loadPulses();
       for (Gate g : gates.values()) g.step();                                   // Compute next value for  each gate
@@ -734,13 +737,16 @@ public class Chip                                                               
       //if (simulationStep != null) simulationStep.step();                      // Call the simulation step
       if (executionTrace != null) executionTrace.trace();                       // Trace requested
 
-      if ((stopAfter != null && stopAfter == steps) ||                          // Stop requested
-          (steps >= minSimulationSteps && !changes()))                          // No changes occurred and we are beyond the minimum simulation time
-       {return gates.size() <= layoutLTGates ? drawSingleLevelLayout() : null;  // Draw the layout if it has less than the specified maximum number of gates for being drawn automatically with out a specific request.
+      if (!changes())                                                           // No changes occurred
+       {if (!miss || steps >= minSimulationSteps)                               // No changes occurred and we are beyond the minimum simulation time or no such time was set
+         {return gates.size() <= layoutLTGates ? drawSingleLevelLayout() : null;// Draw the layout if it has less than the specified maximum number of gates for being drawn automatically with out a specific request.
+         }
        }
       noChangeGates();                                                          // Reset change indicators
      }
-    err("Out of time after", maxSimulationSteps, "steps");                      // Not enough steps available
+    if (maxSimulationSteps == null)                                             // Not enough steps available by default
+     {err("Out of time after", actualMaxSimulationSteps, "steps");
+     }
     return null;
    }
 
@@ -1310,43 +1316,45 @@ public class Chip                                                               
 
 //D2 Periodic Pulses                                                            // Periodic pulses that drive input buses.
 
-  class Pulse extends Bit                                                       // A periodic pulse that drives an input bit
+  class Pulse extends Gate                                                      // A periodic pulse that drives an input bit
    {final int  period;                                                          // Length of pulses in simulations steps
     final int      on;                                                          // How long the pulse is in the on state in each period in simulations steps
     final int   delay;                                                          // Offset of the on phase of the pulse in simulations steps
-    final Gate   gate;                                                          // The corresponding input gate
-    Pulse(String Name, int Period, int On, int Delay)                           // Pulse definition
-     {super(Name);                                                              // Pulse name
-      period = Period; on = On; delay = Delay;                                  // Pulse details
-      gate = Input(name);                                                       // Input gate for pulse
-      gate.systemGate = true;                                                   // The input gate associated with this pulse. The gate will be driven by the simulator.
+    final int   start;                                                          // Number of cycles to wait before starting this pulse
+    Pulse(String Name, int Period, int On, int Delay, int Start)                // Pulse definition
+     {super(Operator.Input, Name, null, null);                                  // Pulse name
+      period = Period; on = On; delay = Delay; start = Start;                   // Pulse details
+      systemGate = true;                                                        // The input gate associated with this pulse. The gate will be driven by the simulator.
       if (on    > period) stop("On", on, "is greater than period", period);
       if (delay > period) stop("Delay", delay, "is greater than period", period);
       if (on + delay > period) stop("On + Delay", on, "+", delay, "is greater than period", period);
       pulses.put(name, this);                                                   // Save pulse
      }
-    boolean setState()                                                          // Set gate to current state
+    void setState()                                                             // Set gate to current state
      {final int i = (steps-1) % period;
       final boolean v = i >= delay && i < on+delay;                             // Pulse value
-      return gate.value = v;                                                    // Set gate to pulse value
+      if (steps-1 >= start*period) value = v; else value = false;
      }
-    public String toString() {return ""+gate;}                                  // Pulse as state as a character
    }
 
   void loadPulses()                                                             // Load all the pulses for this chip
    {for (Pulse p : pulses.values()) p.setState();
    }
 
+  Pulse pulse(String Name, int Period, int On, int Delay, int Start)            // Create a pulse
+   {return new Pulse(Name, Period, On, Delay, Start);
+   }
+
   Pulse pulse(String Name, int Period, int On, int Delay)                       // Create a pulse
-   {return new Pulse(Name, Period, On, Delay);
+   {return new Pulse(Name, Period, On, Delay, 0);
    }
 
   Pulse pulse(String Name, int Period, int On)                                  // Create a pulse with no delay
-   {return new Pulse(Name, Period, On, 0);
+   {return new Pulse(Name, Period, On, 0, 0);
    }
 
   Pulse pulse(String Name, int Period)                                          // Create a single step pulse with no delay
-   {return new Pulse(Name, Period, 1, 0);
+   {return new Pulse(Name, Period, 1, 0, 0);
    }
 
 //D2 Select                                                                     // Send a pulse one way or another depending on a bit allowing us to execute one branch of an if statement or the other and receive a pulse notifying us when the execution of the different length paths are complete.
@@ -2455,6 +2463,19 @@ public class Chip                                                               
     System.exit(1);
    }
 
+//D1 Testing                                                                    // Test expected output against got output
+
+  static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
+
+  static void ok(Object a, Object b)                                            // Check test results match expected results.
+   {if (a.equals(b)) {++testsPassed; return;}
+    final boolean n = b.toString().contains("\n");
+    testsFailed++;
+    if (n) err("Test failed. Got:\n"+b+"\n");
+    else   err(a, "does not equal", b);
+   }
+
+
 //D0
 
   static void test_max_min()
@@ -3067,10 +3088,9 @@ public class Chip                                                               
 
     final Inputs I = c.new Inputs();
     I.set(i, true);
-    c.stopAfter(12);
     c.simulate();
-    ok(c.steps,    12);
     ok(o.value, false);
+    ok(c.steps,    12);
    }
 
   static void test_clock()
@@ -3168,7 +3188,7 @@ Step  c l  r
     Gate  o = c.Output("out",   d);
 
     c.executionTrace("p d", "%s %s", p, d);
-    c.stopAfter(16);
+    c.simulationSteps(16);
     c.simulate();
     //c.printExecutionTrace(); stop();
 
@@ -3183,7 +3203,7 @@ Step  p d
   13  0 1
   15  0 0
 """);
-    ok(c.steps,  16);
+    ok(c.steps,  17);
    }
 
   static void test_select()
@@ -3198,7 +3218,7 @@ Step  p d
     c.Output("oe", e);
 
     c.executionTrace("C P  d e", "%s %s   %s %s", C, P, d, e);
-    c.stopAfter(32);
+    c.simulationSteps(32);
     c.simulate();
     //c.printExecutionTrace(); stop();
 
@@ -3230,7 +3250,7 @@ Step  C P  d e
   31  0 1   0 1
   32  0 1   0 0
 """);
-    ok(c.steps, 32);
+    ok(c.steps, 33);
    }
 
   static void test_shift()
@@ -3293,51 +3313,6 @@ Step  Reg_   1 2
 """);
    }
 
-// 2 3 5 8 13 21 34 55 89 144 233
-
-  static void test_fibonacci()
-   {final int N = 4;
-//    final Stack<String> S = new Stack<>();
-//    final Chip        C = new Chip("Binary Add");
-//    final BitBus    one = C.bits("one",  N, 1);
-//    final Pulse      in = C.pulse("in", 1024, 128);
-//    final Pulse      la = C.pulse("la",  128,  32, 32);
-//    final Pulse      lb = C.pulse("lb",  128,  32, 64);
-//    final Pulse      lc = C.pulse("lc",  128,  32);
-//
-//    final BitBus     ab = C.new BitBus("ab", N);
-//    final BitBus     ac = C.new BitBus("ac", N);
-//    final BitBus     bc = C.new BitBus("bc", N);
-//
-//    final Register    a = C.register("a",  bc, la.gate);
-//    final BitBus     ai = C.chooseFromTwoWords   ("ai", a.output, one, in.gate);
-//
-//    final Register    b = C.register("b",  ac, lb.gate);
-//    final BitBus     bi = C.chooseFromTwoWords   ("bi", b.output, one, in.gate);
-//
-//    final Register    c = C.register("c",  ab, lc.gate);
-//    final BitBus     ci = C.chooseFromTwoWords   ("ci", c.output, one, in.gate);
-//
-//    final BinaryAdd sab = C.binaryAdd("cab", "ab", ai, bi);
-//    final BinaryAdd sac = C.binaryAdd("cac", "ac", ai, ci);
-//    final BinaryAdd sbc = C.binaryAdd("cbc", "bc", bi, ci);
-//    C.anneal(sab.carry, sac.carry, sbc.carry);
-//    final BitBus oa = C.outputBits("oa", ai);
-//    final BitBus ob = C.outputBits("ob", bi);
-//    final BitBus oc = C.outputBits("oc", ci);
-//    C.simulationStep = ()->{S.push(String.format(
-//      "%s   %s %s %s   %s %s %s   %s %s %s   %s %s %s",
-//      in.gate, la, lb, lc, a, b, c, ai, bi, ci, sab.sum, sbc.sum, sac.sum));};
-//    C.simulationSteps(256, 256);
-//    C.simulate();
-//    say("                  a    b    c      ai   bi   ci     oab  oac  obc");
-//    for(int i = 1; i <  S.size(); ++i)
-//     {final String sa = S.elementAt(i-1);
-//      final String sb = S.elementAt(i);
-//      if (!sa.equals(sb)) say(String.format("%4d %s", i, sb));
-//     }
-   }
-
   static void test_8p5i4()
    {final int N = 8;   // 4 bits = 19 steps 8 = 46 steps
     final Chip        C = new Chip("Binary Add");
@@ -3348,17 +3323,65 @@ Step  Reg_   1 2
     final BitBus     os = C.outputBits("os", c.sum);
     C.simulationSteps(48);
     C.simulate();
-    ok(os.toString(), "11111111");
+    ok(os.toString(), "11111111");                                              // toString unfortunately required
    }
 
-  static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
+// 2 3 5 8 13 21 34 55 89 144 233
 
-  static void ok(Object a, Object b)                                            // Check test results match expected results.
-   {if (a.equals(b)) {++testsPassed; return;}
-    final boolean n = b.toString().contains("\n");
-    testsFailed++;
-    if (n) err("Test failed. Got:\n"+b+"\n");
-    else   err(a, "does not equal", b);
+  static void test_fibonacci()
+   {final int N = 4;
+    final Stack<String> S = new Stack<>();
+    final Chip          C = new Chip("Binary Add");
+    final BitBus      one = C.bits("one",  N, 1);
+    final Pulse        ia = C.pulse("ia", 1024,  16);                           // These pulses have to be individuated because otherwise the trailing edge arrives at the registers at different points in time leading so loading the wrong values.
+    final Pulse        ic = C.pulse("ic", 1024,  16);
+    final Pulse        la = C.pulse("la",  128,  32, 32, 1);
+    final Pulse        lb = C.pulse("lb",  128,  32, 64, 1);
+    final Pulse        lc = C.pulse("lc",  128,  32,  0, 1);
+
+    final BitBus       ab = C.new BitBus("ab", N);
+    final BitBus       ac = C.new BitBus("ac", N);
+    final BitBus       bc = C.new BitBus("bc", N);
+
+    final Register      a = C.register("a",  one, ia, bc, la);
+    final Register      b = C.register("b",  one, ia, ac, lb);
+    final Register      c = C.register("c",  one, ic, ab, lc);
+
+    final BinaryAdd   sab = C.binaryAdd("cab", "ab", a, b);
+    final BinaryAdd   sac = C.binaryAdd("cac", "ac", a, c);
+    final BinaryAdd   sbc = C.binaryAdd("cbc", "bc", b, c);
+    C.anneal(sab.carry, sac.carry, sbc.carry);
+    final BitBus oa = C.outputBits("oa", sab.sum);
+    final BitBus ob = C.outputBits("ob", sac.sum);
+    final BitBus oc = C.outputBits("oc", sbc.sum);
+
+    C.executionTrace(
+      "ia ic   la lb lc  a    b    c",
+      "%s  %s    %s  %s  %s   %s %s %s",
+      ia, ic,  la, lb, lc,  a, b, c);
+    C.simulationSteps(353);
+    C.simulate();
+    //C.printExecutionTrace(); stop();
+    C.ok(STR."""
+Step  ia ic   la lb lc  a    b    c
+   1  1  1    0  0  0   .... .... ....
+  17  0  0    0  0  0   .... .... ....
+  18  0  0    0  0  0   .... .... 0001
+  19  0  0    0  0  0   0001 0001 0001
+ 129  0  0    0  0  1   0001 0001 0001
+ 161  0  0    1  0  0   0001 0001 0001
+ 162  0  0    1  0  0   0001 0001 0010
+ 193  0  0    0  1  0   0001 0001 0010
+ 194  0  0    0  1  0   0011 0001 0010
+ 225  0  0    0  0  0   0011 0001 0010
+ 226  0  0    0  0  0   0011 0101 0010
+ 257  0  0    0  0  1   0011 0101 0010
+ 289  0  0    1  0  0   0011 0101 0010
+ 290  0  0    1  0  0   0011 0101 1000
+ 321  0  0    0  1  0   0011 0101 1000
+ 322  0  0    0  1  0   1101 0101 1000
+ 353  0  0    0  0  0   1101 0101 1000
+""");
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -3402,12 +3425,11 @@ Step  Reg_   1 2
     test_BtreeLeafCompare();
     test_Btree();
     test_8p5i4();
-//  test_fibonacci();
+    test_fibonacci();
    }
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
-    //test_fibonacci();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
