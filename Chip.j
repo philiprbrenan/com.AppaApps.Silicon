@@ -1017,6 +1017,12 @@ public class Chip                                                               
     return o;                                                                   // Size of resulting bus
    }
 
+  void connect(BitBus input1, BitBus input2)                                    // Connect two bit buses together.
+   {input1.sameSize(input2);                                                    // Check the buses are the same size
+    final int bits = input1.bits;                                               // Number of bits in input bus
+    for (int b = 1; b <= bits; ++b) Continue(input1.n(b).name, input2.n(b));    // Connect the buses
+   }
+
 //D3 Words                                                                      // An array of arrays of bits that can be manipulated via one name.
 
   class WordBus                                                                 // Description of a word bus
@@ -3374,6 +3380,27 @@ Step  Reg_   1 2  l  e     e2    e2
 """);
    }
 
+  static void test_connectBuses()
+   {final int N = 4;
+
+    final Chip   C = new Chip("Binary Add");
+    final BitBus i = C.bits ("i",  N,  9);
+    final BitBus o = C.new BitBus("o", N);
+    final BitBus O = C.outputBits("O", o);
+    C.connect(o, i);
+
+    C.executionTrace("i     o     O", "%s  %s  %s", i, o, O);
+    C.simulate();
+    //C.printExecutionTrace(); stop();
+
+    C.ok(STR."""
+Step  i     o     O
+   1  1001  ....  ....
+   2  1001  1001  ....
+   3  1001  1001  1001
+""");
+   }
+
   static void test_8p5i4()
    {final int N = 8;   // 4 bits = 19 steps 8 = 46 steps
     final Chip        C = new Chip("Binary Add");
@@ -3460,6 +3487,7 @@ Step  ia ic   la lb lc  a    b    c
     test_clock();
     test_delayedDefinitions();
     test_simulationStep();
+    test_connectBuses();
     test_expand();
     test_expand2();
     test_outputBits();
@@ -3491,14 +3519,13 @@ Step  ia ic   la lb lc  a    b    c
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
-    //test_registerSources();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
    {try
      {oldTests();
       newTests();
-      gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
+      gds2Finish();                                                             // Execute resulting Perl code to create GDS2 files
       if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
       else say("Passed "+testsPassed+",    FAILed:", testsFailed, "tests.");
      }
