@@ -226,7 +226,8 @@ public class Chip                                                               
     final Operator           op;                                                // Operation performed by gate
     Gate                 iGate1,  iGate2;                                       // Gates driving the inputs of this gate as during simulation but not during layout
     Gate       soGate1, soGate2, tiGate1, tiGate2;                              // Pin assignments on source and target gates used during layout but not during simulation
-    TreeSet<WhichPin>    drives = new TreeSet<>();                              // The names of the gates that are driven by the output of this gate with a possible pin selection attached
+    final TreeSet<WhichPin>
+                         drives = new TreeSet<>();                              // The names of the gates that are driven by the output of this gate with a possible pin selection attached
     boolean          systemGate = false;                                        // System gate if true
     Integer    distanceToOutput;                                                // Distance to nearest output
     Boolean               value;                                                // Current output value of this gate
@@ -372,12 +373,10 @@ public class Chip                                                               
      }
 
     void compileGate()                                                          // Locate inputs for gate so we do not have to look them up every time
-     {final int N = drives.size();
-
+     {final int N = drives.size();                                              // Size of actual drives
       if (N == 0 && !systemGate)                                                // Check for user defined gates that do not drive any other gate
-       {if (op == Operator.Output) return;
-        //say(Chip.this);
-        stop("Gate", name, "does not drive any gate");
+       {if (op == Operator.Output || op == Operator.FanOut) return;
+        stop(op, "gate", name, "does not drive any gate");
         return;
        }
 
@@ -385,7 +384,8 @@ public class Chip                                                               
         "gates, but a gate can drive no more than 2 other gates");
 
       for (WhichPin t : drives)                                                 // Connect targeted gates back to this gate
-       {final Gate T = t.gate();
+       {if (t == null) continue;                                                // Fan out is woder than strictly necessary but tolerated to produce a complete tree.
+        final Gate T = t.gate();
         if      (T.iGate1 == this || T.iGate2 == this) {}                       // Already set
         else if (T.iGate1 == null && t.ok1()) T.iGate1 = this;                  // Use input pin 1
         else if (T.iGate2 == null && t.ok2()) T.iGate2 = this;                  // Use input pin 2
@@ -441,75 +441,83 @@ public class Chip                                                               
      }
 
     void fanOut()                                                               // Fan out when more than two gates are driven by this gate
-     {final int N = drives.size();
+     {final int N = drives.size(), N2 = N / 2;                                  // Number of pins driven by this gate
       if (op == Operator.Output) return;                                        // Output gates do not fan out
-      if (N <= 2) return;                                                       // No fan out required
+      if (N <= 2) return;                                                       // No fan out required because we have maintained the rule that no gate may drive more than two gates directly.
 
-      final WhichPin[]D = drives.toArray(new WhichPin[drives.size()]);
-
-      if (N % 2 == 1)                                                           // Odd number of gates driven
-       {final Gate g = new Gate(Operator.FanOut);                               // The new fan out
-        for (int i = 0; i < N-1; ++i)
-         {final WhichPin d = D[i];
-          g.drives.add (d);                                                     // Put the target to the newly created gate
-          drives.remove(d);                                                     // Remove the target from the original gate
-         }
-        drives.add(new WhichPin(g.name));                                       // The old gate drives the new gate
-        g.fanOut();                                                             // The even gate might need further fan put
-        return;
-       }
+      final WhichPin[]D = drives.toArray(new WhichPin[N]);                      // The input pins driven by this output spread across the fan
 
       final Gate g = new Gate(Operator.FanOut), f = new Gate(Operator.FanOut);  // Even and greater than 2
-      for (int i = 0; i < N/2; ++i)                                             // Lower half
+      final int P = logTwo(N);                                                  // Length of fan out path - we want to make all the fanout paths the same length to simplify timing issues
+      final int Q = powerTwo(P-1);                                              // Size of a full half
+      for (int i = 0; i < Q; ++i)                                               // Lower half full tree
        {final WhichPin d = D[i];
-        g.drives.add(d);
-        drives.remove(d);
+        g.drives.add(d);                                                        // Transfer drive to the new lower gate
+        drives.remove(d);                                                       // Remove drive from current gate
        }
       drives.add(new WhichPin(g.name));                                         // The old gate drives the new gate
       g.fanOut();                                                               // The lower half gate might need further fan out
 
-      for (int i = N/2; i < N; ++i)                                             // Upper half
+      for (int i = Q; i < N; ++i)                                               // Upper half - might not be a complete tree
        {final WhichPin d = D[i];
-        f.drives.add(d);
-        drives.remove(d);
+        f.drives.add(d);                                                        // Transfer drive to new lower gate
+        drives.remove(d);                                                       // Remove drive from current gate
        }
-      drives.add(new WhichPin(f.name));                                         // The old gate drives the new gate
-      f.fanOut();                                                               // The upper half gate might need further fan out
+
+      if (2 * N >= 3 * Q)                                                       // Can fill out most of the second half of the tree
+       {drives.add(new WhichPin(f.name));                                       // The old gate drives the new gate
+        f.fanOut();                                                             // Fan out lower gate
+       }
+      else                                                                      // To few entries to fill more than half of the leaves so push the sub tree down one level
+       {final Gate e = new Gate(Operator.FanOut);                               // Extend the path
+        drives.add(new WhichPin(e.name));                                       // The old gate drives the extension gate
+        e.drives.add(new WhichPin(f.name));                                     // The extension gate drives the new gate
+        f.fanOut();                                                             // Fanout the smaller sub stree
+       }
      }
    } // Gate
 
   Gate FanIn(Operator Op, String Name, Bit...Input)                             // Normal gate - not a fan out gate
-   {final int L = Input.length;
-    if (L == 0)                                                                 // Zerad
+   {final int N = Input.length;
+    if (N == 0)                                                                 // Zerad
      {if (!zerad(Op)) stop(Op, "gate:", Name, "does not accept zero inputs");
       return new Gate(Op, Name, null, null);
      }
 
-    if (L == 1)                                                                 // Monad
+    if (N == 1)                                                                 // Monad
      {if (!monad(Op)) stop(Op, "gate:", Name, "does not accept just one input");
       return new Gate(Op, Name, Input[0], null);
      }
 
-    if (L == 2)                                                                 // Dyad
+    if (N == 2)                                                                 // Dyad
      {if (!dyad(Op)) stop(Op, "gate:", Name, "does not accept two inputs");
       return new Gate(Op, Name, Input[0], Input[1]);
      }
 
-    final Operator Ao;                                                          // Only the last level of Not operators requires a not
+    final int P = logTwo(N);                                                    // Length of fan out path - we want to make all the fanout paths the same length to simplify timing issues
+    final int Q = powerTwo(P-1);                                                // Size of a full half
+
+    final Operator l;                                                           // Lower operator
     switch(Op)
-     {case Nand: Ao = Operator.And; break;
-      case Nor : Ao = Operator.Or; break;
-      default:   Ao = Op;
+     {case Nand: l = Operator.And; break;
+      case Nor : l = Operator.Or;  break;
+      default  : l = Op;
      }
 
-    if (L % 2 == 1)                                                             // Odd fan in
-     {final Gate f = FanIn(Ao, nextGateName(), Arrays.copyOfRange(Input,0,L-1));// Divisible by two
-      return new Gate(Op, Name, f, Input[L-1]);                                 // Consolidation of the two gates
+    final Operator u;                                                           // Upper operator
+    switch(Op)
+     {case And: case Nand: u = N > Q + 1 ? Operator.And : Operator.Continue; break;
+      case Or : case Nor : u = N > Q + 1 ? Operator.Or  : Operator.Continue; break;
+      default :            u = Op;
      }
 
-    final Gate f = FanIn(Ao, nextGateName(), Arrays.copyOfRange(Input, 0, L/2));// Even fan out
-    final Gate g = FanIn(Ao, nextGateName(), Arrays.copyOfRange(Input, L/2, L));
-    return new Gate(Op, Name, f, g);                                            // Consolidation of the two gates
+    final Gate f = FanIn(l, nextGateName(), Arrays.copyOfRange(Input, 0, Q));  // Lower half is a full sub tree
+    final Gate g = FanIn(u, nextGateName(), Arrays.copyOfRange(Input, Q, N));  // Upper half might not be full
+
+    if (2 * N >= 3 * Q) return new Gate(Op, Name, f, g);                         // No need to extend path to balance it
+
+    final Gate e = FanIn(Operator.Continue, nextGateName(), g);                 // Extension gate to make the upper half paths the same length as the lower half paths
+    return new Gate(Op, Name, f, e);
    }
 
   Gate Input   (String n)               {return FanIn(Operator.Input,    n);}
@@ -525,7 +533,7 @@ public class Chip                                                               
   Gate Ngt     (String n, Bit i, Bit j) {return FanIn(Operator.Ngt,  n, i, j);}
   Gate Lt      (String n, Bit i, Bit j) {return FanIn(Operator.Lt,   n, i, j);}
   Gate Nlt     (String n, Bit i, Bit j) {return FanIn(Operator.Nlt,  n, i, j);}
-  Gate My      (String n, Bit i, Bit j) {return FanIn(Operator.My,   n, i, j);}
+  Gate My      (String n, Bit i, Bit j) {return FanIn(Operator.My,   n, i, j);} // When pin 1 falls from 1 to 0 record the value of pin 2
 
   Gate And     (String n, Bit...i)      {return FanIn(Operator.And,  n, i);}
   Gate Nand    (String n, Bit...i)      {return FanIn(Operator.Nand, n, i);}
@@ -712,7 +720,18 @@ public class Chip                                                               
     int l = 1, c = 1;
     for (int i = 0; i < lg; i++)
      {final int  e = E.charAt(i), g = G.charAt(i);
-      if (e != g) stop("Differs at line:", l, "character", c, "expected:", e, "got:", g, "in:\n"+G);
+      if (e != g)
+       {say("Differs at line:", String.format("%04d", l),
+            "character", c, ", expected:", ((char)e),
+                            ", got:",      ((char)g));
+        say("      0----+----1----+----2----+----3----+----4----+----5----+----6");
+        final String[]t = G.split("\\n");
+        for(int k = 0; k < t.length; k++)
+         {say(String.format("%04d  ", k+1)+t[k]);
+          if (l == k+1) say(" ".repeat(6+c)+'^');
+         }
+        stop();
+       }
       if (e == '\n') {++l; c = 0;} else c++;
      }
     ++testsPassed;                                                              // Passed this test
@@ -1272,6 +1291,10 @@ public class Chip                                                               
     final Bit     load1;                                                        // Load first bit: when this bit goes from high to low the register is loaded from the first input bus.
     final BitBus input2;                                                        // Second bus from which the register is loaded - perhaps a subsequently computed value
     final Bit     load2;                                                        // Load second bit: when this bit goes from high to low the register is loaded from the second input bus.
+    final BitBus     e1;                                                        // Enable input 1
+    final BitBus     e2;                                                        // Enable input 2
+    final BitBus      e;                                                        // Combined input
+    final Bit         l;                                                        // Combined load
 
     Register(String Output, BitBus Input, Bit Load)                             // Create register from single input
      {super(Output, Input.bits);
@@ -1279,6 +1302,7 @@ public class Chip                                                               
       final int w = Input.bits;
       load1 = Load; load2 = null;
       for (int i = 1; i <= w; i++) My(n(i).name, Input.n(i), Load);             // Create the memory bits
+      e = e1 = e2 = null; l = null;
      }
 
     Register(String Output, BitBus Input1, Bit Load1, BitBus Input2, Bit Load2) // Create register from two inputs
@@ -1287,11 +1311,13 @@ public class Chip                                                               
       input1 = Input1; input2 = Input2;
       final int w = Input1.bits;
       load1 = Load1; load2 = Load2;
-      final BitBus e1 = enableWord(concatenateNames(Output, "e1"), input1, load1); // Enable input 1
-      final BitBus e2 = enableWord(concatenateNames(Output, "e2"), input2, load2); // Enable input 2
-      final BitBus e  = orBits(concatenateNames(Output, "e"), e1, e2);          // Combined input
-      final Bit    l  = Or    (concatenateNames(Output, "l"), load1, load2);    // Combined load
-      for (int i = 1; i <= w; i++) My(n(i).name, e.n(i), l);                    // Create the memory bits
+      e1 = enableWord(concatenateNames(Output, "e1"), input1, load1);           // Enable input 1
+      e2 = enableWord(concatenateNames(Output, "e2"), input2, load2);           // Enable input 2
+      e  = orBits(concatenateNames(Output, "e"), e1, e2);                       // Combined input
+      l  = Or    (concatenateNames(Output, "l"), load1, load2);                 // Combined load
+      for (int i = 1; i <= w; i++)                                              // Create the memory bits
+        My(n(i).name, l, delay(Chip.this.n(i, Output, "d"), e.n(i), logTwo(w)));// The delay loads the register when the fan out arrives
+
      }
    }
 
@@ -1725,7 +1751,7 @@ public class Chip                                                               
        {final Gate.WhichPin f = source.drives.first();
         final Gate.WhichPin l = source.drives. last();
         final Gate.WhichPin p = f.drives.equals(target.name) ? f : l;           // The drive between the two gates
-        if (p.pin != null)                                                      // If the pin is null then either pin on the target is acceptable
+        if (p.pin != null)
          {if (p.pin) target.tiGate1 = source; else target.tiGate2 = source;     // Layout as much of the connection as we can at this point
          }
        }
@@ -1769,7 +1795,9 @@ public class Chip                                                               
 
     for (Gate s : connectedToOutput.values())                                   // Gates connected to outputs
       for (Gate.WhichPin p : s.drives)                                          // Gates driven by this gate
-        connections.push(new Connection(s, p.gate()));                          // Connection needed
+       {final Connection c = new Connection(s, p.gate());                       // Connection needed
+        connections.push(c);
+       }
 
     for (Connection c : connections)                                            // Each possible connection
      {final Gate s = c.source, t = c.target;
@@ -2442,24 +2470,44 @@ public class Chip                                                               
 
 //D1 Logging                                                                    // Logging and tracing
 
+  static String traceBack(Exception e)                                          // Get a stack trace that we can use in Geany
+   {final StackTraceElement[]  t = e.getStackTrace();
+    final StringBuilder        b = new StringBuilder();
+    if (e.getMessage() != null)b.append(e.getMessage()+'\n');
+
+    for(StackTraceElement s : t)
+     {final String f = s.getFileName();
+      final String c = s.getClassName();
+      final String m = s.getMethodName();
+      final String l = String.format("%04d", s.getLineNumber());
+      if (f.equals("Main.java"))                       continue;
+      if (f.equals("Method.java"))                     continue;
+      if (f.equals("DirectMethodHandleAccessor.java")) continue;
+      b.append("  "+f+":"+l+":"+m+'\n');
+     }
+    return b.toString();
+   }
+
+  static String traceBack() {return traceBack(new Exception());}                // Get a stack trace that we can use in Geany
+
   static void say(Object...O)                                                   // Say something
    {final StringBuilder b = new StringBuilder();
     for (Object o: O) {b.append(" "); b.append(o);}
     System.err.println((O.length > 0 ? b.substring(1) : ""));
     if (makeSayStop)
-     {new Exception().printStackTrace();
+     {System.err.println(traceBack());
       System.exit(1);
      }
    }
 
   static void err(Object...O)                                                   // Say something and provide an error trace.
    {say(O);
-    new Exception().printStackTrace();
+    System.err.println(traceBack());
    }
 
   static void stop(Object...O)                                                  // Say something. provide an error trace and stop,
    {say(O);
-    new Exception().printStackTrace();
+    System.err.println(traceBack());
     System.exit(1);
    }
 
@@ -2936,7 +2984,7 @@ public class Chip                                                               
     final BitBus n = c.outputBits("n", c.findBits("next"));
     final Gate   f = c.Output    ("f", c.new Bit("found"));
     c.simulate();
-    ok(c.steps >= 19 && c.steps <= 22, true);
+    ok(c.steps >= 18 && c.steps <= 22, true);
     ok(c.getBit("found"), Found);
     ok(c.findBits("data").Int(), Data);
     ok(c.findBits("next").Int(), Next);
@@ -3113,37 +3161,39 @@ public class Chip                                                               
     Pulse p3 = c.pulse("p3", 16, 2, 5);
     Pulse p4 = c.pulse("p4",  4);
     Gate  a  = c.   Or("a", p1, p2, p3);
-    Gate  m  = c.   My("m", a, p4);
+    Gate  m  = c.   My("m", p4, a);                                             // Pin 1 controls when pin 2 is stored in the memory
     c.Output("o", m);
 
-    c.executionTrace("1 2 3 4    a m", "%s %s %s %s    %s %s", p1, p2, p3, p4, a, m);
+    c.executionTrace("1 2 3 a    4 m", "%s %s %s %s    %s %s", p1, p2, p3, a, p4,m);
     c.simulationSteps(32);
     c.simulate();
     //c.printExecutionTrace();
     c.ok(STR."""
-Step  1 2 3 4    a m
-   1  1 0 0 1    . .
-   2  0 0 0 0    1 .
+Step  1 2 3 a    4 m
+   1  1 0 0 .    1 .
+   2  0 0 0 1    0 .
    3  0 0 0 0    0 0
    4  0 1 0 0    0 0
    5  0 0 0 1    1 0
-   6  0 0 1 0    1 0
-   8  0 0 0 0    0 0
-   9  0 0 0 1    0 0
-  10  0 0 0 0    0 0
-  13  0 0 0 1    0 0
-  14  0 0 0 0    0 0
-  17  1 0 0 1    0 0
-  18  0 0 0 0    1 0
+   6  0 0 1 0    0 0
+   7  0 0 1 1    0 0
+   8  0 0 0 1    0 0
+   9  0 0 0 0    1 1
+  10  0 0 0 0    0 1
+  13  0 0 0 0    1 1
+  14  0 0 0 0    0 1
+  17  1 0 0 0    1 1
+  18  0 0 0 1    0 1
   19  0 0 0 0    0 0
   20  0 1 0 0    0 0
   21  0 0 0 1    1 0
-  22  0 0 1 0    1 0
-  24  0 0 0 0    0 0
-  25  0 0 0 1    0 0
-  26  0 0 0 0    0 0
-  29  0 0 0 1    0 0
-  30  0 0 0 0    0 0
+  22  0 0 1 0    0 0
+  23  0 0 1 1    0 0
+  24  0 0 0 1    0 0
+  25  0 0 0 0    1 1
+  26  0 0 0 0    0 1
+  29  0 0 0 0    1 1
+  30  0 0 0 0    0 1
 """);
     ok(c.steps,  32);
    }
@@ -3158,25 +3208,29 @@ Step  1 2 3 4    a m
     Register  r = c.register("reg",  I, pl);
     BitBus    o = c.outputBits("o", r);
 
-    c.executionTrace("c l  r", "%s %s  %s", pc, pl, r);
+    c.executionTrace("c  choose    l  register", "%s  %s  %s  %s", pc, I, pl, r);
     c.simulationSteps(32);
     c.simulate();
     //c.printExecutionTrace(); stop();
     c.ok(STR."""
-Step  c l  r
-   1  0 0  ........
-   2  0 1  ........
-   3  0 0  ........
-   4  0 0  0000....
-  10  0 1  0000....
-  11  0 0  0000....
-  12  0 0  00001001
-  17  1 0  00001001
-  18  1 1  00001001
-  19  1 0  00001001
-  26  1 1  00001001
-  27  1 0  00001001
-  28  1 0  00000110
+Step  c  choose    l  register
+   1  0  ........  0  ........
+   2  0  ........  1  ........
+   3  0  0000....  0  ........
+   4  0  0000....  0  0000....
+   5  0  0000.00.  0  0000....
+   8  0  00001001  0  0000....
+  10  0  00001001  1  0000....
+  11  0  00001001  0  0000....
+  12  0  00001001  0  00001001
+  17  1  00001001  0  00001001
+  18  1  00001001  1  00001001
+  19  1  00001001  0  00001001
+  21  1  00001111  0  00001001
+  24  1  00000110  0  00001001
+  26  1  00000110  1  00001001
+  27  1  00000110  0  00001001
+  28  1  00000110  0  00000110
 """);
     ok(c.steps, 32);
    }
@@ -3293,23 +3347,30 @@ Step  C P  d e
     final Chip     C = new Chip("Binary Add");
     final BitBus  o1 = C.bits ("o1",  N,  9);
     final BitBus  o2 = C.bits ("o2",  N,  5);
-    final Pulse   p1 = C.pulse("p1",  32, 3);
-    final Pulse   p2 = C.pulse("p2",  32, 3, 4);
+    final Pulse   p1 = C.pulse("p1",  16, 3, 0);
+    final Pulse   p2 = C.pulse("p2",  16, 4, 4);
 
     final Register r = C.register("r",  o1, p1, o2, p2);
     final BitBus   o = C.outputBits("o", r);
-    C.simulationSteps(12);
-    C.executionTrace("Reg_   1 2", "%s   %s %s", r, p1, p2);
+    C.simulationSteps(20);
+    C.executionTrace("Reg_   1 2  l  e     e2    e2", "%s   %s %s  %s  %s  %s  %s", r, p1, p2, r.l, r.e, r.e1, r.e2);
     C.simulate();
-
-    //C.printExecutionTrace(); stop();
     C.ok(STR."""
-Step  Reg_   1 2
-   1  ....   1 0
-   4  ....   0 0
-   5  1001   0 1
-   8  1001   0 0
-   9  0101   0 0
+Step  Reg_   1 2  l  e     e2    e2
+   1  ....   1 0  .  ....  ....  ....
+   2  ....   1 0  .  ....  .00.  0.0.
+   3  ....   1 0  1  ..0.  1001  0000
+   4  ....   0 0  1  1001  1001  0000
+   5  ....   0 1  1  1001  1001  0000
+   6  ....   0 1  0  1001  0000  0000
+   7  1001   0 1  1  0000  0000  0101
+   8  1001   0 1  1  0101  0000  0101
+   9  1001   0 0  1  0101  0000  0101
+  11  1001   0 0  0  0101  0000  0000
+  12  0101   0 0  0  0000  0000  0000
+  17  0101   1 0  0  0000  0000  0000
+  19  0101   1 0  1  0000  1001  0000
+  20  0101   0 0  1  1001  1001  0000
 """);
    }
 
@@ -3366,20 +3427,20 @@ Step  Reg_   1 2
 Step  ia ic   la lb lc  a    b    c
    1  1  1    0  0  0   .... .... ....
   17  0  0    0  0  0   .... .... ....
-  18  0  0    0  0  0   .... .... 0001
-  19  0  0    0  0  0   0001 0001 0001
+  20  0  0    0  0  0   .... 0001 0001
+  21  0  0    0  0  0   0001 0001 0001
  129  0  0    0  0  1   0001 0001 0001
  161  0  0    1  0  0   0001 0001 0001
- 162  0  0    1  0  0   0001 0001 0010
+ 164  0  0    1  0  0   0001 0001 0010
  193  0  0    0  1  0   0001 0001 0010
- 194  0  0    0  1  0   0011 0001 0010
+ 196  0  0    0  1  0   0011 0001 0010
  225  0  0    0  0  0   0011 0001 0010
- 226  0  0    0  0  0   0011 0101 0010
+ 228  0  0    0  0  0   0011 0101 0010
  257  0  0    0  0  1   0011 0101 0010
  289  0  0    1  0  0   0011 0101 0010
- 290  0  0    1  0  0   0011 0101 1000
+ 292  0  0    1  0  0   0011 0101 1000
  321  0  0    0  1  0   0011 0101 1000
- 322  0  0    0  1  0   1101 0101 1000
+ 324  0  0    0  1  0   1101 0101 1000
  353  0  0    0  0  0   1101 0101 1000
 """);
    }
@@ -3415,8 +3476,6 @@ Step  ia ic   la lb lc  a    b    c
     test_enableWord();
     test_monotoneMaskToPointMask();
     test_chooseWordUnderMask();
-    test_register();
-    test_registerSources();
     test_delay();
     test_select();
     test_shift();
@@ -3425,18 +3484,26 @@ Step  ia ic   la lb lc  a    b    c
     test_BtreeLeafCompare();
     test_Btree();
     test_8p5i4();
+    test_register();
+    test_registerSources();
     test_fibonacci();
    }
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
+    //test_registerSources();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {oldTests();
-    newTests();
-    gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
-    if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
-    else say("Passed "+testsPassed+",    FAILed:", testsFailed, "tests.");
+   {try
+     {oldTests();
+      newTests();
+      gds2Finish();                                                               // Execute resulting Perl code to create GDS2 files
+      if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
+      else say("Passed "+testsPassed+",    FAILed:", testsFailed, "tests.");
+     }
+    catch(Exception e)
+     {System.err.println(traceBack(e));
+     }
    }
  }
