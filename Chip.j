@@ -5,7 +5,7 @@
 // pckage com.AppaApps.Silicon;
 // Test all dyadic gates to see if there is any correlation between their outputs and any other pins indicating that the gate might be redundant. Use class Grouping to achieve this.
 // Gate set method
-// Balanced fanIn and fanOut trees - so pulses do not have to be individuated
+// concatenateNames() ->n()
 
 import java.io.*;
 import java.util.*;
@@ -1316,9 +1316,9 @@ public class Chip                                                               
    }
 
   class Register extends BitBus                                                 // Description of a register
-   {final RegIn  [] I;                                                          // Inputs
-    final BitBus [] E;                                                          // Enabled inputs
-    final BitBus    e;                                                          // Combined enabled input
+   {final RegIn    []  I;                                                       // Inputs
+    final BitBus   []  E;                                                       // Enabled inputs
+    final BitBus       e;                                                       // Combined enabled input
     final Bit       load;                                                       // Combined load - the register gets loaded after a short delay after this bit falls from 1 to 0.
 
     Register(String Output, BitBus Input, Bit Load)                             // Create register from single input
@@ -1355,8 +1355,9 @@ public class Chip                                                               
       final Bit[]L = new Bit[N];                                                // Or load bits
       for (int i = 0; i < N; i++)                                               // Enable each bus
        {final String n = concatenateNames(Output, "e"+i);                       // Generate a name for the enabled version of the input bus
-        E[i] = enableWord(n, I[i].input, I[i].load);                            // Enable input
-        L[i] = I[i].load;
+        final RegIn R = I[i];                                                   // Register input specification
+        E[i] = enableWord(n, R.input, R.load);                                  // Enable input
+        L[i] = R.load;                                                          // Load with no delay - possibly useful on pulses
        }
       e    = orBitBuses(concatenateNames(Output, "e"), E);                      // Combined input
       load = Or        (concatenateNames(Output, "l"), L);                      // Combined load
@@ -3495,19 +3496,26 @@ Step  i     o     O
    {final int N = 4;
     final Stack<String> S = new Stack<>();
     final Chip          C = new Chip("Fibonacci");
+    final BitBus     zero = C.bits("zero", N, 0);
     final BitBus      one = C.bits("one",  N, 1);
-    final Pulse        ia = C.pulse("ia", 1024,  16);                           // These pulses have to be individuated because otherwise the trailing edge arrives at the registers at different points in time leading so loading the wrong values.
-    final Pulse        la = C.pulse("la",  128,  32, 32, 1);
-    final Pulse        lb = C.pulse("lb",  128,  32, 64, 1);
-    final Pulse        lc = C.pulse("lc",  128,  32,  0, 1);
+    final Pulse        in = C.pulse("ia", 1024,  16);                           // These pulses have to be individuated because otherwise the trailing edge arrives at the registers at different points in time leading so loading the wrong values.
+    final Pulse        la = C.pulse("la",  128,  30, 32, 1);
+    final Pulse        lb = C.pulse("lb",  128,  30, 64, 1);
+    final Pulse        lc = C.pulse("lc",  128,  30,  0, 1);
 
     final BitBus       ab = C.new BitBus("ab", N);
     final BitBus       ac = C.new BitBus("ac", N);
     final BitBus       bc = C.new BitBus("bc", N);
 
-    final Register      a = C.register("a",  one, ia, bc, la);
-    final Register      b = C.register("b",  one, ia, ac, lb);
-    final Register      c = C.register("c",  one, ia, ab, lc);
+    final Register      a = C.register("a", zero, in, bc, la);
+    final Register      b = C.register("b",  one, in, ac, lb);
+    final Register      c = C.register("c", zero, in, ab, lc);
+    final Gate          da = C.delay("da", a.load, 1);
+    final Gate          db = C.delay("db", b.load, 1);
+    final Gate          dc = C.delay("dc", c.load, 1);
+
+    final Register      d = C.register("d", C.new RegIn(one, in), C.new RegIn(a, da),
+                                            C.new RegIn(b,   db), C.new RegIn(c, dc));
 
     final BinaryAdd   sab = C.binaryAdd("cab", "ab", a, b);
     final BinaryAdd   sac = C.binaryAdd("cac", "ac", a, c);
@@ -3516,16 +3524,136 @@ Step  i     o     O
     final BitBus oa = C.outputBits("oa", sab.sum);
     final BitBus ob = C.outputBits("ob", sac.sum);
     final BitBus oc = C.outputBits("oc", sbc.sum);
+    final BitBus od = C.outputBits("od", d);
 
     C.executionTrace(
-      "ia  la lb lc  a    b    c",
-      "%s   %s  %s  %s   %s %s %s",
-      ia,  la, lb, lc,  a, b, c);
-    C.simulationSteps(353);
+      "d      dl",
+      "%s    %s",
+      d, d.load);
+    C.simulationSteps(552);
     C.simulate();
     //C.printExecutionTrace(); stop();
     C.ok(STR."""
-Step  ia  la lb lc  a    b    c
+Step  d      dl
+   1  ....    .
+   6  ....    1
+  28  ....    0
+ 138  ....    1
+ 168  ....    0
+ 169  0000    0
+ 170  0000    1
+ 200  0000    0
+ 202  0000    1
+ 232  0000    0
+ 233  0001    0
+ 266  0001    1
+ 296  0001    0
+ 298  0001    1
+ 328  0001    0
+ 329  0010    0
+ 330  0010    1
+ 360  0010    0
+ 361  0011    0
+ 394  0011    1
+ 424  0011    0
+ 425  0101    0
+ 426  0101    1
+ 456  0101    0
+ 457  1000    0
+ 458  1000    1
+ 488  1000    0
+ 489  1101    0
+ 522  1101    1
+ 552  1101    0
+""");
+   }
+
+  static void test_fibonacci22()
+   {final int N = 4;
+    final Stack<String> S = new Stack<>();
+    final Chip          C = new Chip("Fibonacci");
+    final BitBus     zero = C.bits("zero", N, 0);
+    final BitBus      one = C.bits("one",  N, 1);
+    final Pulse        in = C.pulse("ia", 1024,  16);                           // These pulses have to be individuated because otherwise the trailing edge arrives at the registers at different points in time leading so loading the wrong values.
+    final Pulse        la = C.pulse("la",  128,  30, 32, 1);
+    final Pulse        lb = C.pulse("lb",  128,  30, 64, 1);
+    final Pulse        lc = C.pulse("lc",  128,  30,  0, 1);
+
+    final BitBus       ab = C.new BitBus("ab", N);
+    final BitBus       ac = C.new BitBus("ac", N);
+    final BitBus       bc = C.new BitBus("bc", N);
+
+    final Register      a = C.register("a", zero, in, bc, la);
+    final Register      b = C.register("b",  one, in, ac, lb);
+    final Register      c = C.register("c", zero, in, ab, lc);
+    final Gate          da = C.delay("da", a.load, 1);
+    final Gate          db = C.delay("db", b.load, 1);
+    final Gate          dc = C.delay("dc", c.load, 1);
+
+    final Register      d = C.register("d", C.new RegIn(one, in), C.new RegIn(a, da),
+                                            C.new RegIn(b,   db), C.new RegIn(c, dc));
+
+    final BinaryAdd   sab = C.binaryAdd("cab", "ab", a, b);
+    final BinaryAdd   sac = C.binaryAdd("cac", "ac", a, c);
+    final BinaryAdd   sbc = C.binaryAdd("cbc", "bc", b, c);
+    C.anneal(sab.carry, sac.carry, sbc.carry);
+    final BitBus oa = C.outputBits("oa", sab.sum);
+    final BitBus ob = C.outputBits("ob", sac.sum);
+    final BitBus oc = C.outputBits("oc", sbc.sum);
+    final BitBus od = C.outputBits("od", d);
+
+    C.executionTrace(
+      "d      dl",
+      "%s    %s",
+      d, d.load);
+    C.simulationSteps(552);
+    C.simulate();
+    //C.printExecutionTrace(); stop();
+    C.ok(STR."""
+Step  d      dl
+   1  ....    .
+   6  ....    1
+  28  ....    0
+ 138  ....    1
+ 168  ....    0
+ 169  0000    0
+ 170  0000    1
+ 200  0000    0
+ 202  0000    1
+ 232  0000    0
+ 233  0001    0
+ 266  0001    1
+ 296  0001    0
+ 298  0001    1
+ 328  0001    0
+ 329  0010    0
+ 330  0010    1
+ 360  0010    0
+ 361  0011    0
+ 394  0011    1
+ 424  0011    0
+ 425  0101    0
+ 426  0101    1
+ 456  0101    0
+ 457  1000    0
+ 458  1000    1
+ 488  1000    0
+ 489  1101    0
+ 522  1101    1
+ 552  1101    0
+""");
+   }
+
+/* Expanded trace
+    C.executionTrace(
+      "in  la lb lc   da db dc  a    b    c    d     dl",
+      "%s   %s  %s  %s   %s  %s  %s   %s %s %s   %s    %s",
+      in,  la, lb, lc,  da, db, dc, a, b, c, d, d.load);
+    C.simulationSteps(484);
+    C.simulate();
+    C.printExecutionTrace(); stop();
+    C.ok(STR."""
+Step  in  la lb lc  a    b    c
    1  1   0  0  0   .... .... ....
   17  0   0  0  0   .... .... ....
   21  0   0  0  0   0001 0001 0001
@@ -3543,8 +3671,7 @@ Step  ia  la lb lc  a    b    c
  324  0   0  1  0   1101 0101 1000
  353  0   0  0  0   1101 0101 1000
 """);
-   }
-
+*/
   static void oldTests()                                                        // Tests thought to be in good shape
    {//if (!github_actions) return;
     test_max_min();
@@ -3592,8 +3719,8 @@ Step  ia  la lb lc  a    b    c
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
-    test_registerSources2();
-    //test_fibonacci();
+    //test_registerSources2();
+    test_fibonacci();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
