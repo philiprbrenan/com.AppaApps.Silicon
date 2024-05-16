@@ -1023,6 +1023,20 @@ public class Chip                                                               
     for (int b = 1; b <= bits; ++b) Continue(input1.n(b).name, input2.n(b));    // Connect the buses
    }
 
+  BitBus orBitBuses(String output, BitBus...input)                              // B<Or> several equal size bit buses together to make an equal sized bit bus
+   {final int N = input.length;
+    if (N < 1) stop("Need at least one input bitbus");
+    for (int i = 1; i < N; ++i) input[0].sameSize(input[i]);                    // Make sure all the bit buses have the same length
+    final int b = input[0].bits;                                                // Number of bits in input bus
+    final BitBus o = new BitBus(output, b);                                     // Resulting bit bus
+    for   (int i = 1; i <= b; ++i)                                              // Each bit
+     {Stack<Bit> or = new Stack<>();                                            // Corresponding bits
+      for (int j = 0; j <  N; ++j) or.push(input[j].n(i));                      // Each corresponding bit in each bus
+      Or(o.n(i).name, stackToBitArray(or));                                     // Or across buses
+     }
+    return o;                                                                   // Size of resulting bus
+   }
+
 //D3 Words                                                                      // An array of arrays of bits that can be manipulated via one name.
 
   class WordBus                                                                 // Description of a word bus
@@ -1292,38 +1306,62 @@ public class Chip                                                               
 
 //D2 Registers                                                                  // Create registers
 
+  class RegIn                                                                   // A BitBus, bit pair representing one possible input to a register
+   {final BitBus  input;                                                        // Input bus from which the register is loaded
+    final Bit      load;                                                        // Load bit: when this bit goes from high to low the register is loaded from the first input bus.
+
+    RegIn(BitBus Input, Bit Load)                                               // Register input
+     {input = Input; load = Load;
+     }
+   }
+
   class Register extends BitBus                                                 // Description of a register
-   {final BitBus input1;                                                        // First input bus from which the register is loaded - perhaps an initial value
-    final Bit     load1;                                                        // Load first bit: when this bit goes from high to low the register is loaded from the first input bus.
-    final BitBus input2;                                                        // Second bus from which the register is loaded - perhaps a subsequently computed value
-    final Bit     load2;                                                        // Load second bit: when this bit goes from high to low the register is loaded from the second input bus.
-    final BitBus     e1;                                                        // Enable input 1
-    final BitBus     e2;                                                        // Enable input 2
-    final BitBus      e;                                                        // Combined input
-    final Bit         l;                                                        // Combined load
+   {final RegIn  [] I;                                                          // Inputs
+    final BitBus [] E;                                                          // Enabled inputs
+    final BitBus    e;                                                          // Combined enabled input
+    final Bit       load;                                                       // Combined load - the register gets loaded after a short delay after this bit falls from 1 to 0.
 
     Register(String Output, BitBus Input, Bit Load)                             // Create register from single input
      {super(Output, Input.bits);
-      input1 = Input; input2 = null;
+      I = new RegIn[1]; I[0] = new RegIn(Input, Load);
       final int w = Input.bits;
-      load1 = Load; load2 = null;
       for (int i = 1; i <= w; i++) My(n(i).name, Input.n(i), Load);             // Create the memory bits
-      e = e1 = e2 = null; l = null;
+      e = null; E = null; load = Load;
      }
 
     Register(String Output, BitBus Input1, Bit Load1, BitBus Input2, Bit Load2) // Create register from two inputs
      {super(Output, Input1.bits);
+      I    = new RegIn[2];
+      I[0] = new RegIn(Input1, Load1);
+      I[1] = new RegIn(Input2, Load2);
       Input1.sameSize(Input2);
-      input1 = Input1; input2 = Input2;
-      final int w = Input1.bits;
-      load1 = Load1; load2 = Load2;
-      e1 = enableWord(concatenateNames(Output, "e1"), input1, load1);           // Enable input 1
-      e2 = enableWord(concatenateNames(Output, "e2"), input2, load2);           // Enable input 2
-      e  = orBits(concatenateNames(Output, "e"), e1, e2);                       // Combined input
-      l  = Or    (concatenateNames(Output, "l"), load1, load2);                 // Combined load
-      for (int i = 1; i <= w; i++)                                              // Create the memory bits
-        My(n(i).name, l, delay(Chip.this.n(i, Output, "d"), e.n(i), logTwo(w)));// The delay loads the register when the fan out arrives
+      E    = new BitBus[2];
+      E[0] = enableWord(concatenateNames(Output, "e1"), Input1, Load1);         // Enable input 1
+      E[1] = enableWord(concatenateNames(Output, "e2"), Input2, Load2);         // Enable input 2
+      e    = orBitBuses(concatenateNames(Output, "e"),  E);                     // Combined input
+      load = Or    (concatenateNames(Output, "l"), Load1, Load2);               // Combined load
+      final int N = Input1.bits, Q = logTwo(N);
+      for (int i = 1; i <= N; i++)                                              // Create the memory bits
+        My(n(i).name, load, delay(Chip.this.n(i, Output, "d"), e.n(i), Q));     // The delay loads the register when the fan out arrives
+     }
 
+    Register(String Output, RegIn...in)                                         // Create register from multiple inputs
+     {super(Output, in[0].input.bits);
+      if (in.length == 0) stop("Need at least one register input specification");
+      final int N = in.length, P = in[0].input.bits, Q = logTwo(P);
+      I = in;
+      for (int i = 1; i < N; i++) in[0].input.sameSize(in[i].input);            // Check sizes
+      E = new BitBus[N];                                                        // Enabled inputs
+      final Bit[]L = new Bit[N];                                                // Or load bits
+      for (int i = 0; i < N; i++)                                               // Enable each bus
+       {final String n = concatenateNames(Output, "e"+i);                       // Generate a name for the enabled version of the input bus
+        E[i] = enableWord(n, I[i].input, I[i].load);                            // Enable input
+        L[i] = I[i].load;
+       }
+      e    = orBitBuses(concatenateNames(Output, "e"), E);                      // Combined input
+      load = Or        (concatenateNames(Output, "l"), L);                      // Combined load
+      for (int i = 1; i <= P; i++)                                              // Create the memory bits
+        My(n(i).name, load, delay(Chip.this.n(i, Output, "d"), e.n(i), Q));     // The delay loads the register when the fan out arrives
      }
    }
 
@@ -1333,6 +1371,10 @@ public class Chip                                                               
 
   Register register(String name, BitBus input1, Bit load1, BitBus input2, Bit load2)  // Create a register loaded from two sources
    {return new Register(name, input1, load1, input2, load2);
+   }
+
+  Register register(String name, RegIn...in)                                    // Create a register loaded from multiple sources
+   {return new Register(name, in);
    }
 
   Gate delay(String Output, Bit input, int delay)                               // Create a delay chain so that one leading edge can trigger another later on as work is performed
@@ -2607,7 +2649,7 @@ public class Chip                                                               
    }
 
   static void test_delayedDefinitions()
-   {final Chip   c = new Chip("And");
+   {final Chip   c = new Chip("Delayed Definitions");
     final Gate   o = c.Output("o", c.new Bit("and"));
     final Gate and = c.And   ("and", c.new Bit("i1"), c.new Bit("i2"));
     final Gate  i1 = c.Input ("i1");
@@ -2742,7 +2784,7 @@ public class Chip                                                               
    }
 
   static void test_expand2()
-   {final Chip    c = new Chip("Expand");
+   {final Chip    c = new Chip("Expand2");
     final Gate  one = c.One   ("one");
     final Gate zero = c.Zero  ("zero");
     final Gate   or = c.Or    ("or",  one, zero);
@@ -2774,7 +2816,7 @@ public class Chip                                                               
    {for (int N = 3; N <= 4; ++N)
      {final int N2 = powerTwo(N);
       for  (int i = 0; i < N2; i++)
-       {final Chip    c = new Chip ("OutputBits");
+       {final Chip    c = new Chip ("And2Bits");
         final BitBus i1 = c.bits   ("i1", N, 5);
         final BitBus i2 = c.bits   ("i2", N, i);
         final BitBus  o = c.andBits("o", i1, i2);
@@ -2798,7 +2840,7 @@ public class Chip                                                               
    }
 
   static void test_gt2()
-   {final Chip    c = new Chip("Gt");
+   {final Chip    c = new Chip("Gt2");
     final Gate  one = c.One   ("o");
     final Gate zero = c.Zero  ("z");
     final Gate   gt = c.Gt    ("gt", zero, one);
@@ -2820,7 +2862,7 @@ public class Chip                                                               
    }
 
   static void test_lt2()
-   {final Chip    c = new Chip("Lt");
+   {final Chip    c = new Chip("Lt2");
     final Gate  one = c.One   ("o");
     final Gate zero = c.Zero  ("z");
     final Gate   lt = c.Lt    ("lt", zero, one);
@@ -3205,7 +3247,7 @@ Step  1 2 3 a    4 m
    }
 
   static void test_register()
-   {Chip      c = new Chip("Pulse");
+   {Chip      c = new Chip("Register");
     BitBus   i1 = c.bits("i1", 8, 9);
     BitBus   i2 = c.bits("i2", 8, 6);
     Pulse    pc = c.pulse("choose", 32, 16, 16);
@@ -3315,7 +3357,7 @@ Step  C P  d e
 
   static void test_shift()
    {final Stack<String> s = new Stack<>();
-    final Chip   c = new Chip("ShiftUp");
+    final Chip   c = new Chip("Shift");
     final BitBus b = c.bits      ("b", 4, 3);
     final BitBus u = c.shiftUp   ("u", b);
     final BitBus o = c.outputBits("o", u);
@@ -3350,7 +3392,7 @@ Step  C P  d e
   static void test_registerSources()
    {final int N = 4;
 
-    final Chip     C = new Chip("Binary Add");
+    final Chip     C = new Chip("Register Sources");
     final BitBus  o1 = C.bits ("o1",  N,  9);
     final BitBus  o2 = C.bits ("o2",  N,  5);
     final Pulse   p1 = C.pulse("p1",  16, 3, 0);
@@ -3359,7 +3401,40 @@ Step  C P  d e
     final Register r = C.register("r",  o1, p1, o2, p2);
     final BitBus   o = C.outputBits("o", r);
     C.simulationSteps(20);
-    C.executionTrace("Reg_   1 2  l  e     e2    e2", "%s   %s %s  %s  %s  %s  %s", r, p1, p2, r.l, r.e, r.e1, r.e2);
+    C.executionTrace("Reg_   1 2  l  e     e2    e2", "%s   %s %s  %s  %s  %s  %s", r, p1, p2, r.load, r.e, r.E[0], r.E[1]);
+    C.simulate();
+    C.ok(STR."""
+Step  Reg_   1 2  l  e     e2    e2
+   1  ....   1 0  .  ....  ....  ....
+   2  ....   1 0  .  ....  .00.  0.0.
+   3  ....   1 0  1  ..0.  1001  0000
+   4  ....   0 0  1  1001  1001  0000
+   5  ....   0 1  1  1001  1001  0000
+   6  ....   0 1  0  1001  0000  0000
+   7  1001   0 1  1  0000  0000  0101
+   8  1001   0 1  1  0101  0000  0101
+   9  1001   0 0  1  0101  0000  0101
+  11  1001   0 0  0  0101  0000  0000
+  12  0101   0 0  0  0000  0000  0000
+  17  0101   1 0  0  0000  0000  0000
+  19  0101   1 0  1  0000  1001  0000
+  20  0101   0 0  1  1001  1001  0000
+""");
+   }
+
+  static void test_registerSources2()
+   {final int N = 4;
+
+    final Chip    C = new Chip("Register Sources");
+    final BitBus o1 = C.bits ("o1",  N,  9);
+    final BitBus o2 = C.bits ("o2",  N,  5);
+    final Pulse  p1 = C.pulse("p1",  16, 3, 0);
+    final Pulse  p2 = C.pulse("p2",  16, 4, 4);
+
+    final Register r = C.register("r",  C.new RegIn(o1, p1), C.new RegIn(o2, p2));
+    final BitBus   o = C.outputBits("o", r);
+    C.simulationSteps(20);
+    C.executionTrace("Reg_   1 2  l  e     e2    e2", "%s   %s %s  %s  %s  %s  %s", r, p1, p2, r.load, r.e, r.E[0], r.E[1]);
     C.simulate();
     C.ok(STR."""
 Step  Reg_   1 2  l  e     e2    e2
@@ -3383,7 +3458,7 @@ Step  Reg_   1 2  l  e     e2    e2
   static void test_connectBuses()
    {final int N = 4;
 
-    final Chip   C = new Chip("Binary Add");
+    final Chip   C = new Chip("Connect buses");
     final BitBus i = C.bits ("i",  N,  9);
     final BitBus o = C.new BitBus("o", N);
     final BitBus O = C.outputBits("O", o);
@@ -3419,10 +3494,9 @@ Step  i     o     O
   static void test_fibonacci()
    {final int N = 4;
     final Stack<String> S = new Stack<>();
-    final Chip          C = new Chip("Binary Add");
+    final Chip          C = new Chip("Fibonacci");
     final BitBus      one = C.bits("one",  N, 1);
     final Pulse        ia = C.pulse("ia", 1024,  16);                           // These pulses have to be individuated because otherwise the trailing edge arrives at the registers at different points in time leading so loading the wrong values.
-    final Pulse        ic = C.pulse("ic", 1024,  16);
     final Pulse        la = C.pulse("la",  128,  32, 32, 1);
     final Pulse        lb = C.pulse("lb",  128,  32, 64, 1);
     final Pulse        lc = C.pulse("lc",  128,  32,  0, 1);
@@ -3433,7 +3507,7 @@ Step  i     o     O
 
     final Register      a = C.register("a",  one, ia, bc, la);
     final Register      b = C.register("b",  one, ia, ac, lb);
-    final Register      c = C.register("c",  one, ic, ab, lc);
+    final Register      c = C.register("c",  one, ia, ab, lc);
 
     final BinaryAdd   sab = C.binaryAdd("cab", "ab", a, b);
     final BinaryAdd   sac = C.binaryAdd("cac", "ac", a, c);
@@ -3444,31 +3518,30 @@ Step  i     o     O
     final BitBus oc = C.outputBits("oc", sbc.sum);
 
     C.executionTrace(
-      "ia ic   la lb lc  a    b    c",
-      "%s  %s    %s  %s  %s   %s %s %s",
-      ia, ic,  la, lb, lc,  a, b, c);
+      "ia  la lb lc  a    b    c",
+      "%s   %s  %s  %s   %s %s %s",
+      ia,  la, lb, lc,  a, b, c);
     C.simulationSteps(353);
     C.simulate();
     //C.printExecutionTrace(); stop();
     C.ok(STR."""
-Step  ia ic   la lb lc  a    b    c
-   1  1  1    0  0  0   .... .... ....
-  17  0  0    0  0  0   .... .... ....
-  20  0  0    0  0  0   .... 0001 0001
-  21  0  0    0  0  0   0001 0001 0001
- 129  0  0    0  0  1   0001 0001 0001
- 161  0  0    1  0  0   0001 0001 0001
- 164  0  0    1  0  0   0001 0001 0010
- 193  0  0    0  1  0   0001 0001 0010
- 196  0  0    0  1  0   0011 0001 0010
- 225  0  0    0  0  0   0011 0001 0010
- 228  0  0    0  0  0   0011 0101 0010
- 257  0  0    0  0  1   0011 0101 0010
- 289  0  0    1  0  0   0011 0101 0010
- 292  0  0    1  0  0   0011 0101 1000
- 321  0  0    0  1  0   0011 0101 1000
- 324  0  0    0  1  0   1101 0101 1000
- 353  0  0    0  0  0   1101 0101 1000
+Step  ia  la lb lc  a    b    c
+   1  1   0  0  0   .... .... ....
+  17  0   0  0  0   .... .... ....
+  21  0   0  0  0   0001 0001 0001
+ 129  0   0  0  1   0001 0001 0001
+ 161  0   1  0  0   0001 0001 0001
+ 164  0   1  0  0   0001 0001 0010
+ 193  0   0  1  0   0001 0001 0010
+ 196  0   0  1  0   0011 0001 0010
+ 225  0   0  0  0   0011 0001 0010
+ 228  0   0  0  0   0011 0101 0010
+ 257  0   0  0  1   0011 0101 0010
+ 289  0   1  0  0   0011 0101 0010
+ 292  0   1  0  0   0011 0101 1000
+ 321  0   0  1  0   0011 0101 1000
+ 324  0   0  1  0   1101 0101 1000
+ 353  0   0  0  0   1101 0101 1000
 """);
    }
 
@@ -3519,6 +3592,8 @@ Step  ia ic   la lb lc  a    b    c
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
+    test_registerSources2();
+    //test_fibonacci();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
