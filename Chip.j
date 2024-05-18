@@ -172,7 +172,7 @@ public class Chip                                                               
       for (String n : wordBuses.keySet())
        {final WordBus w = wordBuses.get(n);
         b.append(String.format("%4d  %4d  %32s  ", w.words, w.bits, n));
-        final Integer[]v = w.Int(n);
+        final Integer[]v = w.Int();
         if (v != null) for(int i = 0; i < v.length; ++i) b.append(""+v[i]+", ");
         if (b.length() > 1) b.delete(b.length() - 2, b.length());
         b.append("\n");
@@ -390,8 +390,7 @@ public class Chip                                                               
         else if (T.iGate1 == null && t.ok1()) T.iGate1 = this;                  // Use input pin 1
         else if (T.iGate2 == null && t.ok2()) T.iGate2 = this;                  // Use input pin 2
         else                                                                    // No input pin available
-         {say(this);
-          if (t.pin == null) stop("Gate:", T.name,
+         {if (t.pin == null) stop("Gate:", T.name,
             "driven by too many other gates, including one from gate:", name);
           else               stop("Gate:", T.name,
             "does not have enough pins to be driven by:", t, "from", name);
@@ -545,7 +544,8 @@ public class Chip                                                               
   Gate Or      (String n, Stack<Bit> i) {return FanIn(Operator.Or,   n, stackToBitArray(i));}
   Gate Nor     (String n, Stack<Bit> i) {return FanIn(Operator.Nor,  n, stackToBitArray(i));}
 
-  void anneal(Bit...inputs) {for (Bit i: inputs) Output(nextGateName(), i);}    // Throw away a bit by annealing it to a bogus output gate so it does not repirted as not driving any agte.  This is useful in testing but should be avoided on production chiop as a waste.
+  void anneal(Bit   ...inputs) {for (Bit    i: inputs) Output(nextGateName(),     i);} // Throw away a bit by annealing it to a bogus output gate so it does not reported as not driving any gate.  This is useful in testing but should be avoided on production chip as a waste of space.
+  void anneal(BitBus...inputs) {for (BitBus i: inputs) outputBits(nextGateName(), i);} // Throw away all the bits in a but bus by annealing it to a bogus output gate so it does not reported as not driving any gate.  This is useful in testing but should be avoided on production chip as a waste of space.
 
   void distanceToOutput()                                                       // Distance to the nearest output
    {outputGates.clear();
@@ -816,7 +816,7 @@ public class Chip                                                               
        {final Bit n = b(i);                                                     // Name of gate supporting named bit
         final Gate g = getGate(n);                                              // Gate providing bit
         if (g == null)
-         {stop("No such gate as:", n);
+         {say("No such gate as:", n);
           return null;
          }
         if (g.value == null) return null;                                       // Bit state not known
@@ -1029,14 +1029,28 @@ public class Chip                                                               
 
   BitBus orBitBuses(String output, BitBus...input)                              // B<Or> several equal size bit buses together to make an equal sized bit bus
    {final int N = input.length;
-    if (N < 1) stop("Need at least one input bitbus");
+    if (N < 1) stop("Need at least one input bit bus");
     for (int i = 1; i < N; ++i) input[0].sameSize(input[i]);                    // Make sure all the bit buses have the same length
     final int b = input[0].bits;                                                // Number of bits in input bus
-    final BitBus o = new BitBus(output, b);                                     // Resulting bit bus
+    final BitBus o = collectBits(output, b);                                    // Resulting bit bus
     for   (int i = 1; i <= b; ++i)                                              // Each bit
      {Stack<Bit> or = new Stack<>();                                            // Corresponding bits
       for (int j = 0; j <  N; ++j) or.push(input[j].b(i));                      // Each corresponding bit in each bus
       Or(o.b(i).name, stackToBitArray(or));                                     // Or across buses
+     }
+    return o;                                                                   // Size of resulting bus
+   }
+
+  BitBus andBitBuses(String output, BitBus...input)                             // B<And> several equal size bit buses together to make an equal sized bit bus
+   {final int N = input.length;
+    if (N < 1) stop("Need at least one input bit bus");
+    for (int i = 1; i < N; ++i) input[0].sameSize(input[i]);                    // Make sure all the bit buses have the same length
+    final int b = input[0].bits;                                                // Number of bits in input bus
+    final BitBus o = collectBits(output, b);                                    // Resulting bit bus
+    for   (int i = 1; i <= b; ++i)                                              // Each bit
+     {Stack<Bit> or = new Stack<>();                                            // Corresponding bits
+      for (int j = 0; j <  N; ++j) or.push(input[j].b(i));                      // Each corresponding bit in each bus
+      And(o.b(i).name, stackToBitArray(or));                                    // And across buses
      }
     return o;                                                                   // Size of resulting bus
    }
@@ -1063,13 +1077,12 @@ public class Chip                                                               
      }
     WordBus(String Name, WordBus Words) {this(Name, Words.words, Words.bits);}  // Create a word bus with the same dimensions as the specified word bus.
 
-    Integer[]Int(String name)                                                   // Convert the words on a word bus into integers
-     {final WordBus W = findWords(name);                                        // Size of bus
-      final Integer[]r = new Integer[W.words];                                  // Words on bus
-      loop: for (int j = 1; j <= W.words; j++)                                  // Each word on bus
+    Integer[]Int()                                                              // Convert the words on a word bus into integers
+     {final Integer[]r = new Integer[words];                                    // Words on bus
+      loop: for (int j = 1; j <= words; j++)                                    // Each word on bus
        {r[j-1] = null;                                                          // Value not known
         int v = 0, p = 1;
-        for (int i = 1; i <= W.bits; i++)                                       // Each bit on bus
+        for (int i = 1; i <= bits; i++)                                         // Each bit on bus
          {final Gate g = getGate(Chip.this.n(j, i, name));                      // Gate providing bit
           if (g == null)
            {say("No such word as:", name);
@@ -1104,7 +1117,7 @@ public class Chip                                                               
     return wb;
    }
 
-  WordBus words(String name, int bits, int[]values)                             // Create a word bus set to specified numbers.
+  WordBus words(String name, int bits, int...values)                            // Create a word bus set to specified numbers.
    {final WordBus wb = new WordBus(name, values.length, bits);                  // Record bus width
 
     for (int w = 1; w <= values.length; ++w)                                    // Each value to put on the bus
@@ -1309,29 +1322,43 @@ public class Chip                                                               
     return o;
    }
 
-  WordBus shiftUpUnderMaskAndInsert(String Output,                              // Shift the words selected by the monotone mask up one position.
+  WordBus insertWord(String Output,                                             // Shift the words selected by the monotone mask up one position.
      WordBus Input, BitBus Mask, BitBus Insert)
    {final int words = Input.words, bits = Input.bits;
     if (bits      != Insert.bits) stop("Insert is", Insert.bits, "bits to select, but the input words are", bits, "wide");
     if (Mask.bits != words) stop("Mask has", Mask.bits, "bits to select", words, "words");
 
-    final String pm = n(Output, "pm");                                          // Point mask from the input monotone mask
-    final String np = n(Output, "np");                                          // Not of point mask
-    final BitBus  P = monotoneMaskToPointMask(pm, Mask);                        // Make a point mask from the input monotone mask
-    final BitBus  N = notBits                (np, Mask);                        // Invert the monotone mask
+    final BitBus  M = Mask;                                                     // The monotone mask
+    final BitBus  P = monotoneMaskToPointMask(n(Output, "pm"), M);              // Make a point mask from the input monotone mask
+    final BitBus  N = notBits                (n(Output, "np"), M);              // Invert the monotone mask
 
-    final WordBus o = new WordBus(Output, Input);
+    final WordBus u = new WordBus(n(Output, "upper"),  words-1, bits);          // Shifted words   to fill upper part
+    final WordBus l = new WordBus(n(Output, "lower"),  words,   bits);          // Un-shifted words to fill lower part
+    final WordBus o = new WordBus(  Output,            Input);                  // Resulting array of shifted words
+    final WordBus I = new WordBus(n(Output, "Insert"), Input);                  // The first word - insertion
 
-    for (int b = 1; b <= bits;  ++b)                                            // Bits in lowest word
-     {And(o.b(1, b).name, Insert.b(b), N.b(1));
+    for (int b = 1; b <= bits;  ++b)                                            // Bits in each word in shift area
+     {And(l.b(1, b).name, Input.b(1, b), N.b(1));                               // Select lower words
+      And(I.b(1, b).name, Insert.b(b),   P.b(1));                               // Select lower words
+      Or (o.b(1, b).name, l.b(1, b),     I.b(1, b));                            // First word of output is the corresponding input word or inserted word depending on the mask
      }
 
-    for   (int w = 1; w <  words; ++w)                                          // Words in shift area
+
+    for   (int w = 2; w <= words; ++w)                                          // Words in shift area
      {for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
-       {And(o.b(w+1, b).name, Input.b(w, b), Mask.b(w));                        // Shifted bits
+       {And(u.b(w-1, b).name, Input.b(w-1, b), M.b(w-1));                       // Shifted upper bits
        }
      }
-    return o;
+
+
+    for   (int w = 2; w <= words; ++w)                                          // Words in shift area
+     {for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
+       {And(l.b(w  , b).name, Input.b(w,   b), N.b(w));                         // Un-shifted lower bits
+        And(I.b(w,   b).name, Insert.b(b),     P.b(w));                         // Select lower words
+        Or (o.b(w,   b).name, u.b(w-1, b), l.b(w, b), I.b(w, b));               // Combine un-shifted, insert, shifted
+       }
+     }
+    return o;                                                                   // Copy of input with word inserted at the indicated position
    }
 
 //D2 Registers                                                                  // Create registers
@@ -3348,8 +3375,7 @@ Step  p d
    }
 
   static void test_select()
-   {final Stack<String> s = new Stack<>();
-    Chip   c = new Chip("Select");
+   {Chip   c = new Chip("Select");
     Pulse  C = c.pulse("choose", 4, 2);
     Pulse  P = c.pulse("pulse",  5, 3);
     Select S = c.select("choice", C, P);
@@ -3395,8 +3421,7 @@ Step  C P  d e
    }
 
   static void test_shift()
-   {final Stack<String> s = new Stack<>();
-    final Chip   c = new Chip("Shift");
+   {final Chip   c = new Chip("Shift");
     final BitBus b = c.bits      ("b", 4, 3);
     final BitBus u = c.shiftUp   ("u", b);
     final BitBus o = c.outputBits("o", u);
@@ -3409,8 +3434,7 @@ Step  C P  d e
    }
 
   static void test_binaryAdd()
-   {final Stack<String> s = new Stack<>();
-    for     (int B = 1; B <= (github_actions ? 4 : 3); B++)
+   {for     (int B = 1; B <= (github_actions ? 4 : 3); B++)
      {final  int B2 = powerTwo(B);
       for   (int i = 0; i < B2; i++)
        {for (int j = 0; j < B2; j++)
@@ -3539,7 +3563,6 @@ Step  i     o     O
 
   static void test_fibonacci()                                                  // First few fibonacci numbers
    {final int N = 4;
-    final Stack<String> S = new Stack<>();
     final Chip          C = new Chip("Fibonacci");                              // Create a new chip
     final BitBus     zero = C.bits("zero", N, 0);                               // Zero - the first element of the sequence
     final BitBus      one = C.bits("one",  N, 1);                               // One - the second element of the sequence
@@ -3635,6 +3658,24 @@ Step  in  la lb lc  a    b    c
  353  0   0  0  0   1101 0101 1000
 """);
 */
+
+  static void test_insertWord()                                                 // Insert a word in an array of words
+   {final int     B = 4;
+    final Chip    c = new Chip("Insert Word");                                  // Create a new chip
+    final WordBus w = c.words("array", B, 2, 4, 6, 8);                          // Array to insert into
+    final BitBus  m = c.bits("mask",   B, 0b1100);                              // Monotone mask insertion point
+    final BitBus  i = c.bits("in",     B, 5);                                   // Word to insert
+
+    final WordBus W = c.insertWord("o", w, m, i);                               // Insert
+    final WordBus O = c.outputWords("O", W);
+    c.simulate();
+    final Integer[]r = O.Int();
+    ok(r[0], 2);
+    ok(r[1], 4);
+    ok(r[2], 5);
+    ok(r[3], 6);
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {//if (!github_actions) return;
     test_max_min();
@@ -3678,16 +3719,17 @@ Step  in  la lb lc  a    b    c
     test_register();
     test_registerSources();
     test_fibonacci();
+    test_insertWord();
    }
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
-//    test_register();
-//    test_fibonacci();
+    //test_insertWord();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {try
+   {if (args.length > 0 && args[0].equals("compile")) System.exit(0);           // Do a syntax check
+    try
      {oldTests();
       newTests();
       gds2Finish();                                                             // Execute resulting Perl code to create GDS2 files
