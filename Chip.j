@@ -838,6 +838,20 @@ public class Chip                                                               
        }
       return b.reverse().toString();
      }
+
+    void ok(Integer e)                                                          // Confirm the expected values of the bit bus. Write a message describing any unexpected values
+     {final Integer g = Int();                                                  // The values we actually got
+      final StringBuilder b = new StringBuilder();
+      int fails = 0, passes = 0;
+      if (false)                       {}
+      else if (e == null && g == null) {}
+      else if (e != null && g == null) {b.append(String.format("Expected %d, but got null\n", e   )); ++fails;}
+      else if (e == null && g != null) {b.append(String.format("Expected null, but got %d\n", g   )); ++fails;}
+      else if (e != g)                 {b.append(String.format("Expected %d, but got %d\n",   e, g)); ++fails;}
+      else ++passes;
+      if (fails > 0) say(b);
+      testsPassed += passes; testsFailed += fails;                              // Passes and fails
+     }
    }
 
   BitBus findBits(String name)                                                  // Find a bit bus by name
@@ -1108,7 +1122,7 @@ public class Chip                                                               
       int fails = 0, passes = 0;
       for (int i = 0; i < lg; i++)
        {final Integer e = E[i], g = G[i];
-        if (false) {}
+        if (false)                       {}
         else if (e == null && g == null) {}
         else if (e != null && g == null) {b.append(String.format("Index %d expected %d, but got null\n", i, e   )); ++fails;}
         else if (e == null && g != null) {b.append(String.format("Index %d expected null, but got %d\n", i, g   )); ++fails;}
@@ -1344,14 +1358,14 @@ public class Chip                                                               
   WordBus insertIntoArray(String Output,                                        // Shift the words selected by the monotone mask up one position.
     WordBus Input, BitBus Mask, BitBus Insert)
    {final int words = Input.words, bits = Input.bits;
-    if (bits      != Insert.bits) stop("Insert is", Insert.bits, "bits to select, but the input words are", bits, "wide");
+    if (bits      != Insert.bits) stop("Insert is", Insert.bits, "bits, but the input words are", bits, "wide");
     if (Mask.bits != words) stop("Mask has", Mask.bits, "bits to select", words, "words");
 
     final BitBus  M = Mask;                                                     // The monotone mask
     final BitBus  P = monotoneMaskToPointMask(n(Output, "pm"), M);              // Make a point mask from the input monotone mask
     final BitBus  N = notBits                (n(Output, "np"), M);              // Invert the monotone mask
 
-    final WordBus u = new WordBus(n(Output, "upper"),  words-1, bits);          // Shifted words   to fill upper part
+    final WordBus u = new WordBus(n(Output, "upper"),  words-1, bits);          // Shifted words  to fill upper part
     final WordBus l = new WordBus(n(Output, "lower"),  words,   bits);          // Un-shifted words to fill lower part
     final WordBus o = new WordBus(  Output,            Input);                  // Resulting array of shifted words
     final WordBus I = new WordBus(n(Output, "Insert"), Input);                  // The first word - insertion
@@ -1362,7 +1376,7 @@ public class Chip                                                               
       Or (o.b(1, b).name, l.b(1, b),     I.b(1, b));                            // First word of output is the corresponding input word or inserted word depending on the mask
      }
 
-    for   (int w = 2; w <= words; ++w)                                          // Words in shift area
+    for   (int w = 2; w <= words; ++w)                                          // Words in upper shifted area
       for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
         And(u.b(w-1, b).name, Input.b(w-1, b), M.b(w-1));                       // Shifted upper bits
 
@@ -1375,38 +1389,50 @@ public class Chip                                                               
     return o;                                                                   // Copy of input with word inserted at the indicated position
    }
 
-  WordBus removeFromArray(String Output,                                        // Shift the words selected by the monotone mask up one position.
+  class RemoveFromArray                                                         // Results of removing a word from a word bus
+   {final WordBus    out;                                                       // Resulting word bus with indicated word removed and a new value shifted in at the high end
+    final BitBus removed;                                                       // The removed word
+
+    RemoveFromArray(WordBus Out, BitBus Removed)                                // Construct
+     {out = Out; removed = Removed;
+     }
+   }
+
+  RemoveFromArray removeFromArray(String Output,                                // Remove a word from an array, slide the array down to cover the gap and insert a new word at the top to cover the resulting gap there.
     WordBus Input, BitBus Mask, BitBus Insert)
    {final int words = Input.words, bits = Input.bits;
-    if (bits      != Insert.bits) stop("Insert is", Insert.bits, "bits to select, but the input words are", bits, "wide");
+    if (bits      != Insert.bits) stop("Insert is", Insert.bits, "bits, but the input words are", bits, "wide");
     if (Mask.bits != words) stop("Mask has", Mask.bits, "bits to select", words, "words");
 
-    final BitBus  M = Mask;                                                     // The monotone mask
-    final BitBus  P = monotoneMaskToPointMask(n(Output, "pm"), M);              // Make a point mask from the input monotone mask
-    final BitBus  N = notBits                (n(Output, "np"), M);              // Invert the monotone mask
+    final BitBus  P = monotoneMaskToPointMask(n(Output, "pm"), Mask);           // Make a point mask from the input monotone mask          0100
+    final BitBus  p = notBits                (n(Output, "ip"), P);              // Invert the point mask                                   1011
+    final BitBus  M = andBits                (n(Output, "sm"), Mask, p);        // This is the original monotone mask minus its first bit  1000
+    final BitBus  N = notBits                (n(Output, "np"), Mask);           // Invert the monotone mask                                0011
 
     final WordBus u = new WordBus(n(Output, "upper"),  words-1, bits);          // Shifted words   to fill upper part
     final WordBus l = new WordBus(n(Output, "lower"),  words,   bits);          // Un-shifted words to fill lower part
     final WordBus o = new WordBus(  Output,            Input);                  // Resulting array of shifted words
-    final WordBus I = new WordBus(n(Output, "Insert"), Input);                  // The first word - insertion
+    final WordBus S = new WordBus(n(Output, "select"), Input);                  // Select the word to remove
 
-    for (int b = 1; b <= bits;  ++b)                                            // Bits in each word in shift area
-     {And(l.b(1, b).name, Input.b(1, b), N.b(1));                               // Select lower words
-      And(I.b(1, b).name, Insert.b(b),   P.b(1));                               // Select lower words
-      Or (o.b(1, b).name, l.b(1, b),     I.b(1, b));                            // First word of output is the corresponding input word or inserted word depending on the mask
-     }
-
-    for   (int w = 2; w <= words; ++w)                                          // Words in shift area
+    for   (int w = 1; w <  words; ++w)                                          // Words in upper shifted area
       for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
-        And(u.b(w-1, b).name, Input.b(w-1, b), M.b(w-1));                       // Shifted upper bits
+        And(u.b(w, b).name, Input.b(w+1, b), M.b(w+1));                         // Shifted upper bits
 
-    for   (int w = 2; w <= words; ++w)                                          // Words in shift area
-      for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
-       {And(l.b(w, b).name, Input.b(w,   b), N.b(w));                           // Un-shifted lower bits
-        And(I.b(w, b).name, Insert.b(b),     P.b(w));                           // Select lower words
-        Or (o.b(w, b).name, u.b(w-1, b),     l.b(w, b), I.b(w, b));             // Combine un-shifted, insert, shifted
+    connect(o.w(words), Insert);                                                // Word inserted into highest word of output
+
+    for   (int w = 1; w <  words; ++w)                                          // Combine shifted upper and lower
+      for (int b = 1; b <= bits;  ++b)                                          // Bits in each word
+       {And(l.b(w, b).name, Input.b(w, b), N.b(w));                             // Lower words
+        Or (o.b(w, b).name,     u.b(w, b), l.b(w, b));                          // Combine shifted upper and lower
        }
-    return o;                                                                   // Copy of input with word inserted at the indicated position
+
+    for   (int w = 1; w <=  words; ++w)                                         // Removed word
+      for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
+        And(S.b(w, b).name, Input.b(w,   b), P.b(w));                           // Select removed word
+
+    anneal(N.b(words), M.b(words), M.b(1));                                             // No selection required here because the final word is added regardless
+    final BitBus R = orWords(n(Output, "remove"), S);                           // Removed word
+    return new RemoveFromArray(o, R);                                           // Resulting word bus and removed word
    }
 
 //D2 Registers                                                                  // Create registers
@@ -3706,13 +3732,13 @@ Step  in  la lb lc  a    b    c
 """);
 */
 
-  static void test_insertWord()                                                 // Insert a word in an array of words
+  static void test_insertIntoArray()                                            // Insert a word in an array of words
    {final int B = 4;
     final int[]array = {2, 4, 6, 8};                                            // Array to insert into
     final int M = 0b1111;
     for (int j = 0; j <= B; j++)
      {final int I = 2 * j + 1, mm = (M>>j)<<j;
-      final Chip    c = new Chip("Insert Word");                                // Create a new chip
+      final Chip    c = new Chip("InsertIntoArray");                            // Create a new chip
       final WordBus w = c.words("array", B, array);                             // Array to insert into
       final BitBus  m = c.bits("mask",   B, mm);                                // Monotone mask insertion point
       final BitBus  i = c.bits("in",     B, I);                                 // Word to insert
@@ -3730,9 +3756,33 @@ Step  in  la lb lc  a    b    c
      }
    }
 
+  static void test_removeFromArray()                                            // Remove a word from an array, slide the array down to cover the gap and insert a new word at the top to cover the resulting gap there.
+   {final int B = 4;
+    final int[]array = {2, 4, 6, 8};                                            // Array to remove from
+    final int M = 0b1111;
+    for (int j = 0; j <= B; j++)
+     {final int I = 1, mm = (M>>j)<<j;
+      final Chip    c = new Chip("RemoveFromArray");                            // Create a new chip
+      final WordBus w = c.words("array", B, array);                             // Array to remove from
+      final BitBus  m = c.bits("mask",   B, mm);                                // Monotone mask removal point
+      final BitBus  i = c.bits("in",     B, I);                                 // Word to remove
+
+      final RemoveFromArray W = c.removeFromArray("o", w, m, i);                // Remove
+      final WordBus O = c.outputWords    ("O", W.out);
+      final BitBus  R = c.outputBits     ("R", W.removed);
+      c.simulate();
+      switch(j)
+       {case 0: O.ok(4,6,8,1); R.ok(2); break; // 1111
+        case 1: O.ok(2,6,8,1); R.ok(4); break; // 1110
+        case 2: O.ok(2,4,8,1); R.ok(6); break; // 1100
+        case 3: O.ok(2,4,6,1); R.ok(8); break; // 1000
+        case 4: O.ok(2,4,6,1); R.ok(0); break; // 0000 - prevent removal of 8
+       }
+     }
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
-   {//if (!github_actions) return;
-    test_max_min();
+   {test_max_min();
     test_and2Bits();
     test_and();
     test_and_grouping();
@@ -3773,18 +3823,19 @@ Step  in  la lb lc  a    b    c
     test_register();
     test_registerSources();
     test_fibonacci();
-    test_insertWord();
+    test_insertIntoArray();
    }
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
-    test_insertWord();
+    test_removeFromArray();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
    {if (args.length > 0 && args[0].equals("compile")) System.exit(0);           // Do a syntax check
     try
-     {oldTests();
+     {if (github_actions)
+        oldTests();
       newTests();
       gds2Finish();                                                             // Execute resulting Perl code to create GDS2 files
       if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
