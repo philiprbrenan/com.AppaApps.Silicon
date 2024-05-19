@@ -3858,7 +3858,7 @@ Step  in  la lb lc  a    b    c
   public static void main(String[] args)                                        // Test if called as a program
    {if (args.length > 0 && args[0].equals("compile")) System.exit(0);           // Do a syntax check
     try
-     {if (github_actions)
+     {//if (github_actions)
         oldTests();
       newTests();
       gds2Finish();                                                             // Execute resulting Perl code to create GDS2 files
