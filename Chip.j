@@ -510,10 +510,10 @@ public class Chip                                                               
       default :            u = Op;
      }
 
-    final Gate f = FanIn(l, nextGateName(), Arrays.copyOfRange(Input, 0, Q));  // Lower half is a full sub tree
-    final Gate g = FanIn(u, nextGateName(), Arrays.copyOfRange(Input, Q, N));  // Upper half might not be full
+    final Gate f = FanIn(l, nextGateName(), Arrays.copyOfRange(Input, 0, Q));   // Lower half is a full sub tree
+    final Gate g = FanIn(u, nextGateName(), Arrays.copyOfRange(Input, Q, N));   // Upper half might not be full
 
-    if (2 * N >= 3 * Q) return new Gate(Op, Name, f, g);                         // No need to extend path to balance it
+    if (2 * N >= 3 * Q) return new Gate(Op, Name, f, g);                        // No need to extend path to balance it
 
     final Gate e = FanIn(Operator.Continue, nextGateName(), g);                 // Extension gate to make the upper half paths the same length as the lower half paths
     return new Gate(Op, Name, f, e);
@@ -1099,6 +1099,25 @@ public class Chip                                                               
 
     BitBus w(int i)        {return bitBuses.get(Chip.this.n(i,    name));}      // Get a bit bus in the word bus
     Bit    b(int i, int j) {return new Bit     (Chip.this.n(i, j, name));}      // Get a bit from a bit bus in the word bus
+
+    void ok(Integer...E)                                                        // Confirm the expected values of the word bus. Write a message describing any unexpected values
+     {final Integer[]G = Int();                                                 // The values we actually got
+      final StringBuilder b = new StringBuilder();
+      final int lg = G.length, le = E.length;
+      if (le != lg) stop("Mismatched length, got", lg, "expected", le, "got:\n"+G);
+      int fails = 0, passes = 0;
+      for (int i = 0; i < lg; i++)
+       {final Integer e = E[i], g = G[i];
+        if (false) {}
+        else if (e == null && g == null) {}
+        else if (e != null && g == null) {b.append(String.format("Index %d expected %d, but got null\n", i, e   )); ++fails;}
+        else if (e == null && g != null) {b.append(String.format("Index %d expected null, but got %d\n", i, g   )); ++fails;}
+        else if (e != g)                 {b.append(String.format("Index %d expected %d, but got %d\n",   i, e, g)); ++fails;}
+        else ++passes;
+       }
+      if (fails > 0) say(b);
+      testsPassed += passes; testsFailed += fails;                              // Passes and fails
+     }
    }
 
   WordBus findWords(String name)                                                // Find a word bus by name
@@ -1322,8 +1341,8 @@ public class Chip                                                               
     return o;
    }
 
-  WordBus insertWord(String Output,                                             // Shift the words selected by the monotone mask up one position.
-     WordBus Input, BitBus Mask, BitBus Insert)
+  WordBus insertIntoArray(String Output,                                        // Shift the words selected by the monotone mask up one position.
+    WordBus Input, BitBus Mask, BitBus Insert)
    {final int words = Input.words, bits = Input.bits;
     if (bits      != Insert.bits) stop("Insert is", Insert.bits, "bits to select, but the input words are", bits, "wide");
     if (Mask.bits != words) stop("Mask has", Mask.bits, "bits to select", words, "words");
@@ -1343,21 +1362,50 @@ public class Chip                                                               
       Or (o.b(1, b).name, l.b(1, b),     I.b(1, b));                            // First word of output is the corresponding input word or inserted word depending on the mask
      }
 
+    for   (int w = 2; w <= words; ++w)                                          // Words in shift area
+      for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
+        And(u.b(w-1, b).name, Input.b(w-1, b), M.b(w-1));                       // Shifted upper bits
 
     for   (int w = 2; w <= words; ++w)                                          // Words in shift area
-     {for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
-       {And(u.b(w-1, b).name, Input.b(w-1, b), M.b(w-1));                       // Shifted upper bits
+      for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
+       {And(l.b(w, b).name, Input.b(w,   b), N.b(w));                           // Un-shifted lower bits
+        And(I.b(w, b).name, Insert.b(b),     P.b(w));                           // Select lower words
+        Or (o.b(w, b).name, u.b(w-1, b),     l.b(w, b), I.b(w, b));             // Combine un-shifted, insert, shifted
        }
-     }
+    return o;                                                                   // Copy of input with word inserted at the indicated position
+   }
 
+  WordBus removeFromArray(String Output,                                        // Shift the words selected by the monotone mask up one position.
+    WordBus Input, BitBus Mask, BitBus Insert)
+   {final int words = Input.words, bits = Input.bits;
+    if (bits      != Insert.bits) stop("Insert is", Insert.bits, "bits to select, but the input words are", bits, "wide");
+    if (Mask.bits != words) stop("Mask has", Mask.bits, "bits to select", words, "words");
+
+    final BitBus  M = Mask;                                                     // The monotone mask
+    final BitBus  P = monotoneMaskToPointMask(n(Output, "pm"), M);              // Make a point mask from the input monotone mask
+    final BitBus  N = notBits                (n(Output, "np"), M);              // Invert the monotone mask
+
+    final WordBus u = new WordBus(n(Output, "upper"),  words-1, bits);          // Shifted words   to fill upper part
+    final WordBus l = new WordBus(n(Output, "lower"),  words,   bits);          // Un-shifted words to fill lower part
+    final WordBus o = new WordBus(  Output,            Input);                  // Resulting array of shifted words
+    final WordBus I = new WordBus(n(Output, "Insert"), Input);                  // The first word - insertion
+
+    for (int b = 1; b <= bits;  ++b)                                            // Bits in each word in shift area
+     {And(l.b(1, b).name, Input.b(1, b), N.b(1));                               // Select lower words
+      And(I.b(1, b).name, Insert.b(b),   P.b(1));                               // Select lower words
+      Or (o.b(1, b).name, l.b(1, b),     I.b(1, b));                            // First word of output is the corresponding input word or inserted word depending on the mask
+     }
 
     for   (int w = 2; w <= words; ++w)                                          // Words in shift area
-     {for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
-       {And(l.b(w  , b).name, Input.b(w,   b), N.b(w));                         // Un-shifted lower bits
-        And(I.b(w,   b).name, Insert.b(b),     P.b(w));                         // Select lower words
-        Or (o.b(w,   b).name, u.b(w-1, b), l.b(w, b), I.b(w, b));               // Combine un-shifted, insert, shifted
+      for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
+        And(u.b(w-1, b).name, Input.b(w-1, b), M.b(w-1));                       // Shifted upper bits
+
+    for   (int w = 2; w <= words; ++w)                                          // Words in shift area
+      for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
+       {And(l.b(w, b).name, Input.b(w,   b), N.b(w));                           // Un-shifted lower bits
+        And(I.b(w, b).name, Insert.b(b),     P.b(w));                           // Select lower words
+        Or (o.b(w, b).name, u.b(w-1, b),     l.b(w, b), I.b(w, b));             // Combine un-shifted, insert, shifted
        }
-     }
     return o;                                                                   // Copy of input with word inserted at the indicated position
    }
 
@@ -1628,21 +1676,21 @@ public class Chip                                                               
       this.Enable = Enable; this.Find    = Find;    this.Keys    = Keys;
       this.Data   = Data;   this.Next    = Next;    this.Top     = Top;
 
-      final String id = n(Output, "id");                         // Id for this node
-      final String df = n(Output, "dataFound");                  // Data found before application of enable
-      final String en = n(Output, "enabled");                    // Whether this node is enabled for searching
-      final String f2 = n(Output, "foundBeforeEnable");          // Whether the key was found or not but before application of enable
-      final String me = n(Output, "maskEqual");                  // Point mask showing key equal to search key
-      final String mm = n(Output, "maskMore");                   // Monotone mask showing keys more than the search key
-      final String mf = n(Output, "moreFound");                  // The next link for the first key greater than the search key if such a key is present int the node
-      final String nf = n(Output, "notFound");                   // True if we did not find the key
+      final String id = n(Output, "id");                                        // Id for this node
+      final String df = n(Output, "dataFound");                                 // Data found before application of enable
+      final String en = n(Output, "enabled");                                   // Whether this node is enabled for searching
+      final String f2 = n(Output, "foundBeforeEnable");                         // Whether the key was found or not but before application of enable
+      final String me = n(Output, "maskEqual");                                 // Point mask showing key equal to search key
+      final String mm = n(Output, "maskMore");                                  // Monotone mask showing keys more than the search key
+      final String mf = n(Output, "moreFound");                                 // The next link for the first key greater than the search key if such a key is present int the node
+      final String nf = n(Output, "notFound");                                  // True if we did not find the key
       final String n2 = n(Output, "nextLink2");
       final String n3 = n(Output, "nextLink3");
       final String n4 = n(Output, "nextLink4");
-      final String nm = n(Output, "noMore");                     // No key in the node is greater than the search key
-      final String pm = n(Output, "pointMore");                  // Point mask showing the first key in the node greater than the search key
-      final String pt = n(Output, "pointMoreTop");               // A single bit that tells us whether the top link is the next link
-      final String pn = n(Output, "pointMoreTop_notFound");      // Top is the next link, but only if the key was not found
+      final String nm = n(Output, "noMore");                                    // No key in the node is greater than the search key
+      final String pm = n(Output, "pointMore");                                 // Point mask showing the first key in the node greater than the search key
+      final String pt = n(Output, "pointMoreTop");                              // A single bit that tells us whether the top link is the next link
+      final String pn = n(Output, "pointMoreTop_notFound");                     // Top is the next link, but only if the key was not found
 
       nodeId = bits     (id, B, Id);                                            // Save id of node
       enable = compareEq(en, nodeId, Enable);                                   // Check whether this node is enabled
@@ -1745,16 +1793,16 @@ public class Chip                                                               
       this.levels = levels;                                                     // Number of levels in the tree
       this.output = output;                                                     // The name of this tree. This name will be prepended to generate the names of the gates used to construct this tree.
       this.  find = find;                                                       //i The search key bus
-      final String id = n(output, "inputData");                  // Input data
-      final String ik = n(output, "inputKeys");                  // Input keys
-      final String in = n(output, "inputNext");                  // Input next links
-      final String it = n(output, "inputTop");                   // Input top link
-      final String ld = n(output, "levelData");                  // The data out from a level
-      final String lf = n(output, "levelFound");                 // Find status for a level
-      final String ln = n(output, "levelNext");                  // Next link to search
-      final String nd = n(output, "nodeData");                   // The data out from a node
-      final String nf = n(output, "nodeFound");                  // The found flag output by each node
-      final String nn = n(output, "nodeNext");                   // The next link output by this node
+      final String id = n(output, "inputData");                                 // Input data
+      final String ik = n(output, "inputKeys");                                 // Input keys
+      final String in = n(output, "inputNext");                                 // Input next links
+      final String it = n(output, "inputTop");                                  // Input top link
+      final String ld = n(output, "levelData");                                 // The data out from a level
+      final String lf = n(output, "levelFound");                                // Find status for a level
+      final String ln = n(output, "levelNext");                                 // Next link to search
+      final String nd = n(output, "nodeData");                                  // The data out from a node
+      final String nf = n(output, "nodeFound");                                 // The found flag output by each node
+      final String nn = n(output, "nodeNext");                                  // The next link output by this node
       int nodeId = 0;                                                           // Gives each node in the tree a different id
 
       if (find.bits != bits) stop("Find bus must be", bits, "wide, not", find.bits);
@@ -2632,7 +2680,6 @@ public class Chip                                                               
     if (n) err("Test failed. Got:\n"+b+"\n");
     else   err(a, "does not equal", b);
    }
-
 
 //D0
 
@@ -3660,20 +3707,27 @@ Step  in  la lb lc  a    b    c
 */
 
   static void test_insertWord()                                                 // Insert a word in an array of words
-   {final int     B = 4;
-    final Chip    c = new Chip("Insert Word");                                  // Create a new chip
-    final WordBus w = c.words("array", B, 2, 4, 6, 8);                          // Array to insert into
-    final BitBus  m = c.bits("mask",   B, 0b1100);                              // Monotone mask insertion point
-    final BitBus  i = c.bits("in",     B, 5);                                   // Word to insert
+   {final int B = 4;
+    final int[]array = {2, 4, 6, 8};                                            // Array to insert into
+    final int M = 0b1111;
+    for (int j = 0; j <= B; j++)
+     {final int I = 2 * j + 1, mm = (M>>j)<<j;
+      final Chip    c = new Chip("Insert Word");                                // Create a new chip
+      final WordBus w = c.words("array", B, array);                             // Array to insert into
+      final BitBus  m = c.bits("mask",   B, mm);                                // Monotone mask insertion point
+      final BitBus  i = c.bits("in",     B, I);                                 // Word to insert
 
-    final WordBus W = c.insertWord("o", w, m, i);                               // Insert
-    final WordBus O = c.outputWords("O", W);
-    c.simulate();
-    final Integer[]r = O.Int();
-    ok(r[0], 2);
-    ok(r[1], 4);
-    ok(r[2], 5);
-    ok(r[3], 6);
+      final WordBus W = c.insertIntoArray("o", w, m, i);                        // Insert
+      final WordBus O = c.outputWords    ("O", W);
+      c.simulate();
+      switch(j)
+       {case 0: W.ok(1,2,4,6); break;
+        case 1: W.ok(2,3,4,6); break;
+        case 2: W.ok(2,4,5,6); break;
+        case 3: W.ok(2,4,6,7); break;
+        case 4: W.ok(2,4,6,8); break;
+       }
+     }
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -3724,13 +3778,13 @@ Step  in  la lb lc  a    b    c
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
-    //test_insertWord();
+    test_insertWord();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
    {if (args.length > 0 && args[0].equals("compile")) System.exit(0);           // Do a syntax check
     try
-     {oldTests();
+     {//oldTests();
       newTests();
       gds2Finish();                                                             // Execute resulting Perl code to create GDS2 files
       if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
