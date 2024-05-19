@@ -14,7 +14,7 @@ http://prb.appaapps.com/zesal/pitchdeck/pitchDeck.html
 
 ## And
 
-Create a chips that **and**s two input pins together and places the result on
+Create a chip that **and**s two input pins together and places the result on
 the output pin.
 
 ```
@@ -335,4 +335,4 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-Modified: 2024-05-05 at 21:28:30
+Modified: 2024-05-20 at 00:58:25
