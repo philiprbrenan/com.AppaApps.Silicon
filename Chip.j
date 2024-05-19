@@ -3858,14 +3858,14 @@ Step  in  la lb lc  a    b    c
   public static void main(String[] args)                                        // Test if called as a program
    {if (args.length > 0 && args[0].equals("compile")) System.exit(0);           // Do a syntax check
     try
-     {//if (github_actions)
-        oldTests();
-      newTests();
+     {if (github_actions) oldTests(); else newTests();                          // Tests to run
       gds2Finish();                                                             // Execute resulting Perl code to create GDS2 files
-      if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
+      if (false) {}                                                             // Analyze results of tests
+      else if (testsPassed == 0 && testsFailed == 0) say("No tests runs");
+      else if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
       else say("Passed "+testsPassed+",    FAILed:", testsFailed, "tests.");
      }
-    catch(Exception e)
+    catch(Exception e)                                                          // Get a traceback in a format clickable in Geany if something goes wrong to speed up debugging.
      {System.err.println(traceBack(e));
      }
    }
