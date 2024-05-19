@@ -715,27 +715,38 @@ public class Chip                                                               
    {if (executionTrace == null) return;
     final String G = executionTrace.toString(), E = expected;
     final int lg = G.length(), le = E.length();
+    final StringBuilder b = new StringBuilder();
 
-    if (le != lg) stop("Mismatched length, got", lg, "expected", le, "got:\n"+G);
-
-    int l = 1, c = 1;
-    for (int i = 0; i < lg; i++)
-     {final int  e = E.charAt(i), g = G.charAt(i);
-      if (e != g)
-       {say("Differs at line:", String.format("%04d", l),
-            "character", c, ", expected:", ((char)e),
-                            ", got:",      ((char)g));
-        say("      0----+----1----+----2----+----3----+----4----+----5----+----6");
-        final String[]t = G.split("\\n");
-        for(int k = 0; k < t.length; k++)
-         {say(String.format("%04d  ", k+1)+t[k]);
-          if (l == k+1) say(" ".repeat(6+c)+'^');
-         }
-        stop();
-       }
-      if (e == '\n') {++l; c = 0;} else c++;
+    int fails = 0;
+    if (le != lg)                                                               // Failed on length
+     {++fails;
+      say(b, "Mismatched length, got", lg, "expected", le, "got:\n"+G);
      }
-    ++testsPassed;                                                              // Passed this test
+    else                                                                        // Check characters in equal lengths strings
+     {int l = 1, c = 1;
+      for (int i = 0; i < lg; i++)
+       {final int  e = E.charAt(i), g = G.charAt(i);
+        if (e != g)                                                             // Character mismatch
+         {say(b, "Differs at line:"+String.format("%04d", l),
+              "character", c, ", expected:", ((char)e),
+                              ", got:",      ((char)g));
+          say(b, "      0----+----1----+----2----+----3----+----4----+----5----+----6");
+          final String[]t = G.split("\\n");
+          for(int k = 0; k < t.length; k++)                                     // Details of  mismatch
+           {say(b, String.format("%04d  ", k+1)+t[k]);
+            if (l == k+1) say(b, " ".repeat(6+c)+'^');
+           }
+          ++fails;
+          break;
+         }
+        if (e == '\n') {++l; c = 0;} else c++;
+       }
+     }
+    if (fails > 0)                                                              // Failed this test
+     {++testsFailed;
+      err(b);                                                                   // Show error location with a traceback so we know where the failure occurred
+     }
+    else ++testsPassed;                                                         // Passed this test
    }
 
   Diagram simulate() {return simulate(null);}                                   // Simulate the operation of a chip with no input pins. If the chip has in fact got input pins an error will be reported.
@@ -849,7 +860,7 @@ public class Chip                                                               
       else if (e == null && g != null) {b.append(String.format("Expected null, but got %d\n", g   )); ++fails;}
       else if (e != g)                 {b.append(String.format("Expected %d, but got %d\n",   e, g)); ++fails;}
       else ++passes;
-      if (fails > 0) say(b);
+      if (fails > 0) err(b);
       testsPassed += passes; testsFailed += fails;                              // Passes and fails
      }
    }
@@ -1129,7 +1140,7 @@ public class Chip                                                               
         else if (e != g)                 {b.append(String.format("Index %d expected %d, but got %d\n",   i, e, g)); ++fails;}
         else ++passes;
        }
-      if (fails > 0) say(b);
+      if (fails > 0) err(b);
       testsPassed += passes; testsFailed += fails;                              // Passes and fails
      }
    }
@@ -1418,7 +1429,11 @@ public class Chip                                                               
       for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
         And(u.b(w, b).name, Input.b(w+1, b), M.b(w+1));                         // Shifted upper bits
 
-    connect(o.w(words), Insert);                                                // Word inserted into highest word of output
+    final Gate   nz = orBits(n(Output, "zm"), Mask);                            // True if the mask is not all zeros
+    final BitBus  U = chooseFromTwoWords(n(Output, "U"),                        // If the mask is zero we want the output to equal the input
+                        Input.w(words), Insert, nz);
+    connect(o.w(words), U);                                                     // Inserted word if non zero mask else no change on input
+//  connect(o.w(words), Insert);                                                // Word inserted into highest word of output
 
     for   (int w = 1; w <  words; ++w)                                          // Combine shifted upper and lower
       for (int b = 1; b <= bits;  ++b)                                          // Bits in each word
@@ -1430,7 +1445,7 @@ public class Chip                                                               
       for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
         And(S.b(w, b).name, Input.b(w,   b), P.b(w));                           // Select removed word
 
-    anneal(N.b(words), M.b(words), M.b(1));                                             // No selection required here because the final word is added regardless
+    anneal(N.b(words), M.b(words), M.b(1));                                     // No selection required here because the final word is added regardless
     final BitBus R = orWords(n(Output, "remove"), S);                           // Removed word
     return new RemoveFromArray(o, R);                                           // Resulting word bus and removed word
    }
@@ -2684,6 +2699,15 @@ public class Chip                                                               
      }
    }
 
+  static StringBuilder say(StringBuilder b, Object...O)                         // Say something in a string builder
+   {for (Object o: O)
+     {if (b.length() > 0) b.append(" ");
+      b.append(o);
+     }
+    b.append('\n');
+    return b;
+   }
+
   static void err(Object...O)                                                   // Say something and provide an error trace.
    {say(O);
     System.err.println(traceBack());
@@ -3776,7 +3800,7 @@ Step  in  la lb lc  a    b    c
         case 1: O.ok(2,6,8,1); R.ok(4); break; // 1110
         case 2: O.ok(2,4,8,1); R.ok(6); break; // 1100
         case 3: O.ok(2,4,6,1); R.ok(8); break; // 1000
-        case 4: O.ok(2,4,6,1); R.ok(0); break; // 0000 - prevent removal of 8
+        case 4: O.ok(2,4,6,8); R.ok(0); break; // 0000 - prevent removal of 8
        }
      }
    }
@@ -3824,11 +3848,11 @@ Step  in  la lb lc  a    b    c
     test_registerSources();
     test_fibonacci();
     test_insertIntoArray();
+    test_removeFromArray();
    }
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
-    test_removeFromArray();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
