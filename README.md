@@ -64,7 +64,7 @@ Buses behave like variables and arrays of variables.
 
 ## Bit buses
 
-A bit bus behaves like a variable.
+A bit bus corresponds to a variable.
 
 ```
 25 Bit buses
@@ -98,7 +98,7 @@ Bits  Bus_____________________________  Value
 
 ## Words buses
 
-Word buses correspond to arrays of variables.
+A word bus correspond to an arrays of variables.
 
 ```
 
@@ -335,4 +335,4 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-Modified: 2024-05-20 at 00:58:25
+Modified: 2024-05-20 at 02:13:40
