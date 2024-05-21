@@ -2,10 +2,8 @@
 // Design, simulate and layout a binary tree on a silicon chip.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
-// pckage com.AppaApps.Silicon;
 // Test all dyadic gates to see if there is any correlation between their outputs and any other pins indicating that the gate might be redundant. Use class Grouping to achieve this.
-// Gate set method
-// concatenateNames() ->n()
+package com.AppaApps.Silicon;
 
 import java.io.*;
 import java.util.*;
@@ -1254,7 +1252,7 @@ public class Chip                                                               
    {final int A = a.bits;                                                       // Width of first bus
     final int B = b.bits;                                                       // Width of second bus
     a.sameSize(b);                                                              // Check buses match in size
-    final BitBus eq = new BitBus(n(output, "eq"), A);                           // Compare each pair of bits
+    final BitBus eq = new BitBus(n(output, "equal"), A);                        // Compare each pair of bits
     for (int i = 1; i <= B; i++) Nxor(eq.b(i).name, a.b(i), b.b(i));            // Test each bit pair for equality
     return andBits(output, eq);                                                 // All bits must be equal
    }
@@ -1264,9 +1262,9 @@ public class Chip                                                               
     final int B = b.bits;
     a.sameSize(b);
 
-    final BitBus oe = new BitBus(n(output, "e"), A);                            // Bits equal in input buses
-    final BitBus og = new BitBus(n(output, "g"), A);                            // Bits greater than
-    final BitBus oc = new BitBus(n(output, "c"), A);                            // Bit greater than with all other bits equal
+    final BitBus oe = new BitBus(n(output, "equal"),   A);                      // Bits equal in input buses
+    final BitBus og = new BitBus(n(output, "greater"), A);                      // Bits greater than
+    final BitBus oc = new BitBus(n(output, "compare"), A);                      // Bit greater than with all other bits equal
 
     for (int i = 2; i <= B; i++) Nxor(oe.b(i).name, a.b(i), b.b(i));            // Test all but the lowest bit pair for equality
     for (int i = 1; i <= B; i++) Gt  (og.b(i).name, a.b(i), b.b(i));            // Test each bit pair for more than
@@ -1287,9 +1285,9 @@ public class Chip                                                               
    {final int A = a.bits, B = b.bits;
     a.sameSize(b);
 
-    final BitBus oe = new BitBus(n(output, "e"), A);                            // Bits equal in input buses
-    final BitBus ol = new BitBus(n(output, "l"), A);                            // Bits less than
-    final BitBus oc = new BitBus(n(output, "c"), A);                            // Bit less than with all other bits equal
+    final BitBus oe = new BitBus(n(output, "equal"), A);                        // Bits equal in input buses
+    final BitBus ol = new BitBus(n(output, "less"), A);                         // Bits less than
+    final BitBus oc = new BitBus(n(output, "compare"), A);                      // Bit less than with all other bits equal
 
     for (int i = 2; i <= B; i++) Nxor(oe.b(i).name, a.b(i), b.b(i));            // Test all but the lowest bit pair for equality
     for (int i = 1; i <= B; i++) Lt  (ol.b(i).name, a.b(i), b.b(i));            // Test each bit pair for more than
@@ -1979,7 +1977,7 @@ public class Chip                                                               
     layoutY = sy * (2 + countAtMostCountedDistance);                            // Y dimension of chip with a bit of border
 
     compileChip();
-    for (Gate g : connectedToOutput.values())  g.px = g.distanceToOutput * sx;  // Position each gate in x as long as it is eventually connected to an output, or it is an output that has a gate
+    for (Gate g : connectedToOutput.values()) g.px = g.distanceToOutput * sx;   // Position each gate in x as long as it is eventually connected to an output, or it is an output that has a gate
 
     final TreeSet<String> drawn = new TreeSet<>();                              // Gates that have already been drawn and so do not need to be redrawn
 
@@ -3189,18 +3187,18 @@ public class Chip                                                               
         test_chooseWordUnderMask(B, i);
    }
 
-  static Chip test_BtreeNode(int find, int enable, boolean Found, int Data, int Next)
+  static Chip test_BtreeNode(int find, int validKeys, int enable, boolean Found, int Data, int Next)
    {final int[]keys = {2, 4, 6};
     final int[]data = {1, 3, 5};
     final int[]next = {1, 3, 5};
     final int   top = 7;
     final int     B = 3;
     final int     N = 3;
-    final int    ke = 0b111;
     final int    id = 7;
     final var     c = new Chip("BtreeNode "+B);
 
-    BtreeNode.Test(c, "node", id, B, N, enable, find, keys, data, next, top, ke, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
+    BtreeNode.Test(c, "node", id, B, N, enable, find, keys, data, next, top,    // Search a node
+      validKeys, "found", "data", "next");
     final BitBus d = c.outputBits("d", c.findBits("data"));                     // Anneal the node
     final BitBus n = c.outputBits("n", c.findBits("next"));
     final Gate   f = c.Output    ("f", c.new Bit("found"));
@@ -3214,21 +3212,37 @@ public class Chip                                                               
    }
 
   static void test_BtreeNode()
-   {test_BtreeNode(1, 7, false, 0, 1);
-    test_BtreeNode(2, 7,  true, 1, 0);
-    test_BtreeNode(3, 7, false, 0, 3);
-    test_BtreeNode(4, 7,  true, 3, 0);
-    test_BtreeNode(5, 7, false, 0, 5);
-    test_BtreeNode(6, 7,  true, 5, 0);
-    test_BtreeNode(7, 7, false, 0, 7);
+   {test_BtreeNode(1, 0b111, 7, false, 0, 1);
+    test_BtreeNode(2, 0b111, 7,  true, 1, 0);
+    test_BtreeNode(3, 0b111, 7, false, 0, 3);
+    test_BtreeNode(4, 0b111, 7,  true, 3, 0);
+    test_BtreeNode(5, 0b111, 7, false, 0, 5);
+    test_BtreeNode(6, 0b111, 7,  true, 5, 0);
+    test_BtreeNode(7, 0b111, 7, false, 0, 7);
 
-    test_BtreeNode(1, 1, false, 0, 0);
-    test_BtreeNode(2, 1, false, 0, 0);
-    test_BtreeNode(3, 1, false, 0, 0);
-    test_BtreeNode(4, 1, false, 0, 0);
-    test_BtreeNode(5, 1, false, 0, 0);
-    test_BtreeNode(6, 1, false, 0, 0);
-    test_BtreeNode(7, 1, false, 0, 0);
+    test_BtreeNode(1, 0b111, 1, false, 0, 0);
+    test_BtreeNode(2, 0b111, 1, false, 0, 0);
+    test_BtreeNode(3, 0b111, 1, false, 0, 0);
+    test_BtreeNode(4, 0b111, 1, false, 0, 0);
+    test_BtreeNode(5, 0b111, 1, false, 0, 0);
+    test_BtreeNode(6, 0b111, 1, false, 0, 0);
+    test_BtreeNode(7, 0b111, 1, false, 0, 0);
+
+    test_BtreeNode(1, 0b011, 7, false, 0, 1);                                   // Only the first two keys are valid
+    test_BtreeNode(2, 0b011, 7,  true, 1, 0);
+    test_BtreeNode(3, 0b011, 7, false, 0, 3);
+    test_BtreeNode(4, 0b011, 7,  true, 3, 0);
+    test_BtreeNode(5, 0b011, 7, false, 0, 7);
+    test_BtreeNode(6, 0b011, 7, false, 0, 7);
+    test_BtreeNode(7, 0b011, 7, false, 0, 7);
+
+    test_BtreeNode(1, 0b011, 1, false, 0, 0);
+    test_BtreeNode(2, 0b011, 1, false, 0, 0);
+    test_BtreeNode(3, 0b011, 1, false, 0, 0);
+    test_BtreeNode(4, 0b011, 1, false, 0, 0);
+    test_BtreeNode(5, 0b011, 1, false, 0, 0);
+    test_BtreeNode(6, 0b011, 1, false, 0, 0);
+    test_BtreeNode(7, 0b011, 1, false, 0, 0);
    }
 
   static Chip test_BtreeLeafCompare(int find, int enable, boolean Found, int Data, int Next)
