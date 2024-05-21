@@ -3,7 +3,7 @@
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 // Test all dyadic gates to see if there is any correlation between their outputs and any other pins indicating that the gate might be redundant. Use class Grouping to achieve this.
-//package com.AppaApps.Silicon;
+package com.AppaApps.Silicon;
 
 import java.io.*;
 import java.util.*;
