@@ -1674,42 +1674,45 @@ public class Chip                                                               
 //D2 B-tree                                                                     // Circuits useful in the construction and traversal of B-trees.
 
   class BtreeNode                                                               // Description of a node in a binary tree
-   {final String  Output;                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
-    final int         Id;                                                       // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
-    final int          B;                                                       // Width of each word in the node.
-    final int          K;                                                       // Number of keys == number of data words each B bits wide in the node.
-    final boolean   Leaf;                                                       // Width of each word in the node.
-    final BitBus  Enable;                                                       // B bit wide bus naming the currently enabled node by its id.
-    final BitBus    Find;                                                       // B bit wide bus naming the key to be found
+   {final String   Output;                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+    final int          Id;                                                       // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
+    final int           B;                                                       // Width of each word in the node.
+    final int           K;                                                       // Number of keys == number of data words each B bits wide in the node.
+    final boolean    Leaf;                                                       // Width of each word in the node.
+    final BitBus   Enable;                                                       // B bit wide bus naming the currently enabled node by its id.
+    final BitBus     Find;                                                       // B bit wide bus naming the key to be found
     final WordBus    Keys;                                                      // Keys in this node, an array of N B bit wide words.
     final WordBus    Data;                                                      // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
     final WordBus    Next;                                                      // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
-    final BitBus     Top;                                                       // The top next link making N+1 next links in all.
-    final Bit      found;                                                       // Found the search key
-    final BitBus outData;                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+    final BitBus      Top;                                                       // The top next link making N+1 next links in all.
+    final Bit       found;                                                       // Found the search key
+    final BitBus  outData;                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
     final BitBus outNext;                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
     int     level, index;                                                       // Level and position in  level for this node
     final BitBus  nodeId;                                                       // Save id of node
     final Bit     enable;                                                       // Check whether this node is enabled
     final BitBus  matches;                                                      // Bitbus showing whether each key is equal to the search key
+//  final BitBus  matchesValid;                                                 // Bitbus showing whether each key is equal to a valid key
     final BitBus  selectedData;                                                 // Choose data under equals mask
     final Bit     keyWasFound;                                                  // Show whether key was found
+//  final BitBus  keysFree;                                                     // Keys still free so that they can not be equal to anything and are always greater than any other key
 
     BtreeNode                                                                   // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
-     (String  Output,                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
-      int         Id,                                                           // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
-      int          B,                                                           // Width of each word in the node.
-      int          K,                                                           // Number of keys == number of data words each B bits wide in the node.
-      boolean   Leaf,                                                           // Width of each word in the node.
-      BitBus  Enable,                                                           // B bit wide bus naming the currently enabled node by its id.
-      BitBus    Find,                                                           // B bit wide bus naming the key to be found
-      WordBus   Keys,                                                           // Keys in this node, an array of N B bit wide words.
-      WordBus   Data,                                                           // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
-      WordBus   Next,                                                           // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
-      BitBus     Top,                                                           // The top next link making N+1 next links in all.
-      String   Found,                                                           // Found the search key
-      String OutData,                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
-      String OutNext)                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+     (String      Output,                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+      int             Id,                                                       // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
+      int              B,                                                       // Width of each word in the node.
+      int              K,                                                       // Number of keys == number of data words each B bits wide in the node.
+      boolean       Leaf,                                                       // Width of each word in the node.
+      BitBus      Enable,                                                       // B bit wide bus naming the currently enabled node by its id.
+      BitBus        Find,                                                       // B bit wide bus naming the key to be found
+      WordBus       Keys,                                                       // Keys in this node, an array of N B bit wide words.
+      WordBus       Data,                                                       // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
+      WordBus       Next,                                                       // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
+      BitBus         Top,                                                       // The top next link making N+1 next links in all.
+      BitBus KeysEnabled,                                                       // One bit for each key showing whether the key is a valid key if true, else an empty slot.  These bits form a monotone mask.
+      String       Found,                                                       // Found the search key
+      String     OutData,                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+      String     OutNext)                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
      {if (K     <= 2) stop("The number of keys the node can hold must be greater than 2, not", K);
       if (K % 2 == 0) stop("The number of keys the node can hold must be odd, not even:",      K);
       this.Output = Output;
@@ -1721,10 +1724,13 @@ public class Chip                                                               
       final String df = n(Output, "dataFound");                                 // Data found before application of enable
       final String en = n(Output, "enabled");                                   // Whether this node is enabled for searching
       final String f2 = n(Output, "foundBeforeEnable");                         // Whether the key was found or not but before application of enable
+//    final String kf = n(Output, "keysFree");                                  // The keys which are free - the opposite of enabled
       final String me = n(Output, "maskEqual");                                 // Point mask showing key equal to search key
       final String mm = n(Output, "maskMore");                                  // Monotone mask showing keys more than the search key
+      final String mv = n(Output, "matchesAndValid");                           // Matches and valid
       final String mf = n(Output, "moreFound");                                 // The next link for the first key greater than the search key if such a key is present int the node
       final String nf = n(Output, "notFound");                                  // True if we did not find the key
+      final String nv = n(Output, "nextValid");                                 // Bit bus showing which next links are valid. The valid links point to the node that contain keys less than the corresponding key. If the corresponding key is erqual then the key has been found and the actual next link will be computed as zero.
       final String n2 = n(Output, "nextLink2");
       final String n3 = n(Output, "nextLink3");
       final String n4 = n(Output, "nextLink4");
@@ -1733,25 +1739,28 @@ public class Chip                                                               
       final String pt = n(Output, "pointMoreTop");                              // A single bit that tells us whether the top link is the next link
       final String pn = n(Output, "pointMoreTop_notFound");                     // Top is the next link, but only if the key was not found
 
-      nodeId = bits     (id, B, Id);                                            // Save id of node
-      enable = compareEq(en, nodeId, Enable);                                   // Check whether this node is enabled
+      nodeId   = bits     (id, B, Id);                                          // Save id of node
+      enable   = compareEq(en, nodeId, Enable);                                 // Check whether this node is enabled
+//    keysFree = notBits(kf, KeysEnabled);                                      // Key slots still free
 
       for (int i = 1; i <= K; i++)
        {compareEq(n(i, me), Keys.w(i), Find);                                   // Compare equal point mask
         if (!Leaf) compareGt(n(i, mm), Keys.w(i), Find);                        // Compare more  monotone mask
        }
 
-      matches = collectBits(me, K);                                             // Equal bit bus for each key
+      matches      = collectBits(me, K);                                        // Equal bit bus for each key
+    //matchesValid = andBitBuses(mv, matches, KeysEnabled);                     // Equal bit bus for each valid key
 
-      selectedData = chooseWordUnderMask(df, Data, matches);                    // Choose data under equals mask
-      keyWasFound  = orBits             (f2,       matches);                    // Show whether key was found
+      selectedData = chooseWordUnderMask(df, Data, matches);               // Choose data under equals mask
+      keyWasFound  = orBits             (f2,       matches);               // Show whether key was found
       outData      = enableWord    (OutData, selectedData, enable);             // Enable data found
       found        = And             (Found, keyWasFound,  enable);             // Enable found flag
 
       if (!Leaf)                                                                // Find next link with which to enable next layer
-       {final BitBus Mm = collectBits            (mm, K);                       // Interior nodes have next links
-        final Bit    Nm = norBits                (nm, Mm);                      // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
-        final BitBus Pm = monotoneMaskToPointMask(pm, Mm);                      // Convert monotone more mask to point mask
+       {final BitBus Mm = collectBits            (mm, K);                       // Monotone mask more for compare greater than on keys so we can find next link
+        final BitBus Nv = andBitBuses            (nv, Mm, KeysEnabled);         // Monotone mask more for compare greater than on valid keys
+        final Bit    Nm = norBits                (nm, Nv);                      // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
+        final BitBus Pm = monotoneMaskToPointMask(pm, Nv);                      // Convert monotone more mask to point mask
         final BitBus Mf = chooseWordUnderMask    (mf, Next, Pm);                // Choose next link using point mask from the more monotone mask created
         final BitBus N4 = chooseFromTwoWords     (n4, Mf,   Top, Nm);           // Choose top or next link
         final Bit    Pt = norBits                (pt, Pm);                      // The top link is the next link
@@ -1765,20 +1774,21 @@ public class Chip                                                               
      }
 
     static BtreeNode Test                                                       // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
-     (Chip         c,                                                           // Chip to contain node
-      String  Output,                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
-      int         Id,                                                           // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
-      int          B,                                                           // Width of each word in the node.
-      int          N,                                                           // Number of keys == number of data words each B bits wide in the node.
-      int     enable,                                                           // B bit wide bus naming the currently enabled node by its id.
-      int       find,                                                           // B bit wide bus naming the key to be found
-      int[]     keys,                                                           // Keys in this node, an array of N B bit wide words.
-      int[]     data,                                                           // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
-      int[]     next,                                                           // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
-      int        top,                                                           // The top next link making N+1 next links in all.
-      String   Found,                                                           // Found the search key
-      String    Data,                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
-      String    Next                                                            // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+     (Chip          c,                                                          // Chip to contain node
+      String   Output,                                                          // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+      int          Id,                                                          // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
+      int           B,                                                          // Width of each word in the node.
+      int           N,                                                          // Number of keys == number of data words each B bits wide in the node.
+      int      enable,                                                          // B bit wide bus naming the currently enabled node by its id.
+      int        find,                                                          // B bit wide bus naming the key to be found
+      int[]      keys,                                                          // Keys in this node, an array of N B bit wide words.
+      int[]      data,                                                          // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
+      int[]      next,                                                          // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
+      int         top,                                                          // The top next link making N+1 next links in all.
+      int keysEnabled,                                                          // Keys that are currently valid: one bit per valid key withe first key in the first bit position
+      String    Found,                                                          // Found the search key
+      String     Data,                                                          // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+      String     Next                                                           // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
      )
      {if (                N != keys.length) stop("Wrong number of keys, need", N, "got", keys.length);
       if (                N != data.length) stop("Wrong number of data, need", N, "got", data.length);
@@ -1787,11 +1797,13 @@ public class Chip                                                               
       final BitBus  e = c.bits (B, enable);
       final BitBus  f = c.bits (B, find);
       final WordBus k = c.words(B, keys);
+      final BitBus  K = c.bits (B, keysEnabled);
       final WordBus d = c.words(B, data);
       final WordBus n = next != null ? c.words(B, next) : null;
       final BitBus  t = next != null ? c.bits (B, top)  : null;
 
-      return c.new BtreeNode(Output, Id, B, N, next == null, e, f, k, d, n, t, Found, Data, Next);
+      return c.new BtreeNode(Output, Id, B, N, next == null, e, f, k, d, n, t,
+        K, Found, Data, Next);
      }
    }
 
@@ -1849,6 +1861,7 @@ public class Chip                                                               
       if (find.bits != bits) stop("Find bus must be", bits, "wide, not", find.bits);
 
       BitBus eI = null;                                                         // For the moment we always enable the root node of the tree
+      final BitBus ke = bits(n(output, "keysEnabled"), bits, (1<<keys)-1);      // All keys enabled
 
       for (int l = 1; l <= levels; l++)                                         // Each level in the bTree
        {final int         N = powerOf(keys+1, l-1);                             // Number of nodes at this level
@@ -1868,7 +1881,7 @@ public class Chip                                                               
           final String  oN = root ? n(l, ln) : n(l, n, nn);                     // Next link if node is not a leaf
 
           final BtreeNode node = new BtreeNode(n(l, n, output, "node"),         // Create the node
-            nodeId, bits, keys, leaf, eI, find, iK, iD, iN, iT, oF, oD, oN);
+            nodeId, bits, keys, leaf, eI, find, iK, iD, iN, iT, ke, oF, oD, oN);
 
           level.nodes.put(n, node);                                             // Add the node to this level
           nodes.put(nodeId, node);                                              // Index the node
@@ -3183,14 +3196,16 @@ public class Chip                                                               
     final int   top = 7;
     final int     B = 3;
     final int     N = 3;
+    final int    ke = 0b111;
     final int    id = 7;
     final var     c = new Chip("BtreeNode "+B);
 
-    BtreeNode.Test(c, "node", id, B, N, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
-    final BitBus d = c.outputBits("d", c.findBits("data")); // Anneal the node
+    BtreeNode.Test(c, "node", id, B, N, enable, find, keys, data, next, top, ke, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
+    final BitBus d = c.outputBits("d", c.findBits("data"));                     // Anneal the node
     final BitBus n = c.outputBits("n", c.findBits("next"));
     final Gate   f = c.Output    ("f", c.new Bit("found"));
     c.simulate();
+//stop(c);
     ok(c.steps >= 18 && c.steps <= 22, true);
     ok(c.getBit("found"), Found);
     ok(c.findBits("data").Int(), Data);
@@ -3221,12 +3236,13 @@ public class Chip                                                               
     final int[]data = {1, 3, 5};
     final int[]next = null;
     final int   top = 7;
+    final int    ke = 0b111;
     final int     B = 3;
     final int     N = 3;
     final int    id = 7;
     final var     c = new Chip("BtreeLeafCompare "+B);
 
-    BtreeNode.Test(c, "node", id, B, N, enable, find, keys, data, next, top, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
+    BtreeNode.Test(c, "node", id, B, N, enable, find, keys, data, next, top, ke, "found", "data", "next");                                                                  // Create a Btree node"out_found" , "out_dataFound", "out_nextLink"),
     c.outputBits("d", c.findBits("data")); // Anneal the node
     c.Output    ("f", c.new Bit("found"));
     c.simulate();
@@ -3853,6 +3869,8 @@ Step  in  la lb lc  a    b    c
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
+    test_BtreeNode();
+    //oldTests();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
