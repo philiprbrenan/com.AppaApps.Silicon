@@ -1,4 +1,4 @@
-# Test 2024-05-21 at 23:23:10
+# Test 2024-05-21 at 23:26:18
 
 name: Test
 run-name: and
@@ -37,7 +37,9 @@ jobs:
 
     - name: Test silicon chips
       run: |
-        java --enable-preview --source 22  Chip.j
+        mkdir -p com/AppaApps/Silicon/
+        cp Chip.j com/AppaApps/Silicon/
+        java --enable-preview --source 22  com/AppaApps/Silicon/Chip.j
 
     - name: Files
       run: |
