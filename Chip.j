@@ -3,7 +3,7 @@
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 // Test all dyadic gates to see if there is any correlation between their outputs and any other pins indicating that the gate might be redundant. Use class Grouping to achieve this.
-package com.AppaApps.Silicon;
+package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
 
 import java.io.*;
 import java.util.*;
@@ -382,16 +382,17 @@ public class Chip                                                               
         "gates, but a gate can drive no more than 2 other gates");
 
       for (WhichPin t : drives)                                                 // Connect targeted gates back to this gate
-       {if (t == null) continue;                                                // Fan out is woder than strictly necessary but tolerated to produce a complete tree.
-        final Gate T = t.gate();
-        if      (T.iGate1 == this || T.iGate2 == this) {}                       // Already set
-        else if (T.iGate1 == null && t.ok1()) T.iGate1 = this;                  // Use input pin 1
-        else if (T.iGate2 == null && t.ok2()) T.iGate2 = this;                  // Use input pin 2
-        else                                                                    // No input pin available
-         {if (t.pin == null) stop("Gate:", T.name,
-            "driven by too many other gates, including one from gate:", name);
-          else               stop("Gate:", T.name,
-            "does not have enough pins to be driven by:", t, "from", name);
+       {if (t != null)                                                          // Fan out is wider than strictly necessary but tolerated to produce a complete tree.
+         {final Gate T = t.gate();
+          if      (T.iGate1 == this || T.iGate2 == this) {}                     // Already set
+          else if (T.iGate1 == null && t.ok1()) T.iGate1 = this;                // Use input pin 1
+          else if (T.iGate2 == null && t.ok2()) T.iGate2 = this;                // Use input pin 2
+          else                                                                  // No input pin available
+           {if (t.pin == null) stop("Gate:", T.name,
+              "driven by too many other gates, including one from gate:", name);
+            else               stop("Gate:", T.name,
+              "does not have enough pins to be driven by:", t, "from", name);
+           }
          }
        }
      }
@@ -417,24 +418,24 @@ public class Chip                                                               
     void step()                                                                 // One step in the simulation
      {final Boolean g = iGate1 != null ? iGate1.value : null,
                     G = iGate2 != null ? iGate2.value : null;
-      nextValue = null;                                                         // Null means we do not kow whatteh vlaue is.  In some cases involving dyadic commutative gates we only need to know one input to be able to deduce the output.  However, if the gate ouput cannot be computed then its result must be null meaning "could be true or  false".
-      switch(op)                                                                // Gate operation
-       {case And:   if (g != null && G != null)  nextValue =   g &&  G;  else if ((g != null && !g) || (G != null && !G)) nextValue = false; return;
-        case Gt:    if (g != null && G != null)  nextValue =   g && !G;  return;
-        case Lt:    if (g != null && G != null)  nextValue =  !g &&  G;  return;
-        case Nand:  if (g != null && G != null)  nextValue = !(g &&  G); else if ((g != null && !g) || (G != null && !G)) nextValue = true; return;
-        case Ngt:   if (g != null && G != null)  nextValue =  !g ||  G;  return;
-        case Nlt:   if (g != null && G != null)  nextValue =   g || !G;  return;
-        case Nor:   if (g != null && G != null)  nextValue = !(g ||  G); else if ((g != null &&  g) || (G != null &&  G)) nextValue = false; return;
-        case Not:   if (g != null)               nextValue =  !g;        return;
-        case Nxor:  if (g != null && G != null)  nextValue = !(g ^   G); return;
-        case One:                                nextValue = true;       return;
-        case Or:    if (g != null && G != null)  nextValue =   g ||  G;  else if ((g != null &&  g) || (G != null &&  G)) nextValue = true; return;
-        case Xor:   if (g != null && G != null)  nextValue =   g ^   G;  return;
-        case Zero:                               nextValue = false;      return;
-        case Input:                              nextValue = value;      return;
-        case Continue: case FanOut: case Output: nextValue =   g;        return;
-       }
+      nextValue = switch(op)                                                    // Null means we do not know what the value is.  In some cases involving dyadic commutative gates we only need to know one input to be able to deduce the output.  However, if the gate ouput cannot be computed then its result must be null meaning "could be true or false".
+       {case And     ->{if (g != null && G != null)  yield   g &&  G;  else if ((g != null && !g) || (G != null && !G)) yield false; else yield null;}
+        case Nand    ->{if (g != null && G != null)  yield !(g &&  G); else if ((g != null && !g) || (G != null && !G)) yield true;  else yield null;}
+        case Or      ->{if (g != null && G != null)  yield   g ||  G;  else if ((g != null &&  g) || (G != null &&  G)) yield true;  else yield null;}
+        case Nor     ->{if (g != null && G != null)  yield !(g ||  G); else if ((g != null &&  g) || (G != null &&  G)) yield false; else yield null;}
+        case Gt      ->{if (g != null && G != null)  yield   g && !G;                                                                else yield null;}
+        case Lt      ->{if (g != null && G != null)  yield  !g &&  G;                                                                else yield null;}
+        case Ngt     ->{if (g != null && G != null)  yield  !g ||  G;                                                                else yield null;}
+        case Nlt     ->{if (g != null && G != null)  yield   g || !G;                                                                else yield null;}
+        case Not     ->{if (g != null)               yield  !g;                                                                      else yield null;}
+        case Nxor    ->{if (g != null && G != null)  yield !(g ^   G);                                                               else yield null;}
+        case Xor     ->{if (g != null && G != null)  yield   g ^   G;                                                                else yield null;}
+        case One     -> true;
+        case Zero    -> false;
+        case Input   -> value;
+        case Continue, FanOut, Output -> g;
+        default      -> null;
+       };
      }
 
     void fanOut()                                                               // Fan out when more than two gates are driven by this gate
@@ -494,19 +495,17 @@ public class Chip                                                               
     final int P = logTwo(N);                                                    // Length of fan out path - we want to make all the fanout paths the same length to simplify timing issues
     final int Q = powerTwo(P-1);                                                // Size of a full half
 
-    final Operator l;                                                           // Lower operator
-    switch(Op)
-     {case Nand: l = Operator.And; break;
-      case Nor : l = Operator.Or;  break;
-      default  : l = Op;
-     }
+    final Operator l = switch(Op)                                               // Lower operator
+     {case Nand -> Operator.And;
+      case Nor  -> Operator.Or;
+      default   -> Op;
+     };
 
-    final Operator u;                                                           // Upper operator
-    switch(Op)
-     {case And: case Nand: u = N > Q + 1 ? Operator.And : Operator.Continue; break;
-      case Or : case Nor : u = N > Q + 1 ? Operator.Or  : Operator.Continue; break;
-      default :            u = Op;
-     }
+    final Operator u = switch(Op)                                               // Upper operator
+     {case And, Nand -> {yield N > Q + 1 ? Operator.And : Operator.Continue;}
+      case Or,  Nor  -> {yield N > Q + 1 ? Operator.Or  : Operator.Continue;}
+      default        -> Op;
+     };
 
     final Gate f = FanIn(l, nextGateName(), Arrays.copyOfRange(Input, 0, Q));   // Lower half is a full sub tree
     final Gate g = FanIn(u, nextGateName(), Arrays.copyOfRange(Input, Q, N));   // Upper half might not be full
@@ -722,7 +721,7 @@ public class Chip                                                               
      }
     else                                                                        // Check characters in equal lengths strings
      {int l = 1, c = 1;
-      for (int i = 0; i < lg; i++)
+      for (int i = 0; i < lg && fails == 0; i++)                                // Check each character
        {final int  e = E.charAt(i), g = G.charAt(i);
         if (e != g)                                                             // Character mismatch
          {say(b, "Differs at line:"+String.format("%04d", l),
@@ -735,16 +734,11 @@ public class Chip                                                               
             if (l == k+1) say(b, " ".repeat(6+c)+'^');
            }
           ++fails;
-          break;
          }
         if (e == '\n') {++l; c = 0;} else c++;
        }
      }
-    if (fails > 0)                                                              // Failed this test
-     {++testsFailed;
-      err(b);                                                                   // Show error location with a traceback so we know where the failure occurred
-     }
-    else ++testsPassed;                                                         // Passed this test
+    if (fails > 0) {++testsFailed; err(b);} else ++testsPassed;                 // Show error location with a trace back so we know where the failure occurred
    }
 
   Diagram simulate() {return simulate(null);}                                   // Simulate the operation of a chip with no input pins. If the chip has in fact got input pins an error will be reported.
@@ -1098,30 +1092,33 @@ public class Chip                                                               
         bitBus.push(B);                                                         // Bit buses associated with this word bus
        }
      }
+
     WordBus(String Name, WordBus Words) {this(Name, Words.words, Words.bits);}  // Create a word bus with the same dimensions as the specified word bus.
+
+    Integer wordValue(int j)                                                    // Get the value of a word in the word bus
+     {int v = 0, p = 1;
+      for (int i = 1; i <= bits; i++)                                           // Each bit on bus
+       {final String n = n(j, i, name);                                         // Name of gate providing bit
+        final Gate g = getGate(n);                                              // Gate providing bit
+        if (g == null)
+         {err("No such word as:", n);
+          return null;                                                          // Invalid gate - should not happen - but if it does it is useful to carry on so that we can get more diagnostics
+         }
+        if (g.value == null) return null;                                       // Bit state not known
+        if (g.value) v += p;
+        p *= 2;
+       }
+      return v;                                                                 // Value of word
+     }
 
     Integer[]Int()                                                              // Convert the words on a word bus into integers
      {final Integer[]r = new Integer[words];                                    // Words on bus
-      loop: for (int j = 1; j <= words; j++)                                    // Each word on bus
-       {r[j-1] = null;                                                          // Value not known
-        int v = 0, p = 1;
-        for (int i = 1; i <= bits; i++)                                         // Each bit on bus
-         {final Gate g = getGate(Chip.this.n(j, i, name));                      // Gate providing bit
-          if (g == null)
-           {say("No such word as:", name);
-            return null;
-           }
-          if (g.value == null) continue loop;                                   // Bit state not known
-          if (g.value) v += p;
-          p *= 2;
-         }
-        r[j-1] = v;                                                             // Save value of this word
-       }
+      for (int j = 1; j <= words; j++) r[j-1] = wordValue(j);                   // Value of each word
       return r;
      }
 
-    BitBus w(int i)        {return bitBuses.get(Chip.this.n(i,    name));}      // Get a bit bus in the word bus
-    Bit    b(int i, int j) {return new Bit     (Chip.this.n(i, j, name));}      // Get a bit from a bit bus in the word bus
+    BitBus w(int i)        {return bitBuses.get(n(i,    name));}                // Get a bit bus in the word bus
+    Bit    b(int i, int j) {return new Bit     (n(i, j, name));}                // Get a bit from a bit bus in the word bus
 
     void ok(Integer...E)                                                        // Confirm the expected values of the word bus. Write a message describing any unexpected values
      {final Integer[]G = Int();                                                 // The values we actually got
@@ -1982,10 +1979,11 @@ public class Chip                                                               
       int i = 0;
       for (String name : sortIntoOutputGateOrder(D))                            // Gates at each distance from the drives
        {final Gate g = getGate(name);
-        if (drawn.contains(name)) continue;                                     // Only draw each named gate once
-        drawn.add(name);                                                        // Show that we have drawn this gate already
-        g.py = y; y += sy; extra += dy;
-        for (; extra >= gsy; extra -= gsy) y += gsy;                            // Enough extra has accumulated to be distributed
+        if (!drawn.contains(name))                                              // Only draw each named gate once
+         {drawn.add(name);                                                      // Show that we have drawn this gate already
+          g.py = y; y += sy; extra += dy;
+          for (; extra >= gsy; extra -= gsy) y += gsy;                          // Enough extra has accumulated to be distributed
+         }
        }
      }
 
@@ -2204,10 +2202,8 @@ public class Chip                                                               
        }
 
       boolean search()                                                          // Breadth first search
-       {for (depth = 2; depth < 999999; ++depth)                                // Depth of search
-         {if (o.size() == 0) break;                                             // Keep going until we cannot go any further
-
-          n = new Stack<>();                                                    // Cells at new edge of search
+       {for (depth = 2; o.size() != 0 && depth < 999999; ++depth)               // Keep going until we cannot go any further
+         {n = new Stack<>();                                                    // Cells at new edge of search
 
           for (Pixel p : o)                                                     // Check cells adjacent to the current border
            {if (around(p.x,   p.y))    return true;
@@ -2338,14 +2334,18 @@ public class Chip                                                               
           start.x, start.y, finish.x, finish.y, level);
        }
 
+      Search searchLevels()                                                     // Search the levels for a placement of this wire
+       {for (Level l : levels)                                                  // Search each existing level for a placement
+         {final Search s = new Search(l, start, finish);                        // Search
+          if (s.found) return s;                                                // Found a level on which we can connect this wire
+         }
+        return null;
+       }
+
       Wire(Gate SourceGate, Gate TargetGate, int x, int y, int X, int Y)        // Create a wire and place it
        {sourceGate = SourceGate; targetGate = TargetGate;
         start = new Pixel(p(x), p(y)); finish = new Pixel(p(X), p(Y));
-        Search S = null;
-        for (Level l : levels)                                                  // Search each existing level for a placement
-         {final Search s = new Search(l, start, finish);                        // Search
-          if (s.found) {S = s; break;}                                          // Found a level on which we can connect this wire
-         }
+        Search S = searchLevels();                                              // Search each existing level for a placement
         if (S == null)                                                          // Create a new level on which we are bound to succeed of there is no room on any existing level
          {final Level l = new Level();
           S = new Search(l, start, finish);                                     // Search
@@ -2679,10 +2679,8 @@ public class Chip                                                               
       final String c = s.getClassName();
       final String m = s.getMethodName();
       final String l = String.format("%04d", s.getLineNumber());
-      if (f.equals("Main.java"))                       continue;
-      if (f.equals("Method.java"))                     continue;
-      if (f.equals("DirectMethodHandleAccessor.java")) continue;
-      b.append("  "+f+":"+l+":"+m+'\n');
+      if (f.equals("Main.java") || f.equals("Method.java") || f.equals("DirectMethodHandleAccessor.java")) {}
+      else b.append("  "+f+":"+l+":"+m+'\n');
      }
     return b.toString();
    }
@@ -3790,11 +3788,11 @@ Step  in  la lb lc  a    b    c
       final WordBus O = c.outputWords    ("O", W);
       c.simulate();
       switch(j)
-       {case 0: W.ok(1,2,4,6); break;
-        case 1: W.ok(2,3,4,6); break;
-        case 2: W.ok(2,4,5,6); break;
-        case 3: W.ok(2,4,6,7); break;
-        case 4: W.ok(2,4,6,8); break;
+       {case 0 -> W.ok(1,2,4,6);
+        case 1 -> W.ok(2,3,4,6);
+        case 2 -> W.ok(2,4,5,6);
+        case 3 -> W.ok(2,4,6,7);
+        case 4 -> W.ok(2,4,6,8);
        }
      }
    }
@@ -3815,11 +3813,11 @@ Step  in  la lb lc  a    b    c
       final BitBus  R = c.outputBits     ("R", W.removed);
       c.simulate();
       switch(j)
-       {case 0: O.ok(4,6,8,1); R.ok(2); break; // 1111
-        case 1: O.ok(2,6,8,1); R.ok(4); break; // 1110
-        case 2: O.ok(2,4,8,1); R.ok(6); break; // 1100
-        case 3: O.ok(2,4,6,1); R.ok(8); break; // 1000
-        case 4: O.ok(2,4,6,8); R.ok(0); break; // 0000 - prevent removal of 8
+       {case 0 -> {O.ok(4,6,8,1); R.ok(2);} // 1111
+        case 1 -> {O.ok(2,6,8,1); R.ok(4);} // 1110
+        case 2 -> {O.ok(2,4,8,1); R.ok(6);} // 1100
+        case 3 -> {O.ok(2,4,6,1); R.ok(8);} // 1000
+        case 4 -> {O.ok(2,4,6,8); R.ok(0);} // 0000 - prevent removal of 8
        }
      }
    }
