@@ -1398,14 +1398,10 @@ public class Chip                                                               
     return o;                                                                   // Copy of input with word inserted at the indicated position
    }
 
-  class RemoveFromArray                                                         // Results of removing a word from a word bus
-   {final WordBus    out;                                                       // Resulting word bus with indicated word removed and a new value shifted in at the high end
-    final BitBus removed;                                                       // The removed word
-
-    RemoveFromArray(WordBus Out, BitBus Removed)                                // Construct
-     {out = Out; removed = Removed;
-     }
-   }
+  record RemoveFromArray                                                        // Results of removing a word from a word bus
+   (WordBus    out,                                                             // Resulting word bus with indicated word removed and a new value shifted in at the high end
+    BitBus removed                                                              // The removed word
+   ){}
 
   RemoveFromArray removeFromArray(String Output,                                // Remove a word from an array, slide the array down to cover the gap and insert a new word at the top to cover the resulting gap there.
     WordBus Input, BitBus Mask, BitBus Insert)
@@ -1450,14 +1446,10 @@ public class Chip                                                               
 
 //D2 Registers                                                                  // Create registers
 
-  class RegIn                                                                   // A BitBus, bit pair representing one possible input to a register
-   {final BitBus  input;                                                        // Input bus from which the register is loaded
-    final Bit      load;                                                        // Load bit: when this bit goes from high to low the register is loaded from the first input bus.
-
-    RegIn(BitBus Input, Bit Load)                                               // Register input
-     {input = Input; load = Load;
-     }
-   }
+  record RegIn                                                                  // A BitBus, bit pair representing one possible input to a register
+   (BitBus  input,                                                              // Input bus from which the register is loaded
+    Bit      load                                                               // Load bit: when this bit goes from high to low the register is loaded from the first input bus.
+   ) {}
 
   class Register extends BitBus                                                 // Description of a register
    {final RegIn    []  I;                                                       // Inputs
@@ -1621,11 +1613,10 @@ public class Chip                                                               
 
 //D2 Arithmetic Base 2                                                          // Arithmetic in base 2
 
-  class BinaryAdd                                                               // Results of a binary add
-   {final Gate carry;                                                           // Carry out gate
-    final BitBus sum;                                                           // Sum
-    BinaryAdd(Gate Carry, BitBus Sum) {carry = Carry; sum = Sum;}
-   }
+  record BinaryAdd                                                              // Results of a binary add
+   (Gate carry,                                                                 // Carry out gate
+    BitBus sum                                                                  // Sum
+   ){}
 
   BinaryAdd binaryAdd(String CarryOut, String output, BitBus in1, BitBus in2)   // Add two bit buses of the same size to make a bit bus one bit wider
    {final int b = in1.bits;                                                     // Number of bits in input monotone mask
@@ -2116,10 +2107,8 @@ public class Chip                                                               
        }
      }
 
-    class Pixel                                                                 // Pixel on the diagram
-     {final int x, y;
-      public Pixel(int X, int Y) {x = X; y = Y;}
-      public String toString() {return "["+x+","+y+"]";}
+    record Pixel(int x, int y)                                                  // Pixel on the diagram
+     {public String toString() {return "["+x+","+y+"]";}
      }
 
     class Segment                                                               // Segment containing some pixels
@@ -3405,7 +3394,7 @@ public class Chip                                                               
     c.simulationSteps(32);
     c.simulate();
     //c.printExecutionTrace();
-    c.ok(STR."""
+    c.ok("""
 Step  1 2 3 a    4 m
    1  1 0 0 .    1 .
    2  0 0 0 1    0 .
@@ -3450,7 +3439,7 @@ Step  1 2 3 a    4 m
     c.simulationSteps(32);
     c.simulate();
     //c.printExecutionTrace(); stop();
-    c.ok(STR."""
+    c.ok("""
 Step  c  choose    l  register ld
    1  0  ........  0  ........  .
    2  0  ........  1  ........  .
@@ -3487,7 +3476,7 @@ Step  c  choose    l  register ld
     c.simulate();
     //c.printExecutionTrace(); stop();
 
-    c.ok(STR."""
+    c.ok("""
 Step  p d
    1  1 .
    3  1 1
@@ -3516,7 +3505,7 @@ Step  p d
     c.simulate();
     //c.printExecutionTrace(); stop();
 
-    c.ok(STR."""
+    c.ok("""
 Step  C P  d e
    1  1 1   . .
    3  0 1   . .
@@ -3594,7 +3583,7 @@ Step  C P  d e
     C.simulationSteps(20);
     C.executionTrace("Reg_   1 2  l  e     e2    e2", "%s   %s %s  %s  %s  %s  %s", r, p1, p2, r.load, r.e, r.E[0], r.E[1]);
     C.simulate();
-    C.ok(STR."""
+    C.ok("""
 Step  Reg_   1 2  l  e     e2    e2
    1  ....   1 0  .  ....  ....  ....
    2  ....   1 0  .  ....  .00.  0.0.
@@ -3623,14 +3612,14 @@ Step  Reg_   1 2  l  e     e2    e2
     final Pulse  p1 = C.pulse("p1",  16, 3, 0);
     final Pulse  p2 = C.pulse("p2",  16, 4, 4);
 
-    final Register r = C.register("r",  C.new RegIn(o1, p1), C.new RegIn(o2, p2));
+    final Register r = C.register("r",  new RegIn(o1, p1), new RegIn(o2, p2));
     final BitBus   o = C.outputBits("o", r);
     final Gate    or = C.Output("or", r.loaded);
     C.simulationSteps(20);
     C.executionTrace("Reg_ ld   1 2  l  e     e2    e2", "%s  %s   %s %s  %s  %s  %s  %s", r, r.loaded, p1, p2, r.load, r.e, r.E[0], r.E[1]);
     C.simulate();
     //C.printExecutionTrace(); stop();
-    C.ok(STR."""
+    C.ok("""
 Step  Reg_ ld   1 2  l  e     e2    e2
    1  ....  .   1 0  .  ....  ....  ....
    2  ....  .   1 0  .  ....  .00.  0.0.
@@ -3665,7 +3654,7 @@ Step  Reg_ ld   1 2  l  e     e2    e2
     C.simulate();
     //C.printExecutionTrace(); stop(C);
 
-    C.ok(STR."""
+    C.ok("""
 Step  i     o     O
    1  1001  ....  ....
    2  1001  1001  ....
@@ -3708,8 +3697,8 @@ Step  i     o     O
     final Register      c = C.register("c", zero, in, ab, lc);
 
     final Register      d = C.register("d",                                     // Load the output register with the latest fibonacci number and show it is present with a falling edge
-      C.new RegIn(zero, in),      C.new RegIn(a, a.loaded),                     // Initially the output register is zero, subsequently it is to the appropriate pair sum
-      C.new RegIn(b,   b.loaded), C.new RegIn(c, c.loaded));
+      new RegIn(zero, in),      new RegIn(a, a.loaded),                         // Initially the output register is zero, subsequently it is to the appropriate pair sum
+      new RegIn(b,   b.loaded), new RegIn(c, c.loaded));
 
     final Gate         ld = C.Or("Ld", ed, d.loaded);                           // Show output register ready with falling edge
 
@@ -3727,7 +3716,7 @@ Step  i     o     O
     C.simulationSteps(552);
     C.simulate();
     //C.printExecutionTrace(); stop();
-    C.ok(STR."""
+    C.ok("""
 Step  d      ld
    1  ....    1
  170  0001    1
@@ -3765,7 +3754,7 @@ Step  d      ld
     C.simulationSteps(484);
     C.simulate();
     C.printExecutionTrace(); stop();
-    C.ok(STR."""
+    C.ok("""
 Step  in  la lb lc  a    b    c
    1  1   0  0  0   .... .... ....
   17  0   0  0  0   .... .... ....
