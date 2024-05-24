@@ -1592,12 +1592,20 @@ public class Chip                                                               
 
 //D2 Arithmetic Base 1                                                          // Arithmetic in base 1
 
-  BitBus shiftUp(String output, BitBus input)                                   // Shift an input bus up one place to add 1 in base 1 or multiply by two in base 2
+  BitBus shiftUp(String output, BitBus input, boolean fill)                     // Shift an input bus up one place to add 1 in base 1 or multiply by two in base 2.
    {final int    b = input.bits;                                                // Number of bits in input monotone mask
     final BitBus o = new BitBus(output, b+1);                                   // Shifted result is a bus one bit wider
-    final Gate   z = Zero(o.b(1).name);                                         // The lowest but will be zero after the shift
+    if (fill) One(o.b(1).name); else Zero(o.b(1).name);                         // The lowest but will be zero or one after the shift
     for (int i = 1; i <= b; i++) Continue(o.b(1+i).name, input.b(i));           // Create the remaining bits of the shifted result
     return o;
+   }
+
+  BitBus shiftUp(String output, BitBus input)                                   // Shift an input bus up one place inserting zero to add 1 in base 1 or multiply by two in base 2
+   {return shiftUp(output, input, false);
+   }
+
+  BitBus shiftUpOne(String output, BitBus input)                                // Shift an input bus up one place inserting one
+   {return shiftUp(output, input, true);
    }
 
   BitBus shiftDown(String output, BitBus input)                                 // Shift an input bus down one place to subtract 1 in base 1 or divide by two in base 2
@@ -1759,10 +1767,21 @@ public class Chip                                                               
       else outNext = null;                                                      // Not relevant in a leaf
      }
 
-    void Insert(String oKeys, String oData, BitBus iKey, BitBus iData,          // Insert a new key, data pair in a leaf node at the position shown by the monotone mask.
+    record Insert                                                               // Buses created by insert operation
+     (WordBus keys,                                                             // Keys with new key inserted
+      WordBus data,                                                             // Data with new data inserted
+      WordBus next,                                                             // Next links with new link inserted
+      BitBus  enabledKeys                                                       // Enabled keys mask
+     ){}
+
+    Insert Insert(String Output, BitBus iKey, BitBus iData, BitBus iNext,       // Insert a new key, data pair in a leaf node at the position shown by the monotone mask.
       BitBus monotoneMask)
-     {insertIntoArray(oKeys, Keys, monotoneMask, iKey);
-      insertIntoArray(oData, Data, monotoneMask, iData);
+     {final WordBus k = insertIntoArray(n(Output, "outKeys"), Keys, monotoneMask, iKey);
+      final WordBus d = insertIntoArray(n(Output, "outData"), Data, monotoneMask, iData);
+      final BitBus  v = shiftUpOne     (n(Output, "outKeysEnabled"), KeysEnabled);
+      final WordBus n = iNext == null ? null :
+        insertIntoArray(n(Output, "outNext"), Next, monotoneMask, iNext);
+      return new Insert(k, d, n, v);                                            // Insertion results
      }
 
     static BtreeNode Test                                                       // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
@@ -3543,14 +3562,14 @@ Step  C P  d e
   static void test_shift()
    {final Chip   c = new Chip("Shift");
     final BitBus b = c.bits      ("b", 4, 3);
-    final BitBus u = c.shiftUp   ("u", b);
-    final BitBus o = c.outputBits("o", u);
-    final BitBus d = c.shiftDown ("d", b);
-    final BitBus O = c.outputBits("O", d);
+    final BitBus u = c.shiftUp   ("u",  b); final BitBus ou = c.outputBits("ou", u);
+    final BitBus U = c.shiftUpOne("U",  b); final BitBus oU = c.outputBits("oU", U);
+    final BitBus d = c.shiftDown ("d",  b); final BitBus od = c.outputBits("od", d);
 
-       c.simulate  ();
-    ok(c.findBits("o").Int(), 6);
-    ok(c.findBits("O").Int(), 1);
+    c.simulate();
+    ou.ok(6);
+    oU.ok(7);
+    od.ok(1);
    }
 
   static void test_binaryAdd()
@@ -3847,12 +3866,14 @@ Step  in  la lb lc  a    b    c
     final BitBus k = c.bits("inKeys",   B, Key);                                // New Key
     final BitBus d = c.bits("inData",   B, Data);                               // New data
     final BitBus p = c.bits("insertAt", B, 0b111);                              // Insert at start
-    b.Insert("oKeys", "oData", k, d, p);                                        // Insert key, data pair into leaf at start. Leaves squeeze out deleted entries
-    final WordBus K = c.outputWords("ok", c.findWords("oKeys"));                // Modified keys
-    final WordBus D = c.outputWords("od", c.findWords("oData"));                // Modified data
+    final BtreeNode.Insert i = b.Insert("out", k, d, null, p);                  // Insert results
+    final WordBus K = c.outputWords("ok", i.keys);                              // Modified keys
+    final WordBus D = c.outputWords("od", i.data);                              // Modified data
+    final BitBus  E = c.outputBits ("oe", i.enabledKeys);                       // Enabled keys
     c.simulate();
     K.ok(1,2,4);
     D.ok(2,3,5);
+    E.ok(0b1111);
     return c;
    }
 
@@ -3909,7 +3930,7 @@ Step  in  la lb lc  a    b    c
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
-    //test_BtreeLeafInsert();
+    test_BtreeLeafInsert();
     oldTests();
    }
 
