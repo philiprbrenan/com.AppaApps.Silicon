@@ -35,16 +35,16 @@ final public class Chip                                                         
 
   final Map<String, Bit>         bits = new TreeMap<>();                        // Bits by name
   final Map<String, Gate>       gates = new TreeMap<>();                        // Gates by name
-  final Map<String, BitBus>  bitBuses = new TreeMap<>();                        // Bit buses
-  final Map<String, WordBus>wordBuses = new TreeMap<>();                        // Sizes of word buses
+  final Map<String, Bits>  bitBuses = new TreeMap<>();                          // Bit buses
+  final Map<String, Words>wordBuses = new TreeMap<>();                          // Sizes of word buses
   final TreeSet<String>   outputGates = new TreeSet<>();                        // Output gates
   final TreeMap<String, TreeSet<Gate.WhichPin>>                                 // Pending gate definitions
                               pending = new TreeMap<>();
   final TreeMap<String, Gate>                                                   // Gates that are connected to an output gate
                     connectedToOutput = new TreeMap<>();
   final TreeMap<String, Pulse> pulses = new TreeMap<>();                        // Bits that are externally driven by periodic pulses of a specified duty cycle
-  final BitBus                 clock0;                                          // Negative clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
-  final BitBus                 clock1;                                          // Positive clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
+  final Bits                 clock0;                                            // Negative clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
+  final Bits                 clock1;                                            // Positive clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
 
   ExecutionTrace       executionTrace = null;                                   // Execution trace goes here
 
@@ -157,7 +157,7 @@ final public class Chip                                                         
      {b.append(""+bitBuses.size()+" Bit buses\n");
       b.append("Bits  Bus_____________________________  Value\n");
       for (String n : bitBuses.keySet())
-       {final BitBus  B = bitBuses.get(n);
+       {final Bits  B = bitBuses.get(n);
         final Integer v = B.Int();
         b.append(String.format("%4d  %32s", bitBuses.get(n).bits, n));
         if (v != null) b.append(String.format("  %d\n", v));
@@ -169,7 +169,7 @@ final public class Chip                                                         
      {b.append(""+wordBuses.size()+" Word buses\n");
       b.append("Words Bits  Bus_____________________________  Values\n");
       for (String n : wordBuses.keySet())
-       {final WordBus w = wordBuses.get(n);
+       {final Words w = wordBuses.get(n);
         b.append(String.format("%4d  %4d  %32s  ", w.words, w.bits, n));
         final Integer[]v = w.Int();
         if (v != null) for(int i = 0; i < v.length; ++i) b.append(""+v[i]+", ");
@@ -541,8 +541,8 @@ final public class Chip                                                         
   Gate Or      (String n, Stack<Bit> i) {return FanIn(Operator.Or,   n, stackToBitArray(i));}
   Gate Nor     (String n, Stack<Bit> i) {return FanIn(Operator.Nor,  n, stackToBitArray(i));}
 
-  void anneal(Bit   ...inputs) {for (Bit    i: inputs) Output(nextGateName(),     i);} // Throw away a bit by annealing it to a bogus output gate so it does not reported as not driving any gate.  This is useful in testing but should be avoided on production chip as a waste of space.
-  void anneal(BitBus...inputs) {for (BitBus i: inputs) outputBits(nextGateName(), i);} // Throw away all the bits in a but bus by annealing it to a bogus output gate so it does not reported as not driving any gate.  This is useful in testing but should be avoided on production chip as a waste of space.
+  void anneal(Bit ...inputs) {for (Bit  i: inputs) Output(nextGateName(),     i);} // Throw away a bit by annealing it to a bogus output gate so it does not reported as not driving any gate.  This is useful in testing but should be avoided on production chip as a waste of space.
+  void anneal(Bits...inputs) {for (Bits i: inputs) outputBits(nextGateName(), i);} // Throw away all the bits in a but bus by annealing it to a bogus output gate so it does not reported as not driving any gate.  This is useful in testing but should be avoided on production chip as a waste of space.
 
   void distanceToOutput()                                                       // Distance to the nearest output
    {outputGates.clear();
@@ -653,7 +653,7 @@ final public class Chip                                                         
      {inputs.put(s.name, value);
      }
 
-    void set(BitBus input, int value)                                           // Set the value of an input bit bus
+    void set(Bits input, int value)                                             // Set the value of an input bit bus
      {final int bits = input.bits;                                              // Get the size of the input bit bus
       final boolean[]b = bitStack(bits, value);                                 // Bits to set
       for (int i = 1; i <= bits; i++) set(input.b(i), b[i-1]);                  // Load the bits into the input bit bus
@@ -663,7 +663,7 @@ final public class Chip                                                         
      {set(input, value);
      }
 
-    void set(WordBus wb, int...values)                                          // Set the value of an input word bus
+    void set(Words wb, int...values)                                            // Set the value of an input word bus
      {for   (int w = 1; w <= wb.words; w++)                                     // Each word
        {final boolean[]b = bitStack(wb.bits, values[w-1]);                      // Bits from current word
         for (int i = 1; i <= wb.bits; i++) set(wb.b(w, i), b[i-1]);             // Load the bits into the input bit bus
@@ -794,19 +794,19 @@ final public class Chip                                                         
 
 //D2 Buses                                                                      // A bus is an array of bits or an array of arrays of bits
 
-  class BitBus                                                                  // The width of the bit bus
+  class Bits                                                                    // The width of the bit bus
    {final String name;                                                          // Name of bus
     final int    bits;                                                          // Bits of bus
-    final Stack<Bit> bit = new Stack<>();
-    BitBus(String Name, int Bits)                                               // Create a new bit bus
+
+    Bits(String Name, int Bits)                                                 // Create a new bit bus
      {name = Name;
       bits = Bits;
-      if (bitBuses.containsKey(name)) stop("BitBus", name, "has already been defined");
+      if (bitBuses.containsKey(name))
+        stop("Bits", name, "has already been defined");
       bitBuses.put(name, this);
-      for (int i = 1; i <= bits; i++) bit.push(new Bit(b(i).name));             // Define the individual bits in the bit bus
      }
 
-    void sameSize(BitBus b)                                                     // Check two buses are the same size and stop if they are not
+    void sameSize(Bits b)                                                       // Check two buses are the same size and stop if they are not
      {final int A = bits, B = b.bits;
       if (A != B) stop("Input",  name, "has width", A, "but input", b.name, "has width", B);
      }
@@ -816,10 +816,10 @@ final public class Chip                                                         
     Integer Int()                                                               // Convert the bits represented by an output bus to an integer
      {int v = 0, p = 1;
       for (int i = 1; i <= bits; i++)                                           // Each bit on bus
-       {final Bit n = b(i);                                                     // Name of gate supporting named bit
+       {final Bit  n = b(i);                                                    // Name of gate supporting named bit
         final Gate g = getGate(n);                                              // Gate providing bit
         if (g == null)
-         {say("No such gate as:", n);
+         {err("No such gate as:", n);                                           // Generally occurs during testing where we might want to continue to see what other errors  occur
           return null;
          }
         if (g.value == null) return null;                                       // Bit state not known
@@ -857,8 +857,8 @@ final public class Chip                                                         
      }
    }
 
-  BitBus findBits(String name)                                                  // Find a bit bus by name
-   {final BitBus b = bitBuses.get(name);
+  Bits findBits(String name)                                                    // Find a bit bus by name
+   {final Bits b = bitBuses.get(name);
     if (b == null) stop("No such bit bus as", name);
     return b;
    }
@@ -884,63 +884,63 @@ final public class Chip                                                         
 //D3 Bits                                                                       // An array of bits that can be manipulated via one name.
 
   int sizeBits(String name)                                                     // Get the size of a bits bus.
-   {final BitBus s = bitBuses.get(name);
+   {final Bits s = bitBuses.get(name);
     if (s == null) stop("No bit bus named", name);
     return s.bits;
    }
 
-  BitBus collectBits(String name, int bits)                                     // Set the size of a bits bus.
-   {final BitBus b = bitBuses.get(name);
+  Bits collectBits(String name, int bits)                                       // Set the size of a bits bus.
+   {final Bits b = bitBuses.get(name);
 
     if (b != null)                                                              // Bus already exists
      {if (b.bits != bits) stop("A bit bus with name:", name, "and bits", b.bits,
                         "has already been defined versus bits requested:", bits);
       return b;                                                                 // Treat as reuse if a bus of the same name and size already exists
      }
-    return new BitBus(name, bits);                                              // Create new bit bus
+    return new Bits(name, bits);                                                // Create new bit bus
    }
 
-  BitBus bits(String n, int bits, int value)                                    // Create a bus set to a specified number.
+  Bits bits(String n, int bits, int value)                                      // Create a bus set to a specified number.
    {final boolean[]b = bitStack(bits, value);                                   // Number as a stack of bits padded to specified width
-    final BitBus   B = new BitBus(n, bits);
+    final Bits   B = new Bits(n, bits);
     for(int i = 1; i <= bits; ++i)                                              // Generate constant
       if (b[i-1]) One(B.b(i).name); else Zero(B.b(i).name);
     return B;
    }
 
-  BitBus bits(int bits, int value)                                              // Create an unnamed bus set to a specified number.
+  Bits bits(int bits, int value)                                                // Create an unnamed bus set to a specified number.
    {return bits(nextGateName(), bits, value);                                   // Create bus
    }
 
-  BitBus inputBits(String name, int bits)                                       // Create an B<input> bus made of bits.
-   {final BitBus B = new BitBus(name, bits);                                    // Record bus width
+  Bits inputBits(String name, int bits)                                         // Create an B<input> bus made of bits.
+   {final Bits B = new Bits(name, bits);                                        // Record bus width
     for (int b = 1; b <= bits; ++b) Input(B.b(b).name);                         // Bus of input gates
     return B;
    }
 
-  BitBus outputBits(String name, BitBus input)                                  // Create an B<output> bus made of bits.
+  Bits outputBits(String name, Bits input)                                      // Create an B<output> bus made of bits.
    {final int bits = input.bits;                                                // Number of bits in input bus
-    final BitBus o = new BitBus(name, bits);                                    // Resulting bit bus
+    final Bits o = new Bits(name, bits);                                        // Resulting bit bus
     for (int i = 1; i <= bits; i++) Output(o.b(i).name, input.b(i));            // Bus of output gates
     return o;                                                                   // Resulting bit bus
    }
 
-  BitBus outputBits(String name, String input)                                  // Create an B<output> bus made of bits.
+  Bits outputBits(String name, String input)                                    // Create an B<output> bus made of bits.
    {return outputBits(name, findBits(input));
    }
 
-  BitBus notBits(String name, BitBus input)                                     // Create a B<not> bus made of bits.
+  Bits notBits(String name, Bits input)                                         // Create a B<not> bus made of bits.
    {final int bits = input.bits;                                                // Number of bits in input bus
-    final BitBus o = new BitBus(name, bits);                                    // Resulting bit bus
+    final Bits o = new Bits(name, bits);                                        // Resulting bit bus
     for (int b = 1; b <= bits; ++b) Not(o.b(b).name, input.b(b));               // Bus of not gates
     return o;                                                                   // Resulting bit bus
    }
 
-  BitBus notBits(String name, String input)                                     // Create a B<not> bus made of bits.
+  Bits notBits(String name, String input)                                       // Create a B<not> bus made of bits.
    {return notBits(name, findBits(input));
    }
 
-  Gate andBits(String name, BitBus input)                                       // B<And> all the bits in a bus to get one bit
+  Gate andBits(String name, Bits input)                                         // B<And> all the bits in a bus to get one bit
    {final int bits = input.bits;                                                // Number of bits in input bus
     final Bit[]b = new Bit[bits];                                               // Arrays of names of bits
     for (int i = 1; i <= bits; ++i) b[i-1] = input.b(i);                        // Names of bits
@@ -951,16 +951,16 @@ final public class Chip                                                         
    {return andBits(name, findBits(input));
    }
 
-  BitBus andBits(String output, BitBus input1, BitBus input2)                   // B<And> two equal size bit buses together to make an equal sized bit bus
+  Bits andBits(String output, Bits input1, Bits input2)                         // B<And> two equal size bit buses together to make an equal sized bit bus
    {final int b = input1.bits;                                                  // Number of bits in input bus 1
     final int c = input2.bits;                                                  // Number of bits in input bus 2
     input1.sameSize(input2);                                                    // Check sizes match
-    final BitBus o = new BitBus(output, b);                                     // Size of resulting bus
+    final Bits o = new Bits(output, b);                                         // Size of resulting bus
     for (int i = 1; i <= b; ++i) And(o.b(i).name, input1.b(i), input2.b(i));    // And each pair of bits
     return o;
    }
 
-  Gate nandBits(String name, BitBus input)                                      // B<Nand> all the bits in a bus to get one bit
+  Gate nandBits(String name, Bits input)                                        // B<Nand> all the bits in a bus to get one bit
    {final int bits = input.bits;                                                // Number of bits in input bus
     final Bit[]b = new Bit[bits];                                               // Arrays of names of bits
     for (int i = 1; i <= bits; ++i) b[i-1] = input.b(i);                        // Names of bits
@@ -971,16 +971,16 @@ final public class Chip                                                         
    {return nandBits(name, findBits(input));                                     // Number of bits in input bus
    }
 
-  BitBus nandBits(String output, BitBus input1, BitBus input2)                  // B<Nand> two equal size bit buses together to make an equal sized bit bus
+  Bits nandBits(String output, Bits input1, Bits input2)                        // B<Nand> two equal size bit buses together to make an equal sized bit bus
    {final int b = input1.bits;                                                  // Number of bits in input bus 1
     final int c = input2.bits;                                                  // Number of bits in input bus 2
     input1.sameSize(input2);                                                    // Check input bus sizes match
-    final BitBus o = new BitBus(output, b);                                     // Resulting bit bus
+    final Bits o = new Bits(output, b);                                         // Resulting bit bus
     for (int i = 1; i <= b; ++i) Nand(o.b(i).name, input1.b(i), input2.b(i));   // Nand each pair of bits
     return o;                                                                   // Size of resulting bus
    }
 
-  Gate orBits(String name, BitBus input)                                        // B<Or> all the bits in a bus to get one bit
+  Gate orBits(String name, Bits input)                                          // B<Or> all the bits in a bus to get one bit
    {final int bits = input.bits;                                                // Number of bits in input bus
     final Bit[]b = new Bit[bits];                                               // Arrays of names of bits
     for (int i = 1; i <= bits; ++i) b[i-1] = input.b(i);                        // Names of bits
@@ -991,16 +991,16 @@ final public class Chip                                                         
    {return orBits(name, findBits(input));
    }
 
-  BitBus orBits(String output, BitBus input1, BitBus input2)                    // B<Or> two equal size bit buses together to make an equal sized bit bus
+  Bits orBits(String output, Bits input1, Bits input2)                          // B<Or> two equal size bit buses together to make an equal sized bit bus
    {final int b = input1.bits;                                                  // Number of bits in input bus
     final int c = input2.bits;                                                  // Number of bits in input bus
     input1.sameSize(input2);                                                    // Check bus sizes match
-    final BitBus o = new BitBus(output, b);                                     // Resulting bit bus
+    final Bits o = new Bits(output, b);                                         // Resulting bit bus
     for (int i = 1; i <= b; ++i) Or(o.b(i).name, input1.b(i), input2.b(i));     // Or each pair of bits
     return o;                                                                   // Size of resulting bus
    }
 
-  Gate norBits(String name, BitBus input)                                       // B<Nor> all the bits in a bus to get one bit
+  Gate norBits(String name, Bits input)                                         // B<Nor> all the bits in a bus to get one bit
    {final int bits = input.bits;                                                // Number of bits in input bus
     final Bit[]b = new Bit[bits];                                               // Arrays of names of bits
     for (int i = 1; i <= bits; ++i) b[i-1] = input.b(i);                        // Names of bits
@@ -1011,45 +1011,45 @@ final public class Chip                                                         
    {return norBits(name, findBits(input));
    }
 
-  BitBus norBits(String output, BitBus input1, BitBus input2)                   // B<Nor> two equal size bit buses together to make an equal sized bit bus
+  Bits norBits(String output, Bits input1, Bits input2)                         // B<Nor> two equal size bit buses together to make an equal sized bit bus
    {final int b = input1.bits;                                                  // Number of bits in input bus 1
     final int c = input2.bits;                                                  // Number of bits in input bus 2
     input1.sameSize(input2);                                                    // Check input bus sizes match
-    final BitBus o = new BitBus(output, b);                                     // Resulting bit bus
+    final Bits o = new Bits(output, b);                                         // Resulting bit bus
     for (int i = 1; i <= b; ++i) Nor(o.b(i).name, input1.b(i), input2.b(i));    // Nor each pair of bits
     return o;                                                                   // Resulting bus
    }
 
-  BitBus xorBits(String output, BitBus input1, BitBus input2)                   // B<Xor> two equal size bit buses together to make an equal sized bit bus
+  Bits xorBits(String output, Bits input1, Bits input2)                         // B<Xor> two equal size bit buses together to make an equal sized bit bus
    {final int b = input1.bits;                                                  // Number of bits in input bus 1
     final int c = input2.bits;                                                  // Number of bits in input bus 2
     input1.sameSize(input2);                                                    // Check input bus sizes match
-    final BitBus o = new BitBus(output, b);                                     // Resulting bit bus
+    final Bits o = new Bits(output, b);                                         // Resulting bit bus
     for (int i = 1; i <= b; ++i) Xor(o.b(i).name, input1.b(i), input2.b(i));    // Xor each pair of bits
     return o;                                                                   // Resulting bus
    }
 
-  BitBus nxorBits(String output, BitBus input1, BitBus input2)                  // B<Nxor> two equal size bit buses together to make an equal sized bit bus
+  Bits nxorBits(String output, Bits input1, Bits input2)                        // B<Nxor> two equal size bit buses together to make an equal sized bit bus
    {final int b = input1.bits;                                                  // Number of bits in input bus 1
     final int c = input2.bits;                                                  // Number of bits in input bus 2
     input1.sameSize(input2);                                                    // Check input bus sizes match
-    final BitBus o = new BitBus(output, b);                                     // Resulting bit bus
+    final Bits o = new Bits(output, b);                                         // Resulting bit bus
     for (int i = 1; i <= b; ++i) Nxor(o.b(i).name, input1.b(i), input2.b(i));   // Nxor each pair of bits
     return o;                                                                   // Size of resulting bus
    }
 
-  void connect(BitBus input1, BitBus input2)                                    // Connect two bit buses together.
+  void connect(Bits input1, Bits input2)                                        // Connect two bit buses together.
    {input1.sameSize(input2);                                                    // Check the buses are the same size
     final int bits = input1.bits;                                               // Number of bits in input bus
     for (int b = 1; b <= bits; ++b) Continue(input1.b(b).name, input2.b(b));    // Connect the buses
    }
 
-  BitBus orBitBuses(String output, BitBus...input)                              // B<Or> several equal size bit buses together to make an equal sized bit bus
+  Bits orBitBuses(String output, Bits...input)                                  // B<Or> several equal size bit buses together to make an equal sized bit bus
    {final int N = input.length;
     if (N < 1) stop("Need at least one input bit bus");
     for (int i = 1; i < N; ++i) input[0].sameSize(input[i]);                    // Make sure all the bit buses have the same length
     final int b = input[0].bits;                                                // Number of bits in input bus
-    final BitBus o = collectBits(output, b);                                    // Resulting bit bus
+    final Bits o = collectBits(output, b);                                      // Resulting bit bus
     for   (int i = 1; i <= b; ++i)                                              // Each bit
      {Stack<Bit> or = new Stack<>();                                            // Corresponding bits
       for (int j = 0; j <  N; ++j) or.push(input[j].b(i));                      // Each corresponding bit in each bus
@@ -1058,12 +1058,12 @@ final public class Chip                                                         
     return o;                                                                   // Size of resulting bus
    }
 
-  BitBus andBitBuses(String output, BitBus...input)                             // B<And> several equal size bit buses together to make an equal sized bit bus
+  Bits andBitBuses(String output, Bits...input)                                 // B<And> several equal size bit buses together to make an equal sized bit bus
    {final int N = input.length;
     if (N < 1) stop("Need at least one input bit bus");
     for (int i = 1; i < N; ++i) input[0].sameSize(input[i]);                    // Make sure all the bit buses have the same length
     final int b = input[0].bits;                                                // Number of bits in input bus
-    final BitBus o = collectBits(output, b);                                    // Resulting bit bus
+    final Bits o = collectBits(output, b);                                      // Resulting bit bus
     for   (int i = 1; i <= b; ++i)                                              // Each bit
      {Stack<Bit> or = new Stack<>();                                            // Corresponding bits
       for (int j = 0; j <  N; ++j) or.push(input[j].b(i));                      // Each corresponding bit in each bus
@@ -1074,42 +1074,39 @@ final public class Chip                                                         
 
 //D3 Words                                                                      // An array of arrays of bits that can be manipulated via one name.
 
-  class WordBus                                                                 // Description of a word bus
+  class Words                                                                  // Description of a word bus
    {final String name;                                                          // Name of the word bus
     final int bits;                                                             // Bits in each word of the bus
     final int words;                                                            // Words in bus
-    final Stack<BitBus> bitBus = new Stack<>();
 
-    WordBus(String Name, int Words, int Bits)                                   // Create bus
+    Words(String Name, int Words, int Bits)                                     // Create bus
      {name = Name; bits = Bits; words = Words;
-      final WordBus w = wordBuses.get(name);                                    // Chip, bits bus name, words, bits per word, options
+      final Words w = wordBuses.get(name);                                      // Chip, bits bus name, words, bits per word, options
       if (w != null)
         stop("A word bus with name:", name, "has already been defined");
       wordBuses.put(name, this);                                                // Index bus
       for (int b = 1; b <= words; ++b)                                          // Size of bit bus for each word in the word bus
        {final String s = n(b, name);
-        BitBus B = bitBuses.get(s);                                             // Check whether the component bitBus exists or not
-        if (B == null) B = new BitBus(s, bits);                                 // Create component bitBus if necessary
-        bitBus.push(B);                                                         // Bit buses associated with this word bus
+        Bits B = bitBuses.get(s);                                               // Check whether the component bitBus exists or not
+        if (B == null) B = new Bits(s, bits);                                   // Create component bitBus if necessary
        }
      }
 
-    WordBus(String Name, WordBus input, int Start, int Length)                  // Create a word bus as a sub bus of another bus
+    Words(String Name, Words input, int Start, int Length)                      // Create a word bus as a sub bus of another bus
      {name = Name; bits = input.bits; words = Length;
-      final WordBus w = wordBuses.get(name);                                    // Check for existing bus with same name
+      final Words w = wordBuses.get(name);                                      // Check for existing bus with same name
       if (w != null)
         stop("A word bus with name:", name, "has already been defined");
       wordBuses.put(name, this);                                                // Index bus
       final int end = Start + Length;
       for (int b = Start; b < end; ++b)                                         // Bit buses comprising word
        {final String s = n(b, name);
-        BitBus B = bitBuses.get(s);                                             // Check whether the component bitBus exists or not
-        if (B == null) B = new BitBus(s, bits);                                 // Create component bitBus if necessary
-        bitBus.push(B);                                                         // Bit buses associated with this word bus
+        Bits B = bitBuses.get(s);                                               // Check whether the component bitBus exists or not
+        if (B == null) B = new Bits(s, bits);                                   // Create component bitBus if necessary
        }
      }
 
-    WordBus(String Name, WordBus Words) {this(Name, Words.words, Words.bits);}  // Create a word bus with the same dimensions as the specified word bus.
+    Words(String Name, Words Words) {this(Name, Words.words, Words.bits);}      // Create a word bus with the same dimensions as the specified word bus.
 
     Integer wordValue(int j)                                                    // Get the value of a word in the word bus
      {int v = 0, p = 1;
@@ -1133,7 +1130,7 @@ final public class Chip                                                         
       return r;
      }
 
-    BitBus w(int i)        {return bitBuses.get(n(i,    name));}                // Get a bit bus in the word bus
+    Bits w(int i)        {return bitBuses.get(n(i,    name));}                  // Get a bit bus in the word bus
     Bit    b(int i, int j) {return new Bit     (n(i, j, name));}                // Get a bit from a bit bus in the word bus
 
     void ok(Integer...E)                                                        // Confirm the expected values of the word bus. Write a message describing any unexpected values
@@ -1154,26 +1151,26 @@ final public class Chip                                                         
       if (fails > 0) err(b);
       testsPassed += passes; testsFailed += fails;                              // Passes and fails
      }
-   } // WordBus
+   } // Words
 
-  WordBus findWords(String name)                                                // Find a word bus by name
-   {final WordBus w = wordBuses.get(name);
+  Words findWords(String name)                                                  // Find a word bus by name
+   {final Words w = wordBuses.get(name);
     if (w == null) stop("No such word bus as", name);
     return w;
    }
 
-  WordBus collectWords(String name, int words, int bits)                        // Define a word bus as a new set of BitBuses
-   {final WordBus w = wordBuses.get(name);                                      // Chip, bits bus name, words, bits per word, options
+  Words collectWords(String name, int words, int bits)                          // Define a word bus as a new set of BitBuses
+   {final Words w = wordBuses.get(name);                                        // Chip, bits bus name, words, bits per word, options
     if (w != null)
       stop("A word bus with name:", name, "has already been defined");
-    final WordBus wb = new WordBus(name, words, bits);
+    final Words wb = new Words(name, words, bits);
     wordBuses.put(name, wb);
     for (int b = 1; b <= words; ++b) collectBits(n(b, name), bits);             // Size of bit bus for each word in the word bus
     return wb;
    }
 
-  WordBus words(String name, int bits, int...values)                            // Create a word bus set to specified numbers.
-   {final WordBus wb = new WordBus(name, values.length, bits);                  // Record bus width
+  Words words(String name, int bits, int...values)                              // Create a word bus set to specified numbers.
+   {final Words wb = new Words(name, values.length, bits);                      // Record bus width
 
     for (int w = 1; w <= values.length; ++w)                                    // Each value to put on the bus
      {final int value = values[w-1];                                            // Each value to put on the bus
@@ -1191,36 +1188,36 @@ final public class Chip                                                         
     return wb;
    }
 
-  WordBus words(int bits, int[]values)                                          // Create an unnamed word bus set to specified numbers.
+  Words words(int bits, int[]values)                                            // Create an unnamed word bus set to specified numbers.
    {return words(nextGateName(), bits, values);
    }
 
-  WordBus inputWords(String name, int words, int bits)                          // Create an B<input> bus made of words.
-   {final WordBus wb = new WordBus(name, words, bits);
+  Words inputWords(String name, int words, int bits)                            // Create an B<input> bus made of words.
+   {final Words wb = new Words(name, words, bits);
     for   (int w = 1; w <= words; ++w)                                          // Each word on the bus
       for (int b = 1; b <= bits;  ++b) Input(wb.b(w, b).name);                  // Each word on the bus
 
     return wb;
    }
 
-  WordBus outputWords(String name, WordBus wb)                                  // Create an B<output> bus made of words.
-   {final WordBus o = new WordBus(name, wb.words, wb.bits);                     // Record bus width
+  Words outputWords(String name, Words wb)                                      // Create an B<output> bus made of words.
+   {final Words o = new Words(name, wb.words, wb.bits);                         // Record bus width
     for   (int w = 1; w <= wb.words; ++w)                                       // Each word on the bus
      {for (int b = 1; b <= wb.bits;  ++b) Output(o.b(w, b).name, wb.b(w, b));   // Each bit on each word on the bus
      }
     return o;
    }
 
-  WordBus notWords(String name, WordBus wb)                                     // Create a B<not> bus made of words.
-   {final WordBus o = new WordBus(name, wb.words, wb.bits);                     // Record bus width
+  Words notWords(String name, Words wb)                                         // Create a B<not> bus made of words.
+   {final Words o = new Words(name, wb.words, wb.bits);                         // Record bus width
     for   (int w = 1; w <= wb.words; ++w)                                       // Each word on the bus
      {for (int b = 1; b <= wb.bits;  ++b) Not(o.b(w, b).name, wb.b(w, b));      // Each bit of eacvh word on the bus
      }
     return o;
    }
 
-  BitBus andWordsX(String name, WordBus wb)                                     // Create a bit bus of width equal to the number of words in a word bus by and-ing the bits in each word to make the bits of the resulting word.
-   {final BitBus B = new BitBus(name, wb.words);                                // One bit for each word
+  Bits andWordsX(String name, Words wb)                                         // Create a bit bus of width equal to the number of words in a word bus by and-ing the bits in each word to make the bits of the resulting word.
+   {final Bits B = new Bits(name, wb.words);                                    // One bit for each word
     for   (int w = 1; w <= wb.words; ++w)                                       // Each word on the bus
      {final Stack<Bit> bits = new Stack<>();                                    // Select bits
       for (int b = 1; b <= wb.bits; ++b) bits.push(wb.b(w, b));                 // Bits to and
@@ -1229,8 +1226,8 @@ final public class Chip                                                         
     return B;
    }
 
-  BitBus andWords(String name, WordBus wb)                                      // Create a bit bus of the same width as each word in a word bus by and-ing corresponding bits in each word to make the corresponding bit in the output word.
-   {final BitBus B = new BitBus(name, wb.bits);                                 // One bit for each word
+  Bits andWords(String name, Words wb)                                          // Create a bit bus of the same width as each word in a word bus by and-ing corresponding bits in each word to make the corresponding bit in the output word.
+   {final Bits B = new Bits(name, wb.bits);                                     // One bit for each word
     for   (int b = 1; b <= wb.bits;  ++b)                                       // Each bit in the words on the bus
      {final Stack<Bit> words = new Stack<>();                                   // Select bits
       for (int w = 1; w <= wb.words; ++w) words.push(wb.b(w, b));               // The current bit in each word in the bus
@@ -1239,8 +1236,8 @@ final public class Chip                                                         
     return B;
    }
 
-  BitBus orWordsX(String name, WordBus wb)                                      // Create a bit bus of width equal to the number of words in a word bus by or-ing the bits in each word to make the bits of the resulting word.
-   {final BitBus B = new BitBus(name, wb.words);                                // One bit for each word
+  Bits orWordsX(String name, Words wb)                                          // Create a bit bus of width equal to the number of words in a word bus by or-ing the bits in each word to make the bits of the resulting word.
+   {final Bits B = new Bits(name, wb.words);                                    // One bit for each word
     for   (int w = 1; w <= wb.words; ++w)                                       // Each word on the bus
      {final Stack<Bit> bits = new Stack<>();                                    // Select bits
       for (int b = 1; b <= wb.bits; ++b) bits.push(wb.b(w, b));                 // Bits to or
@@ -1249,8 +1246,8 @@ final public class Chip                                                         
     return B;
    }
 
-  BitBus orWords(String name, WordBus wb)                                       // Create a bit bus of the same width as each word in a word bus by or-ing corresponding bits in each word to make the corresponding bit in the output word.
-   {final BitBus B = new BitBus(name, wb.bits);                                 // One bit for each word
+  Bits orWords(String name, Words wb)                                           // Create a bit bus of the same width as each word in a word bus by or-ing corresponding bits in each word to make the corresponding bit in the output word.
+   {final Bits B = new Bits(name, wb.bits);                                     // One bit for each word
     for   (int b = 1; b <= wb.bits;  ++b)                                       // Each bit in the words on the bus
      {final Stack<Bit> words = new Stack<>();                                   // Select bits
       for (int w = 1; w <= wb.words; ++w) words.push(wb.b(w, b));               // Each word on the bus
@@ -1261,23 +1258,23 @@ final public class Chip                                                         
 
 //D2 Comparisons                                                                // Compare unsigned binary integers of specified bit widths.
 
-  Gate compareEq(String output, BitBus a, BitBus b)                             // Compare two unsigned binary integers of a specified width returning B<1> if they are equal else B<0>.  Each integer is supplied as a bus.
+  Gate compareEq(String output, Bits a, Bits b)                                 // Compare two unsigned binary integers of a specified width returning B<1> if they are equal else B<0>.  Each integer is supplied as a bus.
    {final int A = a.bits;                                                       // Width of first bus
     final int B = b.bits;                                                       // Width of second bus
     a.sameSize(b);                                                              // Check buses match in size
-    final BitBus eq = new BitBus(n(output, "equal"), A);                        // Compare each pair of bits
+    final Bits eq = new Bits(n(output, "equal"), A);                            // Compare each pair of bits
     for (int i = 1; i <= B; i++) Nxor(eq.b(i).name, a.b(i), b.b(i));            // Test each bit pair for equality
     return andBits(output, eq);                                                 // All bits must be equal
    }
 
-  Gate compareGt(String output, BitBus a, BitBus b)                             // Compare two unsigned binary integers for greater than.
+  Gate compareGt(String output, Bits a, Bits b)                                 // Compare two unsigned binary integers for greater than.
    {final int A = a.bits;
     final int B = b.bits;
     a.sameSize(b);
 
-    final BitBus oe = new BitBus(n(output, "equal"),   A);                      // Bits equal in input buses
-    final BitBus og = new BitBus(n(output, "greater"), A);                      // Bits greater than
-    final BitBus oc = new BitBus(n(output, "compare"), A);                      // Bit greater than with all other bits equal
+    final Bits oe = new Bits(n(output, "equal"),   A);                          // Bits equal in input buses
+    final Bits og = new Bits(n(output, "greater"), A);                          // Bits greater than
+    final Bits oc = new Bits(n(output, "compare"), A);                          // Bit greater than with all other bits equal
 
     for (int i = 2; i <= B; i++) Nxor(oe.b(i).name, a.b(i), b.b(i));            // Test all but the lowest bit pair for equality
     for (int i = 1; i <= B; i++) Gt  (og.b(i).name, a.b(i), b.b(i));            // Test each bit pair for more than
@@ -1294,13 +1291,13 @@ final public class Chip                                                         
     return Or(output, or);                                                      // Any set bit indicates that first is greater then second
    }
 
-  Gate compareLt(String output, BitBus a, BitBus b)                             // Compare two unsigned binary integers for less than.
+  Gate compareLt(String output, Bits a, Bits b)                                 // Compare two unsigned binary integers for less than.
    {final int A = a.bits, B = b.bits;
     a.sameSize(b);
 
-    final BitBus oe = new BitBus(n(output, "equal"), A);                        // Bits equal in input buses
-    final BitBus ol = new BitBus(n(output, "less"), A);                         // Bits less than
-    final BitBus oc = new BitBus(n(output, "compare"), A);                      // Bit less than with all other bits equal
+    final Bits oe = new Bits(n(output, "equal"), A);                            // Bits equal in input buses
+    final Bits ol = new Bits(n(output, "less"), A);                             // Bits less than
+    final Bits oc = new Bits(n(output, "compare"), A);                          // Bit less than with all other bits equal
 
     for (int i = 2; i <= B; i++) Nxor(oe.b(i).name, a.b(i), b.b(i));            // Test all but the lowest bit pair for equality
     for (int i = 1; i <= B; i++) Lt  (ol.b(i).name, a.b(i), b.b(i));            // Test each bit pair for more than
@@ -1317,17 +1314,17 @@ final public class Chip                                                         
     return Or(output, or);                                                      // Any set bit indicates that first is less than second
    }
 
-  BitBus chooseFromTwoWords(String output, BitBus a, BitBus b, Bit choose)      // Choose one of two words depending on a choice bit.  The first word is chosen if the bit is B<0> otherwise the second word is chosen.
+  Bits chooseFromTwoWords(String output, Bits a, Bits b, Bit choose)            // Choose one of two words depending on a choice bit.  The first word is chosen if the bit is B<0> otherwise the second word is chosen.
    {final int A = a.bits, B = b.bits;
     if (A != B) stop("First input bus", a, "has width", A,
                      ", but second input bus", b, "has width", B);
 
-    final BitBus         o = new BitBus(output, B);                             // Output bus
+    final Bits         o = new Bits(output, B);                                 // Output bus
     final String notChoose = nextGateName(output);                              // Opposite of choice
     final Gate           n = Not(notChoose, choose);                            // Invert choice
 
-    final BitBus oa = new BitBus(n(output, "a"), A);                            // Choose first word
-    final BitBus ob = new BitBus(n(output, "b"), A);                            // Choose second word
+    final Bits oa = new Bits(n(output, "a"), A);                                // Choose first word
+    final Bits ob = new Bits(n(output, "b"), A);                                // Choose second word
 
     for (int i = 1; i <= B; i++)                                                // Each bit
      {final Gate ga = And(oa.b(i).name, a.b(i), n);                             // Choose first word if not choice
@@ -1337,19 +1334,19 @@ final public class Chip                                                         
     return o;                                                                   // Record bus size
    }
 
-  BitBus enableWord(String output, BitBus a, Bit enable)                        // Output a word or zeros depending on a choice bit.  The word is chosen if the choice bit is B<1> otherwise all zeroes are chosen.
+  Bits enableWord(String output, Bits a, Bit enable)                            // Output a word or zeros depending on a choice bit.  The word is chosen if the choice bit is B<1> otherwise all zeroes are chosen.
    {final int A = a.bits;
-    final BitBus o = new BitBus(output, A);                                     // Record bus size
+    final Bits o = new Bits(output, A);                                         // Record bus size
     for (int i = 1; i <= A; i++) And(o.b(i).name, a.b(i), enable);              // Choose each bit of input word
     return o;
    }
 
 //D2 Masks                                                                      // Point masks and monotone masks. A point mask has a single B<1> in a sea of B<0>s as in B<00100>.  A monotone mask has zero or more B<0>s followed by all B<1>s as in: B<00111>.
 
-  BitBus monotoneMaskToPointMask(String output, BitBus input)                   // Convert a monotone mask B<i> to a point mask B<o> representing the location in the mask of the first bit set to B<1>. If the monotone mask is all B<0>s then point mask is too.
+  Bits monotoneMaskToPointMask(String output, Bits input)                       // Convert a monotone mask B<i> to a point mask B<o> representing the location in the mask of the first bit set to B<1>. If the monotone mask is all B<0>s then point mask is too.
    {final int B = input.bits;                                                   // Number of bits in input monotone mask
 
-    final BitBus o = new BitBus(output, B);                                     // Size of resulting bus representing the chosen integer
+    final Bits o = new Bits(output, B);                                         // Size of resulting bus representing the chosen integer
     for (int i = 1; i <= B;  i++)                                               // Each bit in each possible output number
       if (i > 1) Lt(o.b(i).name, input.b(i-1), input.b(i));                     // Look for a step from 0 to 1
       else Continue(o.b(i).name,               input.b(i));                     // First bit is 1 so point is in the first bit
@@ -1357,14 +1354,14 @@ final public class Chip                                                         
     return o;
    }
 
-  BitBus chooseWordUnderMask(String output, WordBus input, BitBus mask)         // Choose one of a specified number of words B<w>, each of a specified width, using a point mask B<m> placing the selected word in B<o>.  If no word is selected then B<o> will be zero.
-   {final WordBus wb = input;
-    final BitBus   o = new BitBus(output, wb.bits);
+  Bits chooseWordUnderMask(String output, Words input, Bits mask)               // Choose one of a specified number of words B<w>, each of a specified width, using a point mask B<m> placing the selected word in B<o>.  If no word is selected then B<o> will be zero.
+   {final Words wb = input;
+    final Bits   o = new Bits(output, wb.bits);
     final int     mi = mask.bits;
     if (mi != wb.words)
       stop("Mask width", mi, "does not match number of words ", wb.words);
 
-    final WordBus a = new WordBus(n(output, "a"), wb.words, wb.bits);
+    final Words a = new Words(n(output, "a"), wb.words, wb.bits);
     for   (int w = 1; w <= wb.words; ++w)                                       // And each bit of each word with the mask
       for (int b = 1; b <= wb.bits;  ++b)                                       // Bits in each word
         And(a.b(w, b).name, mask.b(w), input.b(w, b));
@@ -1377,20 +1374,20 @@ final public class Chip                                                         
     return o;
    }
 
-  WordBus insertIntoArray(String Output,                                        // Shift the words selected by the monotone mask up one position.
-    WordBus Input, BitBus Mask, BitBus Insert)
+  Words insertIntoArray(String Output,                                          // Shift the words selected by the monotone mask up one position.
+    Words Input, Bits Mask, Bits Insert)
    {final int words = Input.words, bits = Input.bits;
     if (bits      != Insert.bits) stop("Insert is", Insert.bits, "bits, but the input words are", bits, "wide");
     if (Mask.bits != words) stop("Mask has", Mask.bits, "bits to select", words, "words");
 
-    final BitBus  M = Mask;                                                     // The monotone mask
-    final BitBus  P = monotoneMaskToPointMask(n(Output, "pm"), M);              // Make a point mask from the input monotone mask
-    final BitBus  N = notBits                (n(Output, "np"), M);              // Invert the monotone mask
+    final Bits  M = Mask;                                                       // The monotone mask
+    final Bits  P = monotoneMaskToPointMask(n(Output, "pm"), M);                // Make a point mask from the input monotone mask
+    final Bits  N = notBits                (n(Output, "np"), M);                // Invert the monotone mask
 
-    final WordBus u = new WordBus(n(Output, "upper"),  words-1, bits);          // Shifted words  to fill upper part
-    final WordBus l = new WordBus(n(Output, "lower"),  words,   bits);          // Un-shifted words to fill lower part
-    final WordBus o = new WordBus(  Output,            Input);                  // Resulting array of shifted words
-    final WordBus I = new WordBus(n(Output, "Insert"), Input);                  // The first word - insertion
+    final Words u = new Words(n(Output, "upper"),  words-1, bits);              // Shifted words  to fill upper part
+    final Words l = new Words(n(Output, "lower"),  words,   bits);              // Un-shifted words to fill lower part
+    final Words o = new Words(  Output,            Input);                      // Resulting array of shifted words
+    final Words I = new Words(n(Output, "Insert"), Input);                      // The first word - insertion
 
     for (int b = 1; b <= bits;  ++b)                                            // Bits in each word in shift area
      {And(l.b(1, b).name, Input.b(1, b), N.b(1));                               // Select lower words
@@ -1412,32 +1409,32 @@ final public class Chip                                                         
    }
 
   record RemoveFromArray                                                        // Results of removing a word from a word bus
-   (WordBus    out,                                                             // Resulting word bus with indicated word removed and a new value shifted in at the high end
-    BitBus removed                                                              // The removed word
+   (Words    out,                                                               // Resulting word bus with indicated word removed and a new value shifted in at the high end
+    Bits removed                                                                // The removed word
    ){}
 
   RemoveFromArray removeFromArray(String Output,                                // Remove a word from an array, slide the array down to cover the gap and insert a new word at the top to cover the resulting gap there.
-    WordBus Input, BitBus Mask, BitBus Insert)
+    Words Input, Bits Mask, Bits Insert)
    {final int words = Input.words, bits = Input.bits;
     if (bits      != Insert.bits) stop("Insert is", Insert.bits, "bits, but the input words are", bits, "wide");
     if (Mask.bits != words) stop("Mask has", Mask.bits, "bits to select", words, "words");
 
-    final BitBus  P = monotoneMaskToPointMask(n(Output, "pm"), Mask);           // Make a point mask from the input monotone mask          0100
-    final BitBus  p = notBits                (n(Output, "ip"), P);              // Invert the point mask                                   1011
-    final BitBus  M = andBits                (n(Output, "sm"), Mask, p);        // This is the original monotone mask minus its first bit  1000
-    final BitBus  N = notBits                (n(Output, "np"), Mask);           // Invert the monotone mask                                0011
+    final Bits  P = monotoneMaskToPointMask(n(Output, "pm"), Mask);             // Make a point mask from the input monotone mask          0100
+    final Bits  p = notBits                (n(Output, "ip"), P);                // Invert the point mask                                   1011
+    final Bits  M = andBits                (n(Output, "sm"), Mask, p);          // This is the original monotone mask minus its first bit  1000
+    final Bits  N = notBits                (n(Output, "np"), Mask);             // Invert the monotone mask                                0011
 
-    final WordBus u = new WordBus(n(Output, "upper"),  words-1, bits);          // Shifted words   to fill upper part
-    final WordBus l = new WordBus(n(Output, "lower"),  words,   bits);          // Un-shifted words to fill lower part
-    final WordBus o = new WordBus(  Output,            Input);                  // Resulting array of shifted words
-    final WordBus S = new WordBus(n(Output, "select"), Input);                  // Select the word to remove
+    final Words u = new Words(n(Output, "upper"),  words-1, bits);              // Shifted words   to fill upper part
+    final Words l = new Words(n(Output, "lower"),  words,   bits);              // Un-shifted words to fill lower part
+    final Words o = new Words(  Output,            Input);                      // Resulting array of shifted words
+    final Words S = new Words(n(Output, "select"), Input);                      // Select the word to remove
 
     for   (int w = 1; w <  words; ++w)                                          // Words in upper shifted area
       for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
         And(u.b(w, b).name, Input.b(w+1, b), M.b(w+1));                         // Shifted upper bits
 
     final Gate   nz = orBits(n(Output, "zm"), Mask);                            // True if the mask is not all zeros
-    final BitBus  U = chooseFromTwoWords(n(Output, "U"),                        // If the mask is zero we want the output to equal the input
+    final Bits  U = chooseFromTwoWords(n(Output, "U"),                          // If the mask is zero we want the output to equal the input
                         Input.w(words), Insert, nz);
     connect(o.w(words), U);                                                     // Inserted word if non zero mask else no change on input
 //  connect(o.w(words), Insert);                                                // Word inserted into highest word of output
@@ -1453,25 +1450,25 @@ final public class Chip                                                         
         And(S.b(w, b).name, Input.b(w,   b), P.b(w));                           // Select removed word
 
     anneal(N.b(words), M.b(words), M.b(1));                                     // No selection required here because the final word is added regardless
-    final BitBus R = orWords(n(Output, "remove"), S);                           // Removed word
+    final Bits R = orWords(n(Output, "remove"), S);                             // Removed word
     return new RemoveFromArray(o, R);                                           // Resulting word bus and removed word
    }
 
 //D2 Registers                                                                  // Create registers
 
-  record RegIn                                                                  // A BitBus, bit pair representing one possible input to a register
-   (BitBus  input,                                                              // Input bus from which the register is loaded
+  record RegIn                                                                  // A Bits, bit pair representing one possible input to a register
+   (Bits  input,                                                                // Input bus from which the register is loaded
     Bit      load                                                               // Load bit: when this bit goes from high to low the register is loaded from the first input bus.
    ) {}
 
-  class Register extends BitBus                                                 // Description of a register
+  class Register extends Bits                                                   // Description of a register
    {final RegIn    []  I;                                                       // Inputs
-    final BitBus   []  E;                                                       // Enabled inputs
-    final BitBus       e;                                                       // Combined enabled input
+    final Bits   []  E;                                                         // Enabled inputs
+    final Bits       e;                                                         // Combined enabled input
     final Bit       load;                                                       // Combined load - the register gets loaded after a short delay after this bit falls from 1 to 0.
     final Bit     loaded;                                                       // Falls from 1 to 0 once the register has been loaded
 
-    Register(String Output, BitBus Input, Bit Load)                             // Create register from single input
+    Register(String Output, Bits Input, Bit Load)                               // Create register from single input
      {super(Output, Input.bits);
       I = new RegIn[1]; I[0] = new RegIn(Input, Load);
       final int w = Input.bits;
@@ -1480,13 +1477,13 @@ final public class Chip                                                         
       loaded = Continue(n(Output, "loaded"), load);                             // Show register has been loaded
      }
 
-    Register(String Output, BitBus Input1, Bit Load1, BitBus Input2, Bit Load2) // Create register from two inputs
+    Register(String Output, Bits Input1, Bit Load1, Bits Input2, Bit Load2)     // Create register from two inputs
      {super(Output, Input1.bits);
       I    = new RegIn[2];
       I[0] = new RegIn(Input1, Load1);
       I[1] = new RegIn(Input2, Load2);
       Input1.sameSize(Input2);
-      E    = new BitBus[2];
+      E    = new Bits[2];
       E[0] = enableWord(n(Output, "e1"), Input1, Load1);                        // Enable input 1
       E[1] = enableWord(n(Output, "e2"), Input2, Load2);                        // Enable input 2
       e    = orBitBuses(n(Output, "e"),  E);                                    // Combined input
@@ -1503,11 +1500,11 @@ final public class Chip                                                         
       final int N = in.length, P = in[0].input.bits, Q = logTwo(P);
       I = in;
       for (int i = 1; i < N; i++) in[0].input.sameSize(in[i].input);            // Check sizes
-      E = new BitBus[N];                                                        // Enabled inputs
+      E = new Bits[N];                                                          // Enabled inputs
       final Bit[]L = new Bit[N];                                                // Or load bits
       for (int i = 0; i < N; i++)                                               // Enable each bus
        {final String n = n(Output, "e"+i);                                      // Generate a name for the enabled version of the input bus
-        final RegIn R = I[i];                                                   // Register input specification
+        final RegIn  R = I[i];                                                  // Register input specification
         E[i] = enableWord(n, R.input, R.load);                                  // Enable input
         L[i] = R.load;                                                          // Load with no delay - possibly useful on pulses
        }
@@ -1519,11 +1516,11 @@ final public class Chip                                                         
      }
    }
 
-  Register register(String name, BitBus input, Bit load)                        // Create a register loaded from one source
+  Register register(String name, Bits input, Bit load)                          // Create a register loaded from one source
    {return new Register(name, input, load);
    }
 
-  Register register(String name, BitBus input1, Bit load1, BitBus input2, Bit load2)  // Create a register loaded from two sources
+  Register register(String name, Bits input1, Bit load1, Bits input2, Bit load2)// Create a register loaded from two sources
    {return new Register(name, input1, load1, input2, load2);
    }
 
@@ -1608,25 +1605,25 @@ final public class Chip                                                         
 
 //D2 Arithmetic Base 1                                                          // Arithmetic in base 1
 
-  BitBus shiftUp(String output, BitBus input, boolean fill)                     // Shift an input bus up one place to add 1 in base 1 or multiply by two in base 2.
+  Bits shiftUp(String output, Bits input, boolean fill)                         // Shift an input bus up one place to add 1 in base 1 or multiply by two in base 2.
    {final int    b = input.bits;                                                // Number of bits in input monotone mask
-    final BitBus o = new BitBus(output, b+1);                                   // Shifted result is a bus one bit wider
+    final Bits o = new Bits(output, b+1);                                       // Shifted result is a bus one bit wider
     if (fill) One(o.b(1).name); else Zero(o.b(1).name);                         // The lowest but will be zero or one after the shift
     for (int i = 1; i <= b; i++) Continue(o.b(1+i).name, input.b(i));           // Create the remaining bits of the shifted result
     return o;
    }
 
-  BitBus shiftUp(String output, BitBus input)                                   // Shift an input bus up one place inserting zero to add 1 in base 1 or multiply by two in base 2
+  Bits shiftUp(String output, Bits input)                                       // Shift an input bus up one place inserting zero to add 1 in base 1 or multiply by two in base 2
    {return shiftUp(output, input, false);
    }
 
-  BitBus shiftUpOne(String output, BitBus input)                                // Shift an input bus up one place inserting one
+  Bits shiftUpOne(String output, Bits input)                                    // Shift an input bus up one place inserting one
    {return shiftUp(output, input, true);
    }
 
-  BitBus shiftDown(String output, BitBus input)                                 // Shift an input bus down one place to subtract 1 in base 1 or divide by two in base 2
+  Bits shiftDown(String output, Bits input)                                     // Shift an input bus down one place to subtract 1 in base 1 or divide by two in base 2
    {final int    b = input.bits;                                                // Number of bits in input monotone mask
-    final BitBus o = new BitBus(output, b-1);                                   // Shifted result is a bus one bit narrower
+    final Bits o = new Bits(output, b-1);                                       // Shifted result is a bus one bit narrower
     anneal(input.b(1));                                                         // Remove the lowest bit in such away that it will not be report as failing to drive anything
     for (int i = 2; i <= b; i++) Continue(o.b(i-1).name, input.b(i));           // Create the remaining bits of the shifted result
     return o;
@@ -1636,17 +1633,17 @@ final public class Chip                                                         
 
   record BinaryAdd                                                              // Results of a binary add
    (Gate carry,                                                                 // Carry out gate
-    BitBus sum                                                                  // Sum
+    Bits sum                                                                    // Sum
    ){}
 
-  BinaryAdd binaryAdd(String CarryOut, String output, BitBus in1, BitBus in2)   // Add two bit buses of the same size to make a bit bus one bit wider
+  BinaryAdd binaryAdd(String CarryOut, String output, Bits in1, Bits in2)       // Add two bit buses of the same size to make a bit bus one bit wider
    {final int b = in1.bits;                                                     // Number of bits in input monotone mask
     final int B = in2.bits;                                                     // Number of bits in input monotone mask
     if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
-    final BitBus c = new BitBus(nextGateName(output, "carry"),   b);            // Carry bits
-    final BitBus C = notBits(nextGateName(output,  "not_carry"), c);            // Not of carry bits
-    final BitBus n = notBits(nextGateName(output,  "not_in1"), in1);            // Not of input 1
-    final BitBus N = notBits(nextGateName(output,  "not_in2"), in2);            // Not of input 2
+    final Bits c = new Bits(nextGateName(output, "carry"),   b);                // Carry bits
+    final Bits C = notBits(nextGateName(output,  "not_carry"), c);              // Not of carry bits
+    final Bits n = notBits(nextGateName(output,  "not_in1"), in1);              // Not of input 1
+    final Bits N = notBits(nextGateName(output,  "not_in2"), in2);              // Not of input 2
     Xor(n(1, output), in1.b(1), in2.b(1));                                      // Low order bit has no carry in
     And(c.b(1).name,  in1.b(1), in2.b(1));                                      // Low order bit carry out
     anneal(n.b(1), N.b(1), C.b(b));                                             // These bits are not needed, but get defined, so we anneal them off to prevent error messages
@@ -1660,8 +1657,8 @@ final public class Chip                                                         
 // 7  1 1 0  0 1
 // 8  1 1 1  1 1
     final String r = output;                                                    // Result bit bus name
-    final BitBus i = in1;                                                       // Input 1
-    final BitBus I = in2;                                                       // Input 2
+    final Bits i = in1;                                                         // Input 1
+    final Bits I = in2;                                                         // Input 2
     for (int j = 2; j <= b; j++)                                                // Create the remaining bits of the shifted result
      {final Stack<Bit>rs = new Stack<>();                                       // Result
       Gate r2 = And(nextGateName(output), C.b(j-1), n.b(j), I.b(j)); rs.push(r2);
@@ -1684,28 +1681,28 @@ final public class Chip                                                         
 //D2 B-tree                                                                     // Circuits useful in the construction and traversal of B-trees.
 
   class BtreeNode                                                               // Description of a node in a binary tree
-   {final String   Output;                                                      // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
-    final int          Id;                                                      // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
-    final int           B;                                                      // Width of each word in the node.
-    final int           K;                                                      // Number of keys == number of data words each B bits wide in the node.
-    final boolean    Leaf;                                                      // Width of each word in the node.
-    final BitBus   Enable;                                                      // B bit wide bus naming the currently enabled node by its id.
-    final BitBus     Find;                                                      // B bit wide bus naming the key to be found
-    final WordBus    Keys;                                                      // Keys in this node, an array of N B bit wide words.
-    final WordBus    Data;                                                      // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
-    final WordBus    Next;                                                      // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
-    final BitBus      Top;                                                      // The top next link making N+1 next links in all.
-    final BitBus KeysEnabled;                                                   // One bit for each key showing whether the key is a valid key if true, else an empty slot.  These bits form a monotone mask.
-    final Bit       found;                                                      // Found the search key
-    final BitBus  outData;                                                      // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
-    final BitBus outNext;                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
-    int     level, index;                                                       // Level and position in  level for this node
-    final BitBus  nodeId;                                                       // Save id of node
-    final Bit     enable;                                                       // Check whether this node is enabled
-    final BitBus  matches;                                                      // Bitbus showing whether each key is equal to the search key
-    final BitBus  matchesValid;                                                 // Bitbus showing whether each key is equal to a valid key
-    final BitBus  selectedData;                                                 // Choose data under equals mask
-    final Bit     keyWasFound;                                                  // Show whether key was found
+   {final String     Output;                                                    // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+    final int            Id;                                                    // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
+    final int             B;                                                    // Width of each word in the node.
+    final int             K;                                                    // Number of keys == number of data words each B bits wide in the node.
+    final boolean      Leaf;                                                    // Width of each word in the node.
+    final Bits       Enable;                                                    // B bit wide bus naming the currently enabled node by its id.
+    final Bits         Find;                                                    // B bit wide bus naming the key to be found
+    final Words        Keys;                                                    // Keys in this node, an array of N B bit wide words.
+    final Words        Data;                                                    // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
+    final Words        Next;                                                    // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
+    final Bits          Top;                                                    // The top next link making N+1 next links in all.
+    final Bits  KeysEnabled;                                                    // One bit for each key showing whether the key is a valid key if true, else an empty slot.  These bits form a monotone mask.
+    final Bit         found;                                                    // Found the search key
+    final Bits      outData;                                                    // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+    final Bits      outNext;                                                    // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+    int        level, index;                                                    // Level and position in  level for this node
+    final Bits       nodeId;                                                    // Save id of node
+    final Bit        enable;                                                    // Check whether this node is enabled
+    final Bits      matches;                                                    // Bitbus showing whether each key is equal to the search key
+    final Bits matchesValid;                                                    // Bitbus showing whether each key is equal to a valid key
+    final Bits selectedData;                                                    // Choose data under equals mask
+    final Bit   keyWasFound;                                                    // Show whether key was found
 
     BtreeNode                                                                   // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
      (String      Output,                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
@@ -1713,13 +1710,13 @@ final public class Chip                                                         
       int              B,                                                       // Width of each word in the node.
       int              K,                                                       // Number of keys == number of data words each B bits wide in the node.
       boolean       Leaf,                                                       // Width of each word in the node.
-      BitBus      Enable,                                                       // B bit wide bus naming the currently enabled node by its id.
-      BitBus        Find,                                                       // B bit wide bus naming the key to be found
-      WordBus       Keys,                                                       // Keys in this node, an array of N B bit wide words.
-      WordBus       Data,                                                       // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
-      WordBus       Next,                                                       // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
-      BitBus         Top,                                                       // The top next link making N+1 next links in all.
-      BitBus KeysEnabled,                                                       // One bit for each key showing whether the key is a valid key if true, else an empty slot.  These bits form a monotone mask.
+      Bits        Enable,                                                       // B bit wide bus naming the currently enabled node by its id.
+      Bits          Find,                                                       // B bit wide bus naming the key to be found
+      Words         Keys,                                                       // Keys in this node, an array of N B bit wide words.
+      Words         Data,                                                       // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
+      Words         Next,                                                       // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
+      Bits           Top,                                                       // The top next link making N+1 next links in all.
+      Bits   KeysEnabled,                                                       // One bit for each key showing whether the key is a valid key if true, else an empty slot.  These bits form a monotone mask.
       String       Found,                                                       // Found the search key
       String     OutData,                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
       String     OutNext)                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
@@ -1767,35 +1764,35 @@ final public class Chip                                                         
       found        = And             (Found, keyWasFound,  enable);             // Enable found flag
 
       if (!Leaf)                                                                // Find next link with which to enable next layer
-       {final BitBus Mm = collectBits            (mm, K);                       // Monotone mask more for compare greater than on keys so we can find next link
-        final BitBus Nv = andBitBuses            (nv, Mm, KeysEnabled);         // Monotone mask more for compare greater than on valid keys
-        final Bit    Nm = norBits                (nm, Nv);                      // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
-        final BitBus Pm = monotoneMaskToPointMask(pm, Nv);                      // Convert monotone more mask to point mask
-        final BitBus Mf = chooseWordUnderMask    (mf, Next, Pm);                // Choose next link using point mask from the more monotone mask created
-        final BitBus N4 = chooseFromTwoWords     (n4, Mf,   Top, Nm);           // Choose top or next link
-        final Bit    Pt = norBits                (pt, Pm);                      // The top link is the next link
-        final Bit    Nf = Not                    (nf, found);                   // Not found
-        final BitBus N3 = enableWord             (n3, N4,   Nf);                // Disable next link if we found the key
-        final Bit    Pn = And                    (pn, Pt,   Nf);                // Top is the next link, but only if the key was not found
-        final BitBus N2 = chooseFromTwoWords     (n2, N3,   Top, Pn);           // Either the next link or the top link
-        outNext = enableWord                     (OutNext,  N2,  enable);       // Next link only if this node is enabled
+       {final Bits Mm = collectBits            (mm, K);                         // Monotone mask more for compare greater than on keys so we can find next link
+        final Bits Nv = andBitBuses            (nv, Mm, KeysEnabled);           // Monotone mask more for compare greater than on valid keys
+        final Bit  Nm = norBits                (nm, Nv);                        // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
+        final Bits Pm = monotoneMaskToPointMask(pm, Nv);                        // Convert monotone more mask to point mask
+        final Bits Mf = chooseWordUnderMask    (mf, Next, Pm);                  // Choose next link using point mask from the more monotone mask created
+        final Bits N4 = chooseFromTwoWords     (n4, Mf,   Top, Nm);             // Choose top or next link
+        final Bit  Pt = norBits                (pt, Pm);                        // The top link is the next link
+        final Bit  Nf = Not                    (nf, found);                     // Not found
+        final Bits N3 = enableWord             (n3, N4,   Nf);                  // Disable next link if we found the key
+        final Bit  Pn = And                    (pn, Pt,   Nf);                  // Top is the next link, but only if the key was not found
+        final Bits N2 = chooseFromTwoWords     (n2, N3,   Top, Pn);             // Either the next link or the top link
+        outNext = enableWord                   (OutNext,  N2,  enable);         // Next link only if this node is enabled
        }
       else outNext = null;                                                      // Not relevant in a leaf
      }
 
     record Insert                                                               // Buses created by insert operation
-     (WordBus keys,                                                             // Keys with new key inserted
-      WordBus data,                                                             // Data with new data inserted
-      WordBus next,                                                             // Next links with new link inserted
-      BitBus  enabledKeys                                                       // Enabled keys mask
+     (Words keys,                                                               // Keys with new key inserted
+      Words data,                                                               // Data with new data inserted
+      Words next,                                                               // Next links with new link inserted
+      Bits  enabledKeys                                                         // Enabled keys mask
      ){}
 
-    Insert Insert(String Output, BitBus iKey, BitBus iData, BitBus iNext,       // Insert a new key, data pair in a leaf node at the position shown by the monotone mask.
-      BitBus monotoneMask)
-     {final WordBus k = insertIntoArray(n(Output, "outKeys"), Keys, monotoneMask, iKey);
-      final WordBus d = insertIntoArray(n(Output, "outData"), Data, monotoneMask, iData);
-      final BitBus  v = shiftUpOne     (n(Output, "outKeysEnabled"), KeysEnabled);
-      final WordBus n = iNext == null ? null :
+    Insert Insert(String Output, Bits iKey, Bits iData, Bits iNext,             // Insert a new key, data pair in a leaf node at the position shown by the monotone mask.
+      Bits monotoneMask)
+     {final Words k = insertIntoArray(n(Output, "outKeys"), Keys, monotoneMask, iKey);
+      final Words d = insertIntoArray(n(Output, "outData"), Data, monotoneMask, iData);
+      final Bits  v = shiftUpOne     (n(Output, "outKeysEnabled"), KeysEnabled);
+      final Words n = iNext == null ? null :
         insertIntoArray(n(Output, "outNext"), Next, monotoneMask, iNext);
       return new Insert(k, d, n, v);                                            // Insertion results
      }
@@ -1821,13 +1818,13 @@ final public class Chip                                                         
       if (                N != data.length) stop("Wrong number of data, need", N, "got", data.length);
       if (next != null && N != next.length) stop("Wrong number of next, need", N, "got", next.length);
 
-      final BitBus  e = c.bits (B, enable);
-      final BitBus  f = c.bits (B, find);
-      final WordBus k = c.words(B, keys);
-      final BitBus  K = c.bits (B, keysEnabled);
-      final WordBus d = c.words(B, data);
-      final WordBus n = next != null ? c.words(B, next) : null;
-      final BitBus  t = next != null ? c.bits (B, top)  : null;
+      final Bits  e = c.bits (B, enable);
+      final Bits  f = c.bits (B, find);
+      final Words k = c.words(B, keys);
+      final Bits  K = c.bits (B, keysEnabled);
+      final Words d = c.words(B, data);
+      final Words n = next != null ? c.words(B, next) : null;
+      final Bits  t = next != null ? c.bits (B, top)  : null;
 
       return c.new BtreeNode(Output, Id, B, N, next == null, e, f, k, d, n, t,
         K, Found, Data, Next);
@@ -1839,9 +1836,9 @@ final public class Chip                                                         
     final int      keys;                                                        // Number of keys in a node
     final int    levels;                                                        // Number of levels in the tree
     final String output;                                                        // The name of this tree. This name will be prepended to generate the names of the gates used to construct this tree.
-    final BitBus   find;                                                        //i The search key bus
+    final Bits   find;                                                          //i The search key bus
     final Gate    found;                                                        //o A bit indicating whether the key was found in the tree or not
-    final BitBus   data;                                                        //o The data corresponding to the search key if the found bit is set, else all zeros
+    final Bits   data;                                                          //o The data corresponding to the search key if the found bit is set, else all zeros
     final TreeMap<Integer, Level>      tree = new TreeMap<>();                  // Levels within the tree
     final TreeMap<Integer, BtreeNode> nodes = new TreeMap<>();                  // Nodes within tree by id number
 
@@ -1850,9 +1847,9 @@ final public class Chip                                                         
       final int         N;                                                      // Number of nodes at this level
       final boolean  root;                                                      // Root node
       final boolean  leaf;                                                      // Final level is made of leaf nodes
-      final BitBus enable;                                                      // Node selector for this level
+      final Bits enable;                                                        // Node selector for this level
       final TreeMap<Integer, BtreeNode> nodes;                                  // Nodes in this level
-      Level(int l, int n, boolean Root, boolean Leaf, BitBus Enable)            // Create a level description
+      Level(int l, int n, boolean Root, boolean Leaf, Bits Enable)              // Create a level description
        {nodes = new TreeMap<>();
         level = l; N = n; root = Root; leaf = Leaf; enable = Enable;
         tree.put(l, this);                                                      // Record details of the level to enable debugging
@@ -1861,7 +1858,7 @@ final public class Chip                                                         
 
     Btree                                                                       // Construct a Btree.
      (String output,                                                            // The name of this tree. This name will be prepended to generate the names of the gates used to construct this tree.
-      BitBus   find,                                                            //i The search key bus
+      Bits     find,                                                            //i The search key bus
       String  found,                                                            //o A bit indicating whether the key was found in the tree or not
       String   data,                                                            //o The data corresponding to the search key if the found bit is set, else all zeros
       int      keys,                                                            // Number of keys in a node
@@ -1873,6 +1870,7 @@ final public class Chip                                                         
       this.levels = levels;                                                     // Number of levels in the tree
       this.output = output;                                                     // The name of this tree. This name will be prepended to generate the names of the gates used to construct this tree.
       this.  find = find;                                                       //i The search key bus
+
       final String id = n(output, "inputData");                                 // Input data
       final String ik = n(output, "inputKeys");                                 // Input keys
       final String in = n(output, "inputNext");                                 // Input next links
@@ -1885,10 +1883,11 @@ final public class Chip                                                         
       final String nn = n(output, "nodeNext");                                  // The next link output by this node
       int nodeId = 0;                                                           // Gives each node in the tree a different id
 
-      if (find.bits != bits) stop("Find bus must be", bits, "wide, not", find.bits);
+      if (find.bits != bits)                                                    // Check the key to be found has the same width as the keys to be searched
+        stop("Find bus must be", bits, "wide, not", find.bits);
 
-      BitBus eI = null;                                                         // For the moment we always enable the root node of the tree
-      final BitBus ke = bits(n(output, "keysEnabled"), keys, (1<<keys)-1);      // All keys enabled
+      Bits eI = null;                                                           // For the moment we always enable the root node of the tree
+      final Bits ke = bits(n(output, "keysEnabled"), keys, (1<<keys)-1);        // All keys enabled
 
       for (int l = 1; l <= levels; l++)                                         // Each level in the bTree
        {final int         N = powerOf(keys+1, l-1);                             // Number of nodes at this level
@@ -1899,13 +1898,13 @@ final public class Chip                                                         
         for (int n = 1; n <= N; n++)                                            // Each node at this level
          {++nodeId;                                                             // Number of this node
           if (eI == null) eI = bits(n(0, ln), bits, nodeId);                    // For the moment we always enable the root node of the tree
-          final WordBus iK = inputWords(n(l, n, ik), keys, bits);               // Bus of input words representing the keys in this node
-          final WordBus iD = inputWords(n(l, n, id), keys, bits);               // Bus of input words representing the data in this node
-          final WordBus iN = leaf ? null : inputWords(n(l, n, in), keys, bits); // Bus of input words representing the next links in this node
-          final BitBus  iT = leaf ? null : inputBits (n(l, n, it), bits);       // Bus representing the top next link
-          final String  oF = root ? n(l, lf) : n(l, n, nf);                     // On the root we do not need to combine the found flags for each node - on other levels we do
-          final String  oD = root ? n(l, ld) : n(l, n, nd);                     // Output data element if found
-          final String  oN = root ? n(l, ln) : n(l, n, nn);                     // Next link if node is not a leaf
+          final Words  iK = inputWords(n(l, n, ik), keys, bits);                // Bus of input words representing the keys in this node
+          final Words  iD = inputWords(n(l, n, id), keys, bits);                // Bus of input words representing the data in this node
+          final Words  iN = leaf ? null : inputWords(n(l, n, in), keys, bits);  // Bus of input words representing the next links in this node
+          final Bits   iT = leaf ? null : inputBits (n(l, n, it), bits);        // Bus representing the top next link
+          final String oF = root ? n(l, lf) : n(l, n, nf);                      // On the root we do not need to combine the found flags for each node - on other levels we do
+          final String oD = root ? n(l, ld) : n(l, n, nd);                      // Output data element if found
+          final String oN = root ? n(l, ln) : n(l, n, nn);                      // Next link if node is not a leaf
 
           final BtreeNode node = new BtreeNode(n(l, n, output, "node"),         // Create the node
             nodeId, bits, keys, leaf, eI, find, iK, iD, iN, iT, ke, oF, oD, oN);
@@ -2882,7 +2881,7 @@ final public class Chip                                                         
 
   static void test_notGates()
    {final Chip c = new Chip("NotGates");
-    final BitBus b = c.bits("b", 5, 21);
+    final Bits b = c.bits("b", 5, 21);
     final Gate   a = c. andBits(  "a",  b);
     final Gate   o = c.  orBits(  "o",  b);
     final Gate  na = c.nandBits( "na",  b);
@@ -3002,8 +3001,8 @@ final public class Chip                                                         
    {final int N = 4, N2 = powerTwo(N);
     for  (int i = 0; i < N2; i++)
      {final Chip c = new Chip("Output Bits");
-      final BitBus C = c.bits("c", N, i);
-      final BitBus o = c.outputBits("o", C);
+      final Bits C = c.bits("c", N, i);
+      final Bits o = c.outputBits("o", C);
       c.simulate();
       ok(c.steps, 3);
       ok(o.Int(), i);
@@ -3015,9 +3014,9 @@ final public class Chip                                                         
      {final int N2 = powerTwo(N);
       for  (int i = 0; i < N2; i++)
        {final Chip    c = new Chip ("And2Bits");
-        final BitBus i1 = c.bits   ("i1", N, 5);
-        final BitBus i2 = c.bits   ("i2", N, i);
-        final BitBus  o = c.andBits("o", i1, i2);
+        final Bits i1 = c.bits   ("i1", N, 5);
+        final Bits i2 = c.bits   ("i2", N, i);
+        final Bits  o = c.andBits("o", i1, i2);
         c.outputBits("out", o);
         c.simulate();
         ok(c.steps, 4);
@@ -3085,11 +3084,11 @@ final public class Chip                                                         
    {final int B = 3;
     final int[]bits =  {5, 4, 7, 6, 7};
     final Chip c = new Chip("Aix "+B);
-    final WordBus i = c.    words("i", B, bits);
-    final BitBus  a = c. andWords("a", i), oa = c.outputBits("oa", a);
-    final BitBus  o = c.  orWords("o", i), oo = c.outputBits("oo", o);
-    final BitBus  A = c.andWordsX("A", i), oA = c.outputBits("oA", A);
-    final BitBus  O = c. orWordsX("O", i), oO = c.outputBits("oO", O);
+    final Words i = c.    words("i", B, bits);
+    final Bits  a = c. andWords("a", i), oa = c.outputBits("oa", a);
+    final Bits  o = c.  orWords("o", i), oo = c.outputBits("oo", o);
+    final Bits  A = c.andWordsX("A", i), oA = c.outputBits("oA", A);
+    final Bits  O = c. orWordsX("O", i), oO = c.outputBits("oO", O);
     c.simulate();
     ok(oa.Int(),  4);
     ok(oo.Int(),  7);
@@ -3103,8 +3102,8 @@ final public class Chip                                                         
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
          {final var    c = new Chip("CompareEq "+B);
-          final BitBus I = c.bits("i", B, i);
-          final BitBus J = c.bits("j", B, j);
+          final Bits I = c.bits("i", B, i);
+          final Bits J = c.bits("j", B, j);
           final Gate   o = c.compareEq("o", I, J);
           final Gate   O = c.Output("O", o);
           c.simulate();
@@ -3120,8 +3119,8 @@ final public class Chip                                                         
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
          {final Chip c = new Chip("CompareGt "+B);
-          final BitBus I = c.bits("i", B, i);
-          final BitBus J = c.bits("j", B, j);
+          final Bits I = c.bits("i", B, i);
+          final Bits J = c.bits("j", B, j);
           final Gate   o = c.compareGt("o", I, J);
           final Gate   O = c.Output   ("O", o);
           c.simulate();
@@ -3139,8 +3138,8 @@ final public class Chip                                                         
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
          {final Chip c = new Chip("CompareLt "+B);
-          final BitBus I = c.bits("i", B, i);
-          final BitBus J = c.bits("j", B, j);
+          final Bits I = c.bits("i", B, i);
+          final Bits J = c.bits("j", B, j);
           final Gate   o = c.compareLt("o", I, J);
           final Gate   O = c.Output("O", o);
           c.simulate();
@@ -3155,11 +3154,11 @@ final public class Chip                                                         
    {for (int i = 0; i < 2; i++)
      {final int b = 4;
       final Chip c = new Chip("ChooseFromTwoWords "+b+" "+i);
-      final BitBus   A = c.bits("a", b,  3);
-      final BitBus   B = c.bits("b", b, 12);
+      final Bits   A = c.bits("a", b,  3);
+      final Bits   B = c.bits("b", b, 12);
       final Gate     C = c.bit ("c", i);
-      final BitBus   o = c.chooseFromTwoWords("o", A, B, C);
-      final BitBus out = c.outputBits("out",  o);
+      final Bits   o = c.chooseFromTwoWords("o", A, B, C);
+      final Bits out = c.outputBits("out",  o);
       c.simulate();
       ok(c.steps, 9);
       ok(out.Int(), i == 0 ? 3 : 12);
@@ -3170,10 +3169,10 @@ final public class Chip                                                         
    {for (int i = 0; i < 2; i++)
      {final int B = 4;
       final Chip   c = new Chip("EnableWord "+i);
-      final BitBus a = c.bits("a", B,  3);
+      final Bits a = c.bits("a", B,  3);
       final Bit    e = c.bit ("e", i);
-      final BitBus o = c.enableWord("o", a, e);
-      final BitBus O = c.outputBits("out",  o);
+      final Bits o = c.enableWord("o", a, e);
+      final Bits O = c.outputBits("out",  o);
       c.simulate();
       ok(c.steps, 5);
       ok(O.Int(), i == 0 ? 0 : 3);
@@ -3185,10 +3184,10 @@ final public class Chip                                                         
      {final int N = powerTwo(B);
       for  (int i = 1; i <= N; i++)
        {final Chip   c = new Chip("monotoneMaskToPointMask "+B);
-        final BitBus I = c.new BitBus("i", N);
+        final Bits I = c.new Bits("i", N);
         for (int j = 1; j <= N; j++) c.bit(I.b(j).name, j < i ? 0 : 1);
-        final BitBus o = c.monotoneMaskToPointMask("o", I);
-        final BitBus O = c.outputBits("out", o);
+        final Bits o = c.monotoneMaskToPointMask("o", I);
+        final Bits O = c.outputBits("out", o);
         c.simulate();
         ok(O.Int(), powerTwo(i-1));
        }
@@ -3199,10 +3198,10 @@ final public class Chip                                                         
    {final int[]numbers =  {2, 3, 2, 1,  0, 1, 2, 3,  2, 3, 2, 1,  0, 1, 2, 3};
     final int B2 = powerTwo(B);
     final Chip c = new Chip("chooseWordUnderMask "+B);
-    final WordBus I = c.words("i", B, Arrays.copyOfRange(numbers, 0, B2));
-    final BitBus  m = c.bits ("m", B2, powerTwo(i));
-    final BitBus  o = c.chooseWordUnderMask("o", I, m);
-    final BitBus  O = c.outputBits("out", o);
+    final Words I = c.words("i", B, Arrays.copyOfRange(numbers, 0, B2));
+    final Bits  m = c.bits ("m", B2, powerTwo(i));
+    final Bits  o = c.chooseWordUnderMask("o", I, m);
+    final Bits  O = c.outputBits("out", o);
     c.simulate();
     ok(O.Int(), numbers[i]);
     c.drawSingleLevelLayout(3, 1);
@@ -3227,9 +3226,9 @@ final public class Chip                                                         
 
     BtreeNode.Test(c, "node", id, B, N, enable, find, keys, data, next, top,    // Search a node
       validKeys, "found", "data", "next");
-    final BitBus d = c.outputBits("d", c.findBits("data"));                     // Anneal the node
-    final BitBus n = c.outputBits("n", c.findBits("next"));
-    final Gate   f = c.Output    ("f", c.new Bit("found"));
+    final Bits d = c.outputBits("d", c.findBits("data"));                       // Anneal the node
+    final Bits n = c.outputBits("n", c.findBits("next"));
+    final Gate f = c.Output    ("f", c.new Bit("found"));
     c.simulate();
 //stop(c);
 //  ok(c.steps >= 18 && c.steps <= 22, true);
@@ -3335,7 +3334,7 @@ final public class Chip                                                         
    {final int B = 8, K = 3, L = 2;
 
     final var    c = new Chip("Btree");
-    final BitBus f = c.inputBits("find", B);
+    final Bits f = c.inputBits("find", B);
     final Btree  b = c.new Btree("tree", f, "found", "data", K, L, B);
     c.outputBits("d", c.findBits("data")); // Anneal the tree
     c.Output    ("f", c.new Bit("found"));
@@ -3465,13 +3464,13 @@ Step  1 2 3 a    4 m
 
   static void test_register()
    {Chip      c = new Chip("Register");
-    BitBus   i1 = c.bits("i1", 8, 9);
-    BitBus   i2 = c.bits("i2", 8, 6);
+    Bits   i1 = c.bits("i1", 8, 9);
+    Bits   i2 = c.bits("i2", 8, 6);
     Pulse    pc = c.pulse("choose", 32, 16, 16);
     Pulse    pl = c.pulse("load",    8,  1,  1);
-    BitBus    I = c.chooseFromTwoWords("I", i1, i2, pc);
+    Bits    I = c.chooseFromTwoWords("I", i1, i2, pc);
     Register  r = c.register("reg",  I, pl);
-    BitBus    o = c.outputBits("o", r);
+    Bits    o = c.outputBits("o", r);
     Gate     or = c.Output("or",    r.loaded);
 
     c.executionTrace("c  choose    l  register ld", "%s  %s  %s  %s  %s", pc, I, pl, r, r.loaded);
@@ -3577,10 +3576,10 @@ Step  C P  d e
 
   static void test_shift()
    {final Chip   c = new Chip("Shift");
-    final BitBus b = c.bits      ("b", 4, 3);
-    final BitBus u = c.shiftUp   ("u",  b); final BitBus ou = c.outputBits("ou", u);
-    final BitBus U = c.shiftUpOne("U",  b); final BitBus oU = c.outputBits("oU", U);
-    final BitBus d = c.shiftDown ("d",  b); final BitBus od = c.outputBits("od", d);
+    final Bits b = c.bits      ("b", 4, 3);
+    final Bits u = c.shiftUp   ("u",  b); final Bits ou = c.outputBits("ou", u);
+    final Bits U = c.shiftUpOne("U",  b); final Bits oU = c.outputBits("oU", U);
+    final Bits d = c.shiftDown ("d",  b); final Bits od = c.outputBits("od", d);
 
     c.simulate();
     ou.ok(6);
@@ -3594,10 +3593,10 @@ Step  C P  d e
       for   (int i = 0; i < B2; i++)
        {for (int j = 0; j < B2; j++)
          {final Chip      c = new Chip("Binary Add");
-          final BitBus    I = c.bits("i", B, i);
-          final BitBus    J = c.bits("j", B, j);
+          final Bits    I = c.bits("i", B, i);
+          final Bits    J = c.bits("j", B, j);
           final BinaryAdd a = c.binaryAdd ("carry", "ij",  I, J);
-          final BitBus    o = c.outputBits("o", a.sum);
+          final Bits    o = c.outputBits("o", a.sum);
           c.Output    ("co", a.carry);
           c.simulate  ();
           ok(a.sum.Int(),   (i+j) %  B2);
@@ -3611,13 +3610,13 @@ Step  C P  d e
    {final int N = 4;
 
     final Chip     C = new Chip("Register Sources");
-    final BitBus  o1 = C.bits ("o1",  N,  9);
-    final BitBus  o2 = C.bits ("o2",  N,  5);
+    final Bits  o1 = C.bits ("o1",  N,  9);
+    final Bits  o2 = C.bits ("o2",  N,  5);
     final Pulse   p1 = C.pulse("p1",  16, 3, 0);
     final Pulse   p2 = C.pulse("p2",  16, 4, 4);
 
     final Register r = C.register("r",  o1, p1, o2, p2);
-    final BitBus   o = C.outputBits("o", r);
+    final Bits   o = C.outputBits("o", r);
     C.anneal(r.loaded);
     C.simulationSteps(20);
     C.executionTrace("Reg_   1 2  l  e     e2    e2", "%s   %s %s  %s  %s  %s  %s", r, p1, p2, r.load, r.e, r.E[0], r.E[1]);
@@ -3646,13 +3645,13 @@ Step  Reg_   1 2  l  e     e2    e2
    {final int N = 4;
 
     final Chip    C = new Chip("Register Sources");
-    final BitBus o1 = C.bits ("o1",  N,  9);
-    final BitBus o2 = C.bits ("o2",  N,  5);
+    final Bits o1 = C.bits ("o1",  N,  9);
+    final Bits o2 = C.bits ("o2",  N,  5);
     final Pulse  p1 = C.pulse("p1",  16, 3, 0);
     final Pulse  p2 = C.pulse("p2",  16, 4, 4);
 
     final Register r = C.register("r",  new RegIn(o1, p1), new RegIn(o2, p2));
-    final BitBus   o = C.outputBits("o", r);
+    final Bits   o = C.outputBits("o", r);
     final Gate    or = C.Output("or", r.loaded);
     C.simulationSteps(20);
     C.executionTrace("Reg_ ld   1 2  l  e     e2    e2", "%s  %s   %s %s  %s  %s  %s  %s", r, r.loaded, p1, p2, r.load, r.e, r.E[0], r.E[1]);
@@ -3684,9 +3683,9 @@ Step  Reg_ ld   1 2  l  e     e2    e2
    {final int N = 4;
 
     final Chip   C = new Chip("Connect buses");
-    final BitBus i = C.bits ("i",  N,  9);
-    final BitBus o = C.new BitBus("o", N);
-    final BitBus O = C.outputBits("O", o);
+    final Bits i = C.bits ("i",  N,  9);
+    final Bits o = C.new Bits("o", N);
+    final Bits O = C.outputBits("O", o);
     C.connect(o, i);
 
     C.executionTrace("i     o     O", "%s  %s  %s", i, o, O);
@@ -3704,11 +3703,11 @@ Step  i     o     O
   static void test_8p5i4()
    {final int N = 8;   // 4 bits = 19 steps 8 = 46 steps
     final Chip        C = new Chip("Binary Add");
-    final BitBus      a = C.bits("a",  N, 127);
-    final BitBus      b = C.bits("b",  N, 128);
+    final Bits      a = C.bits("a",  N, 127);
+    final Bits      b = C.bits("b",  N, 128);
     final BinaryAdd   c = C.binaryAdd("carry", "c", a, b);
     final Gate       oc = C.Output("oc", c.carry);
-    final BitBus     os = C.outputBits("os", c.sum);
+    final Bits     os = C.outputBits("os", c.sum);
     C.simulationSteps(48);
     C.simulate();
     ok(os.toString(), "11111111");                                              // toString unfortunately required
@@ -3718,24 +3717,24 @@ Step  i     o     O
 
   static void test_fibonacci()                                                  // First few fibonacci numbers
    {final int N = 4;
-    final Chip          C = new Chip("Fibonacci");                              // Create a new chip
-    final BitBus     zero = C.bits("zero", N, 0);                               // Zero - the first element of the sequence
-    final BitBus      one = C.bits("one",  N, 1);                               // One - the second element of the sequence
-    final Pulse        in = C.pulse("ia", 1024,  16);                           // Initialize the registers to their starting values
-    final Pulse        la = C.pulse("la",  128,  30, 32, 1);                    // Each pair sum is calculated on a rotating basis
-    final Pulse        lb = C.pulse("lb",  128,  30, 64, 1);
-    final Pulse        lc = C.pulse("lc",  128,  30,  0, 1);
-    final Pulse        ed = C.pulse("ed", 1024, 202);                           // Enable the output register once it has had a chance to stabilize
+    final Chip        C = new Chip("Fibonacci");                                // Create a new chip
+    final Bits     zero = C.bits("zero", N, 0);                                 // Zero - the first element of the sequence
+    final Bits      one = C.bits("one",  N, 1);                                 // One - the second element of the sequence
+    final Pulse      in = C.pulse("ia", 1024,  16);                             // Initialize the registers to their starting values
+    final Pulse      la = C.pulse("la",  128,  30, 32, 1);                      // Each pair sum is calculated on a rotating basis
+    final Pulse      lb = C.pulse("lb",  128,  30, 64, 1);
+    final Pulse      lc = C.pulse("lc",  128,  30,  0, 1);
+    final Pulse      ed = C.pulse("ed", 1024, 202);                             // Enable the output register once it has had a chance to stabilize
 
-    final BitBus       ab = C.new BitBus("ab", N);                              // Pre declare the output of the pair sums so that we can use these buses to drive the registers holding the latest fibonacci numbers
-    final BitBus       ac = C.new BitBus("ac", N);
-    final BitBus       bc = C.new BitBus("bc", N);
+    final Bits       ab = C.new Bits("ab", N);                                  // Pre declare the output of the pair sums so that we can use these buses to drive the registers holding the latest fibonacci numbers
+    final Bits       ac = C.new Bits("ac", N);
+    final Bits       bc = C.new Bits("bc", N);
 
-    final Register      a = C.register("a", zero, in, bc, la);                  // Registers holding the latest fibonacci number
-    final Register      b = C.register("b",  one, in, ac, lb);
-    final Register      c = C.register("c", zero, in, ab, lc);
+    final Register    a = C.register("a", zero, in, bc, la);                    // Registers holding the latest fibonacci number
+    final Register    b = C.register("b",  one, in, ac, lb);
+    final Register    c = C.register("c", zero, in, ab, lc);
 
-    final Register      d = C.register("d",                                     // Load the output register with the latest fibonacci number and show it is present with a falling edge
+    final Register    d = C.register("d",                                       // Load the output register with the latest fibonacci number and show it is present with a falling edge
       new RegIn(zero, in),      new RegIn(a, a.loaded),                         // Initially the output register is zero, subsequently it is to the appropriate pair sum
       new RegIn(b,   b.loaded), new RegIn(c, c.loaded));
 
@@ -3745,7 +3744,7 @@ Step  i     o     O
     final BinaryAdd   sac = C.binaryAdd("cac", "ac", a, c);
     final BinaryAdd   sbc = C.binaryAdd("cbc", "bc", b, c);
     C.anneal(sab.carry, sac.carry, sbc.carry);                                  // Ignore the carry bits
-    final BitBus       od = C.outputBits("od",   d);                            // Output the latest fibonacci number
+    final Bits         od = C.outputBits("od",   d);                            // Output the latest fibonacci number
     final Gate        old = C.Output    ("old", ld);                            // falling edge shows that the register has been loaded with a new number
 
     C.executionTrace(
@@ -3820,13 +3819,13 @@ Step  in  la lb lc  a    b    c
     final int M = 0b1111;
     for (int j = 0; j <= B; j++)
      {final int I = 2 * j + 1, mm = (M>>j)<<j;
-      final Chip    c = new Chip("InsertIntoArray");                            // Create a new chip
-      final WordBus w = c.words("array", B, array);                             // Array to insert into
-      final BitBus  m = c.bits("mask",   B, mm);                                // Monotone mask insertion point
-      final BitBus  i = c.bits("in",     B, I);                                 // Word to insert
+      final Chip  c = new Chip("InsertIntoArray");                              // Create a new chip
+      final Words w = c.words("array", B, array);                               // Array to insert into
+      final Bits  m = c.bits("mask",   B, mm);                                  // Monotone mask insertion point
+      final Bits  i = c.bits("in",     B, I);                                   // Word to insert
 
-      final WordBus W = c.insertIntoArray("o", w, m, i);                        // Insert
-      final WordBus O = c.outputWords    ("O", W);
+      final Words W = c.insertIntoArray("o", w, m, i);                          // Insert
+      final Words O = c.outputWords    ("O", W);
       c.simulate();
       switch(j)
        {case 0 -> W.ok(1,2,4,6);
@@ -3844,14 +3843,14 @@ Step  in  la lb lc  a    b    c
     final int M = 0b1111;
     for (int j = 0; j <= B; j++)
      {final int I = 1, mm = (M>>j)<<j;
-      final Chip    c = new Chip("RemoveFromArray");                            // Create a new chip
-      final WordBus w = c.words("array", B, array);                             // Array to remove from
-      final BitBus  m = c.bits("mask",   B, mm);                                // Monotone mask removal point
-      final BitBus  i = c.bits("in",     B, I);                                 // Word to remove
+      final Chip  c = new Chip("RemoveFromArray");                              // Create a new chip
+      final Words w = c.words("array", B, array);                               // Array to remove from
+      final Bits  m = c.bits("mask",   B, mm);                                  // Monotone mask removal point
+      final Bits  i = c.bits("in",     B, I);                                   // Word to remove
 
       final RemoveFromArray W = c.removeFromArray("o", w, m, i);                // Remove
-      final WordBus O = c.outputWords    ("O", W.out);
-      final BitBus  R = c.outputBits     ("R", W.removed);
+      final Words O = c.outputWords    ("O", W.out);
+      final Bits  R = c.outputBits     ("R", W.removed);
       c.simulate();
       switch(j)
        {case 0 -> {O.ok(4,6,8,1); R.ok(2);} // 1111
@@ -3879,13 +3878,13 @@ Step  in  la lb lc  a    b    c
     c.outputBits("d", c.findBits("data"));                                      // Anneal the node
     c.Output    ("f", c.new Bit("found"));
 
-    final BitBus k = c.bits("inKeys",   B, Key);                                // New Key
-    final BitBus d = c.bits("inData",   B, Data);                               // New data
-    final BitBus p = c.bits("insertAt", B, 0b111);                              // Insert at start
+    final Bits k = c.bits("inKeys",   B, Key);                                  // New Key
+    final Bits d = c.bits("inData",   B, Data);                                 // New data
+    final Bits p = c.bits("insertAt", B, 0b111);                                // Insert at start
     final BtreeNode.Insert i = b.Insert("out", k, d, null, p);                  // Insert results
-    final WordBus K = c.outputWords("ok", i.keys);                              // Modified keys
-    final WordBus D = c.outputWords("od", i.data);                              // Modified data
-    final BitBus  E = c.outputBits ("oe", i.enabledKeys);                       // Enabled keys
+    final Words K = c.outputWords("ok", i.keys);                                // Modified keys
+    final Words D = c.outputWords("od", i.data);                                // Modified data
+    final Bits  E = c.outputBits ("oe", i.enabledKeys);                         // Enabled keys
     c.simulate();
     K.ok(1,2,4);
     D.ok(2,3,5);
