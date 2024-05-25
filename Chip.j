@@ -1853,12 +1853,12 @@ final public class Chip                                                         
      ){}
 
     Insert Insert(String Output, Bits iKey, Bits iData, Bits iNext,             // Insert a new key, data pair in a leaf node at the position shown by the monotone mask.
-      Bits monotoneMask)
-     {final Words k = insertIntoArray(n(Output, "outKeys"), Keys, monotoneMask, iKey);
-      final Words d = insertIntoArray(n(Output, "outData"), Data, monotoneMask, iData);
+      Bits position)
+     {final Words k = insertIntoArray(n(Output, "outKeys"), Keys, position, iKey);
+      final Words d = insertIntoArray(n(Output, "outData"), Data, position, iData);
       final Bits  v = shiftUpOne     (n(Output, "outKeysEnabled"), KeysEnabled);
       final Words n = iNext == null ? null :
-        insertIntoArray(n(Output, "outNext"), Next, monotoneMask, iNext);
+                      insertIntoArray(n(Output, "outNext"), Next, position, iNext);
       return new Insert(k, d, n, v);                                            // Insertion results
      }
 
@@ -3927,38 +3927,47 @@ Step  in  la lb lc  a    b    c
      }
    }
 
-  static Chip test_BtreeLeafInsert(int Key, int Data, int position)
-   {final int[]keys = {2, 4, 6};
+  static Chip test_BtreeInsert(int position)
+   {final int Key = 1, Data = 2, Next = 3;
+    final int[]keys = {2, 4, 6};
     final int[]data = {3, 5, 7};
-    final int[]next = null;
+    final int[]next = {1, 3, 5};
     final int valid = 0b111;
     final int   top = 7;
     final int     B = 3;
-    final int     N = 3;
+    final int     M = 3;
     final int    id = 7;
     final var     c = new Chip("BtreeNodeLeafInsert");
 
-    final BtreeNode b = BtreeNode.Test(c, "node", id, B, N, 0, 0,               // Create a disabled node as id != enabled
+    final BtreeNode b = BtreeNode.Test(c, "node", id, B, M, 0, 0,               // Create a disabled node as id != enabled
       keys, data, next, top, valid, "found", "data", "next");
-    c.outputBits("d", c.findBits("data"));                                      // Anneal the node
+    c.outputBits("d", c.findBits("data"));                                      // Anneal the data bit bus as we do not use it in this test
+    c.outputBits("n", c.findBits("next"));                                      // Anneal the link bit bus as we do not use it in this test
     c.Output    ("f", c.new Bit("found"));
 
     final Bits k = c.bits("inKeys",   B, Key);                                  // New Key
     final Bits d = c.bits("inData",   B, Data);                                 // New data
-    final Bits p = c.bits("insertAt", B, 0b111);                                // Insert at start
-    final BtreeNode.Insert i = b.Insert("out", k, d, null, p);                  // Insert results
+    final Bits n = c.bits("inNext",   B, Next);                                 // New links
+    final Bits p = c.bits("insertAt", B, position);                             // Insert position at first position in monotone mask to be true
+    final BtreeNode.Insert i = b.Insert("out", k, d, n, p);                     // Insert results
     final Words K = c.outputWords("ok", i.keys);                                // Modified keys
     final Words D = c.outputWords("od", i.data);                                // Modified data
+    final Words N = c.outputWords("on", i.next);                                // Modified next
     final Bits  E = c.outputBits ("oe", i.enabledKeys);                         // Enabled keys
     c.simulate();
-    K.ok(1,2,4);
-    D.ok(2,3,5);
-    E.ok(0b1111);
+    switch(position)
+     {case 0b111 -> {K.ok(1,2,4); D.ok(2,3,5); N.ok(3,1,3); E.ok(0b1111);}
+      case 0b110 -> {K.ok(2,1,4); D.ok(3,2,5); N.ok(1,3,3); E.ok(0b1111);}
+      case 0b100 -> {K.ok(2,4,1); D.ok(3,5,2); N.ok(1,3,3); E.ok(0b1111);}
+      default -> stop("Test expectations required for", position);
+     }
     return c;
    }
 
-  static void test_BtreeLeafInsert()
-   {test_BtreeLeafInsert(1, 2, 0b111);
+  static void test_BtreeInsert()
+   {test_BtreeInsert(0b111);
+    test_BtreeInsert(0b110);
+    test_BtreeInsert(0b100);
    }
 
   static void test_subBitBus()
@@ -4031,14 +4040,14 @@ Step  in  la lb lc  a    b    c
     test_fibonacci();
     test_insertIntoArray();
     test_removeFromArray();
-    test_BtreeLeafInsert();
+    test_BtreeInsert();
     test_subBitBus();
     test_subWordBus();
    }
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
-    test_subWordBus();
+    test_BtreeInsert();
     oldTests();
    }
 
