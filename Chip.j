@@ -1108,20 +1108,9 @@ final public class Chip                                                         
     int    words();                                                             // Words in bus
     Gate getGate(String n);                                                     // Gate providing bit
 
-    default public Integer wordValue(int j)                                     // Get the value of a word in the word bus
-     {int v = 0, p = 1;
-      for (int i = 1; i <= bits(); i++)                                         // Each bit on bus
-       {final String n = n(j, i, name());                                       // Name of gate providing bit
-        final Gate g = getGate(n);                                              // Gate providing bit
-        if (g == null)
-         {err("No such word as:", n);
-          return null;                                                          // Invalid gate - should not happen - but if it does it is useful to carry on so that we can get more diagnostics
-         }
-        if (g.value == null) return null;                                       // Bit state not known
-        if (g.value) v += p;
-        p *= 2;
-       }
-      return v;                                                                 // Value of word
+    default public Integer wordValue(int i)                                     // Get the value of a word in the word bus
+     {final Bits b = w(i);                                                      // Bits
+      return b.Int();
      }
 
     default public Integer[]Int()                                               // Convert the words on a word bus into integers
@@ -1191,6 +1180,36 @@ final public class Chip                                                         
 
     public Bits w(int i)        {return bitBuses.get(n(i,    name));}           // Get a bit bus in the word bus
     public Bit  b(int i, int j) {return new Bit     (n(i, j, name));}           // Get a bit from a bit bus in the word bus
+   } // Words
+
+  class SubWordBus implements Words                                             // Select the specified range of words from a word bus
+   {final String name; public String name() {return name;}                      // Name of the word bus
+    final Words source;                                                         // The underlying source bus
+    final int start, length;                                                    // Selected words and bits
+    public int  bits() {return source.bits();}                                  // Bits in each word of the bus
+    public int words() {return length;}                                         // Words in bus
+
+    SubWordBus(String Name, Words Source, int Start, int Length)                // Create sub word bus
+     {name = Name; source = Source; start = Start; length = Length;
+
+      final Words w = wordBuses.get(name);                                      // Chip, bits bus name, words, bits per word, options
+
+      if (w != null)
+        stop("A word bus with name:", name, "has already been defined");
+      wordBuses.put(name, this);                                                // Index bus
+     }
+
+    public Gate getGate(String Name)  {return Chip.this.getGate(Name);};        // Gate providing bit
+
+    public Bits w(int i)                                                        // Get a bit bus in the word bus
+     {if (i < 1 || i > length) stop("Out of range:", i, "in range", length);
+      return bitBuses.get(n(start-1+i, source.name()));
+     }
+    public Bit  b(int i, int j)                                                 // Get a bit from a bit bus in the word bus
+     {if (i < 1 || i > length) stop("Sub word out of range:", i, "in range", length);
+      if (j < 1 || j > bits()) stop("Sub bit out of range:",  j, "in range", bits());
+      return new Bit(n(start-1+i, j, source.name()));
+     }
    } // Words
 
   Words findWords(String name)                                                  // Find a word bus by name
@@ -3944,15 +3963,28 @@ Step  in  la lb lc  a    b    c
 
   static void test_subBitBus()
    {final int   N = 8;
-    final Chip  c = new Chip("InsertIntoArray");
+    final Chip  c = new Chip("SubBitBus");
     final Bits  b = c.bits("b", N, 5<<2);
-    final Bits  B = c.new SubBitBus("sub", b, 3, 4);
+    final Bits  B = c.new SubBitBus("B", b, 3, 4);
     final Bits ob = c.outputBits("ob", b);
     final Bits oB = c.outputBits("oB", B);
      c.simulate();
      b.ok(20);
      B.ok( 5);
     oB.ok( 5);
+   }
+
+  static void test_subWordBus()
+   {final int    N = 8;
+    final Chip   c = new Chip("SubWordBus");
+    final Words  w = c.words("w", N, 3, 5, 7, 9, 11);
+    final Words  W = c.new SubWordBus("W", w, 3, 2);
+    final Words ow = c.outputWords("ow", w);
+    final Words oW = c.outputWords("oW", W);
+     c.simulate();
+     w.ok(3, 5, 7, 9, 11);
+     W.ok(7, 9);
+    oW.ok(7, 9);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -4001,10 +4033,12 @@ Step  in  la lb lc  a    b    c
     test_removeFromArray();
     test_BtreeLeafInsert();
     test_subBitBus();
+    test_subWordBus();
    }
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
+    test_subWordBus();
     oldTests();
    }
 
