@@ -3,6 +3,7 @@
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 // Test all dyadic gates to see if there is any correlation between their outputs and any other pins indicating that the gate might be redundant. Use class Grouping to achieve this.
+// Make class Bit an Interface
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
 
 import java.io.*;
@@ -11,7 +12,7 @@ import java.util.stream.*;
 
 //D1 Construct                                                                  // Construct a L<silicon> L<chip> using standard L<lgs>, components and sub chips combined via buses.
 
-public class Chip                                                               // Describe a chip and emulate its operation.
+final public class Chip                                                         // Describe a chip and emulate its operation.
  {final static boolean github_actions =                                         // Whether we are on a github
     "true".equals(System.getenv("GITHUB_ACTIONS"));
 
@@ -219,11 +220,10 @@ public class Chip                                                               
     public String toString() {return name;}                                     // Name of bit
    }
 
-  class Gate extends Bit                                                        // Description of a gate
-   {final int               seq = nextGateNumber();                             // Sequence number for this gate
-    final Operator           op;                                                // Operation performed by gate
-    Gate                 iGate1,  iGate2;                                       // Gates driving the inputs of this gate as during simulation but not during layout
-    Gate       soGate1, soGate2, tiGate1, tiGate2;                              // Pin assignments on source and target gates used during layout but not during simulation
+  class Gate extends Bit                                                        // Description of a gate that produces a bit
+   {final Operator     op;                                                      // Operation performed by gate
+    Gate           iGate1,  iGate2;                                             // Gates driving the inputs of this gate as during simulation but not during layout
+    Gate soGate1, soGate2, tiGate1, tiGate2;                                    // Pin assignments on source and target gates used during layout but not during simulation
     final TreeSet<WhichPin>
                          drives = new TreeSet<>();                              // The names of the gates that are driven by the output of this gate with a possible pin selection attached
     boolean          systemGate = false;                                        // System gate if true
@@ -1079,13 +1079,29 @@ public class Chip                                                               
     final int bits;                                                             // Bits in each word of the bus
     final int words;                                                            // Words in bus
     final Stack<BitBus> bitBus = new Stack<>();
+
     WordBus(String Name, int Words, int Bits)                                   // Create bus
      {name = Name; bits = Bits; words = Words;
       final WordBus w = wordBuses.get(name);                                    // Chip, bits bus name, words, bits per word, options
       if (w != null)
         stop("A word bus with name:", name, "has already been defined");
-      wordBuses.put(name, this);
+      wordBuses.put(name, this);                                                // Index bus
       for (int b = 1; b <= words; ++b)                                          // Size of bit bus for each word in the word bus
+       {final String s = n(b, name);
+        BitBus B = bitBuses.get(s);                                             // Check whether the component bitBus exists or not
+        if (B == null) B = new BitBus(s, bits);                                 // Create component bitBus if necessary
+        bitBus.push(B);                                                         // Bit buses associated with this word bus
+       }
+     }
+
+    WordBus(String Name, WordBus input, int Start, int Length)                  // Create a word bus as a sub bus of another bus
+     {name = Name; bits = input.bits; words = Length;
+      final WordBus w = wordBuses.get(name);                                    // Check for existing bus with same name
+      if (w != null)
+        stop("A word bus with name:", name, "has already been defined");
+      wordBuses.put(name, this);                                                // Index bus
+      final int end = Start + Length;
+      for (int b = Start; b < end; ++b)                                         // Bit buses comprising word
        {final String s = n(b, name);
         BitBus B = bitBuses.get(s);                                             // Check whether the component bitBus exists or not
         if (B == null) B = new BitBus(s, bits);                                 // Create component bitBus if necessary
@@ -1138,7 +1154,7 @@ public class Chip                                                               
       if (fails > 0) err(b);
       testsPassed += passes; testsFailed += fails;                              // Passes and fails
      }
-   }
+   } // WordBus
 
   WordBus findWords(String name)                                                // Find a word bus by name
    {final WordBus w = wordBuses.get(name);
@@ -1146,7 +1162,7 @@ public class Chip                                                               
     return w;
    }
 
-  WordBus collectWords(String name, int words, int bits)                        // Set the size of a bits bus.
+  WordBus collectWords(String name, int words, int bits)                        // Define a word bus as a new set of BitBuses
    {final WordBus w = wordBuses.get(name);                                      // Chip, bits bus name, words, bits per word, options
     if (w != null)
       stop("A word bus with name:", name, "has already been defined");
