@@ -76,12 +76,14 @@ requested. The remaining [gate](https://en.wikipedia.org/wiki/Logic_gate) types 
 # Buses
 
 The single bits transferred by connections between gates can be aggregated into
-buses that can be manipulated en mass.
+a [bit bus](https://en.wikipedia.org/wiki/Bus_(computing)) allowing the bits to be manipulated en mass.
 
-Buses behave like [variables](https://en.wikipedia.org/wiki/Variable_(computer_science)) and [arrays](https://en.wikipedia.org/wiki/Dynamic_array) of [variables](https://en.wikipedia.org/wiki/Variable_(computer_science)). 
+A [bit bus](https://en.wikipedia.org/wiki/Bus_(computing)) behaves like a [variable](https://en.wikipedia.org/wiki/Variable_(computer_science)) or like an [array](https://en.wikipedia.org/wiki/Dynamic_array) of [variables](https://en.wikipedia.org/wiki/Variable_(computer_science)) .
+
 ## Bit buses
 
-A [bit](https://en.wikipedia.org/wiki/Bit) bus corresponds to a [variable](https://en.wikipedia.org/wiki/Variable_(computer_science)). 
+A [bit bus](https://en.wikipedia.org/wiki/Bus_(computing)) corresponds to a [variable](https://en.wikipedia.org/wiki/Variable_(computer_science)) .
+
 ```
 25 Bit buses
 Bits  Bus_____________________________  Value
@@ -114,7 +116,8 @@ Bits  Bus_____________________________  Value
 
 ## Words buses
 
-A [word](https://en.wikipedia.org/wiki/Doc_(computing)) bus correspond to an [arrays](https://en.wikipedia.org/wiki/Dynamic_array) of [variables](https://en.wikipedia.org/wiki/Variable_(computer_science)). 
+A [word](https://en.wikipedia.org/wiki/Doc_(computing)) [bit bus](https://en.wikipedia.org/wiki/Bus_(computing)) correspond to an [array](https://en.wikipedia.org/wiki/Dynamic_array) of [variables](https://en.wikipedia.org/wiki/Variable_(computer_science)) .
+
 ```
 
 3 Word buses
@@ -386,4 +389,4 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-Modified: 2024-05-27 at 00:28:41
+Modified: 2024-05-27 at 00:32:46
