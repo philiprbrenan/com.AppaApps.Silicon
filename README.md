@@ -10,6 +10,8 @@ Reasons why you might want to join this project:
 
 http://prb.appaapps.com/zesal/pitchdeck/pitchDeck.html
 
+Or you might want to design your own cpu and operating system to run on it.
+
 # Examples
 
 ## And
@@ -18,47 +20,72 @@ Create a chip that **and**s two input pins together and places the result on
 the output pin.
 
 ```
-  static void test_and()
-   {final Chip   c = new Chip("And");
-    final Gate  i1 = c.Input ("i1");
-    final Gate  i2 = c.Input ("i2");
-    final Gate and = c.And   ("and", "i1", "i2");
-    final Gate   o = c.Output("o", "and");
+    Chip c = new Chip("And");
+    Gate i = c.Input ("i");
+    Gate I = c.Input ("I");
+    Gate a = c.And   ("a", i, I);
+    Gate o = c.Output("o", a);
 
-    final Inputs inputs = c.new Inputs();
-    inputs.set("i1", true);
-    inputs.set("i2", false);
+    Inputs inputs = c.new Inputs().set(i, true).set(I, false);
 
     c.simulate(inputs);
 
-    ok( i1.value, true);
-    ok( i2.value, false);
-    ok(and.value, false);
-    ok(  o.value, false);
-    ok(  c.steps ,    2);
-   }
+    c.draw();
+
+    i.ok(true);
+    I.ok(false);
+    a.ok(false);
+    o.ok(false);
+    ok(c.steps, 3);
 ```
 
-To produce a chip layout mask using [Graphics Design System 2](https://en.wikipedia.org/wiki/GDSII):
+``draw()`` draws a layout mask for the chip using [Graphics Design System 2](https://en.wikipedia.org/wiki/GDSII):
 
 ![And](images/And.png)
 
 ## Compare Greater Than
+
+Compare two unsigned 4 bit integers to check whether the first is greater than
+the second.
+
 ![Compare Greater Than](images/CompareGt4.png)
 
 ## Choose Word Under Mask
+
+Use a mask to choose one word from an array of words:
+
 ![Choose Word Under Mask](images/ChooseWordUnderMask2.png)
 
-## Btree Leaf Compare
+## Btree Node Compare
+
+Locate a key in a node of a Btree
+
+
 ![Btree Leaf Compare](images/BtreeLeafCompare.png)
 
 ## Btree
 
-A complete binary tree:
+A complete Btree:
 
 ![Btree](images/Btree.png)
 
+# Gates
+
+A chip is built of standard boolean logic gates. Each gate produces a bit value
+that can be used to drive one input pin of another gate or one output pin.
+
+Each input pin of each gate can only be driven by one output pin of a gate. To
+allow one gate output pin to drive several input pins, each gate produces two
+copies of its output bit enabling the construction of equal depth fan out
+trees.
+
+Some gate types such as ``or`` and ``and`` can have as many input pins as
+requested. The remaining gate types have no more than two input pins.
+
 # Buses
+
+The single bits transferred by connections between gates can be aggregated into
+buses that can be manipulated en mass.
 
 Buses behave like variables and arrays of variables.
 
@@ -110,6 +137,43 @@ Words Bits  Bus_____________________________
 ```
 
 # Diagnostics
+
+## Trace
+
+Execution traces show how the state of the chip evolves over time.
+
+```
+    Chip  c = new Chip    ("DelayBits");
+    Pulse p = c.pulse     ("p",   8);
+    Bits  d = c.delayBits ("b",  16, p);
+    Bits  o = c.outputBits("o",      d);
+
+    c.executionTrace("p d", "%s %s", p, d);
+    c.simulationSteps(16);
+    c.simulate();
+
+    c.ok("""
+Step  p d
+   1  1 ...............1
+   2  0 ..............10
+   3  0 .............100
+   4  0 ............1000
+   5  0 ...........10000
+   6  0 ..........100000
+   7  0 .........1000000
+   8  0 ........10000000
+   9  1 .......100000001
+  10  0 ......1000000010
+  11  0 .....10000000100
+  12  0 ....100000001000
+  13  0 ...1000000010000
+  14  0 ..10000000100000
+  15  0 .100000001000000
+  16  0 1000000010000000
+""");
+```
+
+## State
 
 Use the ``say(Chip s)`` method to print the current state of the chip:
 
@@ -335,4 +399,4 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-Modified: 2024-05-20 at 02:13:40
+Modified: 2024-05-27 at 00:03:12
