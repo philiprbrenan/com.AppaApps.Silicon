@@ -1595,15 +1595,11 @@ final public class Chip                                                         
 
 //D3 Delay                                                                      // Send a pulse one way or another depending on a bit allowing us to execute one branch of an if statement or the other and receive a pulse notifying us when the execution of the different length paths are complete.
 
-  Gate delay(String Output, Bit input, int delay)                               // Create a delay chain so that one leading edge can trigger another later on as work is performed
-   {Bit  p = input;
-    Gate g = getGate(input);                                                    // Start at the input gate
+  Bit delay(String Output, Bit input, int delay)                                // Create a delay chain so that one leading edge can trigger another later on as work is performed
+   {Bit p = input;                                                              // Start of chain
     for (int i = 1; i <= delay; i++)                                            // All along the delay line
-     {final Bit q = new Bit(i < delay ? n(i, Output) : Output);                 // Make a chain along to the end gate
-      g = Continue(q.name, p);
-      p = q;
-     }
-    return g;
+      p = Continue(i < delay ? n(i, Output) : Output, p);
+    return p;
    }
 
   Bits delayBits(String Output, int delay, Bit input)                           // Create a bit bus where the delay bit propagates across each bit in turn. Viewed as an integer the bit bus takes successive powers of two after receiving the start bit
@@ -3541,8 +3537,8 @@ Step  c  choose    l  register ld
   static void test_delay()
    {Chip c = new Chip("Delay");
     Pulse p = c.pulse ("pulse", 8, 4);
-    Gate  d = c.delay ("load",  p, 3);
-    Gate  o = c.Output("out",   d);
+    Bit   d = c.delay ("load",  p, 3);
+    Bit   o = c.Output("out",   d);
 
     c.executionTrace("p d", "%s %s", p, d);
     c.simulationSteps(16);
@@ -3600,8 +3596,8 @@ Step  p d
     Pulse  C = c.pulse("choose", 4, 2);
     Pulse  P = c.pulse("pulse",  5, 3);
     Select S = c.select("choice", C, P);
-    Gate   d = c.delay("d", S.Then, 3);
-    Gate   e = c.delay("e", S.Else, 3);
+    Bit    d = c.delay("d", S.Then, 3);
+    Bit    e = c.delay("e", S.Else, 3);
     c.Output("od", d);
     c.Output("oe", e);
 
