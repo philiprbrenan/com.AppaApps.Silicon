@@ -653,25 +653,24 @@ final public class Chip                                                         
   class Inputs                                                                  // Set values on input gates prior to simulation
    {private final Map<String,Boolean> inputs = new TreeMap<>();
 
-    void set(Bit s, boolean value)                                              // Set the value of an input
+    Inputs set(Bit s, boolean value)                                            // Set the value of an input
      {inputs.put(s.name, value);
+      return this;
      }
 
-    void set(Bits input, int value)                                             // Set the value of an input bit bus
+    Inputs set(Bits input, int value)                                           // Set the value of an input bit bus
      {final int bits = input.bits();                                            // Get the size of the input bit bus
       final boolean[]b = bitStack(bits, value);                                 // Bits to set
       for (int i = 1; i <= bits; i++) set(input.b(i), b[i-1]);                  // Load the bits into the input bit bus
+      return this;
      }
 
-    void set(Bit input, int value)                                              // Set the value of an input bit bus
-     {set(input, value);
-     }
-
-    void set(Words wb, int...values)                                            // Set the value of an input word bus
+    Inputs set(Words wb, int...values)                                          // Set the value of an input word bus
      {for   (int w = 1; w <= wb.words(); w++)                                   // Each word
        {final boolean[]b = bitStack(wb.bits(), values[w-1]);                    // Bits from current word
         for (int i = 1; i <= wb.bits(); i++) set(wb.b(w, i), b[i-1]);           // Load the bits into the input bit bus
        }
+      return this;
      }
 
     Boolean get(Bit s) {return inputs.get(s.name);}                             // Get the value of an input
@@ -765,7 +764,7 @@ final public class Chip                                                         
 
       if (!changes())                                                           // No changes occurred
        {if (!miss || steps >= minSimulationSteps)                               // No changes occurred and we are beyond the minimum simulation time or no such time was set
-         {return gates.size() <= layoutLTGates ? drawSingleLevelLayout() : null;// Draw the layout if it has less than the specified maximum number of gates for being drawn automatically with out a specific request.
+         {return gates.size() <= layoutLTGates ? draw() : null;// Draw the layout if it has less than the specified maximum number of gates for being drawn automatically with out a specific request.
          }
        }
       noChangeGates();                                                          // Reset change indicators
@@ -1968,7 +1967,7 @@ final public class Chip                                                         
     return d;
    }
 
-  Diagram drawSingleLevelLayout(int GlobalScaleX, int GlobalScaleY)             // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
+  Diagram draw(int GlobalScaleX, int GlobalScaleY)             // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
    {Diagram D = null;
     Integer L = null;
     for (int s = 1; s < singleLevelLayoutLimit; ++s)                            // Various gate scaling factors
@@ -1980,7 +1979,7 @@ final public class Chip                                                         
     return drawLayout(D);
    }
 
-  Diagram drawSingleLevelLayout() {return drawSingleLevelLayout(1,1);}          // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
+  Diagram draw() {return draw(1,1);}          // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
 
   Stack<String> sortIntoOutputGateOrder(int Distance)                           // Order the gates in this column to match the order of the output gates
    {final Stack<String> r = new Stack<>();                                      // Order of gates
@@ -2808,24 +2807,23 @@ final public class Chip                                                         
    }
 
   static void test_and()
-   {Chip   c = new Chip("And");
-    Gate  i1 = c.Input ("i1");
-    Gate  i2 = c.Input ("i2");
-    Gate and = c.And   ("and", i1, i2);
-    Gate   o = c.Output("o", and);
+   {Chip c = new Chip("And");
+    Gate i = c.Input ("i");
+    Gate I = c.Input ("I");
+    Gate a = c.And   ("a", i, I);
+    Gate o = c.Output("o", a);
 
-    Inputs inputs = c.new Inputs();
-    inputs.set(i1, true);
-    inputs.set(i2, false);
+    Inputs inputs = c.new Inputs().set(i, true).set(I, false);
+
     c.simulate(inputs);
 
-    c.drawSingleLevelLayout();
+    c.draw();
 
-    ok( i1.value, true);
-    ok( i2.value, false);
-    ok(and.value, false);
-    ok(  o.value, false);
-    ok(  c.steps ,   3);
+    i.ok(true);
+    I.ok(false);
+    a.ok(false);
+    o.ok(false);
+    ok(c.steps, 3);
    }
 
   static Chip test_and_grouping(Boolean i1, Boolean i2)
@@ -3157,7 +3155,7 @@ final public class Chip                                                         
           c.simulate();
           ok(c.steps >= 5 && c.steps <= 9, true);
           ok(o.value, i > j);
-          if (B == 4 && i == 1 && j == 2) c.drawSingleLevelLayout(3, 2);
+          if (B == 4 && i == 1 && j == 2) c.draw(3, 2);
          }
        }
      }
@@ -3235,7 +3233,7 @@ final public class Chip                                                         
     Bits  O = c.outputBits("out", o);
     c.simulate();
     ok(O.Int(), numbers[i]);
-    c.drawSingleLevelLayout(3, 1);
+    c.draw(3, 1);
    }
 
   static void test_chooseWordUnderMask()
@@ -3358,7 +3356,7 @@ final public class Chip                                                         
   static void test_Btree(Btree b, Inputs i, int find, int found, boolean layout)
    {test_Btree(b, i, find, found);
 
-    if (layout) b.chip().drawSingleLevelLayout(6, 1);
+    if (layout) b.chip().draw(6, 1);
    }
 
   static void test_Btree()
@@ -3494,7 +3492,7 @@ Step  1 2 3 a    4 m
    }
 
   static void test_register()
-   {Chip      c = new Chip("Register");
+   {Chip    c = new Chip("Register");
     Bits   i1 = c.bits("i1", 8, 9);
     Bits   i2 = c.bits("i2", 8, 6);
     Pulse    pc = c.pulse("choose", 32, 16, 16);
@@ -3560,10 +3558,10 @@ Step  p d
    }
 
   static void test_delayBits()
-   {Chip  c = new Chip("DelayBits");
-    Pulse p = c.pulse    ("p",   8);
-    Bits  d = c.delayBits("b",  16, p);
-    Bits  o = c.outputBits("o",   d);
+   {Chip  c = new Chip    ("DelayBits");
+    Pulse p = c.pulse     ("p",   8);
+    Bits  d = c.delayBits ("b",  16, p);
+    Bits  o = c.outputBits("o",      d);
 
     c.executionTrace("p d", "%s %s", p, d);
     c.simulationSteps(16);
@@ -3672,11 +3670,11 @@ Step  C P  d e
   static void test_registerSources()
    {int N = 4;
 
-    Chip     C = new Chip("Register Sources");
+    Chip   C = new Chip("Register Sources");
     Bits  o1 = C.bits ("o1",  N,  9);
     Bits  o2 = C.bits ("o2",  N,  5);
-    Pulse   p1 = C.pulse("p1",  16, 3, 0);
-    Pulse   p2 = C.pulse("p2",  16, 4, 4);
+    Pulse p1 = C.pulse("p1",  16, 3, 0);
+    Pulse p2 = C.pulse("p2",  16, 4, 4);
 
     Register r = C.register("r",  o1, p1, o2, p2);
     Bits   o = C.outputBits("o", r);
@@ -4091,6 +4089,7 @@ Step  in  la lb lc  a    b    c
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
+    test_and();
     //test_BtreeSplitNode();
     oldTests();
    }
