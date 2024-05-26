@@ -3,12 +3,12 @@
 </div>
 
 # Silicon [chip](https://en.wikipedia.org/wiki/Integrated_circuit) 
-Design, simulate and layout a binary [tree](https://en.wikipedia.org/wiki/Tree_(data_structure)) on a [Silicon](https://en.wikipedia.org/wiki/Silicon) [chip](https://en.wikipedia.org/wiki/Integrated_circuit). 
+Design, simulate and layout a [B-Tree](https://en.wikipedia.org/wiki/B-tree) on a [Silicon](https://en.wikipedia.org/wiki/Silicon) [chip](https://en.wikipedia.org/wiki/Integrated_circuit). 
 Reasons why you might want to join this project:
 
 http://prb.appaapps.com/zesal/pitchdeck/pitchDeck.html
 
-Or you might want to design your own [CPU](https://en.wikipedia.org/wiki/Central_processing_unit) and operating system to run on it.
+Or you might want to design your own [CPU](https://en.wikipedia.org/wiki/Central_processing_unit) and [operating system](https://en.wikipedia.org/wiki/Operating_system) to run on it.
 
 # Examples
 
@@ -391,4 +391,4 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-Modified: 2024-05-27 at 00:10:23
+Modified: 2024-05-27 at 00:13:03
