@@ -82,8 +82,7 @@ Buses behave like variables and [arrays](https://en.wikipedia.org/wiki/Dynamic_a
 
 ## Bit buses
 
-A [bit](https://en.wikipedia.org/wiki/Bit) bus corresponds to a variable.
-
+A [bit](https://en.wikipedia.org/wiki/Bit) bus corresponds to a [variable](https://en.wikipedia.org/wiki/Variable_(computer_science)). 
 ```
 25 Bit buses
 Bits  Bus_____________________________  Value
@@ -389,4 +388,4 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-Modified: 2024-05-27 at 00:23:29
+Modified: 2024-05-27 at 00:27:51
