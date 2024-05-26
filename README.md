@@ -65,13 +65,13 @@ A complete [B-Tree](https://en.wikipedia.org/wiki/B-tree):
 
 # Gates
 
-A [chip](https://en.wikipedia.org/wiki/Integrated_circuit) is built of standard [Boolean](https://en.wikipedia.org/wiki/Boolean_data_type) logic gates. Each [digital logic gate](https://en.wikipedia.org/wiki/Logic_gate) produces a [bit](https://en.wikipedia.org/wiki/Bit) value
-that can be used to drive one input [pin](https://en.wikipedia.org/wiki/555_timer_IC) of another [digital logic gate](https://en.wikipedia.org/wiki/Logic_gate) or one output [pin](https://en.wikipedia.org/wiki/555_timer_IC). 
-Each input [pin](https://en.wikipedia.org/wiki/555_timer_IC) of each [digital logic gate](https://en.wikipedia.org/wiki/Logic_gate) can only be driven by one output [pin](https://en.wikipedia.org/wiki/555_timer_IC) of a [digital logic gate](https://en.wikipedia.org/wiki/Logic_gate). To
-allow one [digital logic gate](https://en.wikipedia.org/wiki/Logic_gate) output [pin](https://en.wikipedia.org/wiki/555_timer_IC) to drive several input pins, each [digital logic gate](https://en.wikipedia.org/wiki/Logic_gate) produces two
+A [chip](https://en.wikipedia.org/wiki/Integrated_circuit) is built of standard [Boolean](https://en.wikipedia.org/wiki/Boolean_data_type) logic gates. Each [gate](https://en.wikipedia.org/wiki/Logic_gate) produces a [bit](https://en.wikipedia.org/wiki/Bit) value
+that can be used to drive one input [pin](https://en.wikipedia.org/wiki/555_timer_IC) of another [gate](https://en.wikipedia.org/wiki/Logic_gate) or one output [pin](https://en.wikipedia.org/wiki/555_timer_IC). 
+Each input [pin](https://en.wikipedia.org/wiki/555_timer_IC) of each [gate](https://en.wikipedia.org/wiki/Logic_gate) can only be driven by one output [pin](https://en.wikipedia.org/wiki/555_timer_IC) of a [gate](https://en.wikipedia.org/wiki/Logic_gate). To
+allow one [gate](https://en.wikipedia.org/wiki/Logic_gate) output [pin](https://en.wikipedia.org/wiki/555_timer_IC) to drive several input pins, each [gate](https://en.wikipedia.org/wiki/Logic_gate) produces two
 copies of its output [bit](https://en.wikipedia.org/wiki/Bit) enabling the construction of equal depth fan out [trees](https://en.wikipedia.org/wiki/Tree_(data_structure)). 
-Some [digital logic gate](https://en.wikipedia.org/wiki/Logic_gate) types such as ``or`` and ``and`` can have as many input pins as
-requested. The remaining [digital logic gate](https://en.wikipedia.org/wiki/Logic_gate) types have no more than two input pins.
+Some [gate](https://en.wikipedia.org/wiki/Logic_gate) types such as ``or`` and ``and`` can have as many input pins as
+requested. The remaining [gate](https://en.wikipedia.org/wiki/Logic_gate) types have no more than two input pins.
 
 # Buses
 
@@ -389,4 +389,4 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-Modified: 2024-05-27 at 00:22:52
+Modified: 2024-05-27 at 00:23:29
