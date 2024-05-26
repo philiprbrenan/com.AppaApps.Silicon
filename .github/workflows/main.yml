@@ -1,4 +1,4 @@
-# Test 2024-05-27 at 00:10:25
+# Test 2024-05-27 at 00:13:04
 
 name: Test
 run-name: and
@@ -8,9 +8,9 @@ on:
     paths:
       - '**/main.yml'
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+#concurrency:
+#  group: ${{ github.workflow }}-${{ github.ref }}
+#  cancel-in-progress: true
 
 jobs:
 
