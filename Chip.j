@@ -3,8 +3,6 @@
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 // Test all dyadic gates to see if there is any correlation between their outputs and any other pins indicating that the gate might be redundant. Use class Grouping to achieve this.
-// Create bitbus/wordbus interface
-// Remove collectBits
 // Btree should not have constant field name parameters
 // Anneal should use anneal functions and they should be attached to bit, bits, words etc
 // Reduce usage of nextGateName
@@ -1338,11 +1336,11 @@ final public class Chip                                                         
                      ", but second input bus", b, "has width", B);
 
     final Bits           o = collectBits(output, B);                            // Output bus
-    final String notChoose = nextGateName(output);                              // Opposite of choice
+    final String notChoose = n(output, "NotChoose");                            // Opposite of choice
     final Gate           n = Not(notChoose, choose);                            // Invert choice
 
-    final Bits oa = collectBits(n(output, "a"), A);                              // Choose first word
-    final Bits ob = collectBits(n(output, "b"), A);                              // Choose second word
+    final Bits oa = collectBits(n(output, "a"), A);                             // Choose first word
+    final Bits ob = collectBits(n(output, "b"), A);                             // Choose second word
 
     for (int i = 1; i <= B; i++)                                                // Each bit
      {final Gate ga = And(oa.b(i).name, a.b(i), n);                             // Choose first word if not choice
