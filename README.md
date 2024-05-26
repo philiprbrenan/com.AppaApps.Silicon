@@ -56,15 +56,12 @@ Use a [mask](https://en.wikipedia.org/wiki/Integrated_circuit_layout) to choose 
 
 ## Btree Node Compare
 
-Locate a key in a node of a Btree
-
-
+Locate the [data](https://en.wikipedia.org/wiki/Data) associated with a key in the node of a [B-Tree](https://en.wikipedia.org/wiki/B-tree): 
 ![Btree Leaf Compare](images/BtreeLeafCompare.png)
 
 ## Btree
 
-A complete Btree:
-
+A complete [B-Tree](https://en.wikipedia.org/wiki/B-tree): 
 ![Btree](images/Btree.png)
 
 # Gates
@@ -394,4 +391,4 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-Modified: 2024-05-27 at 00:09:07
+Modified: 2024-05-27 at 00:10:23
