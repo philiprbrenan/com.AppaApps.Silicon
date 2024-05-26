@@ -3,9 +3,6 @@
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 // Test all dyadic gates to see if there is any correlation between their outputs and any other pins indicating that the gate might be redundant. Use class Grouping to achieve this.
-// Btree should not have constant field name parameters
-// Anneal should use anneal functions and they should be attached to bit, bits, words etc
-// Reduce usage of nextGateName
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
 
 import java.io.*;
@@ -116,10 +113,6 @@ final public class Chip                                                         
   int nextGateNumber     () {return ++gateSeq;}                                 // Numbers for gates
   String nextGateName    () {return ""+nextGateNumber();}                       // Create a numeric generated gate name
 
-  String nextGateName(String...name)                                            // Create a named, numeric generated gate name
-   {return concatenateNames(concatenateNames((Object[])name), nextGateNumber());
-   }
-
   boolean definedBit(String name)                                               // Check whether a bit has been defined yet
    {final Gate g = gates.get(name);
     return g != null;
@@ -137,6 +130,7 @@ final public class Chip                                                         
     final Gate g = gates.get(name);
     return g;
    }
+
   Gate getGate(Bit bit) {return getGate(bit.name);}                             // Get details of named gate. Gates that have not been created yet will return null even though their details are pending.
 
   public String toString()                                                      // Convert chip to string
@@ -219,6 +213,7 @@ final public class Chip                                                         
      }
     void putBit() {bits.put(name, this);}                                       // Index the bit
     Bit  getBit() {return bits.get(name);}                                      // Get the  bit
+    void anneal() {Output(nextGateName(), this);}                               // Anneal bit if it is not required for some reason although this would waste surface area and power on a real chip.
     public String toString() {return name;}                                     // Name of bit
    }
 
@@ -552,10 +547,6 @@ final public class Chip                                                         
   Gate Or      (String n, Bit...i)      {return FanIn(Operator.Or,   n, i);}
   Gate Nor     (String n, Bit...i)      {return FanIn(Operator.Nor,  n, i);}
 
-  void anneal(Bit  ...inputs) {for (Bit   i: inputs) Output     (nextGateName(), i);} // Throw away a bit by annealing it to a bogus output gate so it does not reported as not driving any gate.  This is useful in testing but should be avoided on production chip as a waste of space.
-  void anneal(Bits ...inputs) {for (Bits  i: inputs) outputBits (nextGateName(), i);} // Throw away all the bits in a but bus by annealing it to a bogus output gate so it does not reported as not driving any gate.  This is useful in testing but should be avoided on production chip as a waste of space.
-  void anneal(Words...inputs) {for (Words i: inputs) outputWords(nextGateName(), i);} // Throw away all the bits in a but bus by annealing it to a bogus output gate so it does not reported as not driving any gate.  This is useful in testing but should be avoided on production chip as a waste of space.
-
   void distanceToOutput()                                                       // Distance to the nearest output
    {outputGates.clear();
     for (Gate g : gates.values())                                               // Start at the output gates
@@ -811,6 +802,7 @@ final public class Chip                                                         
     int    bits();                                                              // Number of bits of bus - the width of the bus
     Bit       b(int i);                                                         // Name of a bit in the bus
     Gate   gate(int n);                                                         // Gate providing bit
+    void  anneal();                                                             // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
 
     public default void sameSize(Bits b)                                        // Check two buses are the same size and stop if they are not
      {final int A = bits(), B = b.bits();
@@ -876,9 +868,10 @@ final public class Chip                                                         
       bitBuses.put(name, this);
      }
 
-    public String toString()   {return string();}                               // Convert the bits represented by an output bus to a string
-    public Bit  b   (int i) {return new Bit(n(i, name));}                       // Name of a bit in the bus
-    public Gate gate(int i) {return Chip.this.getGate(b(i).name);}              // Gate providing bit
+    public String toString() {return string();}                                 // Convert the bits represented by an output bus to a string
+    public Bit  b   (int i)  {return new Bit(n(i, name));}                      // Name of a bit in the bus
+    public Gate gate(int i)  {return Chip.this.getGate(b(i).name);}             // Gate providing bit
+    public void  anneal()    {outputBits(nextGateName(), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
   class SubBitBus implements Bits                                               // A bit bus made out of part of another bit bus
@@ -895,9 +888,10 @@ final public class Chip                                                         
       bitBuses.put(name, this);
      }
 
-    public String toString()   {return string();}                               // Convert the bits represented by an output bus to a string
-    public Bit  b(int i)       {return new Bit(n(start-1+i, source.name()));}   // Name of a bit in the bus
-    public Gate gate(int i)    {return Chip.this.getGate(b(i).name);}           // Gate providing bit
+    public String toString() {return string();}                                 // Convert the bits represented by an output bus to a string
+    public Bit  b(int i)     {return new Bit(n(start-1+i, source.name()));}     // Name of a bit in the bus
+    public Gate gate(int i)  {return Chip.this.getGate(b(i).name);}             // Gate providing bit
+    public void  anneal() {stop("Anneal implementation needed for SubBitsBus");}// Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
   static String n(String...C)                                                   // Gate name from no index probably to make a bus connected to a name
@@ -1474,7 +1468,9 @@ final public class Chip                                                         
       for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
         And(S.b(w, b).name, Input.b(w,   b), P.b(w));                           // Select removed word
 
-    anneal(N.b(words), M.b(words), M.b(1));                                     // No selection required here because the final word is added regardless
+    N.b(words).anneal();                                                        // No selection required here because the final word is added regardless
+    M.b(words).anneal();                                                        // No selection required here because the final word is added regardless
+    M.b(1).anneal();                                                            // No selection required here because the final word is added regardless
     final Bits R = orWords(n(Output, "remove"), S);                             // Removed word
     return new RemoveFromArray(o, R);                                           // Resulting word bus and removed word
    }
@@ -1557,7 +1553,7 @@ final public class Chip                                                         
    {Bit  p = input;
     Gate g = getGate(input);                                                    // Start at the input gate
     for (int i = 1; i <= delay; i++)                                            // All along the delay line
-     {final Bit q = new Bit(i < delay ? nextGateName(Output) : Output);         // Make a chain along to the end gate
+     {final Bit q = new Bit(i < delay ? n(i, Output) : Output);                 // Make a chain along to the end gate
       g = Continue(q.name, p);
       p = q;
      }
@@ -1617,10 +1613,10 @@ final public class Chip                                                         
     final Bit      pulse;                                                       // The pulse that determines when the selection is made.
     Select(String Name, Bit Control, Bit Pulse)                                 // Define the selection
      {name = Name; control = Control; pulse = Pulse;                            // Selection details
-      Gate c = Continue(nextGateName(name), control);                           // Match the length of the else path
-      Then   = And     (nextGateName(name), c, pulse);                          // Then path
-      Gate n = Not     (nextGateName(name), control);                           // Not of control
-      Else   = And     (nextGateName(name), n, pulse);                          // Else path
+      Gate c = Continue(n(name, "control"),    control);                        // Match the length of the else path
+      Then   = And     (n(name, "pulse"),      c, pulse);                       // Then path
+      Gate n = Not     (n(name, "notControl"), control);                        // Not of control
+      Else   = And     (n(name, "notPulse"),   n, pulse);                       // Else path
      }
    }
 
@@ -1649,7 +1645,7 @@ final public class Chip                                                         
   Bits shiftDown(String output, Bits input)                                     // Shift an input bus down one place to subtract 1 in base 1 or divide by two in base 2
    {final int    b = input.bits();                                              // Number of bits in input monotone mask
     final Bits o = collectBits(output, b-1);                                    // Shifted result is a bus one bit narrower
-    anneal(input.b(1));                                                         // Remove the lowest bit in such away that it will not be report as failing to drive anything
+    input.b(1).anneal();                                                        // Remove the lowest bit in such away that it will not be report as failing to drive anything
     for (int i = 2; i <= b; i++) Continue(o.b(i-1).name, input.b(i));           // Create the remaining bits of the shifted result
     return o;
    }
@@ -1672,7 +1668,7 @@ final public class Chip                                                         
     final Bits N = notBits    (n(output, "not_in2"), in2);                      // Not of input 2
     Xor(o.b(1).name, in1.b(1), in2.b(1));                                       // Low order bit has no carry in
     And(c.b(1).name, in1.b(1), in2.b(1));                                       // Low order bit carry out
-    anneal(n.b(1), N.b(1), C.b(b));                                             // These bits are not needed, but get defined, so we anneal them off to prevent error messages
+    n.b(1).anneal(); N.b(1).anneal(); C.b(b).anneal();                          // These bits are not needed, but get defined, so we anneal them off to prevent error messages
 // #  c 1 2  R C
 // 1  0 0 0  0 0
 // 2  0 0 1  1 0                                                                // We only need 1 bits so do not define a full bus as we would have to anneal a lot of unused gates which would be wasteful.
@@ -1878,8 +1874,6 @@ final public class Chip                                                         
     Btree                                                                       // Construct a Btree.
      (String output,                                                            // The name of this tree. This name will be prepended to generate the names of the gates used to construct this tree.
       Bits     find,                                                            //i The search key bus
-      String  found,                                                            //o A bit indicating whether the key was found in the tree or not
-      String   data,                                                            //o The data corresponding to the search key if the found bit is set, else all zeros
       int      keys,                                                            // Number of keys in a node
       int    levels,                                                            // Number of levels in the tree
       int      bits                                                             // Number of bits in each key, data, node identifier
@@ -1953,8 +1947,8 @@ final public class Chip                                                         
 
         eI = leaf ? eI : root ? oN[0] : orBitBuses(n(l, ln),  oN);              // Collect all next links nodes on this level
        }
-      this.data  = orBitBuses(data,  pD);                                       // Data found over all layers
-      this.found = Or        (found, pF);                                       // Or of found status over all layers
+      this.data  = orBitBuses(n(output, "data"),  pD);                          // Data found over all layers
+      this.found = Or        (n(output, "found"), pF);                          // Or of found status over all layers
      }
 
     Chip chip() {return Chip.this;}                                             // Containing chip
@@ -3257,7 +3251,7 @@ final public class Chip                                                         
 
     final BtreeNode b = BtreeNode.Test                                          // Search a node
      (c, "node", id, B, N, enable, find, keys, data, next, top, validKeys);
-    final Bits d = c.outputBits("d", b.outData);                                // Anneal the node
+    final Bits d = c.outputBits("d", b.outData);
     final Bits n = c.outputBits("n", b.outNext);
     final Gate f = c.Output    ("f", b.found);
     c.simulate();
@@ -3315,7 +3309,7 @@ final public class Chip                                                         
     final var     c = new Chip("BtreeLeafCompare "+B);
 
     final BtreeNode b = BtreeNode.Test(c, "node", id, B, N, enable, find, keys, data, next, top, ke);
-    final Bits      d = c.outputBits("d", b.outData);                           // Anneal the node
+    final Bits      d = c.outputBits("d", b.outData);
     final Gate      f = c.Output    ("f", b.found);
     c.simulate();
     //ok(c.steps == 10 || c.steps == 12, true);
@@ -3366,9 +3360,9 @@ final public class Chip                                                         
 
     final var    c = new Chip("Btree");
     final Bits   f = c.inputBits("find", B);
-    final Btree  b = c.new Btree("tree", f, "found", "data", K, L, B);
-    c.outputBits("d", b.data);                                                  // Anneal the tree
-    c.Output    ("f", b.found);
+    final Btree  b = c.new Btree("tree", f, K, L, B);
+    b.data.anneal();                                                            // Anneal the tree
+    b.found.anneal();
 
     final Inputs i = c.new Inputs();
     final BtreeNode r = b.tree.get(1).nodes.get(1);
@@ -3648,7 +3642,7 @@ Step  C P  d e
 
     final Register r = C.register("r",  o1, p1, o2, p2);
     final Bits   o = C.outputBits("o", r);
-    C.anneal(r.loaded);
+    r.loaded.anneal();
     C.simulationSteps(20);
     C.executionTrace("Reg_   1 2  l  e     e2    e2", "%s   %s %s  %s  %s  %s  %s", r, p1, p2, r.load, r.e, r.E[0], r.E[1]);
     C.simulate();
@@ -3774,7 +3768,7 @@ Step  i     o     O
     final BinaryAdd   sab = C.binaryAdd("ab", a, b);                            // Add in pairs
     final BinaryAdd   sac = C.binaryAdd("ac", a, c);
     final BinaryAdd   sbc = C.binaryAdd("bc", b, c);
-    C.anneal(sab.carry, sac.carry, sbc.carry);                                  // Ignore the carry bits
+    sab.carry.anneal(); sac.carry.anneal(); sbc.carry.anneal();                 // Ignore the carry bits
     final Bits         od = C.outputBits("od",   d);                            // Output the latest fibonacci number
     final Gate        old = C.Output    ("old", ld);                            // falling edge shows that the register has been loaded with a new number
 
@@ -3907,9 +3901,9 @@ Step  in  la lb lc  a    b    c
 
     final BtreeNode b = BtreeNode.Test(c, "node", id, B, M, 0, 0,               // Create a disabled node as id != enabled
       keys, data, next, top, valid);
-    c.outputBits("d", b.outData);                                               // Anneal the data bit bus as we do not use it in this test
-    c.outputBits("n", b.outNext);                                               // Anneal the link bit bus as we do not use it in this test
-    c.Output    ("f", b.found);
+    b.outData.anneal();                                                         // Anneal the data bit bus as we do not use it in this test
+    b.outNext.anneal();                                                         // Anneal the link bit bus as we do not use it in this test
+    b.found.anneal();
 
     final Bits k = c.bits("inKeys",   B, Key);                                  // New Key
     final Bits d = c.bits("inData",   B, Data);                                 // New data
@@ -3949,9 +3943,9 @@ Step  in  la lb lc  a    b    c
 
     final BtreeNode b = BtreeNode.Test(c, "node", id, B, M, 0, 0,               // Create a disabled node as id != enabled
       keys, data, next, top, valid);
-    c.outputBits("d", b.outData);                                               // Anneal the data bit bus as we do not use it in this test
-    c.outputBits("n", b.outNext);                                               // Anneal the link bit bus as we do not use it in this test
-    c.Output    ("f", b.found);
+    b.outData.anneal();                                                         // Anneal the data bit bus as we do not use it in this test
+    b.outNext.anneal();                                                         // Anneal the link bit bus as we do not use it in this test
+    b.found  .anneal();
 
     final Bits k = c.bits("inKeys",   B, Key);                                  // New Key
     final Bits d = c.bits("inData",   B, Data);                                 // New data
