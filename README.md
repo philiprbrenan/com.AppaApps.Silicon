@@ -2,21 +2,19 @@
     <p><a href="https://github.com/philiprbrenan/com.AppaApps.Silicon"><img src="https://github.com/philiprbrenan/com.AppaApps.Silicon/workflows/Test/badge.svg"></a>
 </div>
 
-# Silicon chip
-
-Design, simulate and layout a binary tree on a silicon chip.
-
+# Silicon [chip](https://en.wikipedia.org/wiki/Integrated_circuit) 
+Design, simulate and layout a binary [tree](https://en.wikipedia.org/wiki/Tree_(data_structure)) on a [Silicon](https://en.wikipedia.org/wiki/Silicon) [chip](https://en.wikipedia.org/wiki/Integrated_circuit). 
 Reasons why you might want to join this project:
 
 http://prb.appaapps.com/zesal/pitchdeck/pitchDeck.html
 
-Or you might want to design your own cpu and operating system to run on it.
+Or you might want to design your own [CPU](https://en.wikipedia.org/wiki/Central_processing_unit) and operating system to run on it.
 
 # Examples
 
 ## And
 
-Create a chip that **and**s two input pins together and places the result on
+Create a [chip](https://en.wikipedia.org/wiki/Integrated_circuit) that **and**s two input pins together and places the result on
 the output pin.
 
 ```
@@ -39,20 +37,20 @@ the output pin.
     ok(c.steps, 3);
 ```
 
-``draw()`` draws a layout mask for the chip using [Graphics Design System 2](https://en.wikipedia.org/wiki/GDSII):
+``draw()`` draws a layout [mask](https://en.wikipedia.org/wiki/Integrated_circuit_layout) for the [chip](https://en.wikipedia.org/wiki/Integrated_circuit) using [Graphics Design System 2](https://en.wikipedia.org/wiki/GDSII):
 
 ![And](images/And.png)
 
 ## Compare Greater Than
 
-Compare two unsigned 4 bit integers to check whether the first is greater than
+Compare two unsigned 4 [bit](https://en.wikipedia.org/wiki/Bit) integers to check whether the first is greater than
 the second.
 
 ![Compare Greater Than](images/CompareGt4.png)
 
 ## Choose Word Under Mask
 
-Use a mask to choose one word from an array of words:
+Use a [mask](https://en.wikipedia.org/wiki/Integrated_circuit_layout) to choose one [word](https://en.wikipedia.org/wiki/Doc_(computing)) from an [array](https://en.wikipedia.org/wiki/Dynamic_array) of words:
 
 ![Choose Word Under Mask](images/ChooseWordUnderMask2.png)
 
@@ -71,27 +69,25 @@ A complete Btree:
 
 # Gates
 
-A chip is built of standard boolean logic gates. Each gate produces a bit value
-that can be used to drive one input pin of another gate or one output pin.
+A [chip](https://en.wikipedia.org/wiki/Integrated_circuit) is built of standard boolean logic gates. Each [digital logic gate](https://en.wikipedia.org/wiki/Logic_gate) produces a [bit](https://en.wikipedia.org/wiki/Bit) value
+that can be used to drive one input pin of another [digital logic gate](https://en.wikipedia.org/wiki/Logic_gate) or one output pin.
 
-Each input pin of each gate can only be driven by one output pin of a gate. To
-allow one gate output pin to drive several input pins, each gate produces two
-copies of its output bit enabling the construction of equal depth fan out
-trees.
-
-Some gate types such as ``or`` and ``and`` can have as many input pins as
-requested. The remaining gate types have no more than two input pins.
+Each input pin of each [digital logic gate](https://en.wikipedia.org/wiki/Logic_gate) can only be driven by one output pin of a [digital logic gate](https://en.wikipedia.org/wiki/Logic_gate). To
+allow one [digital logic gate](https://en.wikipedia.org/wiki/Logic_gate) output pin to drive several input pins, each [digital logic gate](https://en.wikipedia.org/wiki/Logic_gate) produces two
+copies of its output [bit](https://en.wikipedia.org/wiki/Bit) enabling the construction of equal depth fan out [trees](https://en.wikipedia.org/wiki/Tree_(data_structure)). 
+Some [digital logic gate](https://en.wikipedia.org/wiki/Logic_gate) types such as ``or`` and ``and`` can have as many input pins as
+requested. The remaining [digital logic gate](https://en.wikipedia.org/wiki/Logic_gate) types have no more than two input pins.
 
 # Buses
 
 The single bits transferred by connections between gates can be aggregated into
 buses that can be manipulated en mass.
 
-Buses behave like variables and arrays of variables.
+Buses behave like variables and [arrays](https://en.wikipedia.org/wiki/Dynamic_array) of variables.
 
 ## Bit buses
 
-A bit bus corresponds to a variable.
+A [bit](https://en.wikipedia.org/wiki/Bit) bus corresponds to a variable.
 
 ```
 25 Bit buses
@@ -125,7 +121,7 @@ Bits  Bus_____________________________  Value
 
 ## Words buses
 
-A word bus correspond to an arrays of variables.
+A [word](https://en.wikipedia.org/wiki/Doc_(computing)) bus correspond to an [arrays](https://en.wikipedia.org/wiki/Dynamic_array) of variables.
 
 ```
 
@@ -140,7 +136,7 @@ Words Bits  Bus_____________________________
 
 ## Trace
 
-Execution traces show how the state of the chip evolves over time.
+Execution traces show how the state of the [chip](https://en.wikipedia.org/wiki/Integrated_circuit) evolves over time.
 
 ```
     Chip  c = new Chip    ("DelayBits");
@@ -175,8 +171,7 @@ Step  p d
 
 ## State
 
-Use the ``say(Chip s)`` method to print the current state of the chip:
-
+Use the ``say(Chip s)`` method to print the current state of the [chip](https://en.wikipedia.org/wiki/Integrated_circuit): 
 ```
 Chip: BtreeNodeCompare 3 # Gates: 216  Maximum distance: 13  mostCountedDistance: 7  countAtMostCountedDistance: 28
 
@@ -399,4 +394,4 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-Modified: 2024-05-27 at 00:03:12
+Modified: 2024-05-27 at 00:09:07
