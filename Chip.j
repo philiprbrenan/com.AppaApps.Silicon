@@ -18,7 +18,7 @@ final public class Chip                                                         
   final String                   name;                                          // Name of chip
   final int                clockWidth;                                          // Number of bits in system clock. Zero implies no clock.
 
-  Integer               layoutLTGates = github_actions ? null : 100;            // Always draw the layout if it has less than this many gates in it or if there is no limit specified
+  Integer               layoutLTGates = 100;                                    // Always draw the layout if it has less than this many gates in it or if there is no limit specified
   final int defaultMaxSimulationSteps = github_actions ? 1000 : 100;            // Default maximum simulation steps
   final int defaultMinSimulationSteps =    0;                                   // Default minimum simulation steps - we keep going at least this long even if there have been no changes to allow clocked circuits to evolve.
   Integer          maxSimulationSteps = null;                                   // Maximum simulation steps
