@@ -3,8 +3,6 @@
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 // Draw all layouts when on Github
-// getgate should take a bit not a string?
-// new Bit() -> getBit()
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
 
 import java.io.*;
@@ -1653,7 +1651,7 @@ final public class Chip                                                         
 
     public Gate gate(int i)                                                     // Gate providing bit
      {if ((up && i == 1) || (!up && i == source.bits())) return fillGate;
-      return getGate(source.b(i + (up ? -1 : +1)).name);
+      return getGate(source.b(i + (up ? -1 : +1)));
      }
 
     public void  anneal()    {outputBits(nextGateName(), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
