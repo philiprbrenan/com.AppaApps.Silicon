@@ -2,8 +2,7 @@
 // Design, simulate and layout a binary tree on a silicon chip.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
-// Test all dyadic gates to see if there is any correlation between their outputs and any other pins indicating that the gate might be redundant. Use class Grouping to achieve this.
-// Gate delay() should return a bit rather than a gate
+// Draw all layouts when on Github
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
 
 import java.io.*;
@@ -19,7 +18,7 @@ final public class Chip                                                         
   final String                   name;                                          // Name of chip
   final int                clockWidth;                                          // Number of bits in system clock. Zero implies no clock.
 
-  int                   layoutLTGates =  100;                                   // Always draw the layout if it has less than this many gates in it
+  Integer               layoutLTGates = github_actions ? null : 100;            // Always draw the layout if it has less than this many gates in it or if there is no limit specified
   final int defaultMaxSimulationSteps = github_actions ? 1000 : 100;            // Default maximum simulation steps
   final int defaultMinSimulationSteps =    0;                                   // Default minimum simulation steps - we keep going at least this long even if there have been no changes to allow clocked circuits to evolve.
   Integer          maxSimulationSteps = null;                                   // Maximum simulation steps
@@ -82,7 +81,7 @@ final public class Chip                                                         
     for (Gate g : gates.values()) g.systemGate = true;                          // Mark all gates produced so far as system gates
    }
 
-  int          layoutLTGates(int          LayoutLTGates) {return          layoutLTGates =          LayoutLTGates;}  // Always draw the layout if it has less than this many gates in it
+  Integer      layoutLTGates(Integer      LayoutLTGates) {return          layoutLTGates =          LayoutLTGates;}  // Always draw the layout if it has less than this many gates in it
   int     maxSimulationSteps(int     MaxSimulationSteps) {return     maxSimulationSteps =     MaxSimulationSteps;}  // Maximum simulation steps
   int     minSimulationSteps(int     MinSimulationSteps) {return     minSimulationSteps =     MinSimulationSteps;}  // Minimum simulation steps
   int singleLevelLayoutLimit(int SingleLevelLayoutLimit) {return singleLevelLayoutLimit = SingleLevelLayoutLimit;}  // Limit on gate scaling dimensions during layout.
@@ -223,16 +222,16 @@ final public class Chip                                                         
     Gate           iGate1,  iGate2;                                             // Gates driving the inputs of this gate as during simulation but not during layout
     Gate soGate1, soGate2, tiGate1, tiGate2;                                    // Pin assignments on source and target gates used during layout but not during simulation
     final TreeSet<WhichPin>
-                         drives = new TreeSet<>();                              // The names of the gates that are driven by the output of this gate with a possible pin selection attached
-    boolean          systemGate = false;                                        // System gate if true
-    Integer    distanceToOutput;                                                // Distance to nearest output
-    Boolean               value;                                                // Current output value of this gate
-    Boolean           nextValue;                                                // Next value to be assumed by the gate
-    boolean             changed;                                                // Changed on current simulation step
-    int        firstStepChanged;                                                // First step at which we changed
-    int         lastStepChanged;                                                // Last step at which we changed
-    String        nearestOutput;                                                // The name of the nearest output so we can sort each layer to position each gate vertically so that it is on approximately the same Y value as its nearest output.
-    int                  px, py;                                                // Position in x and y of gate in latest layout
+                      drives = new TreeSet<>();                                 // The names of the gates that are driven by the output of this gate with a possible pin selection attached
+    boolean       systemGate = false;                                           // System gate if true
+    Integer distanceToOutput;                                                   // Distance to nearest output
+    Boolean            value;                                                   // Current output value of this gate
+    Boolean        nextValue;                                                   // Next value to be assumed by the gate
+    boolean          changed;                                                   // Changed on current simulation step
+    int     firstStepChanged;                                                   // First step at which we changed
+    int      lastStepChanged;                                                   // Last step at which we changed
+    String     nearestOutput;                                                   // The name of the nearest output so we can sort each layer to position each gate vertically so that it is on approximately the same Y value as its nearest output.
+    int               px, py;                                                   // Position in x and y of gate in latest layout
 
     void indexGate() {gates.put(name, this);}                                   // Index the gate
 
@@ -679,7 +678,7 @@ final public class Chip                                                         
   interface SimulationStep {void step();}                                       // Called each simulation step
   SimulationStep simulationStep = null;                                         // Called each simulation step
 
-  class ExecutionTrace                                                          // Trace the values of named bits and bit buses as the execution proceeds
+  static class ExecutionTrace                                                   // Trace the values of named bits and bit buses as the execution proceeds
    {final Object[]objects;                                                      // Objects to trace
     final String title;                                                         // Title
     final String format;                                                        // Format string
@@ -763,9 +762,8 @@ final public class Chip                                                         
       if (executionTrace != null) executionTrace.trace();                       // Trace requested
 
       if (!changes())                                                           // No changes occurred
-       {if (!miss || steps >= minSimulationSteps)                               // No changes occurred and we are beyond the minimum simulation time or no such time was set
-         {return gates.size() <= layoutLTGates ? draw() : null;// Draw the layout if it has less than the specified maximum number of gates for being drawn automatically with out a specific request.
-         }
+       {if (!miss || steps >= minSimulationSteps) return layoutLTGates == null  // No changes occurred and we are beyond the minimum simulation time or no such time was set
+        || gates.size() <= layoutLTGates ? draw() : null;                       // Draw the layout if it has less than the specified maximum number of gates for being drawn automatically with out a specific request.
        }
       noChangeGates();                                                          // Reset change indicators
      }
@@ -802,24 +800,19 @@ final public class Chip                                                         
     int    bits();                                                              // Number of bits of bus - the width of the bus
     Bit       b(int i);                                                         // Name of a bit in the bus
     Gate   gate(int n);                                                         // Gate providing bit
-    void  anneal();                                                             // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+    void anneal();                                                              // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
 
     public default void sameSize(Bits b)                                        // Check two buses are the same size and stop if they are not
      {final int A = bits(), B = b.bits();
-      if (A != B)
-       {stop("Input",  name(), "has width", A, "but input", b.name(),
-             "has width", B);
-       }
+      if (A != B) stop("Input",  name(), "has width", A, "but input", b.name(),
+                       "has width", B);
      }
 
     public default String string()                                              // Convert the bits represented by an output bus to a string
      {final StringBuilder b = new StringBuilder();
       for (int i = 1; i <= bits(); i++)
        {final Gate g = gate(i);
-        if (g != null)
-         {final Boolean j = g.value;
-          b.append(j == null ? '.' : j ? '1' : '0');
-         }
+        if (g != null) b.append(g.value == null ? '.' : g.value ? '1' : '0');
         else stop("No such gate as:", b(i));
        }
       return b.reverse().toString();
@@ -2004,7 +1997,7 @@ final public class Chip                                                         
     return r;                                                                   // The gates in this column ordered by y position
    }
 
-  class Connection                                                              // Pairs of gates which we wish to connect
+  static class Connection                                                       // Pairs of gates which we wish to connect
    {final Gate source, target;                                                  // Source and target gates for connection
     Connection(Gate Source, Gate Target)                                        // Pair of gates between which we wish to connect
      {source = Source;
@@ -2179,7 +2172,7 @@ final public class Chip                                                         
      {public String toString() {return "["+x+","+y+"]";}
      }
 
-    class Segment                                                               // Segment containing some pixels
+    static class Segment                                                        // Segment containing some pixels
      {Pixel corner  = null, last   = null;                                      // Left most, upper most corner; last pixel placed
       Integer width = null, height = null;                                      // Width and height of segment, the segment is always either 1 wide or 1 high.
       Boolean onX   = null;                                                     // The segment is on the x cross bar level if true else on the Y cross bar level
@@ -2236,16 +2229,16 @@ final public class Chip                                                         
      }
 
     class Search                                                                // Find a shortest path between two points in this level
-     {final Level    level;                                                     // The level we are on
-      final Pixel    start;                                                     // Start of desired path
-      final Pixel   finish;                                                     // Finish of desired path
-      Stack<Pixel>    path = new Stack<>();                                     // Path from start to finish
-      Stack<Pixel>       o = new Stack<>();                                     // Cells at current edge of search
-      Stack<Pixel>       n = new Stack<>();                                     // Cells at new edge of search
-      short[][]          d = new short[width][height];                          // Distance at each cell
-      Integer        turns = null;                                              // Number of turns along path
-      short          depth = 1;                                                 // Length of path
-      boolean       found;                                                      // Whether a connection was found or not
+     {final Level  level;                                                       // The level we are on
+      final Pixel  start;                                                       // Start of desired path
+      final Pixel finish;                                                       // Finish of desired path
+      Stack<Pixel>  path = new Stack<>();                                       // Path from start to finish
+      Stack<Pixel>     o = new Stack<>();                                       // Cells at current edge of search
+      Stack<Pixel>     n = new Stack<>();                                       // Cells at new edge of search
+      short[][]        d = new short[width][height];                            // Distance at each cell
+      Integer      turns = null;                                                // Number of turns along path
+      short        depth = 1;                                                   // Length of path
+      boolean      found;                                                       // Whether a connection was found or not
 
       void printD()                                                             // Print state of current search
        {final StringBuilder b = new StringBuilder();
@@ -2630,7 +2623,8 @@ final public class Chip                                                         
      }
    }
 
-//D2 Groupings                                                                  // Group chips into two classes and see if any single bit predicts the classification.  Finding a bit that does predict a classification can help resolve edge cases.
+//D2 Groupings                                                                  // Group chips into two classes and see if any single bit predicts the classification.  Finding a bit that does predict a classification can help resolve edge cases. We could try testing all dyadic gates to see if there is any correlation between their outputs and any other pins indicating that the gate might be redundant. Use class Grouping to achieve this.
+
 
   static class Grouping                                                         // Group multiple runs into two classes and then see if any bits predict the grouping. (Grouping, bit name, bit value)
    {final TreeMap<Boolean, TreeMap<String, Boolean>> grouping = new TreeMap<>();
@@ -4096,7 +4090,7 @@ Step  in  la lb lc  a    b    c
 
   public static void main(String[] args)                                        // Test if called as a program
    {if (args.length > 0 && args[0].equals("compile")) System.exit(0);           // Do a syntax check
-    try
+    try                                                                         // Get a traceback in a format clickable in Geany if something goes wrong to speed up debugging.
      {if (github_actions) oldTests(); else newTests();                          // Tests to run
       gds2Finish();                                                             // Execute resulting Perl code to create GDS2 files
       if (false) {}                                                             // Analyze results of tests
@@ -4104,7 +4098,7 @@ Step  in  la lb lc  a    b    c
       else if (testsFailed == 0) say("PASSed ALL", testsPassed, "tests");
       else say("Passed "+testsPassed+",    FAILed:", testsFailed, "tests.");
      }
-    catch(Exception e)                                                          // Get a traceback in a format clickable in Geany if something goes wrong to speed up debugging.
+    catch(Exception e)                                                          // Get a traceback in a format clickable in Geany
      {System.err.println(traceBack(e));
      }
    }
