@@ -67,6 +67,10 @@ final public class Chip                                                         
    {this(Name, 0);                                                              // Name of chip
    }
 
+  Chip()                                                                        // Create a new L<chip> while testing
+   {this(currentTestName(), 0);                                                 // Name of chip is the name of the calling test
+   }
+
   Chip(String Name, int ClockWidth)                                             // Create a new L<chip>.
    {name = Name;                                                                // Name of chip
     clockWidth = ClockWidth;                                                    // Clock width
@@ -2751,6 +2755,21 @@ final public class Chip                                                         
 
   static String traceBack() {return traceBack(new Exception());}                // Get a stack trace that we can use in Geany
 
+  static String currentTestName(String test_name)                               // Remove prefix from test names
+   {return test_name.replaceFirst("^test_", "");
+   }
+
+  static String currentTestName()                                               // Name of the current test
+   {final StackTraceElement[] T = Thread.currentThread().getStackTrace();       // Current stack trace
+    if (T.length >= 4)                                                          // Perhaps called from a constructor
+     {final String c = T[2].getMethodName();
+      final String C = T[3].getMethodName();
+      return currentTestName(!c.equals("<init>") ? c : C);                      // Remove test marker
+     }
+    if (T.length == 3) return currentTestName(T[2].getMethodName());            // Not called from a constructor
+    return null;
+   }
+
   static void say(Object...O)                                                   // Say something
    {final StringBuilder b = new StringBuilder();
     for (Object o: O) {b.append(" "); b.append(o);}
@@ -2801,7 +2820,7 @@ final public class Chip                                                         
    }
 
   static void test_and()
-   {Chip c = new Chip("And");
+   {Chip c = new Chip();
     Gate i = c.Input ("i");
     Gate I = c.Input ("I");
     Gate a = c.And   ("a", i, I);
@@ -2821,7 +2840,7 @@ final public class Chip                                                         
    }
 
   static Chip test_and_grouping(Boolean i1, Boolean i2)
-   {Chip c = new Chip("And Grouping");
+   {Chip c = new Chip();
     Gate  I1 = c.Input ("i1");
     Gate  I2 = c.Input ("i2");
     Gate and = c.And   ("and", I1, I2);
@@ -2846,7 +2865,7 @@ final public class Chip                                                         
    }
 
   static Chip test_or_grouping(Boolean i1, Boolean i2)
-   {Chip c = new Chip("Or Grouping");
+   {Chip c = new Chip();
     Gate I1 = c.Input ("i1");
     Gate I2 = c.Input ("i2");
     Gate or = c.Or    ("or", I1, I2);
@@ -2868,8 +2887,8 @@ final public class Chip                                                         
     ok(a.get( "i2"), true);
    }
 
-  static void test_delayedDefinitions()
-   {Chip   c = new Chip("Delayed Definitions");
+  static void test_delayed_definitions()
+   {Chip   c = new Chip();
     Gate   o = c.Output("o", c.new Bit("and"));
     Gate and = c.And   ("and", c.new Bit("i1"), c.new Bit("i2"));
     Gate  i1 = c.Input ("i1");
@@ -2886,7 +2905,7 @@ final public class Chip                                                         
    }
 
   static void test_or()
-   {Chip c = new Chip("Or");
+   {Chip c = new Chip();
     Gate i1 = c.Input ("i1");
     Gate i2 = c.Input ("i2");
     Gate or = c.Or    ("or", i1, i2);
@@ -2902,8 +2921,8 @@ final public class Chip                                                         
     ok( c.steps,    3);
    }
 
-  static void test_notGates()
-   {Chip c = new Chip("NotGates");
+  static void test_not_gates()
+   {Chip c = new Chip();
     Bits b = c.bits("b", 5, 21);
     Gate   a = c. andBits(  "a",  b);
     Gate   o = c.  orBits(  "o",  b);
@@ -2921,7 +2940,7 @@ final public class Chip                                                         
    }
 
   static void test_zero()
-   {Chip c = new Chip("Zero");
+   {Chip c = new Chip();
     Gate z = c.Zero("z");
     Gate o = c.Output("o", z);
     c.simulate();
@@ -2930,7 +2949,7 @@ final public class Chip                                                         
    }
 
   static void test_one()
-   {Chip c = new Chip("One");
+   {Chip c = new Chip();
     Gate O = c.One ("O");
     Gate o = c.Output("o", O);
     c.simulate();
@@ -2939,7 +2958,7 @@ final public class Chip                                                         
    }
 
   static Chip test_and3(boolean A, boolean B, boolean C, boolean D)
-   {Chip   c = new Chip("And3");
+   {Chip   c = new Chip();
     Gate i11 = c.Input ("i11");
     Gate i12 = c.Input ("i12");
     Gate and = c.And   ("and", i11, i12);
@@ -2990,7 +3009,7 @@ final public class Chip                                                         
    }
 
   static void test_expand()
-   {Chip    c = new Chip("Expand");
+   {Chip    c = new Chip();
     Gate  one = c.One   ("one");
     Gate zero = c.Zero  ("zero");
     Gate   or = c.Or    ("or",   one, zero);
@@ -3004,7 +3023,7 @@ final public class Chip                                                         
    }
 
   static void test_expand2()
-   {Chip    c = new Chip("Expand2");
+   {Chip    c = new Chip();
     Gate  one = c.One   ("one");
     Gate zero = c.Zero  ("zero");
     Gate   or = c.Or    ("or",  one, zero);
@@ -3020,10 +3039,10 @@ final public class Chip                                                         
     ok(o3.value, true);
    }
 
-  static void test_outputBits()
+  static void test_output_bits()
    {int N = 4, N2 = powerTwo(N);
     for  (int i = 0; i < N2; i++)
-     {Chip c = new Chip("Output Bits");
+     {Chip c = new Chip();
       Bits C = c.bits("c", N, i);
       Bits o = c.outputBits("o", C);
       c.simulate();
@@ -3032,7 +3051,7 @@ final public class Chip                                                         
      }
    }
 
-  static void test_and2Bits()
+  static void test_and_two_bits()
    {for (int N = 3; N <= 4; ++N)
      {int N2 = powerTwo(N);
       for  (int i = 0; i < N2; i++)
@@ -3049,7 +3068,7 @@ final public class Chip                                                         
    }
 
   static void test_gt()
-   {Chip    c = new Chip("Gt");
+   {Chip    c = new Chip();
     Gate  one = c.One   ("o");
     Gate zero = c.Zero  ("z");
     Gate   gt = c.Gt    ("gt", one, zero);
@@ -3060,7 +3079,7 @@ final public class Chip                                                         
    }
 
   static void test_gt2()
-   {Chip    c = new Chip("Gt2");
+   {Chip    c = new Chip();
     Gate  one = c.One   ("o");
     Gate zero = c.Zero  ("z");
     Gate   gt = c.Gt    ("gt", zero, one);
@@ -3071,7 +3090,7 @@ final public class Chip                                                         
    }
 
   static void test_lt()
-   {Chip    c = new Chip("Lt");
+   {Chip    c = new Chip();
     Gate  one = c.One   ("o");
     Gate zero = c.Zero  ("z");
     Gate   lt = c.Lt    ("lt", one, zero);
@@ -3082,7 +3101,7 @@ final public class Chip                                                         
    }
 
   static void test_lt2()
-   {Chip    c = new Chip("Lt2");
+   {Chip    c = new Chip();
     Gate  one = c.One   ("o");
     Gate zero = c.Zero  ("z");
     Gate   lt = c.Lt    ("lt", zero, one);
@@ -3106,7 +3125,7 @@ final public class Chip                                                         
   static void test_aix()
    {int B = 3;
     int[]bits =  {5, 4, 7, 6, 7};
-    Chip c = new Chip("Aix "+B);
+    Chip c = new Chip("aix_"+B);
     Words i = c.    words("i", B, bits);
     Bits  a = c. andWords("a", i), oa = c.outputBits("oa", a);
     Bits  o = c.  orWords("o", i), oo = c.outputBits("oo", o);
@@ -3119,12 +3138,12 @@ final public class Chip                                                         
     ok(oO.Int(), 31);
    }
 
-  static void test_compareEq()
+  static void test_compare_eq()
    {for (int B = 2; B <= 4; ++B)
      { int B2 = powerTwo(B);
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
-         {var    c = new Chip("CompareEq "+B);
+         {var    c = new Chip("compare_eq_"+B);
           Bits I = c.bits("i", B, i);
           Bits J = c.bits("j", B, j);
           Gate   o = c.compareEq("o", I, J);
@@ -3136,12 +3155,12 @@ final public class Chip                                                         
      }
    }
 
-  static void test_compareGt()
+  static void test_compare_gt()
    {for     (int B = 2; B <= 4; ++B)
      { int B2 = powerTwo(B);
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
-         {Chip c = new Chip("CompareGt "+B);
+         {Chip c = new Chip("compare_gt_"+B);
           Bits I = c.bits("i", B, i);
           Bits J = c.bits("j", B, j);
           Gate   o = c.compareGt("o", I, J);
@@ -3155,12 +3174,12 @@ final public class Chip                                                         
      }
    }
 
-  static void test_compareLt()
+  static void test_compare_lt()
    {for     (int B = 2; B <= 4; ++B)
      { int B2 = powerTwo(B);
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
-         {Chip c = new Chip("CompareLt "+B);
+         {Chip c = new Chip("compare_lt_"+B);
           Bits I = c.bits("i", B, i);
           Bits J = c.bits("j", B, j);
           Gate   o = c.compareLt("o", I, J);
@@ -3173,71 +3192,71 @@ final public class Chip                                                         
      }
    }
 
-  static void test_chooseFromTwoWords()
+  static void test_choose_from_two_words()
    {for (int i = 0; i < 2; i++)
      {int b = 4;
-      Chip c = new Chip("ChooseFromTwoWords "+b+" "+i);
-      Bits   A = c.bits("a", b,  3);
-      Bits   B = c.bits("b", b, 12);
-      Gate     C = c.bit ("c", i);
-      Bits   o = c.chooseFromTwoWords("o", A, B, C);
-      Bits out = c.outputBits("out",  o);
+      Chip c = new Chip("choose_from_two_words_"+b+"_"+i);
+      Bits A = c.bits("a", b,  3);
+      Bits B = c.bits("b", b, 12);
+      Gate C = c.bit ("c", i);
+      Bits o = c.chooseFromTwoWords("o", A, B, C);
+      Bits O = c.outputBits("out",  o);
       c.simulate();
       ok(c.steps, 9);
-      ok(out.Int(), i == 0 ? 3 : 12);
+      O.ok(i == 0 ? 3 : 12);
      }
    }
 
-  static void test_enableWord()
+  static void test_enable_word()
    {for (int i = 0; i < 2; i++)
-     {int B = 4;
-      Chip   c = new Chip("EnableWord "+i);
+     {int  B = 4;
+      Chip c = new Chip("enable_word_"+i);
       Bits a = c.bits("a", B,  3);
-      Bit    e = c.bit ("e", i);
+      Bit  e = c.bit ("e", i);
       Bits o = c.enableWord("o", a, e);
       Bits O = c.outputBits("out",  o);
       c.simulate();
       ok(c.steps, 5);
-      ok(O.Int(), i == 0 ? 0 : 3);
+      O.ok(i == 0 ? 0 : 3);
      }
    }
 
-  static void test_monotoneMaskToPointMask()
+  static void test_monotone_mask_to_point_mask()
    {for    (int B = 2; B <= 4; ++B)
      {int N = powerTwo(B);
       for  (int i = 1; i <= N; i++)
-       {Chip   c = new Chip("monotoneMaskToPointMask "+B);
+       {Chip c = new Chip("monotone_mask_to_point_mask_"+B);
         Bits I = c.new BitBus("i", N);
         for (int j = 1; j <= N; j++) c.bit(I.b(j).name, j < i ? 0 : 1);
         Bits o = c.monotoneMaskToPointMask("o", I);
-        Bits O = c.outputBits("out", o);
+        Bits O = c.outputBits("O", o);
         c.simulate();
         ok(O.Int(), powerTwo(i-1));
        }
      }
    }
 
-  static void test_chooseWordUnderMask(int B, int i)
+  static void test_choose_word_under_mask(int B, int i)
    {int[]numbers =  {2, 3, 2, 1,  0, 1, 2, 3,  2, 3, 2, 1,  0, 1, 2, 3};
     int  B2 = powerTwo(B);
-    Chip  c = new Chip("chooseWordUnderMask "+B);
+    Chip  c = new Chip("choose_word_under_mask_"+B);
     Words I = c.words("i", B, Arrays.copyOfRange(numbers, 0, B2));
     Bits  m = c.bits ("m", B2, powerTwo(i));
     Bits  o = c.chooseWordUnderMask("o", I, m);
-    Bits  O = c.outputBits("out", o);
+    Bits  O = c.outputBits("O", o);
     c.simulate();
-    ok(O.Int(), numbers[i]);
+    O.ok(numbers[i]);
     c.draw(3, 1);
    }
 
-  static void test_chooseWordUnderMask()
+  static void test_choose_word_under_mask()
    {int N = github_actions ? 4 : 3;
     for   (int B = 2; B <= N;          B++)
       for (int i = 1; i < powerTwo(B); i++)
-        test_chooseWordUnderMask(B, i);
+        test_choose_word_under_mask(B, i);
    }
 
-  static Chip test_BtreeNode(int find, int validKeys, int enable, boolean Found, int Data, int Next)
+  static Chip test_btree_node(int find, int validKeys, int enable, boolean Found, int Data, int Next)
    {int[]keys = {2, 4, 6};
     int[]data = {1, 3, 5};
     int[]next = {1, 3, 5};
@@ -3245,7 +3264,7 @@ final public class Chip                                                         
     int     B = 3;
     int     N = 3;
     int    id = 7;
-    var     c = new Chip("BtreeNode "+B);
+    var     c = new Chip("btree_node_"+B);
 
     BtreeNode b = BtreeNode.Test                                                // Search a node
      (c, "node", id, B, N, enable, find, keys, data, next, top, validKeys);
@@ -3261,41 +3280,41 @@ final public class Chip                                                         
     return c;
    }
 
-  static void test_BtreeNode()
-   {test_BtreeNode(1, 0b111, 7, false, 0, 1);
-    test_BtreeNode(2, 0b111, 7,  true, 1, 0);
-    test_BtreeNode(3, 0b111, 7, false, 0, 3);
-    test_BtreeNode(4, 0b111, 7,  true, 3, 0);
-    test_BtreeNode(5, 0b111, 7, false, 0, 5);
-    test_BtreeNode(6, 0b111, 7,  true, 5, 0);
-    test_BtreeNode(7, 0b111, 7, false, 0, 7);
+  static void test_btree_node()
+   {test_btree_node(1, 0b111, 7, false, 0, 1);
+    test_btree_node(2, 0b111, 7,  true, 1, 0);
+    test_btree_node(3, 0b111, 7, false, 0, 3);
+    test_btree_node(4, 0b111, 7,  true, 3, 0);
+    test_btree_node(5, 0b111, 7, false, 0, 5);
+    test_btree_node(6, 0b111, 7,  true, 5, 0);
+    test_btree_node(7, 0b111, 7, false, 0, 7);
 
-    test_BtreeNode(1, 0b111, 1, false, 0, 0);
-    test_BtreeNode(2, 0b111, 1, false, 0, 0);
-    test_BtreeNode(3, 0b111, 1, false, 0, 0);
-    test_BtreeNode(4, 0b111, 1, false, 0, 0);
-    test_BtreeNode(5, 0b111, 1, false, 0, 0);
-    test_BtreeNode(6, 0b111, 1, false, 0, 0);
-    test_BtreeNode(7, 0b111, 1, false, 0, 0);
+    test_btree_node(1, 0b111, 1, false, 0, 0);
+    test_btree_node(2, 0b111, 1, false, 0, 0);
+    test_btree_node(3, 0b111, 1, false, 0, 0);
+    test_btree_node(4, 0b111, 1, false, 0, 0);
+    test_btree_node(5, 0b111, 1, false, 0, 0);
+    test_btree_node(6, 0b111, 1, false, 0, 0);
+    test_btree_node(7, 0b111, 1, false, 0, 0);
 
-    test_BtreeNode(1, 0b011, 7, false, 0, 1);                                   // Only the first two keys are valid
-    test_BtreeNode(2, 0b011, 7,  true, 1, 0);
-    test_BtreeNode(3, 0b011, 7, false, 0, 3);
-    test_BtreeNode(4, 0b011, 7,  true, 3, 0);
-    test_BtreeNode(5, 0b011, 7, false, 0, 7);
-    test_BtreeNode(6, 0b011, 7, false, 0, 7);
-    test_BtreeNode(7, 0b011, 7, false, 0, 7);
+    test_btree_node(1, 0b011, 7, false, 0, 1);                                   // Only the first two keys are valid
+    test_btree_node(2, 0b011, 7,  true, 1, 0);
+    test_btree_node(3, 0b011, 7, false, 0, 3);
+    test_btree_node(4, 0b011, 7,  true, 3, 0);
+    test_btree_node(5, 0b011, 7, false, 0, 7);
+    test_btree_node(6, 0b011, 7, false, 0, 7);
+    test_btree_node(7, 0b011, 7, false, 0, 7);
 
-    test_BtreeNode(1, 0b011, 1, false, 0, 0);
-    test_BtreeNode(2, 0b011, 1, false, 0, 0);
-    test_BtreeNode(3, 0b011, 1, false, 0, 0);
-    test_BtreeNode(4, 0b011, 1, false, 0, 0);
-    test_BtreeNode(5, 0b011, 1, false, 0, 0);
-    test_BtreeNode(6, 0b011, 1, false, 0, 0);
-    test_BtreeNode(7, 0b011, 1, false, 0, 0);
+    test_btree_node(1, 0b011, 1, false, 0, 0);
+    test_btree_node(2, 0b011, 1, false, 0, 0);
+    test_btree_node(3, 0b011, 1, false, 0, 0);
+    test_btree_node(4, 0b011, 1, false, 0, 0);
+    test_btree_node(5, 0b011, 1, false, 0, 0);
+    test_btree_node(6, 0b011, 1, false, 0, 0);
+    test_btree_node(7, 0b011, 1, false, 0, 0);
    }
 
-  static Chip test_BtreeLeafCompare(int find, int enable, boolean Found, int Data, int Next)
+  static Chip test_btree_leaf_compare(int find, int enable, boolean Found, int Data, int Next)
    {int[]keys = {2, 4, 6};
     int[]data = {1, 3, 5};
     int[]next = null;
@@ -3304,7 +3323,7 @@ final public class Chip                                                         
     int     B = 3;
     int     N = 3;
     int    id = 7;
-    var     c = new Chip("BtreeLeafCompare "+B);
+    var     c = new Chip("btree_leaf_compare_"+B);
 
     BtreeNode b = BtreeNode.Test(c, "node", id, B, N, enable, find, keys, data, next, top, ke);
     Bits      d = c.outputBits("d", b.outData);
@@ -3316,22 +3335,22 @@ final public class Chip                                                         
     return c;
    }
 
-  static void test_BtreeLeafCompare()
-   {test_BtreeLeafCompare(1, 7, false, 0, 1);
-    test_BtreeLeafCompare(2, 7,  true, 1, 0);
-    test_BtreeLeafCompare(3, 7, false, 0, 3);
-    test_BtreeLeafCompare(4, 7,  true, 3, 0);
-    test_BtreeLeafCompare(5, 7, false, 0, 5);
-    test_BtreeLeafCompare(6, 7,  true, 5, 0);
-    test_BtreeLeafCompare(7, 7, false, 0, 7);
+  static void test_btree_leaf_compare()
+   {test_btree_leaf_compare(1, 7, false, 0, 1);
+    test_btree_leaf_compare(2, 7,  true, 1, 0);
+    test_btree_leaf_compare(3, 7, false, 0, 3);
+    test_btree_leaf_compare(4, 7,  true, 3, 0);
+    test_btree_leaf_compare(5, 7, false, 0, 5);
+    test_btree_leaf_compare(6, 7,  true, 5, 0);
+    test_btree_leaf_compare(7, 7, false, 0, 7);
 
-    test_BtreeLeafCompare(1, 1, false, 0, 0);
-    test_BtreeLeafCompare(2, 1, false, 0, 0);
-    test_BtreeLeafCompare(3, 1, false, 0, 0);
-    test_BtreeLeafCompare(4, 1, false, 0, 0);
-    test_BtreeLeafCompare(5, 1, false, 0, 0);
-    test_BtreeLeafCompare(6, 1, false, 0, 0);
-    test_BtreeLeafCompare(7, 1, false, 0, 0);
+    test_btree_leaf_compare(1, 1, false, 0, 0);
+    test_btree_leaf_compare(2, 1, false, 0, 0);
+    test_btree_leaf_compare(3, 1, false, 0, 0);
+    test_btree_leaf_compare(4, 1, false, 0, 0);
+    test_btree_leaf_compare(5, 1, false, 0, 0);
+    test_btree_leaf_compare(6, 1, false, 0, 0);
+    test_btree_leaf_compare(7, 1, false, 0, 0);
    }
 
   static void test_Btree(Btree b, Inputs i, int find)
@@ -3356,7 +3375,7 @@ final public class Chip                                                         
   static void test_Btree()
    {int B = 8, K = 3, L = 2;
 
-    var    c = new Chip("Btree");
+    Chip   c = new Chip();
     Bits   f = c.inputBits("find", B);
     Btree  b = c.new Btree("tree", f, K, L, B);
     b.data.anneal();                                                            // Anneal the tree
@@ -3407,8 +3426,8 @@ final public class Chip                                                         
      }
    }
 
-  static void test_simulationStep()
-   {Chip  c = new Chip("Simulation Step");
+  static void test_simulation_step()
+   {Chip  c = new Chip();
     Gate  i = c.   One("i");
     Gate n9 = c.   Not("n9", i);
     Gate n8 = c.   Not("n8", n9);
@@ -3429,7 +3448,7 @@ final public class Chip                                                         
    }
 
   static void test_clock()
-   {Chip c = new Chip("Clock", 8);
+   {Chip c = new Chip("clock", 8);
     c.minSimulationSteps(16);
     Stack<Boolean> s = new Stack<>();
     c.simulationStep = ()->{s.push(c.getBit("a"));};
@@ -3441,7 +3460,7 @@ final public class Chip                                                         
    }
 
   static void test_pulse()
-   {Chip c = new Chip("Pulse");
+   {Chip c = new Chip();
 
     Pulse p1 = c.pulse("p1", 16);
     Pulse p2 = c.pulse("p2", 16, 1, 3);
@@ -3486,7 +3505,7 @@ Step  1 2 3 a    4 m
    }
 
   static void test_register()
-   {Chip    c = new Chip("Register");
+   {Chip    c = new Chip();
     Bits   i1 = c.bits("i1", 8, 9);
     Bits   i2 = c.bits("i2", 8, 6);
     Pulse    pc = c.pulse("choose", 32, 16, 16);
@@ -3527,7 +3546,7 @@ Step  c  choose    l  register ld
    }
 
   static void test_delay()
-   {Chip c = new Chip("Delay");
+   {Chip  c = new Chip();
     Pulse p = c.pulse ("pulse", 8, 4);
     Bit   d = c.delay ("load",  p, 3);
     Bit   o = c.Output("out",   d);
@@ -3551,8 +3570,8 @@ Step  p d
     ok(c.steps,  17);
    }
 
-  static void test_delayBits()
-   {Chip  c = new Chip    ("DelayBits");
+  static void test_delay_bits()
+   {Chip  c = new Chip    ();
     Pulse p = c.pulse     ("p",   8);
     Bits  d = c.delayBits ("b",  16, p);
     Bits  o = c.outputBits("o",      d);
@@ -3584,7 +3603,7 @@ Step  p d
    }
 
   static void test_select()
-   {Chip   c = new Chip("Select");
+   {Chip   c = new Chip();
     Pulse  C = c.pulse("choose", 4, 2);
     Pulse  P = c.pulse("pulse",  5, 3);
     Select S = c.select("choice", C, P);
@@ -3630,7 +3649,7 @@ Step  C P  d e
    }
 
   static void test_shift()
-   {Chip c = new Chip("Shift");
+   {Chip c = new Chip();
     Bits b = c.bits      ("b", 4, 3);
     Bits u = c.shiftUp   ("u",  b); Bits ou = c.outputBits("ou", u);
     Bits U = c.shiftUpOne("U",  b); Bits oU = c.outputBits("oU", U);
@@ -3647,7 +3666,7 @@ Step  C P  d e
      { int B2 = powerTwo(B);
       for   (int i = 0; i < B2; i++)
        {for (int j = 0; j < B2; j++)
-         {Chip      c = new Chip("Binary Add");
+         {Chip    c = new Chip("binary_add");
           Bits    I = c.bits("i", B, i);
           Bits    J = c.bits("j", B, j);
           BinaryAdd a = c.binaryAdd ("ij",  I, J);
@@ -3661,10 +3680,10 @@ Step  C P  d e
      }
    }
 
-  static void test_registerSources()
+  static void test_register_sources()
    {int N = 4;
 
-    Chip   C = new Chip("Register Sources");
+    Chip   C = new Chip();
     Bits  o1 = C.bits ("o1",  N,  9);
     Bits  o2 = C.bits ("o2",  N,  5);
     Pulse p1 = C.pulse("p1",  16, 3, 0);
@@ -3696,17 +3715,17 @@ Step  Reg_   1 2  l  e     e2    e2
 """);
    }
 
-  static void test_registerSources2()
+  static void test_register_sources_2()
    {int N = 4;
 
-    Chip    C = new Chip("Register Sources");
-    Bits o1 = C.bits ("o1",  N,  9);
-    Bits o2 = C.bits ("o2",  N,  5);
-    Pulse  p1 = C.pulse("p1",  16, 3, 0);
-    Pulse  p2 = C.pulse("p2",  16, 4, 4);
+    Chip   C = new Chip();
+    Bits  o1 = C.bits ("o1",  N,  9);
+    Bits  o2 = C.bits ("o2",  N,  5);
+    Pulse p1 = C.pulse("p1",  16, 3, 0);
+    Pulse p2 = C.pulse("p2",  16, 4, 4);
 
     Register r = C.register("r",  new RegIn(o1, p1), new RegIn(o2, p2));
-    Bits   o = C.outputBits("o", r);
+    Bits     o = C.outputBits("o", r);
     Gate    or = C.Output("or", r.loaded);
     C.simulationSteps(20);
     C.executionTrace("Reg_ ld   1 2  l  e     e2    e2", "%s  %s   %s %s  %s  %s  %s  %s", r, r.loaded, p1, p2, r.load, r.e, r.E[0], r.E[1]);
@@ -3734,10 +3753,10 @@ Step  Reg_ ld   1 2  l  e     e2    e2
 """);
    }
 
-  static void test_connectBuses()
+  static void test_connect_buses()
    {int N = 4;
 
-    Chip   C = new Chip("Connect buses");
+    Chip C = new Chip();
     Bits i = C.bits ("i",  N,  9);
     Bits o = C.new BitBus("o", N);
     Bits O = C.outputBits("O", o);
@@ -3757,11 +3776,11 @@ Step  i     o     O
 
   static void test_8p5i4()
    {int N = 8;   // 4 bits = 19 steps 8 = 46 steps
-    Chip        C = new Chip("Binary Add");
+    Chip      C = new Chip();
     Bits      a = C.bits("a",  N, 127);
     Bits      b = C.bits("b",  N, 128);
-    BinaryAdd   c = C.binaryAdd("c", a, b);
-    Gate       oc = C.Output("oc", c.carry);
+    BinaryAdd c = C.binaryAdd("c", a, b);
+    Gate     oc = C.Output("oc", c.carry);
     Bits     os = C.outputBits("os", c.sum);
     C.simulationSteps(48);
     C.simulate();
@@ -3772,7 +3791,7 @@ Step  i     o     O
 
   static void test_fibonacci()                                                  // First few fibonacci numbers
    {int N = 4;
-    Chip        C = new Chip("Fibonacci");                                      // Create a new chip
+    Chip        C = new Chip();                                                 // Create a new chip
     Bits     zero = C.bits("zero", N, 0);                                       // Zero - the first element of the sequence
     Bits      one = C.bits("one",  N, 1);                                       // One - the second element of the sequence
     Pulse      in = C.pulse("ia", 1024,  16);                                   // Initialize the registers to their starting values
@@ -3868,13 +3887,13 @@ Step  in  la lb lc  a    b    c
 """);
 */
 
-  static void test_insertIntoArray()                                            // Insert a word in an array of words
+  static void test_insert_into_array()                                          // Insert a word in an array of words
    {int B = 4;
     int[]array = {2, 4, 6, 8};                                                  // Array to insert into
     int M = 0b1111;
     for (int j = 0; j <= B; j++)
      {int I = 2 * j + 1, mm = (M>>j)<<j;
-      Chip  c = new Chip("InsertIntoArray");                                    // Create a new chip
+      Chip  c = new Chip();                                                     // Create a new chip
       Words w = c.words("array", B, array);                                     // Array to insert into
       Bits  m = c.bits("mask",   B, mm);                                        // Monotone mask insertion point
       Bits  i = c.bits("in",     B, I);                                         // Word to insert
@@ -3892,13 +3911,13 @@ Step  in  la lb lc  a    b    c
      }
    }
 
-  static void test_removeFromArray()                                            // Remove a word from an array, slide the array down to cover the gap and insert a new word at the top to cover the resulting gap there.
+  static void test_remove_from_array()                                          // Remove a word from an array, slide the array down to cover the gap and insert a new word at the top to cover the resulting gap there.
    {int B = 4;
     int[]array = {2, 4, 6, 8};                                                  // Array to remove from
     int M = 0b1111;
     for (int j = 0; j <= B; j++)
      {int I = 1, mm = (M>>j)<<j;
-      Chip  c = new Chip("RemoveFromArray");                                    // Create a new chip
+      Chip  c = new Chip();                                                     // Create a new chip
       Words w = c.words("array", B, array);                                     // Array to remove from
       Bits  m = c.bits("mask",   B, mm);                                        // Monotone mask removal point
       Bits  i = c.bits("in",     B, I);                                         // Word to remove
@@ -3917,7 +3936,7 @@ Step  in  la lb lc  a    b    c
      }
    }
 
-  static void test_BtreeInsert(int position)
+  static void test_btree_insert(int position)
    {int Key = 1, Data = 2, Next = 3;
     int[]keys = {2, 4, 6};
     int[]data = {3, 5, 7};
@@ -3928,7 +3947,7 @@ Step  in  la lb lc  a    b    c
     int     M = 3;
     int    id = 7;
 
-    Chip    c = new Chip("BtreeInsert");
+    Chip    c = new Chip();
 
     BtreeNode b = BtreeNode.Test(c, "node", id, B, M, 0, 0,                     // Create a disabled node as id != enabled
       keys, data, next, top, valid);
@@ -3954,13 +3973,13 @@ Step  in  la lb lc  a    b    c
      }
    }
 
-  static void test_BtreeInsert()
-   {test_BtreeInsert(0b111);
-    test_BtreeInsert(0b110);
-    test_BtreeInsert(0b100);
+  static void test_btree_insert()
+   {test_btree_insert(0b111);
+    test_btree_insert(0b110);
+    test_btree_insert(0b100);
    }
 
-  static Chip test_BtreeSplitNode(int position)
+  static Chip test_btree_split_node(int position)
    {int Key = 1, Data = 2, Next = 3;
     int[]keys = {2, 4, 6};
     int[]data = {3, 5, 7};
@@ -3970,7 +3989,8 @@ Step  in  la lb lc  a    b    c
     int     B = 3;
     int     M = 3;
     int    id = 7;
-    var     c = new Chip("BtreeNodeLeafInsert");
+
+    Chip    c = new Chip();
 
     BtreeNode b = BtreeNode.Test(c, "node", id, B, M, 0, 0,                     // Create a disabled node as id != enabled
       keys, data, next, top, valid);
@@ -3997,16 +4017,16 @@ Step  in  la lb lc  a    b    c
     return c;
    }
 
-  static void test_BtreeSplitNode()
-   {test_BtreeSplitNode(0b111);
-    test_BtreeSplitNode(0b110);
-    test_BtreeSplitNode(0b100);
-    //test_BtreeSplitNode(0b000);
+  static void test_btree_split_node()
+   {test_btree_split_node(0b111);
+    test_btree_split_node(0b110);
+    test_btree_split_node(0b100);
+    //test_btree_split_node(0b000);
    }
 
-  static void test_subBitBus()
+  static void test_sub_bit_bus()
    {int   N = 8;
-    Chip  c = new Chip("SubBitBus");
+    Chip  c = new Chip();
     Bits  b = c.bits("b", N, 5<<2);
     Bits  B = c.new SubBitBus("B", b, 3, 4);
     Bits ob = c.outputBits("ob", b);
@@ -4017,9 +4037,9 @@ Step  in  la lb lc  a    b    c
     oB.ok( 5);
    }
 
-  static void test_subWordBus()
+  static void test_sub_word_bus()
    {int    N = 8;
-    Chip   c = new Chip("SubWordBus");
+    Chip   c = new Chip();
     Words  w = c.words("w", N, 3, 5, 7, 9, 11);
     Words  W = c.new SubWordBus("W", w, 3, 2);
     Words ow = c.outputWords("ow", w);
@@ -4032,58 +4052,58 @@ Step  in  la lb lc  a    b    c
 
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_max_min();
-    test_and2Bits();
+    test_and_two_bits();
     test_and();
     test_and_grouping();
     test_or_grouping();
     test_or();
-    test_notGates();
+    test_not_gates();
     test_zero();
     test_one();
     test_andOr();
     test_clock();
-    test_delayedDefinitions();
-    test_simulationStep();
-    test_connectBuses();
+    test_delayed_definitions();
+    test_simulation_step();
+    test_connect_buses();
     test_expand();
     test_expand2();
-    test_outputBits();
+    test_output_bits();
     test_gt();
     test_gt2();
     test_lt();
     test_lt2();
     test_aix();
     test_pulse();
-    test_compareEq();
-    test_compareGt();
-    test_compareLt();
-    test_chooseFromTwoWords();
-    test_enableWord();
-    test_monotoneMaskToPointMask();
-    test_chooseWordUnderMask();
+    test_compare_eq();
+    test_compare_gt();
+    test_compare_lt();
+    test_choose_from_two_words();
+    test_enable_word();
+    test_monotone_mask_to_point_mask();
+    test_choose_word_under_mask();
     test_delay();
-    test_delayBits();
+    test_delay_bits();
     test_select();
     test_shift();
     test_binaryAdd();
-    test_BtreeNode();
-    test_BtreeLeafCompare();
+    test_btree_node();
+    test_btree_leaf_compare();
     test_Btree();
     test_8p5i4();
     test_register();
-    test_registerSources();
+    test_register_sources();
     test_fibonacci();
-    test_insertIntoArray();
-    test_removeFromArray();
-    test_BtreeInsert();
-    test_subBitBus();
-    test_subWordBus();
-    test_BtreeSplitNode();
+    test_insert_into_array();
+    test_remove_from_array();
+    test_btree_insert();
+    test_sub_bit_bus();
+    test_sub_word_bus();
+    test_btree_split_node();
    }
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
-    test_and();
+    //test_and();
     //test_BtreeSplitNode();
     oldTests();
    }
