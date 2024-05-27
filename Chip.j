@@ -1647,7 +1647,7 @@ final public class Chip                                                         
 
     Shift(String Output, Bits Source, boolean Up,  boolean Fill)
      {output   = Output; source = Source; up = Up; fill = Fill;
-      fillGate = up ? One(n(output, "one")) : Zero(n(output, "zero"));          // The fill bit
+      fillGate = fill ? One(n(output, "one")) : Zero(n(output, "zero"));        // The fill bit
      }
 
     public String name() {return name;}                                         // Name of bus
@@ -1662,6 +1662,10 @@ final public class Chip                                                         
    }
 
   Bits shiftUp(String output, Bits input, boolean fill)                         // Shift an input bus up one place to add 1 in base 1 or multiply by two in base 2.
+   {return new Shift(output, input, true, fill);
+   }
+
+  Bits shiftUp2(String output, Bits input, boolean fill)                         // Shift an input bus up one place to add 1 in base 1 or multiply by two in base 2.
    {final int  b = input.bits();                                                // Number of bits in input monotone mask
     final Bits o = collectBits(output, b+1);                                    // Shifted result is a bus one bit wider
     if (fill) One(o.b(1).name); else Zero(o.b(1).name);                         // The lowest but will be zero or one after the shift
@@ -3999,9 +4003,9 @@ Step  in  la lb lc  a    b    c
     Bits  E = c.outputBits ("oe", i.enabledKeys);                               // Enabled keys
     c.simulate();
     switch(position)
-     {case 0b111 -> {K.ok(1,2,4); D.ok(2,3,5); N.ok(3,1,3); E.ok(0b1111);}
-      case 0b110 -> {K.ok(2,1,4); D.ok(3,2,5); N.ok(1,3,3); E.ok(0b1111);}
-      case 0b100 -> {K.ok(2,4,1); D.ok(3,5,2); N.ok(1,3,3); E.ok(0b1111);}
+     {case 0b111 -> {K.ok(1,2,4); D.ok(2,3,5); N.ok(3,1,3); E.ok(0b111);}
+      case 0b110 -> {K.ok(2,1,4); D.ok(3,2,5); N.ok(1,3,3); E.ok(0b111);}
+      case 0b100 -> {K.ok(2,4,1); D.ok(3,5,2); N.ok(1,3,3); E.ok(0b111);}
       default -> stop("Test expectations required for", position);
      }
    }
@@ -4042,9 +4046,9 @@ Step  in  la lb lc  a    b    c
     Bits  E = c.outputBits ("oe", i.enabledKeys);                               // Enabled keys
     c.simulate();
     switch(position)
-     {case 0b111 -> {K.ok(1,2,4); D.ok(2,3,5); N.ok(3,1,3); E.ok(0b1111);}
-      case 0b110 -> {K.ok(2,1,4); D.ok(3,2,5); N.ok(1,3,3); E.ok(0b1111);}
-      case 0b100 -> {K.ok(2,4,1); D.ok(3,5,2); N.ok(1,3,3); E.ok(0b1111);}
+     {case 0b111 -> {K.ok(1,2,4); D.ok(2,3,5); N.ok(3,1,3); E.ok(0b111);}
+      case 0b110 -> {K.ok(2,1,4); D.ok(3,2,5); N.ok(1,3,3); E.ok(0b111);}
+      case 0b100 -> {K.ok(2,4,1); D.ok(3,5,2); N.ok(1,3,3); E.ok(0b111);}
       default -> stop("Test expectations required for", position);
      }
     return c;
