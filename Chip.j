@@ -208,6 +208,8 @@ final public class Chip                                                         
       if (b == null) bits.put(name, this);                                      // Tree of gates
      }
 
+    Chip chip() {return Chip.this;}                                             // The chip implementing this bit
+
     String validateName(String name)                                            // Confirm that a component name looks like a variable name and has not already been used
      {final String[]words = name.split("_");
       for (int i = 0; i < words.length; i++)
@@ -216,6 +218,23 @@ final public class Chip                                                         
           stop("Invalid gate name:", name, "in word", w);
        }
       return name;
+     }
+
+    void ok(Object expected)                                                    // Confirm that a bit has the expected value
+     {final Gate g = getGate(this);
+      if (g == null) stop("No gate associated with bit:", name);
+      final Boolean value = g.value;
+      int fails = 0;
+      if      (false) {}                                                        // The various combinations with null
+      else if (value == null && expected == null) {}
+      else if (value == null && expected != null) ++fails;
+      else if (value != null && expected == null) ++fails;
+      else if (value !=         expected)         ++fails;
+      if (fails > 0)                                                            // Show error location with a trace back so we know where the failure occurred
+       {err("Bit value:", value, "does not match expected", expected);
+        ++testsFailed;
+       }
+      else ++testsPassed;                                                       // Passed
      }
 
     void anneal() {Output(nextGateName(), this);}                               // Anneal bit if it is not required for some reason although this would waste surface area and power on a real chip.
@@ -479,20 +498,6 @@ final public class Chip                                                         
         e.drives.add(new WhichPin(f.name));                                     // The extension gate drives the new gate
         f.fanOut();                                                             // Fanout the smaller sub stree
        }
-     }
-
-    void ok(Boolean expected)                                                   // Confirm execution trace matches expected output
-     {int fails = 0;
-      if      (false) {}                                                        // The various combinations with null
-      else if (value == null && expected == null) {}
-      else if (value == null && expected != null) ++fails;
-      else if (value != null && expected == null) ++fails;
-      else if (value !=         expected)         ++fails;
-      if (fails > 0)                                                            // Show error location with a trace back so we know where the failure occurred
-       {err("Gate value:", value, "does not match expected", expected);
-        ++testsFailed;
-       }
-      else ++testsPassed;                                                       // Passed
      }
    } // Gate
 
@@ -809,7 +814,6 @@ final public class Chip                                                         
    {String name();                                                              // Name of bus
     int    bits();                                                              // Number of bits of bus - the width of the bus
     Bit       b(int i);                                                         // Name of a bit in the bus
-    Gate   gate(int n);                                                         // Gate providing bit
     void anneal();                                                              // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
 
     public default void sameSize(Bits b)                                        // Check two buses are the same size and stop if they are not
@@ -819,20 +823,22 @@ final public class Chip                                                         
      }
 
     public default String string()                                              // Convert the bits represented by an output bus to a string
-     {final StringBuilder b = new StringBuilder();
+     {final StringBuilder s = new StringBuilder();
       for (int i = 1; i <= bits(); i++)
-       {final Gate g = gate(i);
-        if (g != null) b.append(g.value == null ? '.' : g.value ? '1' : '0');
-        else stop("No such gate as:", b(i));
+       {final Bit b = b(i);
+        final Gate g = b.chip().getGate(b);
+        if (g != null) s.append(g.value == null ? '.' : g.value ? '1' : '0');
+        else stop("No such gate as:", b.name);
        }
-      return b.reverse().toString();
+      return s.reverse().toString();
      }
 
     public default Integer Int()                                                // Convert the bits represented by an output bus to an integer
      {int v = 0, p = 1;
       final int B = bits();
       for  (int i = 1; i <= B; i++)                                             // Each bit on bus
-       {final Gate g = gate(i);                                                 // Gate providing bit
+       {final Bit b = b(i);
+        final Gate g = b.chip().getGate(b);
         if (g == null)
          {err("No such gate as:", name(), i);                                   // Generally occurs during testing where we might want to continue to see what other errors  occur
           return null;
@@ -873,7 +879,6 @@ final public class Chip                                                         
 
     public String toString() {return string();}                                 // Convert the bits represented by an output bus to a string
     public Bit  b   (int i)  {return collectBit(n(i, name));}                   // Bit in the bus
-    public Gate gate(int i)  {return getGate   (n(i, name));}                   // Gate providing bit in the bus
     public void  anneal()    {outputBits(nextGateName(), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
@@ -893,7 +898,6 @@ final public class Chip                                                         
 
     public String toString() {return string();}                                 // Convert the bits represented by an output bus to a string
     public Bit  b   (int i)  {return collectBit(n(start-1+i, source.name()));}  // Name of a bit in the bus
-    public Gate gate(int i)  {return    getGate(n(start-1+i, source.name()));}  // Gate providing bit
     public void  anneal()    {outputBits(nextGateName(), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
@@ -1649,16 +1653,12 @@ final public class Chip                                                         
     public String name() {return name;}                                         // Name of bus
     public int    bits() {return source.bits();}                                // Number of bits of bus - the width of the bus
 
-    public Gate gate(int i)                                                     // Gate providing bit
+    public Bit b(int i)                                                         // Name of an individual bit in the shifted bus
      {if ((up && i == 1) || (!up && i == source.bits())) return fillGate;
-      return getGate(source.b(i + (up ? -1 : +1)));
+      return source.b(i + (up ? -1 : +1));
      }
 
-    public void  anneal()    {outputBits(nextGateName(), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
-
-    public Bit    b(int i)                                                      // Name of a bit in the bus
-     {return (Bit)gate(i);
-     }
+    public void  anneal() {outputBits(nextGateName(), this);}                   // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
   Bits shiftUp(String output, Bits input, boolean fill)                         // Shift an input bus up one place to add 1 in base 1 or multiply by two in base 2.
@@ -1688,8 +1688,8 @@ final public class Chip                                                         
 //D2 Arithmetic Base 2                                                          // Arithmetic in base 2
 
   record BinaryAdd                                                              // Results of a binary add
-   (Gate carry,                                                                 // Carry out gate
-    Bits sum                                                                    // Sum
+   (Bit carry,                                                                  // Carry out gate
+    Bits  sum                                                                   // Sum
    ){}
 
   BinaryAdd binaryAdd(String output, Bits in1, Bits in2)                        // Add two bit buses of the same size to make a bit bus one bit wider
@@ -1730,7 +1730,7 @@ final public class Chip                                                         
       Or(c.b(j).name, c4, c6, c7, c8);
      }
 
-    return new BinaryAdd(c.gate(b), o);                                         // Carry, result
+    return new BinaryAdd(c.b(b), o);                                            // Carry out of the highest bit, result
    }
 
 //D2 B-tree                                                                     // Circuits useful in the construction and traversal of B-trees.
@@ -3697,17 +3697,17 @@ Step  C P  d e
   static void test_binaryAdd()
    {for     (int B = 1; B <= (github_actions ? 4 : 3); B++)
      { int B2 = powerTwo(B);
-      for   (int i = 0; i < B2; i++)
-       {for (int j = 0; j < B2; j++)
-         {Chip    c = new Chip("binary_add");
-          Bits    I = c.bits("i", B, i);
-          Bits    J = c.bits("j", B, j);
+      for      (int i = 0; i < B2; i++)
+       {for    (int j = 0; j < B2; j++)
+         {Chip      c = new Chip("binary_add");
+          Bits      I = c.bits("i", B, i);
+          Bits      J = c.bits("j", B, j);
           BinaryAdd a = c.binaryAdd ("ij",  I, J);
-          Bits    o = c.outputBits("o", a.sum);
+          Bits      o = c.outputBits("o", a.sum);
           c.Output    ("co", a.carry);
           c.simulate  ();
-          ok(a.sum.Int(),   (i+j) %  B2);
-          ok(a.carry.value, (i+j) >= B2);
+          a.sum  .ok((i+j) %  B2);
+          a.carry.ok((i+j) >= B2);
          }
        }
      }
