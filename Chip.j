@@ -894,8 +894,8 @@ final public class Chip                                                         
      }
 
     public String toString() {return string();}                                 // Convert the bits represented by an output bus to a string
-    public Bit  b(int i)     {return new Bit(n(start-1+i, source.name()));}     // Name of a bit in the bus
-    public Gate gate(int i)  {return Chip.this.getGate(b(i).name);}             // Gate providing bit
+    public Bit  b   (int i)  {return collectBit(n(start-1+i, source.name()));}  // Name of a bit in the bus
+    public Gate gate(int i)  {return    getGate(n(start-1+i, source.name()));}  // Gate providing bit
     public void  anneal()    {outputBits(nextGateName(), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
@@ -1153,7 +1153,7 @@ final public class Chip                                                         
     public Gate getGate(String Name)  {return Chip.this.getGate(Name);};        // Gate providing bit
 
     public Bits w(int i)        {return bitBuses.get(n(i,    name));}           // Get a bit bus in the word bus
-    public Bit  b(int i, int j) {return new Bit     (n(i, j, name));}           // Get a bit from a bit bus in the word bus
+    public Bit  b(int i, int j) {return collectBit  (n(i, j, name));}           // Get a bit from a bit bus in the word bus
    } // Words
 
   class SubWordBus implements Words                                             // Select the specified range of words from a word bus
@@ -1182,7 +1182,7 @@ final public class Chip                                                         
     public Bit  b(int i, int j)                                                 // Get a bit from a bit bus in the word bus
      {if (i < 1 || i > length) stop("Sub word out of range:", i, "in range", length);
       if (j < 1 || j > bits()) stop("Sub bit out of range:",  j, "in range", bits());
-      return new Bit(n(start-1+i, j, source.name()));
+      return collectBit(n(start-1+i, j, source.name()));
      }
    } // Words
 
