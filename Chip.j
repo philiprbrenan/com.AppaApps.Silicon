@@ -117,17 +117,10 @@ final public class Chip                                                         
   int nextGateNumber     () {return ++gateSeq;}                                 // Numbers for gates
   String nextGateName    () {return ""+nextGateNumber();}                       // Create a numeric generated gate name
 
-  boolean definedBit(String name)                                               // Check whether a bit has been defined yet
-   {final Gate g = gates.get(name);
+  boolean definedGate(Bit bit)                                                  // Check whether a gate has been defined yet
+   {final Gate g = gates.get(bit.name);
     return g != null;
    }
-
-  boolean definedGate(String name)                                              // Check whether a gate has been defined yet
-   {final Gate g = gates.get(name);
-    return g != null;
-   }
-
-  boolean definedGate(Bit bit) {return definedGate(bit.name);}                  // Check whether a gate has been defined yet
 
   Gate getGate(String name)                                                     // Get details of named gate. Gates that have not been created yet will return null even though their details are pending.
    {if (name == null) stop("No gate name provided");
@@ -249,7 +242,7 @@ final public class Chip                                                         
   class Gate extends Bit                                                        // Description of a gate that produces a bit
    {final Operator     op;                                                      // Operation performed by gate
     Gate           iGate1,  iGate2;                                             // Gates driving the inputs of this gate as during simulation but not during layout
-    Gate soGate1, soGate2, tiGate1, tiGate2;                                    // Pin assignments on source and target gates used during layout but not during simulation
+    Bit  soGate1, soGate2, tiGate1, tiGate2;                                    // Pin assignments on source and target gates used during layout but not during simulation
     final TreeSet<WhichPin>
                       drives = new TreeSet<>();                                 // The names of the gates that are driven by the output of this gate with a possible pin selection attached
     boolean       systemGate = false;                                           // System gate if true
@@ -302,19 +295,21 @@ final public class Chip                                                         
      }
 
     class WhichPin implements Comparable<WhichPin>                              // Shows that this gate drives another gate either on a specific pin or on any pin if the gate is commutative
-     {final String drives;                                                      // Drives this named gate
-      final Boolean   pin;                                                      // Null can drive any pin on target, true - must drive input pin 1, false - must drive input pin 2
+     {final Bit  drives;                                                        // Drives this named gate
+      final Boolean pin;                                                        // Null can drive any pin on target, true - must drive input pin 1, false - must drive input pin 2
 
-      WhichPin(String Drives, Boolean Pin) {drives = Drives; pin = Pin;}        // Construct a pin drive specification targeting a specified input pin
-      WhichPin(String Drives)              {this(Drives, null);}                // Construct a pin drive specification targeting any available input pin
+      WhichPin(Bit Drives, Boolean Pin) {drives = Drives; pin = Pin;}           // Construct a pin drive specification targeting a specified input pin
+      WhichPin(Bit Drives)              {this(Drives, null);}                   // Construct a pin drive specification targeting any available input pin
       Gate gate() {return getGate(drives);}                                     // Details of gate being driven
 
-      public int compareTo(WhichPin a) {return drives.compareTo(a.drives);}     // So we can add and remove entries from the set of driving gates
+      public int compareTo(WhichPin a)                                          // So we can add and remove entries from the set of driving gates
+       {return drives.name.compareTo(a.drives.name);
+       }
 
       public String toString()                                                  // Convert drive to string
-       {if (pin == null) return drives;
-        if (pin)         return drives+">1";
-                         return drives+">2";
+       {if (pin == null) return drives.name;
+        if (pin)         return drives.name+">1";
+                         return drives.name+">2";
        }
       boolean ok1() {return pin == null ||  pin;}                               // Can drive the first pin
       boolean ok2() {return pin == null || !pin;}                               // Can drive the second pin
@@ -356,24 +351,24 @@ final public class Chip                                                         
     void impinge(Bit Input)                                                     // Go to the named gate (which must therefore already exist) and show that it drives this gate on any input pin
      {if (definedGate(Input))
        {final Gate s = getGate(Input);
-        s.drives.add(new WhichPin(name));                                       // Show that the source gate drives this gate
+        s.drives.add(new WhichPin(this));                                       // Show that the source gate drives this gate
        }
       else                                                                      // The source gates have not been defined yet so add the impinging definitions to pending
        {TreeSet<WhichPin> d = pending.get(Input.name);
         if (d == null)   {d = new TreeSet<>(); pending.put(Input.name, d);}
-        d.add(new WhichPin(name));
+        d.add(new WhichPin(this));
        }
      }
 
     void impinge(Bit Input, Boolean pin)                                        // Go to the named gate (which must therefore already exist) and show that it drives this gate on the specified input pin
      {if (definedGate(Input))
        {final Gate s = getGate(Input);
-        s.drives.add(new WhichPin(name, pin));                                  // Show that the source gate drives this gate
+        s.drives.add(new WhichPin(this, pin));                                  // Show that the source gate drives this gate
        }
       else                                                                      // The source gates have not been defined yet so add the impinging definitions to pending
        {TreeSet<WhichPin>  d = pending.get(Input.name);
         if (d == null)    {d = new TreeSet<>(); pending.put(Input.name, d);}
-        d.add(new WhichPin(name, pin));
+        d.add(new WhichPin(this, pin));
        }
      }
 
@@ -479,7 +474,7 @@ final public class Chip                                                         
         g.drives.add(d);                                                        // Transfer drive to the new lower gate
         drives.remove(d);                                                       // Remove drive from current gate
        }
-      drives.add(new WhichPin(g.name));                                         // The old gate drives the new gate
+      drives.add(new WhichPin(g));                                              // The old gate drives the new gate
       g.fanOut();                                                               // The lower half gate might need further fan out
 
       for (int i = Q; i < N; ++i)                                               // Upper half - might not be a complete tree
@@ -489,13 +484,13 @@ final public class Chip                                                         
        }
 
       if (2 * N >= 3 * Q)                                                       // Can fill out most of the second half of the tree
-       {drives.add(new WhichPin(f.name));                                       // The old gate drives the new gate
+       {drives.add(new WhichPin(f));                                            // The old gate drives the new gate
         f.fanOut();                                                             // Fan out lower gate
        }
       else                                                                      // To few entries to fill more than half of the leaves so push the sub tree down one level
        {final Gate e = new Gate(Operator.FanOut);                               // Extend the path
-        drives.add(new WhichPin(e.name));                                       // The old gate drives the extension gate
-        e.drives.add(new WhichPin(f.name));                                     // The extension gate drives the new gate
+        drives.add(new WhichPin(e));                                            // The old gate drives the extension gate
+        e.drives.add(new WhichPin(f));                                          // The extension gate drives the new gate
         f.fanOut();                                                             // Fanout the smaller sub stree
        }
      }
@@ -1338,14 +1333,14 @@ final public class Chip                                                         
 
     final Bits           o = collectBits(output, B);                            // Output bus
     final String notChoose = n(output, "NotChoose");                            // Opposite of choice
-    final Gate           n = Not(notChoose, choose);                            // Invert choice
+    final Bit            n = Not(notChoose, choose);                            // Invert choice
 
     final Bits oa = collectBits(n(output, "a"), A);                             // Choose first word
     final Bits ob = collectBits(n(output, "b"), A);                             // Choose second word
 
     for (int i = 1; i <= B; i++)                                                // Each bit
-     {final Gate ga = And(oa.b(i).name, a.b(i), n);                             // Choose first word if not choice
-      final Gate gb = And(ob.b(i).name, b.b(i), choose);                        // Choose second word if choice
+     {final Bit ga = And(oa.b(i).name, a.b(i), n);                              // Choose first word if not choice
+      final Bit gb = And(ob.b(i).name, b.b(i), choose);                         // Choose second word if choice
       Or (o.b(i).name, ga, gb);                                                 // Or results of choice
      }
     return o;                                                                   // Record bus size
@@ -1665,14 +1660,6 @@ final public class Chip                                                         
    {return new Shift(output, input, true, fill);
    }
 
-  Bits shiftUp2(String output, Bits input, boolean fill)                         // Shift an input bus up one place to add 1 in base 1 or multiply by two in base 2.
-   {final int  b = input.bits();                                                // Number of bits in input monotone mask
-    final Bits o = collectBits(output, b+1);                                    // Shifted result is a bus one bit wider
-    if (fill) One(o.b(1).name); else Zero(o.b(1).name);                         // The lowest but will be zero or one after the shift
-    for (int i = 1; i <= b; i++) Continue(o.b(1+i).name, input.b(i));           // Create the remaining bits of the shifted result
-    return o;
-   }
-
   Bits shiftUp(String output, Bits input)                                       // Shift an input bus up one place inserting zero to add 1 in base 1 or multiply by two in base 2
    {return shiftUp(output, input, false);
    }
@@ -1682,11 +1669,7 @@ final public class Chip                                                         
    }
 
   Bits shiftDown(String output, Bits input)                                     // Shift an input bus down one place to subtract 1 in base 1 or divide by two in base 2
-   {final int    b = input.bits();                                              // Number of bits in input monotone mask
-    final Bits o = collectBits(output, b-1);                                    // Shifted result is a bus one bit narrower
-    input.b(1).anneal();                                                        // Remove the lowest bit in such away that it will not be report as failing to drive anything
-    for (int i = 2; i <= b; i++) Continue(o.b(i-1).name, input.b(i));           // Create the remaining bits of the shifted result
-    return o;
+   {return new Shift(output, input, false, false);
    }
 
 //D2 Arithmetic Base 2                                                          // Arithmetic in base 2
