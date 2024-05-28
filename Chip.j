@@ -1613,17 +1613,17 @@ final public class Chip                                                         
 //D3 Select                                                                     // Send a pulse one way or another depending on a bit allowing us to execute one branch of an if statement or the other and receive a pulse notifying us when the execution of the different length paths are complete.
 
   class Select                                                                  // Select a direction for a pulse from two possibilities depending on the setting of a bit. The pulse is transmitted along the selecetd path for as long as the control bit is true, thereafter both paths revert to false.
-   {final String    name;                                                       // Name of decision. The output along the first path selected when the control bot is true has "_then" appended to it, the other "_else";
-    final Gate      Then;                                                       // The output along the then path
-    final Gate      Else;                                                       // The output along the else path
-    final Bit    control;                                                       // The control bit
-    final Bit      pulse;                                                       // The pulse that determines when the selection is made.
+   {final String name;                                                          // Name of decision. The output along the first path selected when the control bot is true has "_then" appended to it, the other "_else";
+    final Bit    Then;                                                          // The output along the then path
+    final Bit    Else;                                                          // The output along the else path
+    final Bit control;                                                          // The control bit
+    final Bit   pulse;                                                          // The pulse that determines when the selection is made.
     Select(String Name, Bit Control, Bit Pulse)                                 // Define the selection
      {name = Name; control = Control; pulse = Pulse;                            // Selection details
-      Gate c = Continue(n(name, "control"),    control);                        // Match the length of the else path
-      Then   = And     (n(name, "pulse"),      c, pulse);                       // Then path
-      Gate n = Not     (n(name, "notControl"), control);                        // Not of control
-      Else   = And     (n(name, "notPulse"),   n, pulse);                       // Else path
+      Bit c = Continue(n(name, "control"),    control);                         // Match the length of the else path
+      Then  = And     (n(name, "pulse"),      c, pulse);                        // Then path
+      Bit n = Not     (n(name, "notControl"), control);                         // Not of control
+      Else  = And     (n(name, "notPulse"),   n, pulse);                        // Else path
      }
    }
 
@@ -2841,10 +2841,10 @@ final public class Chip                                                         
 
   static void test_and()
    {Chip c = new Chip();
-    Gate i = c.Input ("i");
-    Gate I = c.Input ("I");
-    Gate a = c.And   ("a", i, I);
-    Gate o = c.Output("o", a);
+    Bit  i = c.Input ("i");
+    Bit  I = c.Input ("I");
+    Bit  a = c.And   ("a", i, I);
+    Bit  o = c.Output("o", a);
 
     Inputs inputs = c.new Inputs().set(i, true).set(I, false);
 
@@ -2861,9 +2861,9 @@ final public class Chip                                                         
 
   static Chip test_and_grouping(Boolean i1, Boolean i2)
    {Chip c = new Chip();
-    Gate  I1 = c.Input ("i1");
-    Gate  I2 = c.Input ("i2");
-    Gate and = c.And   ("and", I1, I2);
+    Bit   I1 = c.Input ("i1");
+    Bit   I2 = c.Input ("i2");
+    Bit  and = c.And   ("and", I1, I2);
     c.Output("o", and);
     Inputs inputs = c.new Inputs();
     inputs.set(I1, i1);
@@ -2886,9 +2886,9 @@ final public class Chip                                                         
 
   static Chip test_or_grouping(Boolean i1, Boolean i2)
    {Chip c = new Chip();
-    Gate I1 = c.Input ("i1");
-    Gate I2 = c.Input ("i2");
-    Gate or = c.Or    ("or", I1, I2);
+    Bit  I1 = c.Input ("i1");
+    Bit  I2 = c.Input ("i2");
+    Bit  or = c.Or    ("or", I1, I2);
     c.Output("o", or);
     Inputs inputs = c.new Inputs();
     inputs.set(I1, i1);
@@ -2909,84 +2909,84 @@ final public class Chip                                                         
 
   static void test_delayed_definitions()
    {Chip   c = new Chip();
-    Gate   o = c.Output("o", c.new Bit("and"));
-    Gate and = c.And   ("and", c.new Bit("i1"), c.new Bit("i2"));
-    Gate  i1 = c.Input ("i1");
-    Gate  i2 = c.Input ("i2");
+    Bit    o = c.Output("o",   c.new Bit("and"));
+    Bit  and = c.And   ("and", c.new Bit("i1"), c.new Bit("i2"));
+    Bit   i1 = c.Input ("i1");
+    Bit   i2 = c.Input ("i2");
     Inputs inputs = c.new Inputs();
     inputs.set(i1, true);
     inputs.set(i2, false);
     c.simulate(inputs);
-    ok( i1.value, true);
-    ok( i2.value, false);
-    ok(and.value, false);
-    ok(  o.value, false);
-    ok(  c.steps ,     3);
+     i1.ok(true);
+     i2.ok(false);
+    and.ok(false);
+      o.ok(false);
+        ok(c.steps, 3);
    }
 
   static void test_or()
    {Chip c = new Chip();
-    Gate i1 = c.Input ("i1");
-    Gate i2 = c.Input ("i2");
-    Gate or = c.Or    ("or", i1, i2);
-    Gate  o = c.Output("o", or);
+    Bit i1 = c.Input ("i1");
+    Bit i2 = c.Input ("i2");
+    Bit or = c.Or    ("or", i1, i2);
+    Bit  o = c.Output("o", or);
     Inputs inputs = c.new Inputs();
     inputs.set(i1, true);
     inputs.set(i2, false);
     c.simulate(inputs);
-    ok(i1.value, true);
-    ok(i2.value, false);
-    ok(or.value, true);
-    ok( o.value, true);
+    i1.ok(true);
+    i2.ok(false);
+    or.ok(true);
+     o.ok(true);
     ok( c.steps,    3);
    }
 
   static void test_not_gates()
-   {Chip c = new Chip();
-    Bits b = c.bits("b", 5, 21);
-    Gate   a = c. andBits(  "a",  b);
-    Gate   o = c.  orBits(  "o",  b);
-    Gate  na = c.nandBits( "na",  b);
-    Gate  no = c.norBits ( "no",  b);
-    Gate  oa = c.Output  ( "oa",  a);
-    Gate  oo = c.Output  ( "oo",  o);
-    Gate ona = c.Output  ("ona", na);
-    Gate ono = c.Output  ("ono", no);
+   {Chip  c = new Chip();
+    Bits  b = c.bits("b", 5, 21);
+    Bit   a = c. andBits(  "a",  b);
+    Bit   o = c.  orBits(  "o",  b);
+    Bit  na = c.nandBits( "na",  b);
+    Bit  no = c.norBits ( "no",  b);
+    Bit  oa = c.Output  ( "oa",  a);
+    Bit  oo = c.Output  ( "oo",  o);
+    Bit ona = c.Output  ("ona", na);
+    Bit ono = c.Output  ("ono", no);
     c.simulate();
-    ok( a.value, false);
-    ok(na.value, true);
-    ok( o.value, true);
-    ok(no.value, false);
+     a.ok(false);
+    na.ok(true);
+     o.ok(true);
+    no.ok(false);
    }
 
   static void test_zero()
    {Chip c = new Chip();
-    Gate z = c.Zero("z");
-    Gate o = c.Output("o", z);
+    Bit  z = c.Zero("z");
+    Bit  o = c.Output("o", z);
     c.simulate();
+    o.ok(false);
     ok(c.steps,  3);
-    ok(o.value, false);
    }
 
   static void test_one()
    {Chip c = new Chip();
-    Gate O = c.One ("O");
-    Gate o = c.Output("o", O);
+    Bit  O = c.One ("O");
+    Bit  o = c.Output("o", O);
     c.simulate();
-    ok(c.steps  , 3);
-    ok(o.value , true);
+    ok(c.steps, 3);
+    o.ok(true);
    }
 
   static Chip test_and3(boolean A, boolean B, boolean C, boolean D)
    {Chip   c = new Chip();
-    Gate i11 = c.Input ("i11");
-    Gate i12 = c.Input ("i12");
-    Gate and = c.And   ("and", i11, i12);
-    Gate i21 = c.Input ("i21");
-    Gate i22 = c.Input ("i22");
-    Gate And = c.And   ("And", i21, i22);
-    Gate  Or = c. Or   ("or",  and, And);
-    Gate   o = c.Output("o", Or);
+    Bit  i11 = c.Input ("i11");
+    Bit  i12 = c.Input ("i12");
+    Bit  and = c.And   ("and", i11, i12);
+    Bit  i21 = c.Input ("i21");
+    Bit  i22 = c.Input ("i22");
+    Bit  And = c.And   ("And", i21, i22);
+    Bit   Or = c. Or   ("or",  and, And);
+    Bit    o = c.Output("o", Or);
 
     Inputs i = c.new Inputs();
     i.set(i11, A);
@@ -2997,12 +2997,12 @@ final public class Chip                                                         
     c.simulate(i);
 
     ok(c.steps,  4);
-    ok(o.value, (A && B) || (C && D));
+    o.ok((A && B) || (C && D));
     return c;
    }
 
   static void test_andOr()
-   {boolean t = true, f = false;
+   {boolean  t = true, f = false;
     Grouping g = new Grouping();
     g.put(false,  test_and3(t, t, t, t));
     g.put(false,  test_and3(t, t, t, f));
@@ -3030,33 +3030,33 @@ final public class Chip                                                         
 
   static void test_expand()
    {Chip    c = new Chip();
-    Gate  one = c.One   ("one");
-    Gate zero = c.Zero  ("zero");
-    Gate   or = c.Or    ("or",   one, zero);
-    Gate  and = c.And   ("and",  one, zero);
-    Gate   o1 = c.Output("o1", or);
-    Gate   o2 = c.Output("o2", and);
+    Bit   one = c.One   ("one");
+    Bit  zero = c.Zero  ("zero");
+    Bit    or = c.Or    ("or",   one, zero);
+    Bit   and = c.And   ("and",  one, zero);
+    Bit    o1 = c.Output("o1", or);
+    Bit    o2 = c.Output("o2", and);
     c.simulate();
     ok(c.steps,  4);
-    ok(o1.value, true);
-    ok(o2.value, false);
+    o1.ok(true);
+    o2.ok(false);
    }
 
   static void test_expand2()
    {Chip    c = new Chip();
-    Gate  one = c.One   ("one");
-    Gate zero = c.Zero  ("zero");
-    Gate   or = c.Or    ("or",  one, zero);
-    Gate  and = c.And   ("and", one, zero);
-    Gate  xor = c.Xor   ("xor", one, zero);
-    Gate   o1 = c.Output("o1",  or);
-    Gate   o2 = c.Output("o2",  and);
-    Gate   o3 = c.Output("o3",  xor);
+    Bit   one = c.One   ("one");
+    Bit  zero = c.Zero  ("zero");
+    Bit    or = c.Or    ("or",  one, zero);
+    Bit   and = c.And   ("and", one, zero);
+    Bit   xor = c.Xor   ("xor", one, zero);
+    Bit    o1 = c.Output("o1",  or);
+    Bit    o2 = c.Output("o2",  and);
+    Bit    o3 = c.Output("o3",  xor);
     c.simulate();
-    ok(c.steps,  5);
-    ok(o1.value, true);
-    ok(o2.value, false);
-    ok(o3.value, true);
+    ok(c.steps, 5);
+    o1.ok(true);
+    o2.ok(false);
+    o3.ok(true);
    }
 
   static void test_output_bits()
@@ -3089,46 +3089,46 @@ final public class Chip                                                         
 
   static void test_gt()
    {Chip    c = new Chip();
-    Gate  one = c.One   ("o");
-    Gate zero = c.Zero  ("z");
-    Gate   gt = c.Gt    ("gt", one, zero);
-    Gate    o = c.Output("O", gt);
+    Bit   one = c.One   ("o");
+    Bit  zero = c.Zero  ("z");
+    Bit    gt = c.Gt    ("gt", one, zero);
+    Bit     o = c.Output("O", gt);
     c.simulate();
     ok(c.steps, 4);
-    ok(o.value, true);
+    o.ok(true);
    }
 
   static void test_gt2()
    {Chip    c = new Chip();
-    Gate  one = c.One   ("o");
-    Gate zero = c.Zero  ("z");
-    Gate   gt = c.Gt    ("gt", zero, one);
-    Gate    o = c.Output("O",  gt);
+    Bit   one = c.One   ("o");
+    Bit  zero = c.Zero  ("z");
+    Bit    gt = c.Gt    ("gt", zero, one);
+    Bit     o = c.Output("O",  gt);
     c.simulate();
     ok(c.steps, 4);
-    ok(o.value, false);
+    o.ok(false);
    }
 
   static void test_lt()
    {Chip    c = new Chip();
-    Gate  one = c.One   ("o");
-    Gate zero = c.Zero  ("z");
-    Gate   lt = c.Lt    ("lt", one, zero);
-    Gate    o = c.Output("O", lt);
+    Bit   one = c.One   ("o");
+    Bit  zero = c.Zero  ("z");
+    Bit    lt = c.Lt    ("lt", one, zero);
+    Bit     o = c.Output("O", lt);
     c.simulate();
     ok(c.steps, 4);
-    ok(o.value, false);
+    o.ok(false);
    }
 
   static void test_lt2()
    {Chip    c = new Chip();
-    Gate  one = c.One   ("o");
-    Gate zero = c.Zero  ("z");
-    Gate   lt = c.Lt    ("lt", zero, one);
-    Gate    o = c.Output("O", lt);
+    Bit   one = c.One   ("o");
+    Bit  zero = c.Zero  ("z");
+    Bit    lt = c.Lt    ("lt", zero, one);
+    Bit     o = c.Output("O", lt);
     c.simulate();
     ok(c.steps, 4);
-    ok(o.value, true);
+    o.ok(true);
    }
 
 /*
@@ -3160,14 +3160,14 @@ final public class Chip                                                         
 
   static void test_compare_eq()
    {for (int B = 2; B <= 4; ++B)
-     { int B2 = powerTwo(B);
+     {int B2 = powerTwo(B);
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
-         {var    c = new Chip("compare_eq_"+B);
+         {Chip c = new Chip("compare_eq_"+B);
           Bits I = c.bits("i", B, i);
           Bits J = c.bits("j", B, j);
-          Gate   o = c.compareEq("o", I, J);
-          Gate   O = c.Output("O", o);
+          Bit  o = c.compareEq("o", I, J);
+          Bit  O = c.Output("O", o);
           c.simulate();
           ok(c.steps >= 5 && c.steps <= 6, true);
          }
@@ -3176,18 +3176,18 @@ final public class Chip                                                         
    }
 
   static void test_compare_gt()
-   {for     (int B = 2; B <= 4; ++B)
-     { int B2 = powerTwo(B);
+   {for (int B = 2; B <= 4; ++B)
+     {int B2 = powerTwo(B);
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
          {Chip c = new Chip("compare_gt_"+B);
           Bits I = c.bits("i", B, i);
           Bits J = c.bits("j", B, j);
-          Gate   o = c.compareGt("o", I, J);
-          Gate   O = c.Output   ("O", o);
+          Bit  o = c.compareGt("o", I, J);
+          Bit  O = c.Output   ("O", o);
           c.simulate();
           ok(c.steps >= 5 && c.steps <= 9, true);
-          ok(o.value, i > j);
+          o.ok(i > j);
           if (B == 4 && i == 1 && j == 2) c.draw(3, 2);
          }
        }
@@ -3196,17 +3196,17 @@ final public class Chip                                                         
 
   static void test_compare_lt()
    {for     (int B = 2; B <= 4; ++B)
-     { int B2 = powerTwo(B);
+     {int B2 = powerTwo(B);
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
          {Chip c = new Chip("compare_lt_"+B);
           Bits I = c.bits("i", B, i);
           Bits J = c.bits("j", B, j);
-          Gate   o = c.compareLt("o", I, J);
-          Gate   O = c.Output("O", o);
+          Bit  o = c.compareLt("o", I, J);
+          Bit  O = c.Output("O", o);
           c.simulate();
           ok(c.steps >= 5 && c.steps <= 9, true);
-          ok(o.value, i < j);
+          o.ok(i < j);
          }
        }
      }
@@ -3218,7 +3218,7 @@ final public class Chip                                                         
       Chip c = new Chip("choose_from_two_words_"+b+"_"+i);
       Bits A = c.bits("a", b,  3);
       Bits B = c.bits("b", b, 12);
-      Gate C = c.bit ("c", i);
+      Bit  C = c.bit ("c", i);
       Bits o = c.chooseFromTwoWords("o", A, B, C);
       Bits O = c.outputBits("out",  o);
       c.simulate();
@@ -3290,7 +3290,7 @@ final public class Chip                                                         
      (c, "node", id, B, N, enable, find, keys, data, next, top, validKeys);
     Bits d = c.outputBits("d", b.outData);
     Bits n = c.outputBits("n", b.outNext);
-    Gate f = c.Output    ("f", b.found);
+    Bit  f = c.Output    ("f", b.found);
     c.simulate();
 //stop(c);
 //  ok(c.steps >= 18 && c.steps <= 22, true);
@@ -3448,22 +3448,22 @@ final public class Chip                                                         
 
   static void test_simulation_step()
    {Chip  c = new Chip();
-    Gate  i = c.   One("i");
-    Gate n9 = c.   Not("n9", i);
-    Gate n8 = c.   Not("n8", n9);
-    Gate n7 = c.   Not("n7", n8);
-    Gate n6 = c.   Not("n6", n7);
-    Gate n5 = c.   Not("n5", n6);
-    Gate n4 = c.   Not("n4", n5);
-    Gate n3 = c.   Not("n3", n4);
-    Gate n2 = c.   Not("n2", n3);
-    Gate n1 = c.   Not("n1", n2);
-    Gate o  = c.Output("o",  n1);
+    Bit   i = c.   One("i");
+    Bit  n9 = c.   Not("n9", i);
+    Bit  n8 = c.   Not("n8", n9);
+    Bit  n7 = c.   Not("n7", n8);
+    Bit  n6 = c.   Not("n6", n7);
+    Bit  n5 = c.   Not("n5", n6);
+    Bit  n4 = c.   Not("n4", n5);
+    Bit  n3 = c.   Not("n3", n4);
+    Bit  n2 = c.   Not("n2", n3);
+    Bit  n1 = c.   Not("n1", n2);
+    Bit  o  = c.Output("o",  n1);
 
     Inputs I = c.new Inputs();
     I.set(i, true);
     c.simulate();
-    ok(o.value, false);
+    o.ok(false);
     ok(c.steps,    12);
    }
 
@@ -3472,8 +3472,8 @@ final public class Chip                                                         
     c.minSimulationSteps(16);
     Stack<Boolean> s = new Stack<>();
     c.simulationStep = ()->{s.push(c.getBit("a"));};
-    Gate and = c.And   ("a", c.clock0.b(1), c.clock0.b(2));
-    Gate out = c.Output("o", and);
+    Bit  and = c.And   ("a", c.clock0.b(1), c.clock0.b(2));
+    Bit  out = c.Output("o", and);
     c.simulate();
     ok(c.steps,  19);
     for (int i = 0; i < s.size(); i++) ok(s.elementAt(i), (i+1) % 4 == 0);
@@ -3486,8 +3486,8 @@ final public class Chip                                                         
     Pulse p2 = c.pulse("p2", 16, 1, 3);
     Pulse p3 = c.pulse("p3", 16, 2, 5);
     Pulse p4 = c.pulse("p4",  4);
-    Gate  a  = c.   Or("a", p1, p2, p3);
-    Gate  m  = c.   My("m", p4, a);                                             // Pin 1 controls when pin 2 is stored in the memory
+    Bit   a  = c.   Or("a", p1, p2, p3);
+    Bit   m  = c.   My("m", p4, a);                                             // Pin 1 controls when pin 2 is stored in the memory
     c.Output("o", m);
 
     c.executionTrace("1 2 3 a    4 m", "%s %s %s %s    %s %s", p1, p2, p3, a, p4,m);
@@ -3533,7 +3533,7 @@ Step  1 2 3 a    4 m
     Bits    I = c.chooseFromTwoWords("I", i1, i2, pc);
     Register  r = c.register("reg",  I, pl);
     Bits    o = c.outputBits("o", r);
-    Gate     or = c.Output("or",    r.loaded);
+    Bit      or = c.Output("or",    r.loaded);
 
     c.executionTrace("c  choose    l  register ld", "%s  %s  %s  %s  %s", pc, I, pl, r, r.loaded);
     c.simulationSteps(32);
@@ -3746,7 +3746,7 @@ Step  Reg_   1 2  l  e     e2    e2
 
     Register r = C.register("r",  new RegIn(o1, p1), new RegIn(o2, p2));
     Bits     o = C.outputBits("o", r);
-    Gate    or = C.Output("or", r.loaded);
+    Bit     or = C.Output("or", r.loaded);
     C.simulationSteps(20);
     C.executionTrace("Reg_ ld   1 2  l  e     e2    e2", "%s  %s   %s %s  %s  %s  %s  %s", r, r.loaded, p1, p2, r.load, r.e, r.E[0], r.E[1]);
     C.simulate();
@@ -3800,7 +3800,7 @@ Step  i     o     O
     Bits      a = C.bits("a",  N, 127);
     Bits      b = C.bits("b",  N, 128);
     BinaryAdd c = C.binaryAdd("c", a, b);
-    Gate     oc = C.Output("oc", c.carry);
+    Bit      oc = C.Output("oc", c.carry);
     Bits     os = C.outputBits("os", c.sum);
     C.simulationSteps(48);
     C.simulate();
@@ -3832,14 +3832,14 @@ Step  i     o     O
       new RegIn(zero, in),      new RegIn(a, a.loaded),                         // Initially the output register is zero, subsequently it is to the appropriate pair sum
       new RegIn(b,   b.loaded), new RegIn(c, c.loaded));
 
-    Gate         ld = C.Or("Ld", ed, d.loaded);                                 // Show output register ready with falling edge
+    Bit          ld = C.Or("Ld", ed, d.loaded);                                 // Show output register ready with falling edge
 
     BinaryAdd   sab = C.binaryAdd("ab", a, b);                                  // Add in pairs
     BinaryAdd   sac = C.binaryAdd("ac", a, c);
     BinaryAdd   sbc = C.binaryAdd("bc", b, c);
     sab.carry.anneal(); sac.carry.anneal(); sbc.carry.anneal();                 // Ignore the carry bits
     Bits         od = C.outputBits("od",   d);                                  // Output the latest fibonacci number
-    Gate        old = C.Output    ("old", ld);                                  // falling edge shows that the register has been loaded with a new number
+    Bit         old = C.Output    ("old", ld);                                  // falling edge shows that the register has been loaded with a new number
 
     C.executionTrace(
       "d      ld",
