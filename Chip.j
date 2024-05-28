@@ -942,21 +942,21 @@ final public class Chip                                                         
    }
 
   Bits inputBits(String name, int bits)                                         // Create an B<input> bus made of bits.
-   {final Bits B = collectBits(name, bits);                                      // Record bus width
+   {final Bits B = collectBits(name, bits);                                     // Record bus width
     for (int b = 1; b <= bits; ++b) Input(B.b(b).name);                         // Bus of input gates
     return B;
    }
 
   Bits outputBits(String name, Bits input)                                      // Create an B<output> bus made of bits.
    {final int bits = input.bits();                                              // Number of bits in input bus
-    final Bits o = collectBits(name, bits);                                      // Resulting bit bus
+    final Bits o = collectBits(name, bits);                                     // Resulting bit bus
     for (int i = 1; i <= bits; i++) Output(o.b(i).name, input.b(i));            // Bus of output gates
     return o;                                                                   // Resulting bit bus
    }
 
   Bits notBits(String name, Bits input)                                         // Create a B<not> bus made of bits.
    {final int bits = input.bits();                                              // Number of bits in input bus
-    final Bits o = collectBits(name, bits);                                      // Resulting bit bus
+    final Bits o = collectBits(name, bits);                                     // Resulting bit bus
     for (int b = 1; b <= bits; ++b) Not(o.b(b).name, input.b(b));               // Bus of not gates
     return o;                                                                   // Resulting bit bus
    }
@@ -1148,7 +1148,7 @@ final public class Chip                                                         
 
     public Bits w(int i)        {return bitBuses.get(n(i,    name));}           // Get a bit bus in the word bus
     public Bit  b(int i, int j) {return collectBit  (n(i, j, name));}           // Get a bit from a bit bus in the word bus
-   } // Words
+   } // WordBus
 
   class SubWordBus implements Words                                             // Select the specified range of words from a word bus
    {final String name; public String name() {return name;}                      // Name of the word bus
@@ -1176,7 +1176,7 @@ final public class Chip                                                         
       if (j < 1 || j > bits()) stop("Sub bit out of range:",  j, "in range", bits());
       return collectBit(n(start-1+i, j, source.name()));
      }
-   } // Words
+   } // SubWordBus
 
   Words words(String name, int bits, int...values)                              // Create a word bus set to specified numbers.
    {final Words wb = new WordBus(name, values.length, bits);                    // Record bus width
@@ -1226,7 +1226,7 @@ final public class Chip                                                         
    }
 
   Bits andWordsX(String name, Words wb)                                         // Create a bit bus of width equal to the number of words in a word bus by and-ing the bits in each word to make the bits of the resulting word.
-   {final Bits B = collectBits(name, wb.words());                                // One bit for each word
+   {final Bits B = collectBits(name, wb.words());                               // One bit for each word
     for   (int w = 1; w <= wb.words(); ++w)                                     // Each word on the bus
      {final Bit[]bits = new Bit[wb.bits()];                                     // Select bits
       for (int b = 1; b <= wb.bits(); ++b) bits[b-1] = wb.b(w, b);              // Bits to and
@@ -1236,7 +1236,7 @@ final public class Chip                                                         
    }
 
   Bits andWords(String name, Words wb)                                          // Create a bit bus of the same width as each word in a word bus by and-ing corresponding bits in each word to make the corresponding bit in the output word.
-   {final Bits B = collectBits(name, wb.bits());                                 // One bit for each word
+   {final Bits B = collectBits(name, wb.bits());                                // One bit for each word
     for   (int b = 1; b <= wb.bits();  ++b)                                     // Each bit in the words on the bus
      {final Bit[]words = new Bit[wb.words()];                                   // Select bits
       for (int w = 1; w <= wb.words(); ++w) words[w-1] = wb.b(w, b);            // The current bit in each word in the bus
@@ -1246,7 +1246,7 @@ final public class Chip                                                         
    }
 
   Bits orWordsX(String name, Words wb)                                          // Create a bit bus of width equal to the number of words in a word bus by or-ing the bits in each word to make the bits of the resulting word.
-   {final Bits B = collectBits(name, wb.words());                                // One bit for each word
+   {final Bits B = collectBits(name, wb.words());                               // One bit for each word
     for   (int w = 1; w <= wb.words(); ++w)                                     // Each word on the bus
      {final Bit[]bits = new Bit[wb.bits()];                                     // Select bits
       for (int b = 1; b <= wb.bits(); ++b) bits[b-1] = wb.b(w, b);              // Bits to or
@@ -1256,7 +1256,7 @@ final public class Chip                                                         
    }
 
   Bits orWords(String name, Words wb)                                           // Create a bit bus of the same width as each word in a word bus by or-ing corresponding bits in each word to make the corresponding bit in the output word.
-   {final Bits B = collectBits(name, wb.bits());                                 // One bit for each word
+   {final Bits B = collectBits(name, wb.bits());                                // One bit for each word
     for   (int b = 1; b <= wb.bits();  ++b)                                     // Each bit in the words on the bus
      {final Bit[]words = new Bit[wb.words()];                                   // Select bits
       for (int w = 1; w <= wb.words(); ++w) words[w-1] = wb.b(w, b);            // Each word on the bus
@@ -1270,7 +1270,7 @@ final public class Chip                                                         
   Bit compareEq(String output, Bits a, Bits b)                                  // Compare two unsigned binary integers of a specified width returning B<1> if they are equal else B<0>.  Each integer is supplied as a bus.
    {final int A = a.bits(), B = b.bits();                                       // Widths of buses
     a.sameSize(b);                                                              // Check buses match in size
-    final Bits eq = collectBits(n(output, "equal"), A);                          // Compare each pair of bits
+    final Bits eq = collectBits(n(output, "equal"), A);                         // Compare each pair of bits
     for (int i = 1; i <= B; i++) Nxor(eq.b(i).name, a.b(i), b.b(i));            // Test each bit pair for equality
     return andBits(output, eq);                                                 // All bits must be equal
    }
@@ -1348,9 +1348,58 @@ final public class Chip                                                         
     return o;
    }
 
-//D2 Masks                                                                      // Point masks and monotone masks. A point mask has a single B<1> in a sea of B<0>s as in B<00100>.  A monotone mask has zero or more B<0>s followed by all B<1>s as in: B<00111>.
+//D2 Masks                                                                      // Point masks and monotone masks. A point mask has a single bit set to true, the rest are set to false.  The true bit indicates the point at which something is to happen.
 
-  Bits monotoneMaskToPointMask(String output, Bits input)                       // Convert a monotone mask B<i> to a point mask B<o> representing the location in the mask of the first bit set to B<1>. If the monotone mask is all B<0>s then point mask is too.
+//D3 Monotone masks                                                             // A monotone up mask is any bit string whose bits can be sorted into ascending order (false, true) without being changed.  A monotone down mask is one where sorting with sort order (true, false) has no effect.
+
+  class UpMask implements Bits                                                  // Monotone up mask
+   {final Bits bits;                                                            // Source bits for monotone up mask
+    UpMask(Bits Bits)         {bits = Bits;}                                    // Make a monotone up mask from bits
+    public String name()      {return bits.name();}                             // Name of mask
+    public int    bits()      {return bits.bits();}                             // Number of bits of bus - the width of the bus
+    public Bit       b(int i) {return bits.b   (i);}                            // Number of bits of bus - the width of the bus
+    public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+   }
+
+  class DownMask implements Bits                                                // Monotone down mask
+   {final Bits bits;                                                            // Source bits for monotone down mask
+    DownMask(Bits Bits)       {bits = Bits;}                                    // Make a monotone down mask from bits
+    public String name()      {return bits.name();}                             // Name of mask
+    public int    bits()      {return bits.bits();}                             // Number of bits of bus - the width of the bus
+    public Bit       b(int i) {return bits.b   (i);}                            // Number of bits of bus - the width of the bus
+    public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+   }
+
+  UpMask findGt(String output, Words w, Bits b)                                 // Create a monotone up mask showing which words are greater than the bits
+   {final int bb = b.bits(), ww = w.words(), wb = w.bits();
+    if (wb != bb) stop("Each word has", wb, "bits,",
+      "but the search key has", bb);
+    final Bits m = new BitBus(output, ww);
+    for (int i = 1; i <= ww; i++) compareGt(m.b(i).name, w.w(i), b);
+    return new UpMask(m);
+   }
+
+  DownMask findLt(String output, Words w, Bits b)                               // Create a monotone down mask showing which words are less than the bits
+   {final int bb = b.bits(), ww = w.words(), wb = w.bits();
+    if (wb != bb) stop("Each word has", wb, "bits,",
+      "but the search key has", bb);
+    final Bits m = new BitBus(output, ww);
+    for (int i = 1; i <= ww; i++) compareLt(m.b(i).name, w.w(i), b);
+    return new DownMask(m);
+   }
+
+//D3 Point masks                                                                // A point mask is the differential of a monotone mask: it has no more then one bit set to true, the rest are set to false.
+
+  class PointMask implements Bits                                               // Point mask
+   {final Bits bits;                                                            // Source bits for monotone mask
+    PointMask(Bits Bits)      {bits = Bits;}                                    // Make a monotone mask from bits
+    public String name()      {return bits.name();}                             // Name of mask
+    public int    bits()      {return bits.bits();}                             // Number of bits of bus - the width of the bus
+    public Bit       b(int i) {return bits.b   (i);}                            // Number of bits of bus - the width of the bus
+    public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+   }
+
+  PointMask upMaskToPointMask(String output, UpMask input)                      // Convert a monotone mask B<i> to a point mask B<o> representing the location in the mask of the first bit set to B<1>. If the monotone mask is all B<0>s then point mask is too.
    {final int B = input.bits();                                                 // Number of bits in input monotone mask
 
     final Bits o = collectBits(output, B);                                      // Size of resulting bus representing the chosen integer
@@ -1358,10 +1407,10 @@ final public class Chip                                                         
       if (i > 1) Lt(o.b(i).name, input.b(i-1), input.b(i));                     // Look for a step from 0 to 1
       else Continue(o.b(i).name,               input.b(i));                     // First bit is 1 so point is in the first bit
 
-    return o;
+    return new PointMask(o);
    }
 
-  Bits chooseWordUnderMask(String output, Words input, Bits mask)               // Choose one of a specified number of words B<w>, each of a specified width, using a point mask B<m> placing the selected word in B<o>.  If no word is selected then B<o> will be zero.
+  Bits chooseWordUnderMask(String output, Words input, PointMask mask)          // Choose one of a specified number of words B<w>, each of a specified width, using a point mask B<m> placing the selected word in B<o>.  If no word is selected then B<o> will be zero.
    {final Words wb = input;
     final Bits   o = collectBits(output, wb.bits());
     final int   mi = mask.bits();
@@ -1382,7 +1431,7 @@ final public class Chip                                                         
    }
 
   Words insertIntoArray(String Output,                                          // Shift the words selected by the monotone mask up one position.
-    Words Input, Bits Mask, Bits Insert)
+    Words Input, UpMask Mask, Bits Insert)
    {final int words = Input.words(), bits = Input.bits();
     if (bits  != Insert.bits())
      {stop("Insert is", Insert.bits(), "bits, but the input words are",
@@ -1391,9 +1440,9 @@ final public class Chip                                                         
     if (words != Mask  .bits())
      {stop("Mask has", Mask.bits(), "bits to select", words, "words");
      }
-    final Bits  M = Mask;                                                       // The monotone mask
-    final Bits  P = monotoneMaskToPointMask(n(Output, "pm"), M);                // Make a point mask from the input monotone mask
-    final Bits  N = notBits                (n(Output, "np"), M);                // Invert the monotone mask
+
+    final Bits  P = upMaskToPointMask(n(Output, "pm"), Mask);                   // Make a point mask from the input monotone mask
+    final Bits  N = notBits                (n(Output, "np"), Mask);             // Invert the monotone mask
 
     final Words u = new WordBus(n(Output, "upper"),  words-1, bits);            // Shifted words  to fill upper part
     final Words l = new WordBus(n(Output, "lower"),  words,   bits);            // Un-shifted words to fill lower part
@@ -1408,7 +1457,7 @@ final public class Chip                                                         
 
     for   (int w = 2; w <= words; ++w)                                          // Words in upper shifted area
       for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
-        And(u.b(w-1, b).name, Input.b(w-1, b), M.b(w-1));                       // Shifted upper bits
+        And(u.b(w-1, b).name, Input.b(w-1, b), Mask.b(w-1));                    // Shifted upper bits
 
     for   (int w = 2; w <= words; ++w)                                          // Words in shift area
       for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
@@ -1425,7 +1474,7 @@ final public class Chip                                                         
    ){}
 
   RemoveFromArray removeFromArray(String Output,                                // Remove a word from an array, slide the array down to cover the gap and insert a new word at the top to cover the resulting gap there.
-    Words Input, Bits Mask, Bits Insert)
+    Words Input, UpMask Mask, Bits Insert)
    {final int words = Input.words(), bits = Input.bits();
     if (bits      != Insert.bits())
      {stop("Insert is", Insert.bits(), "bits, but the input words are",
@@ -1435,7 +1484,7 @@ final public class Chip                                                         
      {stop("Mask has", Mask.bits(), "bits to select", words, "words");
      }
 
-    final Bits  P = monotoneMaskToPointMask(n(Output, "pm"), Mask);             // Make a point mask from the input monotone mask          0100
+    final Bits  P = upMaskToPointMask(n(Output, "pm"), Mask);                   // Make a point mask from the input monotone mask          0100
     final Bits  p = notBits                (n(Output, "ip"), P);                // Invert the point mask                                   1011
     final Bits  M = andBits                (n(Output, "sm"), Mask, p);          // This is the original monotone mask minus its first bit  1000
     final Bits  N = notBits                (n(Output, "np"), Mask);             // Invert the monotone mask                                0011
@@ -1737,9 +1786,9 @@ final public class Chip                                                         
     final Bits       nodeId;                                                    // Save id of node
     final Bit        enable;                                                    // Check whether this node is enabled
     final Bits      matches;                                                    // Bitbus showing whether each key is equal to the search key
-    final Bits matchesValid;                                                    // Bitbus showing whether each key is equal to a valid key
     final Bits selectedData;                                                    // Choose data under equals mask
     final Bit   keyWasFound;                                                    // Show whether key was found
+    final PointMask matchesValid;                                               // Bitbus showing whether each key is equal to a valid key
 
     BtreeNode                                                                   // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
      (String      Output,                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
@@ -1793,7 +1842,7 @@ final public class Chip                                                         
        }
 
       matches      = collectBits(me, K);                                        // Equal bit bus for each key
-      matchesValid = andBitBuses(mv, matches, KeysEnabled);                     // Equal bit bus for each valid key
+      matchesValid = new PointMask(andBitBuses(mv, matches, KeysEnabled));      // Equal bit bus for each valid key
 
       selectedData = chooseWordUnderMask(df, Data, matchesValid);               // Choose data under equals mask
       keyWasFound  = orBits             (f2,       matchesValid);               // Show whether key was found
@@ -1801,18 +1850,18 @@ final public class Chip                                                         
       found        = And             (Found, keyWasFound,  enable);             // Enable found flag
 
       if (!Leaf)                                                                // Find next link with which to enable next layer
-       {final Bits Mm = collectBits            (mm, K);                         // Monotone mask more for compare greater than on keys so we can find next link
-        final Bits Nv = andBitBuses            (nv, Mm, KeysEnabled);           // Monotone mask more for compare greater than on valid keys
-        final Bit  Nm = norBits                (nm, Nv);                        // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
-        final Bits Pm = monotoneMaskToPointMask(pm, Nv);                        // Convert monotone more mask to point mask
-        final Bits Mf = chooseWordUnderMask    (mf, Next, Pm);                  // Choose next link using point mask from the more monotone mask created
-        final Bits N4 = chooseFromTwoWords     (n4, Mf,   Top, Nm);             // Choose top or next link
-        final Bit  Pt = norBits                (pt, Pm);                        // The top link is the next link
-        final Bit  Nf = Not                    (nf, found);                     // Not found
-        final Bits N3 = enableWord             (n3, N4,   Nf);                  // Disable next link if we found the key
-        final Bit  Pn = And                    (pn, Pt,   Nf);                  // Top is the next link, but only if the key was not found
-        final Bits N2 = chooseFromTwoWords     (n2, N3,   Top, Pn);             // Either the next link or the top link
-        outNext = enableWord                   (OutNext,  N2,  enable);         // Next link only if this node is enabled
+       {final Bits      Mm = collectBits           (mm, K);                     // Monotone mask more for compare greater than on keys so we can find next link
+        final UpMask    Nv = new UpMask(andBitBuses(nv, Mm, KeysEnabled));      // Monotone mask more for compare greater than on valid keys
+        final Bit       Nm = norBits               (nm, Nv);                    // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
+        final PointMask Pm = upMaskToPointMask     (pm, Nv);                    // Convert monotone more mask to point mask
+        final Bits      Mf = chooseWordUnderMask   (mf, Next, Pm);              // Choose next link using point mask from the more monotone mask created
+        final Bits      N4 = chooseFromTwoWords    (n4, Mf,   Top, Nm);         // Choose top or next link
+        final Bit       Pt = norBits               (pt, Pm);                    // The top link is the next link
+        final Bit       Nf = Not                   (nf, found);                 // Not found
+        final Bits      N3 = enableWord            (n3, N4,   Nf);              // Disable next link if we found the key
+        final Bit       Pn = And                   (pn, Pt,   Nf);              // Top is the next link, but only if the key was not found
+        final Bits      N2 = chooseFromTwoWords    (n2, N3,   Top, Pn);         // Either the next link or the top link
+        outNext = enableWord                 (OutNext,  N2,   enable);          // Next link only if this node is enabled
        }
       else outNext = null;                                                      // Not relevant in a leaf
      }
@@ -1825,7 +1874,7 @@ final public class Chip                                                         
      ){}
 
     Insert Insert(String Output, Bits iKey, Bits iData, Bits iNext,             // Insert a new key, data pair in a leaf node at the position shown by the monotone mask.
-      Bits position)
+      UpMask position)
      {final Words k = insertIntoArray(n(Output, "outKeys"), Keys, position, iKey);
       final Words d = insertIntoArray(n(Output, "outData"), Data, position, iData);
       final Bits  v = shiftUpOne     (n(Output, "outKeysEnabled"), KeysEnabled);
@@ -1841,15 +1890,19 @@ final public class Chip                                                         
      ){}
 
     Split split(BtreeNode b)                                                    // Split the specified child node of this parent node.  Insert the newly created lower node into the parent and return the nw version of the parent, the split node and the lower split out node
-     {final Words ak = new SubWordBus(n(Output, "aKeys"),  b.Keys, 1,  K/2);
-      final Words ad = new SubWordBus(n(Output, "aData"),  b.Data, 1,  K/2);
-      final Words an = new SubWordBus(n(Output, "aNext"),  b.Next, 1,  K/2);
-      final Bits  av = bits          (n(Output, "aValid"), K, (1<<(K/2) - 1));
-      final Words bk = new SubWordBus(n(Output, "bKeys"),  b.Keys, K - K/2, K/2);
-      final Words bd = new SubWordBus(n(Output, "bData"),  b.Data, K - K/2, K/2);
-      final Words bn = new SubWordBus(n(Output, "bNext"),  b.Next, K - K/2, K/2);
-      final Bits  bv = bits          (n(Output, "bValid"), K, (1<<(K/2) - 1));
-       return new Split(null, null, null);                                       // Results of splitting the node
+     {final int k = K / 2;
+      final Words ak = new SubWordBus(n(Output, "aKeys"),  b.Keys, 1,  k);
+      final Words ad = new SubWordBus(n(Output, "aData"),  b.Data, 1,  k);
+      final Words an = new SubWordBus(n(Output, "aNext"),  b.Next, 1,  k);
+      final Bits  av = bits          (n(Output, "aValid"), K, (1<<k) - 1);
+      final Words bk = new SubWordBus(n(Output, "bKeys"),  b.Keys, K - k, k);
+      final Words bd = new SubWordBus(n(Output, "bData"),  b.Data, K - k, k);
+      final Words bn = new SubWordBus(n(Output, "bNext"),  b.Next, K - k, k);
+      final Bits  bv =           bits(n(Output, "bValid"), K, (1<<k) - 1);
+      final UpMask gt =  findGt(n(Output, "greater"),  Keys, b.Keys.w(1 + k));
+      final Insert i =         Insert(n(Output, "inParent"), Keys.w(1+k),       // Insert splitting key, data, next inparetn as indicated by greater than monotone mask
+        Data.w(1+k), Next == null ? null : Next.w(1+k), gt);
+      return new Split(null, null, null);                                       // Results of splitting the node
      }
 
     static BtreeNode Test                                                       // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
@@ -1997,7 +2050,7 @@ final public class Chip                                                         
     return d;
    }
 
-  Diagram draw(int GlobalScaleX, int GlobalScaleY)             // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
+  Diagram draw(int GlobalScaleX, int GlobalScaleY)                              // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
    {Diagram D = null;
     Integer L = null;
     for (int s = 1; s < singleLevelLayoutLimit; ++s)                            // Various gate scaling factors
@@ -2009,7 +2062,7 @@ final public class Chip                                                         
     return drawLayout(D);
    }
 
-  Diagram draw() {return draw(1,1);}          // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
+  Diagram draw() {return draw(1,1);}                                            // Try different gate scaling factors in hopes of finding a single level wiring diagram.  Returns the wiring diagram with the fewest wiring levels found.
 
   Stack<String> sortIntoOutputGateOrder(int Distance)                           // Order the gates in this column to match the order of the output gates
    {final Stack<String> r = new Stack<>();                                      // Order of gates
@@ -3261,7 +3314,7 @@ final public class Chip                                                         
        {Chip c = new Chip("monotone_mask_to_point_mask_"+B);
         Bits I = c.new BitBus("i", N);
         for (int j = 1; j <= N; j++) c.bit(I.b(j).name, j < i ? 0 : 1);
-        Bits o = c.monotoneMaskToPointMask("o", I);
+        Bits o = c.upMaskToPointMask("o", c.new UpMask(I));
         Bits O = c.outputBits("O", o);
         c.simulate();
         ok(O.Int(), powerTwo(i-1));
@@ -3275,7 +3328,7 @@ final public class Chip                                                         
     Chip  c = new Chip("choose_word_under_mask_"+B);
     Words I = c.words("i", B, Arrays.copyOfRange(numbers, 0, B2));
     Bits  m = c.bits ("m", B2, powerTwo(i));
-    Bits  o = c.chooseWordUnderMask("o", I, m);
+    Bits  o = c.chooseWordUnderMask("o", I, c.new PointMask(m));
     Bits  O = c.outputBits("O", o);
     c.simulate();
     O.ok(numbers[i]);
@@ -3330,7 +3383,7 @@ final public class Chip                                                         
     test_btree_node(6, 0b111, 1, false, 0, 0);
     test_btree_node(7, 0b111, 1, false, 0, 0);
 
-    test_btree_node(1, 0b011, 7, false, 0, 1);                                   // Only the first two keys are valid
+    test_btree_node(1, 0b011, 7, false, 0, 1);                                  // Only the first two keys are valid
     test_btree_node(2, 0b011, 7,  true, 1, 0);
     test_btree_node(3, 0b011, 7, false, 0, 3);
     test_btree_node(4, 0b011, 7,  true, 3, 0);
@@ -3931,7 +3984,7 @@ Step  in  la lb lc  a    b    c
       Bits  m = c.bits("mask",   B, mm);                                        // Monotone mask insertion point
       Bits  i = c.bits("in",     B, I);                                         // Word to insert
 
-      Words W = c.insertIntoArray("o", w, m, i);                                // Insert
+      Words W = c.insertIntoArray("o", w, c.new UpMask(m), i);            // Insert
       Words O = c.outputWords    ("O", W);
       c.simulate();
       switch(j)
@@ -3955,7 +4008,7 @@ Step  in  la lb lc  a    b    c
       Bits  m = c.bits("mask",   B, mm);                                        // Monotone mask removal point
       Bits  i = c.bits("in",     B, I);                                         // Word to remove
 
-      RemoveFromArray W = c.removeFromArray("o", w, m, i);                      // Remove
+      RemoveFromArray W = c.removeFromArray("o", w, c.new UpMask(m), i);  // Remove
       Words O = c.outputWords    ("O", W.out);
       Bits  R = c.outputBits     ("R", W.removed);
       c.simulate();
@@ -3992,7 +4045,7 @@ Step  in  la lb lc  a    b    c
     Bits  d = c.bits("inData",   B, Data);                                      // New data
     Bits  n = c.bits("inNext",   B, Next);                                      // New links
     Bits  p = c.bits("insertAt", B, position);                                  // Insert position at first position in monotone mask to be true
-    BtreeNode.Insert i = b.Insert("out", k, d, n, p);                           // Insert results
+    BtreeNode.Insert i = b.Insert("out", k, d, n, c.new UpMask(p));             // Insert results
     Words K = c.outputWords("ok", i.keys);                                      // Modified keys
     Words D = c.outputWords("od", i.data);                                      // Modified data
     Words N = c.outputWords("on", i.next);                                      // Modified next
@@ -4037,7 +4090,7 @@ Step  in  la lb lc  a    b    c
     b.outNext.anneal();                                                         // Anneal the link bit bus as we do not use it in this test
     b.found  .anneal();
 
-    BtreeNode.Split s = p.split(b);                                                   // Split the node backwards
+    BtreeNode.Split s = p.split(b);                                             // Split a node
 //
 //
 //    Bits  k = c.bits("inKeys",   B, Key);                                       // New Key
@@ -4092,14 +4145,18 @@ Step  in  la lb lc  a    b    c
     oW.ok(7, 9);
    }
 
-  static void test_find_gt_words()
-   {int   N = 8;
-    Chip  c = new Chip();
-    Words w = c.words ("w", N, 3, 5, 7, 9, 11);
-    Bits  b = c.bits  ("b", N, 6);
-    //Bits  o = w.findGt("o", b);
+  static void test_find_words()
+   {int      N = 8;
+    Chip     c = new Chip    ();
+    Words    w = c.words     ("w", N, 3, 5, 7, 9, 11);
+    Bits     b = c.bits      ("b", N, 6);
+    UpMask   g = c.findGt    ("g", w, b);
+    Bits     G = c.outputBits("G", g);
+    DownMask l = c.findLt    ("l", w, b);
+    Bits     L = c.outputBits("L", l);
     c.simulate();
-    //o.ok(0b11100);
+    G.ok(0b11100);
+    L.ok(0b00011);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -4150,14 +4207,13 @@ Step  in  la lb lc  a    b    c
     test_btree_insert();
     test_sub_bit_bus();
     test_sub_word_bus();
-    //test_find_gt_words();
+    test_find_words();
     test_btree_split_node();
    }
 
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
-    //test_find_gt_words();
-    //test_btree_split_node();
+    test_btree_split_node();
     oldTests();
    }
 
