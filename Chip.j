@@ -2857,6 +2857,8 @@ final public class Chip                                                         
 
 //D1 Logging                                                                    // Logging and tracing
 
+//D2 Traceback                                                                  // Trace back so we know where we are
+
   static String traceBack(Exception e)                                          // Get a stack trace that we can use in Geany
    {final StackTraceElement[]  t = e.getStackTrace();
     final StringBuilder        b = new StringBuilder();
@@ -2889,6 +2891,13 @@ final public class Chip                                                         
     if (T.length == 3) return currentTestName(T[2].getMethodName());            // Not called from a constructor
     return null;
    }
+
+  static String sourceFileName()                                                // Name of source file containing this method
+   {final StackTraceElement e = Thread.currentThread().getStackTrace()[2];      // 0 is getStackTrace, 1 is this routine, 2 is calling method
+    return e.getFileName();
+   }
+
+//D2 Printing                                                                   // Print log messages
 
   static void say(Object...O)                                                   // Say something
    {final StringBuilder b = new StringBuilder();
@@ -2937,6 +2946,10 @@ final public class Chip                                                         
   static void test_max_min()
    {ok(min(3, 2, 1), 1d);
     ok(max(1, 2, 3), 3d);
+   }
+
+  static void test_source_file_name()
+   {ok(sourceFileName(), "Chip.j");
    }
 
   static void test_and()
@@ -4196,6 +4209,7 @@ Step  in  la lb lc  a    b    c
 
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_max_min();
+    test_source_file_name();
     test_and_two_bits();
     test_and();
     test_and_grouping();
