@@ -1955,7 +1955,7 @@ final public class Chip                                                         
       final Bits     e = c.bits (B, enable);
       final Bits     f = c.bits (B, find);
       final Words    k = c.words(B, keys);
-      final Bits    bK = c.bits (B, keysEnabled);
+      final Bits    bK = c.bits (N, keysEnabled);
       final DownMask K = c.new DownMask(bK);
       final Words    d = c.words(B, data);
       final Words    n = next != null ? c.words(B, next) : null;
@@ -4118,7 +4118,7 @@ Step  in  la lb lc  a    b    c
     int[]data = {3, 5, 7};
     int[]next = {1, 3, 5};
     int   top = 7;
-    int     B = 3;
+    int     B = 4;
     int     M = 3;
     int    id = 7;
 
@@ -4146,19 +4146,9 @@ Step  in  la lb lc  a    b    c
     Bits  be = c.outputBits ("be", s.upper.KeysEnabled);
 
     c.simulate();
-    switch(valid)
-     {case 0b011 ->
-       {pk.ok(2, 4, 4);  ak.ok(2); bk.ok(6);
-        pd.ok(3, 5, 5);  ad.ok(3); bd.ok(7);
-        pn.ok(1, 3, 3);  an.ok(1); bn.ok(5);
-       }
-      case 0b001 ->
-       {pk.ok(2, 4, 4);  ak.ok(2); bk.ok(6);
-        pd.ok(3, 5, 5);  ad.ok(3); bd.ok(7);
-        pn.ok(1, 3, 3);  an.ok(1); bn.ok(5);
-       }
-      default -> say("Implementation needeed for case", valid);
-     }
+    pk.ok(2, 4, 4);  ak.ok(2); bk.ok(6);
+    pd.ok(3, 5, 5);  ad.ok(3); bd.ok(7);
+    pn.ok(1, 3, 3);  an.ok(1); bn.ok(5);
     return c;
    }
 
@@ -4261,8 +4251,8 @@ Step  in  la lb lc  a    b    c
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//test_btree_split_node();
-    oldTests();
+   {test_btree_split_node();
+    //oldTests();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
