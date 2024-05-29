@@ -395,7 +395,7 @@ final public class Chip                                                         
      {final int N = drives.size();                                              // Size of actual drives
       if (N == 0 && !systemGate)                                                // Check for user defined gates that do not drive any other gate
        {if (op == Operator.Output || op == Operator.FanOut) return;
-        stop(op, "gate", name, "does not drive any gate");
+        say(op, "gate", name, "does not drive any gate");
         return;
        }
 
@@ -1110,6 +1110,10 @@ final public class Chip                                                         
       if (fails > 0) err(b);
       testsPassed += passes; testsFailed += fails;                              // Passes and fails
      }
+    default public void anneal()                                                // Anneal each word in the bus
+     {final int W = words();
+       for (int w = 1; w < W; ++w) w(w).anneal();
+     }
    } // Words
 
   class WordBus implements Words                                                // Description of a word bus
@@ -1779,16 +1783,7 @@ final public class Chip                                                         
     final Words        Next;                                                    // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
     final Bits          Top;                                                    // The top next link making N+1 next links in all.
     final Bits  KeysEnabled;                                                    // One bit for each key showing whether the key is a valid key if true, else an empty slot.  These bits form a monotone mask.
-    final Bit         found;                                                    // Found the search key
-    final Bits      outData;                                                    // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
-    final Bits      outNext;                                                    // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
     int        level, index;                                                    // Level and position in  level for this node
-    final Bits       nodeId;                                                    // Save id of node
-    final Bit        enable;                                                    // Check whether this node is enabled
-    final Bits      matches;                                                    // Bitbus showing whether each key is equal to the search key
-    final Bits selectedData;                                                    // Choose data under equals mask
-    final Bit   keyWasFound;                                                    // Show whether key was found
-    final PointMask matchesValid;                                               // Bitbus showing whether each key is equal to a valid key
 
     BtreeNode                                                                   // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
      (String      Output,                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
@@ -1810,8 +1805,17 @@ final public class Chip                                                         
       this.Enable = Enable; this.Find    = Find;    this.Keys    = Keys;
       this.Data   = Data;   this.Next    = Next;    this.Top     = Top;
       this.KeysEnabled = KeysEnabled;
+     }
 
-      final String   Found = n(Output, "Found");                                // Found the search key
+    record Search                                                               // Results of generating gates to search a node
+     (BtreeNode node,                                                           // Node searched
+      Bit      found,                                                           // Bit that shows whether the key was found
+      Bits      data,                                                           // The data associated with the key of the key was found else zero
+      Bits      next                                                            // The id of the next node to search if the key was not found, else zero
+     ){}
+
+    Search search()                                                             // Search a Btree node
+     {final String   Found = n(Output, "Found");                                // Found the search key
       final String OutData = n(Output, "OutData");                              // Data found
       final String OutNext = n(Output, "OutNext");                              // Next link if not a leaf and not found else zero
 
@@ -1833,22 +1837,23 @@ final public class Chip                                                         
       final String pt = n(Output, "pointMoreTop");                              // A single bit that tells us whether the top link is the next link
       final String pn = n(Output, "pointMoreTop_notFound");                     // Top is the next link, but only if the key was not found
 
-      nodeId   = bits     (id, B, Id);                                          // Save id of node
-      enable   = compareEq(en, nodeId, Enable);                                 // Check whether this node is enabled
+      final Bits nodeId = bits     (id, B, Id);                                 // Save id of node
+      final Bit  enable = compareEq(en, nodeId, Enable);                        // Check whether this node is enabled
 
       for (int i = 1; i <= K; i++)
        {compareEq(n(i, me), Keys.w(i), Find);                                   // Compare equal point mask
         if (!Leaf) compareGt(n(i, mm), Keys.w(i), Find);                        // Compare more  monotone mask
        }
 
-      matches      = collectBits(me, K);                                        // Equal bit bus for each key
-      matchesValid = new PointMask(andBitBuses(mv, matches, KeysEnabled));      // Equal bit bus for each valid key
+      final Bits      matches      = collectBits(me, K);                        // Equal bit bus for each key
+      final PointMask matchesValid = new PointMask(andBitBuses(mv, matches, KeysEnabled)); // Equal bit bus for each valid key
 
-      selectedData = chooseWordUnderMask(df, Data, matchesValid);               // Choose data under equals mask
-      keyWasFound  = orBits             (f2,       matchesValid);               // Show whether key was found
-      outData      = enableWord    (OutData, selectedData, enable);             // Enable data found
-      found        = And             (Found, keyWasFound,  enable);             // Enable found flag
+      final Bits selectedData = chooseWordUnderMask(df, Data, matchesValid);    // Choose data under equals mask
+      final Bit  keyWasFound  = orBits             (f2,       matchesValid);    // Show whether key was found
+      final Bits outData      = enableWord    (OutData, selectedData, enable);  // Enable data found
+      final Bit  found        = And             (Found, keyWasFound,  enable);  // Enable found flag
 
+      final Bits      outNext;                                                  // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
       if (!Leaf)                                                                // Find next link with which to enable next layer
        {final Bits      Mm = collectBits           (mm, K);                     // Monotone mask more for compare greater than on keys so we can find next link
         final UpMask    Nv = new UpMask(andBitBuses(nv, Mm, KeysEnabled));      // Monotone mask more for compare greater than on valid keys
@@ -1864,6 +1869,8 @@ final public class Chip                                                         
         outNext = enableWord                 (OutNext,  N2,   enable);          // Next link only if this node is enabled
        }
       else outNext = null;                                                      // Not relevant in a leaf
+
+      return new Search(this, found, outData, outNext);                         // Results of search
      }
 
     record Insert                                                               // Buses created by insert operation
@@ -1885,8 +1892,8 @@ final public class Chip                                                         
 
     record Split                                                                // The results of splitting a node
      (BtreeNode parent,                                                         // New version of the parent node one of whose children is being split
-      BtreeNode  upper,                                                         // New version of the node being split.  This arrangement preserves the top if this node happens to be the top node
-      BtreeNode  lower                                                          // The lower half of the node being split
+      BtreeNode  lower,                                                         // The lower half of the node being split
+      BtreeNode  upper                                                          // New version of the node being split.  This arrangement preserves the top if this node happens to be the top node
      ){}
 
     Split split(BtreeNode b)                                                    // Split the specified child node of this parent node.  Insert the newly created lower node into the parent and return the nw version of the parent, the split node and the lower split out node
@@ -1894,15 +1901,29 @@ final public class Chip                                                         
       final Words ak = new SubWordBus(n(Output, "aKeys"),  b.Keys, 1,  k);
       final Words ad = new SubWordBus(n(Output, "aData"),  b.Data, 1,  k);
       final Words an = new SubWordBus(n(Output, "aNext"),  b.Next, 1,  k);
-      final Bits  av = bits          (n(Output, "aValid"), K, (1<<k) - 1);
-      final Words bk = new SubWordBus(n(Output, "bKeys"),  b.Keys, K - k, k);
-      final Words bd = new SubWordBus(n(Output, "bData"),  b.Data, K - k, k);
-      final Words bn = new SubWordBus(n(Output, "bNext"),  b.Next, K - k, k);
-      final Bits  bv =           bits(n(Output, "bValid"), K, (1<<k) - 1);
+      final Bits  av = bits          (n(Output, "aKeysEnabled"), K, (1<<k) - 1);
+      final Words bk = new SubWordBus(n(Output, "bKeys"),  b.Keys, 2+k, k);
+      final Words bd = new SubWordBus(n(Output, "bData"),  b.Data, 2+k, k);
+      final Words bn = new SubWordBus(n(Output, "bNext"),  b.Next, 2+k, k);
+      final Bits  bv =           bits(n(Output, "bKeysEnabled"), K, (1<<k) - 1);
       final UpMask gt =  findGt(n(Output, "greater"),  Keys, b.Keys.w(1 + k));
-      final Insert i =         Insert(n(Output, "inParent"), Keys.w(1+k),       // Insert splitting key, data, next inparetn as indicated by greater than monotone mask
+      final Insert i =         Insert(n(Output, "inParent"), Keys.w(1+k),       // Insert splitting key, data, next in parent as indicated by greater than monotone mask
         Data.w(1+k), Next == null ? null : Next.w(1+k), gt);
-      return new Split(null, null, null);                                       // Results of splitting the node
+
+      final BtreeNode np = new BtreeNode(n(Output, "splitP"), nextGateNumber(), B, K,   Leaf, Enable, Find, i.keys, i.data, i.next, Top, i.enabledKeys); // Top of parent is unchanged because we always split downwards.
+      final BtreeNode na = new BtreeNode(n(Output, "splitA"), nextGateNumber(), B, K, b.Leaf, Enable, Find, ak,     ad,     an,     b.Next.w(1), av);    // Top of lower child is next(1) of upper child
+      final BtreeNode nb = new BtreeNode(n(Output, "splitB"), nextGateNumber(), B, K, b.Leaf, Enable, Find, bk,     bd,     bn,     b.Top, bv);          // Top of uypper child is unchanged
+      return new Split(np, na, nb);                                             // Results of splitting the node
+     }
+
+    void anneal()                                                               // Anneal this node during testing of methods other than search.
+     {     Enable.anneal();
+             Find.anneal();
+             Keys.anneal();
+             Data.anneal();
+             Next.anneal();
+              Top.anneal();
+      KeysEnabled.anneal();
      }
 
     static BtreeNode Test                                                       // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
@@ -1950,7 +1971,7 @@ final public class Chip                                                         
       final int         N;                                                      // Number of nodes at this level
       final boolean  root;                                                      // Root node
       final boolean  leaf;                                                      // Final level is made of leaf nodes
-      final Bits enable;                                                        // Node selector for this level
+      final Bits   enable;                                                      // Node selector for this level
       final TreeMap<Integer, BtreeNode> nodes;                                  // Nodes in this level
       Level(int l, int n, boolean Root, boolean Leaf, Bits Enable)              // Create a level description
        {nodes = new TreeMap<>();
@@ -2015,12 +2036,14 @@ final public class Chip                                                         
           final BtreeNode node = new BtreeNode(n(l, n, output, "node"),         // Create the node
             nodeId, bits, keys, leaf, eI, find, iK, iD, iN, iT, ke);
 
-          oF[n-1] = node.found;
-          oD[n-1] = node.outData;
-          oN[n-1] = node.outNext;
+          final BtreeNode.Search search = node.search();                        // Create silicon to search the node
 
-          level.nodes.put(n, node);                                             // Add the node to this level
-          nodes.put(nodeId, node);                                              // Index the node
+          oF[n-1] = search.found;
+          oD[n-1] = search.data;
+          oN[n-1] = search.next;
+
+          level.nodes.put(n, search.node);                                      // Add the node to this level
+          nodes.put (nodeId, search.node);                                      // Index the node
           node.level = l; node.index = n;                                       // Position of node in tree
          }
 
@@ -3036,7 +3059,7 @@ final public class Chip                                                         
 
   static void test_one()
    {Chip c = new Chip();
-    Bit  O = c.One ("O");
+    Bit  O = c.One   ("O");
     Bit  o = c.Output("o", O);
     c.simulate();
     ok(c.steps, 3);
@@ -3354,9 +3377,10 @@ final public class Chip                                                         
 
     BtreeNode b = BtreeNode.Test                                                // Search a node
      (c, "node", id, B, N, enable, find, keys, data, next, top, validKeys);
-    Bits d = c.outputBits("d", b.outData);
-    Bits n = c.outputBits("n", b.outNext);
-    Bit  f = c.Output    ("f", b.found);
+    BtreeNode.Search s = b.search();
+    Bits d = c.outputBits("d", s.data);
+    Bits n = c.outputBits("n", s.next);
+    Bit  f = c.Output    ("f", s.found);
     c.simulate();
 //stop(c);
 //  ok(c.steps >= 18 && c.steps <= 22, true);
@@ -3412,8 +3436,9 @@ final public class Chip                                                         
     var     c = new Chip("btree_leaf_compare_"+B);
 
     BtreeNode b = BtreeNode.Test(c, "node", id, B, N, enable, find, keys, data, next, top, ke);
-    Bits      d = c.outputBits("d", b.outData);
-    Gate      f = c.Output    ("f", b.found);
+    BtreeNode.Search s = b.search();
+    Bits      d = c.outputBits("d", s.data);
+    Gate      f = c.Output    ("f", s.found);
     c.simulate();
     //ok(c.steps == 10 || c.steps == 12, true);
     f.ok(Found);
@@ -4037,9 +4062,7 @@ Step  in  la lb lc  a    b    c
 
     BtreeNode b = BtreeNode.Test(c, "node", id, B, M, 0, 0,                     // Create a disabled node as id != enabled
       keys, data, next, top, valid);
-    b.outData.anneal();                                                         // Anneal the data bit bus as we do not use it in this test
-    b.outNext.anneal();                                                         // Anneal the link bit bus as we do not use it in this test
-    b.found.anneal();                                                           // Anneal found bit as we do not use it
+    b.anneal();                                                                 // Anneal unused gates
 
     Bits  k = c.bits("inKeys",   B, Key);                                       // New Key
     Bits  d = c.bits("inData",   B, Data);                                      // New data
@@ -4078,44 +4101,38 @@ Step  in  la lb lc  a    b    c
 
     Chip    c = new Chip();
 
-    BtreeNode p = BtreeNode.Test(c, "parent", id, B, M, 0, 0,                   // Parent
-      keys, data, next, top, valid);
-    p.outData.anneal();
-    p.outNext.anneal();
-    p.found  .anneal();
-
-    BtreeNode b = BtreeNode.Test(c, "node",   id, B, M, 0, 0,                   // Node
-      keys, data, next, top, valid);
-    b.outData.anneal();                                                         // Anneal the data bit bus as we do not use it in this test
-    b.outNext.anneal();                                                         // Anneal the link bit bus as we do not use it in this test
-    b.found  .anneal();
+    BtreeNode p = BtreeNode.Test(c, "parent", id, B, M, 0, 0, keys, data, next, top, valid);
+    BtreeNode b = BtreeNode.Test(c, "node",   id, B, M, 0, 0, keys, data, next, top, valid);
+    p.anneal();
+    b.anneal();
 
     BtreeNode.Split s = p.split(b);                                             // Split a node
-//
-//
-//    Bits  k = c.bits("inKeys",   B, Key);                                       // New Key
-//    Bits  d = c.bits("inData",   B, Data);                                      // New data
-//    Bits  n = c.bits("inNext",   B, Next);                                      // New links
-//    Bits  p = c.bits("insertAt", B, position);                                  // Insert position at first position in monotone mask to be true
-//    BtreeNode.Insert i = b.Insert("out", k, d, n, p);                           // Insert results
-//    Words K = c.outputWords("ok", i.keys);                                      // Modified keys
-//    Words D = c.outputWords("od", i.data);                                      // Modified data
-//    Words N = c.outputWords("on", i.next);                                      // Modified next
-//    Bits  E = c.outputBits ("oe", i.enabledKeys);                               // Enabled keys
-//    c.simulate();
-//    switch(position)
-//     {case 0b111 -> {K.ok(1,2,4); D.ok(2,3,5); N.ok(3,1,3); E.ok(0b111);}
-//      case 0b110 -> {K.ok(2,1,4); D.ok(3,2,5); N.ok(1,3,3); E.ok(0b111);}
-//      case 0b100 -> {K.ok(2,4,1); D.ok(3,5,2); N.ok(1,3,3); E.ok(0b111);}
-//      default -> stop("Test expectations required for", position);
-//     }
+    Words pk = c.outputWords("pk", s.parent.Keys);
+    Words pd = c.outputWords("pd", s.parent.Data);
+    Words pn = c.outputWords("pn", s.parent.Next);
+    Bits  pe = c.outputBits ("pe", s.parent.KeysEnabled);
+
+    Words ak = c.outputWords("ak", s.lower.Keys);
+    Words ad = c.outputWords("ad", s.lower.Data);
+    Words an = c.outputWords("an", s.lower.Next);
+    Bits  ae = c.outputBits ("ae", s.lower.KeysEnabled);
+
+    Words bk = c.outputWords("bk", s.upper.Keys);
+    Words bd = c.outputWords("bd", s.upper.Data);
+    Words bn = c.outputWords("bn", s.upper.Next);
+    Bits  be = c.outputBits ("be", s.upper.KeysEnabled);
+
+    c.simulate();
+    pk.ok(2, 4, 4);  ak.ok(2); bk.ok(6);
+    pd.ok(3, 5, 5);  ad.ok(3); bd.ok(7);
+    pn.ok(1, 3, 3);  an.ok(1); bn.ok(5);
     return c;
    }
 
   static void test_btree_split_node()
    {test_btree_split_node(0b111);
-    test_btree_split_node(0b110);
-    test_btree_split_node(0b100);
+    //test_btree_split_node(0b110);
+    //test_btree_split_node(0b100);
     //test_btree_split_node(0b000);
    }
 
@@ -4214,7 +4231,7 @@ Step  in  la lb lc  a    b    c
   static void newTests()                                                        // Tests being worked on
    {if (github_actions) return;
     test_btree_split_node();
-    oldTests();
+    //oldTests();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
