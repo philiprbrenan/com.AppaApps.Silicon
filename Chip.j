@@ -3,6 +3,7 @@
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 // Draw all layouts when on Github
+// CN: check gate names match variable names
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
 
 import java.io.*;
@@ -1352,6 +1353,24 @@ final public class Chip                                                         
     return o;
    }
 
+  Bits findGt(String output, Words w, Bits b)                                   // Bits indicating which words are greater than the specified word
+   {final int bb = b.bits(), ww = w.words(), wb = w.bits();
+    if (wb != bb) stop("Each word has", wb, "bits,",
+      "but the search key has", bb);
+    final Bits m = new BitBus(output, ww);
+    for (int i = 1; i <= ww; i++) compareGt(m.b(i).name, w.w(i), b);
+    return m;
+   }
+
+  Bits findLt(String output, Words w, Bits b)                                   // Bits indicating which words are less than the specified word
+   {final int bb = b.bits(), ww = w.words(), wb = w.bits();
+    if (wb != bb) stop("Each word has", wb, "bits,",
+      "but the search key has", bb);
+    final Bits m = new BitBus(output, ww);
+    for (int i = 1; i <= ww; i++) compareLt(m.b(i).name, w.w(i), b);
+    return m;
+   }
+
 //D2 Masks                                                                      // Point masks and monotone masks. A point mask has a single bit set to true, the rest are set to false.  The true bit indicates the point at which something is to happen.
 
 //D3 Monotone masks                                                             // A monotone up mask is any bit string whose bits can be sorted into ascending order (false, true) without being changed.  A monotone down mask is one where sorting with sort order (true, false) has no effect.
@@ -1372,24 +1391,6 @@ final public class Chip                                                         
     public int    bits()      {return bits.bits();}                             // Number of bits of bus - the width of the bus
     public Bit       b(int i) {return bits.b   (i);}                            // Number of bits of bus - the width of the bus
     public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
-   }
-
-  UpMask findGt(String output, Words w, Bits b)                                 // Create a monotone up mask showing which words are greater than the bits
-   {final int bb = b.bits(), ww = w.words(), wb = w.bits();
-    if (wb != bb) stop("Each word has", wb, "bits,",
-      "but the search key has", bb);
-    final Bits m = new BitBus(output, ww);
-    for (int i = 1; i <= ww; i++) compareGt(m.b(i).name, w.w(i), b);
-    return new UpMask(m);
-   }
-
-  DownMask findLt(String output, Words w, Bits b)                               // Create a monotone down mask showing which words are less than the bits
-   {final int bb = b.bits(), ww = w.words(), wb = w.bits();
-    if (wb != bb) stop("Each word has", wb, "bits,",
-      "but the search key has", bb);
-    final Bits m = new BitBus(output, ww);
-    for (int i = 1; i <= ww; i++) compareLt(m.b(i).name, w.w(i), b);
-    return new DownMask(m);
    }
 
 //D3 Point masks                                                                // A point mask is the differential of a monotone mask: it has no more then one bit set to true, the rest are set to false.
@@ -1786,18 +1787,18 @@ final public class Chip                                                         
     int        level, index;                                                    // Level and position in  level for this node
 
     BtreeNode                                                                   // Create a new B-Tree node. The node is activated only when its preset id appears on its enable bus otherwise it produces zeroes regardless of its inputs.
-     (String      Output,                                                       // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
-      int             Id,                                                       // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
-      int              B,                                                       // Width of each word in the node.
-      int              K,                                                       // Number of keys == number of data words each B bits wide in the node.
-      boolean       Leaf,                                                       // Width of each word in the node.
-      Bits        Enable,                                                       // B bit wide bus naming the currently enabled node by its id.
-      Bits          Find,                                                       // B bit wide bus naming the key to be found
-      Words         Keys,                                                       // Keys in this node, an array of N B bit wide words.
-      Words         Data,                                                       // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
-      Words         Next,                                                       // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
-      Bits           Top,                                                       // The top next link making N+1 next links in all.
-      Bits   KeysEnabled)                                                       // One bit for each key showing whether the key is a valid key if true, else an empty slot.  These bits form a monotone mask.
+     (String        Output,                                                     // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
+      int               Id,                                                     // A unique unsigned integer B bits wide that identifies this node. Only the currently enabled node does a comparison.
+      int                B,                                                     // Width of each word in the node.
+      int                K,                                                     // Number of keys == number of data words each B bits wide in the node.
+      boolean         Leaf,                                                     // Width of each word in the node.
+      Bits          Enable,                                                     // B bit wide bus naming the currently enabled node by its id.
+      Bits            Find,                                                     // B bit wide bus naming the key to be found
+      Words           Keys,                                                     // Keys in this node, an array of N B bit wide words.
+      Words           Data,                                                     // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
+      Words           Next,                                                     // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
+      Bits             Top,                                                     // The top next link making N+1 next links in all.
+      DownMask KeysEnabled)                                                     // One bit for each key showing whether the key is a valid key if true, else an empty slot if false.
      {if (K     <= 2) stop("The number of keys the node can hold must be greater than 2, not", K);
       if (K % 2 == 0) stop("The number of keys the node can hold must be odd, not even:",      K);
       this.Output = Output;
@@ -1874,19 +1875,20 @@ final public class Chip                                                         
      }
 
     record Insert                                                               // Buses created by insert operation
-     (Words keys,                                                               // Keys with new key inserted
-      Words data,                                                               // Data with new data inserted
-      Words next,                                                               // Next links with new link inserted
-      Bits  enabledKeys                                                         // Enabled keys mask
+     (Words           keys,                                                     // Keys with new key inserted
+      Words           data,                                                     // Data with new data inserted
+      Words           next,                                                     // Next links with new link inserted
+      DownMask enabledKeys                                                      // Enabled keys mask
      ){}
 
     Insert Insert(String Output, Bits iKey, Bits iData, Bits iNext,             // Insert a new key, data pair in a leaf node at the position shown by the monotone mask.
       UpMask position)
-     {final Words k = insertIntoArray(n(Output, "outKeys"), Keys, position, iKey);
-      final Words d = insertIntoArray(n(Output, "outData"), Data, position, iData);
-      final Bits  v = shiftUpOne     (n(Output, "outKeysEnabled"), KeysEnabled);
-      final Words n = iNext == null ? null :
-                      insertIntoArray(n(Output, "outNext"), Next, position, iNext);
+     {final Words    k = insertIntoArray(n(Output, "outKeys"), Keys, position, iKey);
+      final Words    d = insertIntoArray(n(Output, "outData"), Data, position, iData);
+      final Bits    bv = shiftUpOne     (n(Output, "outKeysEnabled"), KeysEnabled);
+      final DownMask v = new DownMask(bv);
+      final Words    n = iNext == null ? null :
+        insertIntoArray(n(Output, "outNext"), Next, position, iNext);
       return new Insert(k, d, n, v);                                            // Insertion results
      }
 
@@ -1898,16 +1900,23 @@ final public class Chip                                                         
 
     Split split(BtreeNode b)                                                    // Split the specified child node of this parent node.  Insert the newly created lower node into the parent and return the nw version of the parent, the split node and the lower split out node
      {final int k = K / 2;
-      final Words ak = new SubWordBus(n(Output, "aKeys"),  b.Keys, 1,  k);
-      final Words ad = new SubWordBus(n(Output, "aData"),  b.Data, 1,  k);
-      final Words an = new SubWordBus(n(Output, "aNext"),  b.Next, 1,  k);
-      final Bits  av = bits          (n(Output, "aKeysEnabled"), K, (1<<k) - 1);
-      final Words bk = new SubWordBus(n(Output, "bKeys"),  b.Keys, 2+k, k);
-      final Words bd = new SubWordBus(n(Output, "bData"),  b.Data, 2+k, k);
-      final Words bn = new SubWordBus(n(Output, "bNext"),  b.Next, 2+k, k);
-      final Bits  bv =           bits(n(Output, "bKeysEnabled"), K, (1<<k) - 1);
-      final UpMask gt =  findGt(n(Output, "greater"),  Keys, b.Keys.w(1 + k));
-      final Insert i =         Insert(n(Output, "inParent"), Keys.w(1+k),       // Insert splitting key, data, next in parent as indicated by greater than monotone mask
+      final Words    ak = new SubWordBus(n(Output, "aKeys"),  b.Keys, 1,  k);
+      final Words    ad = new SubWordBus(n(Output, "aData"),  b.Data, 1,  k);
+      final Words    an = new SubWordBus(n(Output, "aNext"),  b.Next, 1,  k);
+      final Bits    bav = bits(n(Output, "aKeysEnabled"), K, (1<<k) - 1);       // Keys enabled in lower child
+      final DownMask av = new DownMask  (bav);
+
+      final Words    bk = new SubWordBus(n(Output, "bKeys"),  b.Keys, 2+k, k);
+      final Words    bd = new SubWordBus(n(Output, "bData"),  b.Data, 2+k, k);
+      final Words    bn = new SubWordBus(n(Output, "bNext"),  b.Next, 2+k, k);
+      final Bits    bbv = bits(n(Output, "bKeysEnabled"), K, (1<<k) - 1);       // Keys enabled in upper child
+      final DownMask bv = new DownMask  (bbv);
+
+      final Bits    pgt = findGt(n(Output,  "pGreater"),  Keys, b.Keys.w(1 + k));// Find keys greater than the search key in the parent node
+      final Bits   pnek = notBits(n(Output, "pNeKeys"),   KeysEnabled);         // Parent keys not enabled
+      final Bits  pnegt = andBits(n(Output, "pNeGt"),     pnek, pgt);           // Bits    of parent keys either greater or not enabled
+      final UpMask   gt = new UpMask(pnegt);                                    // Up mask of parent keys either greater or not enabled because the keys are contiguous, ordered and start in word one.
+      final Insert    i = Insert(n(Output, "inParent"), Keys.w(1+k),            // Insert splitting key, data, next in parent as indicated by greater than monotone mask
         Data.w(1+k), Next == null ? null : Next.w(1+k), gt);
 
       final BtreeNode np = new BtreeNode(n(Output, "splitP"), nextGateNumber(), B, K,   Leaf, Enable, Find, i.keys, i.data, i.next, Top, i.enabledKeys); // Top of parent is unchanged because we always split downwards.
@@ -1943,13 +1952,14 @@ final public class Chip                                                         
       if (                N != data.length) stop("Wrong number of data, need", N, "got", data.length);
       if (next != null && N != next.length) stop("Wrong number of next, need", N, "got", next.length);
 
-      final Bits  e = c.bits (B, enable);
-      final Bits  f = c.bits (B, find);
-      final Words k = c.words(B, keys);
-      final Bits  K = c.bits (B, keysEnabled);
-      final Words d = c.words(B, data);
-      final Words n = next != null ? c.words(B, next) : null;
-      final Bits  t = next != null ? c.bits (B, top)  : null;
+      final Bits     e = c.bits (B, enable);
+      final Bits     f = c.bits (B, find);
+      final Words    k = c.words(B, keys);
+      final Bits    bK = c.bits (B, keysEnabled);
+      final DownMask K = c.new DownMask(bK);
+      final Words    d = c.words(B, data);
+      final Words    n = next != null ? c.words(B, next) : null;
+      final Bits     t = next != null ? c.bits (B, top)  : null;
       final boolean leaf = next == null;
       return c.new BtreeNode(Output, Id, B, N, leaf, e, f, k, d, n, t, K);
      }
@@ -2009,7 +2019,8 @@ final public class Chip                                                         
         stop("Find bus must be", bits, "wide, not", find.bits());
 
       Bits eI = null;                                                           // For the moment we always enable the root node of the tree
-      final Bits ke = bits(n(output, "keysEnabled"), keys, (1<<keys)-1);        // All keys enabled
+      final Bits    bke = bits(n(output, "keysEnabled"), keys, (1<<keys)-1);    // All keys enabled
+      final DownMask ke = new DownMask(bke);                                    // All keys enabled
 
       final Bit []pF = new Bit [levels];                                        // Consolidate the results over all levels
       final Bits[]pD = new Bits[levels];
@@ -4088,12 +4099,11 @@ Step  in  la lb lc  a    b    c
     test_btree_insert(0b100);
    }
 
-  static Chip test_btree_split_node(int position)
+  static Chip test_btree_split_node(int valid)
    {int  Key  = 1, Data = 2, Next = 3;
     int[]keys = {2, 4, 6};
     int[]data = {3, 5, 7};
     int[]next = {1, 3, 5};
-    int valid = 0b111;
     int   top = 7;
     int     B = 3;
     int     M = 3;
@@ -4123,17 +4133,25 @@ Step  in  la lb lc  a    b    c
     Bits  be = c.outputBits ("be", s.upper.KeysEnabled);
 
     c.simulate();
-    pk.ok(2, 4, 4);  ak.ok(2); bk.ok(6);
-    pd.ok(3, 5, 5);  ad.ok(3); bd.ok(7);
-    pn.ok(1, 3, 3);  an.ok(1); bn.ok(5);
+    switch(valid)
+     {case 0b011 ->
+       {pk.ok(2, 4, 4);  ak.ok(2); bk.ok(6);
+        pd.ok(3, 5, 5);  ad.ok(3); bd.ok(7);
+        pn.ok(1, 3, 3);  an.ok(1); bn.ok(5);
+       }
+      case 0b001 ->
+       {pk.ok(2, 4, 4);  ak.ok(2); bk.ok(6);
+        pd.ok(3, 5, 5);  ad.ok(3); bd.ok(7);
+        pn.ok(1, 3, 3);  an.ok(1); bn.ok(5);
+       }
+      default -> say("Implementation needeed for case", valid);
+     }
     return c;
    }
 
   static void test_btree_split_node()
-   {test_btree_split_node(0b111);
-    //test_btree_split_node(0b110);
-    //test_btree_split_node(0b100);
-    //test_btree_split_node(0b000);
+   {test_btree_split_node(0b011);
+    test_btree_split_node(0b001);
    }
 
   static void test_sub_bit_bus()
@@ -4163,14 +4181,14 @@ Step  in  la lb lc  a    b    c
    }
 
   static void test_find_words()
-   {int      N = 8;
-    Chip     c = new Chip    ();
-    Words    w = c.words     ("w", N, 3, 5, 7, 9, 11);
-    Bits     b = c.bits      ("b", N, 6);
-    UpMask   g = c.findGt    ("g", w, b);
-    Bits     G = c.outputBits("G", g);
-    DownMask l = c.findLt    ("l", w, b);
-    Bits     L = c.outputBits("L", l);
+   {int   N = 8;
+    Chip  c = new Chip    ();
+    Words w = c.words     ("w", N, 3, 5, 7, 9, 11);
+    Bits  b = c.bits      ("b", N, 6);
+    Bits  g = c.findGt    ("g", w, b);
+    Bits  G = c.outputBits("G", g);
+    Bits  l = c.findLt    ("l", w, b);
+    Bits  L = c.outputBits("L", l);
     c.simulate();
     G.ok(0b11100);
     L.ok(0b00011);
@@ -4229,9 +4247,8 @@ Step  in  la lb lc  a    b    c
    }
 
   static void newTests()                                                        // Tests being worked on
-   {if (github_actions) return;
-    test_btree_split_node();
-    //oldTests();
+   {//test_btree_split_node();
+    oldTests();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
