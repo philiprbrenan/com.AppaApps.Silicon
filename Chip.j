@@ -1099,8 +1099,8 @@ final public class Chip                                                         
       final int lg = G.length, le = E.length;
       if (le != lg) stop("Mismatched length, got", lg, "expected", le, "got:\n"+G);
       int fails = 0, passes = 0;
-      for (int i = 0; i < lg; i++)
-       {final Integer e = E[i], g = G[i];
+      for (int i = 1; i <= lg; i++)
+       {final Integer e = E[i-1], g = G[i-1];
         if (false)                       {}
         else if (e == null && g == null) {}
         else if (e != null && g == null) {b.append(String.format("Index %d expected %d, but got null\n", i, e   )); ++fails;}
@@ -1113,7 +1113,7 @@ final public class Chip                                                         
      }
     default public void anneal()                                                // Anneal each word in the bus
      {final int W = words();
-       for (int w = 1; w < W; ++w) w(w).anneal();
+       for (int w = 1; w <= W; ++w) w(w).anneal();
      }
    } // Words
 
@@ -1153,6 +1153,12 @@ final public class Chip                                                         
 
     public Bits w(int i)        {return bitBuses.get(n(i,    name));}           // Get a bit bus in the word bus
     public Bit  b(int i, int j) {return collectBit  (n(i, j, name));}           // Get a bit from a bit bus in the word bus
+    public String toString()                                                    // Print words
+     {final StringBuilder b = new StringBuilder();
+      final int W = words();
+      for (int w = 1; w <= W; ++w) b.append(" "+w(w).Int());
+      return b.toString();
+     }
    } // WordBus
 
   class SubWordBus implements Words                                             // Select the specified range of words from a word bus
@@ -1180,6 +1186,12 @@ final public class Chip                                                         
      {if (i < 1 || i > length) stop("Sub word out of range:", i, "in range", length);
       if (j < 1 || j > bits()) stop("Sub bit out of range:",  j, "in range", bits());
       return collectBit(n(start-1+i, j, source.name()));
+     }
+    public String toString()                                                    // Print words
+     {final StringBuilder b = new StringBuilder();
+      final int W = words();
+      for (int w = 1; w <= W; ++w) b.append(" "+w(w).Int());
+      return b.toString();
      }
    } // SubWordBus
 
@@ -1878,7 +1890,10 @@ final public class Chip                                                         
      (Words           keys,                                                     // Keys with new key inserted
       Words           data,                                                     // Data with new data inserted
       Words           next,                                                     // Next links with new link inserted
-      DownMask enabledKeys                                                      // Enabled keys mask
+      DownMask enabledKeys,                                                     // Enabled keys mask
+      Bits            iKey,                                                     // Insertion key
+      Bits            iData,                                                    // Insertion data
+      Bits            iNext                                                     // Insertion next
      ){}
 
     Insert Insert(String Output, Bits iKey, Bits iData, Bits iNext,             // Insert a new key, data pair in a leaf node at the position shown by the monotone mask.
@@ -1889,16 +1904,21 @@ final public class Chip                                                         
       final DownMask v = new DownMask(bv);
       final Words    n = iNext == null ? null :
         insertIntoArray(n(Output, "outNext"), Next, position, iNext);
-      return new Insert(k, d, n, v);                                            // Insertion results
+      return new Insert(k, d, n, v, iKey, iData, iNext);                        // Insertion results
      }
 
     record Split                                                                // The results of splitting a node
      (BtreeNode parent,                                                         // New version of the parent node one of whose children is being split
       BtreeNode  lower,                                                         // The lower half of the node being split
-      BtreeNode  upper                                                          // New version of the node being split.  This arrangement preserves the top if this node happens to be the top node
+      BtreeNode  upper,                                                         // New version of the node being split.  This arrangement preserves the top if this node happens to be the top node
+      Insert    insert,                                                         // Insertion results
+      Bits         pgt,                                                         // Find keys greater than the search key in the parent node
+      Bits        pnek,                                                         // Parent keys not enabled
+      Bits       pnegt,                                                         // Bits    of parent keys either greater or not enabled
+      UpMask        gt                                                          // Up mask of parent keys either greater or not enabled because the keys are contiguous, ordered and start in word one.
      ){}
 
-    Split split(BtreeNode b)                                                    // Split the specified child node of this parent node.  Insert the newly created lower node into the parent and return the nw version of the parent, the split node and the lower split out node
+    Split split(BtreeNode b, int lowerId)                                       // Split the specified child node of this parent node into two sibling nodes (lower, upper).  The upper node retains the id of the original child node  while the lower node takes the supplied id. Returns the new version of the parent, child and sibling.
      {final int k = K / 2;
       final Words    ak = new SubWordBus(n(Output, "aKeys"),  b.Keys, 1,  k);
       final Words    ad = new SubWordBus(n(Output, "aData"),  b.Data, 1,  k);
@@ -1914,15 +1934,15 @@ final public class Chip                                                         
 
       final Bits    pgt = findGt(n(Output,  "pGreater"),  Keys, b.Keys.w(1 + k));// Find keys greater than the search key in the parent node
       final Bits   pnek = notBits(n(Output, "pNeKeys"),   KeysEnabled);         // Parent keys not enabled
-      final Bits  pnegt = andBits(n(Output, "pNeGt"),     pnek, pgt);           // Bits    of parent keys either greater or not enabled
+      final Bits  pnegt =  orBits(n(Output, "pNeGt"),     pnek, pgt);           // Bits    of parent keys either greater or not enabled
       final UpMask   gt = new UpMask(pnegt);                                    // Up mask of parent keys either greater or not enabled because the keys are contiguous, ordered and start in word one.
-      final Insert    i = Insert(n(Output, "inParent"), Keys.w(1+k),            // Insert splitting key, data, next in parent as indicated by greater than monotone mask
-        Data.w(1+k), Next == null ? null : Next.w(1+k), gt);
+      final Insert    i = Insert(n(Output, "inParent"), b.Keys.w(1+k),          // Insert splitting key, data, next in parent as indicated by greater than monotone mask
+        b.Data.w(1+k), bits(n(Output, "lowerId"), B, lowerId), gt);
 
-      final BtreeNode np = new BtreeNode(n(Output, "splitP"), nextGateNumber(), B, K,   Leaf, Enable, Find, i.keys, i.data, i.next, Top, i.enabledKeys); // Top of parent is unchanged because we always split downwards.
-      final BtreeNode na = new BtreeNode(n(Output, "splitA"), nextGateNumber(), B, K, b.Leaf, Enable, Find, ak,     ad,     an,     b.Next.w(1), av);    // Top of lower child is next(1) of upper child
-      final BtreeNode nb = new BtreeNode(n(Output, "splitB"), nextGateNumber(), B, K, b.Leaf, Enable, Find, bk,     bd,     bn,     b.Top, bv);          // Top of uypper child is unchanged
-      return new Split(np, na, nb);                                             // Results of splitting the node
+      final BtreeNode np = new BtreeNode(n(Output, "splitP"), Id,      B, K,   Leaf, Enable, Find, i.keys, i.data, i.next, Top, i.enabledKeys); // Top of parent is unchanged because we always split downwards.
+      final BtreeNode na = new BtreeNode(n(Output, "splitA"), lowerId, B, K, b.Leaf, Enable, Find, ak,     ad,     an,     b.Next.w(1+k),  av); // Top of lower child is next(1) of upper child
+      final BtreeNode nb = new BtreeNode(n(Output, "splitB"), b.Id,    B, K, b.Leaf, Enable, Find, bk,     bd,     bn,     b.Top,          bv); // Top of uypper child is unchanged
+      return new Split(np, na, nb, i, pgt, pnek, pnegt, gt);                    // Results of splitting the node
      }
 
     void anneal()                                                               // Anneal this node during testing of methods other than search.
@@ -4112,24 +4132,33 @@ Step  in  la lb lc  a    b    c
     test_btree_insert(0b100);
    }
 
-  static Chip test_btree_split_node(int valid)
-   {int  Key  = 1, Data = 2, Next = 3;
-    int[]keys = {2, 4, 6};
-    int[]data = {3, 5, 7};
-    int[]next = {1, 3, 5};
-    int   top = 7;
-    int     B = 4;
-    int     M = 3;
-    int    id = 7;
+  static void test_btree_split_node(int test)
+   {int   Key  = 1, Data = 2, Next = 3;
+    int[]pKeys = {20, 30, 40};
+    int[]k1    = {21, 22, 23};
+    int[]k2    = { 1,  2,  3};
+    int[]bKeys = test == 1 ? k1 : k2;
+    int[]pData = {51, 52, 53};
+    int[]d1    = {54, 55, 56};
+    int[]d2    = {57, 58, 59};
+    int[]bData = test == 1 ? d1 : d2;
+    int[]pNext = {61, 62, 63};
+    int[]n1    = {64, 65, 66};
+    int[]n2    = {67, 68, 69};
+    int[]bNext = test == 1 ? n1 : n2;
+    int   pTop = 71, bTop = 72;
+    int      B = 8;
+    int      M = 3;
+    int     id = 7;
 
-    Chip    c = new Chip();
+    Chip      c = new Chip();
 
-    BtreeNode p = BtreeNode.Test(c, "parent", id, B, M, 0, 0, keys, data, next, top, valid);
-    BtreeNode b = BtreeNode.Test(c, "node",   id, B, M, 0, 0, keys, data, next, top, valid);
+    BtreeNode p = BtreeNode.Test(c, "parent", id, B, M, 0, 0, pKeys, pData, pNext, pTop, 0b11);
+    BtreeNode b = BtreeNode.Test(c, "node",   id, B, M, 0, 0, bKeys, bData, bNext, bTop, 0b11);
     p.anneal();
     b.anneal();
 
-    BtreeNode.Split s = p.split(b);                                             // Split a node
+    BtreeNode.Split s = p.split(b, 70);                                         // Split a node
     Words pk = c.outputWords("pk", s.parent.Keys);
     Words pd = c.outputWords("pd", s.parent.Data);
     Words pn = c.outputWords("pn", s.parent.Next);
@@ -4139,22 +4168,69 @@ Step  in  la lb lc  a    b    c
     Words ad = c.outputWords("ad", s.lower.Data);
     Words an = c.outputWords("an", s.lower.Next);
     Bits  ae = c.outputBits ("ae", s.lower.KeysEnabled);
+    Bits  at = c.outputBits ("at", s.lower.Top);
 
     Words bk = c.outputWords("bk", s.upper.Keys);
     Words bd = c.outputWords("bd", s.upper.Data);
     Words bn = c.outputWords("bn", s.upper.Next);
     Bits  be = c.outputBits ("be", s.upper.KeysEnabled);
+    Bits  bt = c.outputBits ("bt", s.upper.Top);
 
     c.simulate();
-    pk.ok(2, 4, 4);  ak.ok(2); bk.ok(6);
-    pd.ok(3, 5, 5);  ad.ok(3); bd.ok(7);
-    pn.ok(1, 3, 3);  an.ok(1); bn.ok(5);
-    return c;
+
+    switch(test)
+     {case 1 ->                                                                 // Split right most, upper most child
+       {p.Keys.ok(20, 30, 40);
+        b.Keys.ok(21, 22, 23);
+        p.Data.ok(51, 52, 53);
+        b.Data.ok(54, 55, 56);
+        p.Next.ok(61, 62, 63);
+        b.Next.ok(64, 65, 66);
+        p.Top.ok(71);
+        b.Top.ok(72);
+            pk.ok(20, 22, 30);
+            ak.ok(21);
+            bk.ok(23);
+
+            pd.ok(51, 55, 52);
+            ad.ok(54);
+            bd.ok(56);
+
+            pn.ok(61, 70, 62);
+            an.ok(64);
+            at.ok(65);
+            bn.ok(66);
+            bt.ok(72);
+       }
+      case 2 ->                                                                 // Split left most, lowest child
+       {p.Keys.ok(20, 30, 40);
+        b.Keys.ok( 1,  2,  3);
+        p.Data.ok(51, 52, 53);
+        b.Data.ok(57, 58, 59);
+        p.Next.ok(61, 62, 63);
+        b.Next.ok(67, 68, 69);
+        p.Top.ok(71);
+        b.Top.ok(72);
+            pk.ok( 2, 20, 30);
+            ak.ok( 1);
+            bk.ok( 3);
+
+            pd.ok(58, 51, 52);
+            ad.ok(57);
+            bd.ok(59);
+
+            pn.ok(70, 61, 62);
+            an.ok(67);
+            at.ok(68);
+            bn.ok(69);
+            bt.ok(72);
+       }
+     }
    }
 
   static void test_btree_split_node()
-   {test_btree_split_node(0b011);
-    test_btree_split_node(0b001);
+   {test_btree_split_node(1);
+    test_btree_split_node(2);
    }
 
   static void test_sub_bit_bus()
@@ -4251,8 +4327,8 @@ Step  in  la lb lc  a    b    c
    }
 
   static void newTests()                                                        // Tests being worked on
-   {test_btree_split_node();
-    //oldTests();
+   {//test_btree_split_node();
+    oldTests();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
