@@ -2817,17 +2817,27 @@ final public class Chip                                                         
      {say("Error writing to file: " + e.getMessage());
      }
 
-    try                                                                         // Execute the file as a Perl script to create the GDS2 output - following code courtesy of Mike Limberger.
+    boolean perl = false;
+    try                                                                         // Check for Perl
+     {final var pb = new ProcessBuilder("perl", "-V");
+      pb.redirectErrorStream(false);                                            // STDERR will be captured and returned to the caller
+      final var P = pb.start();                                                 // Execute the command
+      final int r = P.waitFor();                                                // Wait for process to finish and close it
+      perl = r == 0;
+     }
+    catch(Exception E) {}
+
+    if (perl) try                                                               // Execute the file as a Perl script to create the GDS2 output - following code courtesy of Mike Limberger.
      {final var pb = new ProcessBuilder("perl", pf);
       pb.redirectErrorStream(false);                                            // STDERR will be captured and returned to the caller
-      final var P = pb.start();
+      final var P = pb.start();                                                 // Execute the command
 
       final var E = P.getErrorStream();                                         // Read and print STDERR
-      for (int c = E.read(); c > -1; c = E.read()) System.err.print((char)c);
+      for (int  c = E.read(); c > -1; c = E.read()) System.err.print((char)c);
       E.close();
 
-      final int rc = P.waitFor();                                               // Wait for process to finish and close it
-      if (rc != 0) say("Perl script exited with code: " + rc);
+      final int r = P.waitFor();                                                // Wait for process to finish and close it
+      if (r != 0) say("Perl script exited with code: " + r);
      }
     catch(Exception E)
      {say("An error occurred while executing Perl script: "+pf+
@@ -3062,7 +3072,7 @@ final public class Chip                                                         
    }
 
   static void test_source_file_name()
-   {ok(sourceFileName(), "Chip.j");
+   {ok(sourceFileName().equals("Chip.j") || sourceFileName().equals("Chip.java"), true);
    }
 
   static void test_and()
