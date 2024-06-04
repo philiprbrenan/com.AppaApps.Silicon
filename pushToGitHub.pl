@@ -22,24 +22,19 @@ if (1)                                                                          
   for my $s(@files)                                                             # Upload each selected file
    {next if $s =~ m(/backup/);
     next if $s =~ m(/images/);
-    #next if $s =~ m(/README);
+    next if $s =~ m(/java/perl/);
+    next if $s =~ m(/README);
     my $c = readBinaryFile $s;                                                  # Load file
 
     if ($s =~ m(/README))                                                       # Expand README
      {$c .= "\nModified: ".dateTimeStamp."\n";                                  # Ensure that the README images links get updated as well
       $c =  expandWellKnownWordsAsUrlsInMdFormat $c;                            # Expand well known terms
      }
-
     my $t = swapFilePrefix $s, $home;
     my $w = writeFileUsingSavedToken($user, $repo, $t, $c);
     lll "$w $s $t";
    }
  }
-
-#my $t = readFile q(/home/phil/perl/cpan/SiliconChip/java/Chip.java);
-#   $t =~ s(\A.*c.drawSingleLevelLayout\() ()gs;
-#   $t =~ s(\).*\Z)                        ()gs;
-my  $t = "and";
 
 if (1)
  {my $d = dateTimeStamp;
@@ -47,7 +42,7 @@ if (1)
 # Test $d
 
 name: Test
-run-name: $t
+run-name: Silicon Chip
 
 on:
   push:
@@ -80,6 +75,12 @@ jobs:
 
     - name: Cpan
       run:  sudo cpan install -T Data::Dump Data::Table::Text GDS2 Digest::SHA1
+
+    - name: Test Risc V
+      run: |
+        mkdir -p com/AppaApps/Silicon/
+        cp RiscV.j com/AppaApps/Silicon/
+        java --enable-preview --source 22  com/AppaApps/Silicon/RiscV.j
 
     - name: Test silicon chips
       run: |
