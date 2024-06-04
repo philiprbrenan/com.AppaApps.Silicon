@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Execute Risc 5 machine code
+// Execute Risc V machine code
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
@@ -7,7 +7,7 @@ package com.AppaApps.Silicon;                                                   
 import java.io.*;
 import java.util.*;
 
-//D1 Construct                                                                  // Construct a L<silicon> L<chip> using standard L<lgs>, components and sub chips combined via buses.
+//D1 Construct                                                                  // Construct a Risc V program and execute it
 
 final public class RiscV                                                        // Load and execute a program written in RiscV machine code
  {final static boolean github_actions =                                         // Whether we are on a github or not
@@ -20,12 +20,16 @@ final public class RiscV                                                        
   Integer          maxSimulationSteps = null;                                   // Maximum simulation steps
   Integer          minSimulationSteps = null;                                   // Minimum simulation steps - we keep going at least this long even if there have been no changes to allow clocked circuits to evolve.
 
-  final Stack<Integer>           code = new Stack<>();                          // Machine code
-  final long[]              registers = new long[32];);                         // General purpose registers
+  final Stack<Encode>            code = new Stack<>();                          // Encoded instructions
+  final long[]              registers = new long[32];                           // General purpose registers
   final int                        pc = 0;                                      // Program counter
 
-  RiscV(String Name)                                                            // Create a new L<chip>.
-   {this(Name);                                                                 // Name of chip
+  RiscV(String Name)                                                            // Create a new program
+   {name = Name;                                                                // Name of chip
+   }
+
+  RiscV()                                                                       // Create a new program with the name of the test
+   {this(currentTestName());
    }
 
   int maxSimulationSteps(int MaxSimulationSteps) {return maxSimulationSteps = MaxSimulationSteps;}  // Maximum simulation steps
@@ -44,16 +48,190 @@ final public class RiscV                                                        
     return b.toString();                                                        // String describing chip
    }
 
-  class FormatI                                                                 // Immediate format instruction
-   {final int seq;                                                              // Sequence number for this bit
-    final String name;                                                          // Name of the bit.  This is also the name of the gate and the output of the gate. FanOut gates have a second output which is the name suffixed by the secondary marker. The secondary marker is not normally used in a gate name so a name that ends in ! is easily recognized as the second output of a fan out gate.
+  class Encode                                                                  // Encode an instruction
+   {final int instruction;                                                      // Resulting instruction
 
-    FormatI()                                                                       // Unnamed bit
-     {seq  = nextGateNumber();
-      name = ""+seq;
-      bits.put(name, this);
+    Encode(int opCode)                                                          // Encode an instruction
+     {instruction = opCode;
+      code.push(this);
      }
    }
+
+  class Decode                                                                  // Decode an instruction
+   {final Encode instruction;                                                   // Instruction to be decoded
+    final int rd;                                                               // Destination register
+    final int opCode;                                                           // Operation code
+    final int funct3;                                                           // Sub function
+    final int rs1;                                                              // Source 1 register
+    final int rs2;                                                              // Source 2 register
+    final String name;                                                          // Name of operation code
+
+    Decode(Encode Instruction)                                                  // Decode an instruction
+     {instruction = Instruction;
+      final int i = instruction.instruction;
+      rd          = (i >>  7) & 0b1_1111;                                       // Destination register
+      rs1         = (i >> 15) & 0b1_1111;                                       // Source register 1
+      rs2         = (i >> 20) & 0b1_1111;                                       // Source register 1
+      funct3      = (i >> 12) & 0b111;                                          // Sub function
+      name        = switch(opCode = i & 0b111_1111)                             // Op code
+       {case 1  -> {yield "add";}
+        default -> {yield "";   }
+       };
+     }
+
+    public String toString()                                                    // Print instruction
+     {return name + " rd="+rd;
+     }
+   }
+
+  class DecodeI extends Decode                                                  // Decode an I format instruction
+   {final int immediate;                                                        // Immediate value
+
+    DecodeI(Encode Instruction)                                                 // Decode instruction
+     {super(Instruction);
+      final int i = instruction.instruction;
+      immediate   = (i >> 20);                                                  // Immediate value
+     }
+
+    public String toString()                                                    // Print instruction
+     {return name + "=I rd="+rd+" funct3="+funct3+" rs1="+rs1+" imm="+immediate;
+     }
+   }
+
+  class DecodeJ extends Decode                                                  // Decode a J format instruction
+   {final int immediate;                                                        // Immediate value
+
+    DecodeJ(Encode Instruction)                                                 // Decode an instruction
+     {super(Instruction);
+      final int i = instruction.instruction;
+      immediate   = immediate();                                                // Immediate value
+     }
+
+    int immediate()                                                             // Immediate value
+     {final int i = instruction.instruction;
+      final int b_31_31 = i & 0b10000000000000000000000000000000;
+      final int b_30_21 = i & 0b01111111111000000000000000000000;
+      final int b_20_20 = i & 0b00000000000100000000000000000000;
+      final int b_19_12 = i & 0b00000000000011111111000000000000;
+
+      final int B_20_20 = (b_31_31 >> 31) << 20;
+      final int B_10_01 = (b_30_21 >> 21) <<  1;
+      final int B_11_11 = (b_20_20 >> 20) << 11;
+      final int B_19_12 = (b_19_12 >> 12) << 12;
+
+      return B_20_20 | B_19_12 | B_11_11 | B_10_01;
+     }
+
+    public String toString()                                                    // Print instruction
+     {return name + "=J rd="+rd+" imm="+immediate;
+     }
+   }
+
+  class DecodeU extends Decode                                                  // Decode a U format instruction
+   {final int immediate;                                                        // Immediate value
+
+    DecodeU(Encode Instruction)                                                 // Decode instruction
+     {super(Instruction);
+      final int i = instruction.instruction;
+      immediate   = i >> 12;                                                    // Immediate value
+     }
+    public String toString()                                                    // Print instruction
+     {return name + "=U rd="+rd+" imm="+immediate;
+     }
+   }
+
+  class DecodeB extends Decode                                                  // Decode a B format instruction
+   {final int immediate;                                                        // Immediate value
+    final int subType;                                                          // Instruction sub type
+
+    DecodeB(Encode Instruction)                                                 // Decode instruction
+     {super(Instruction);
+      final int i = instruction.instruction;
+      subType     = (i >> 12) & 0b111;                                          // Sub type
+      immediate   = immediate();                                                // Immediate operand
+     }
+
+    int  immediate()                                                            // Immediate value
+     {final int i       = instruction.instruction;
+      final int b_31_31 = i & 0b10000000000000000000000000000000;
+      final int b_30_25 = i & 0b01111110000000000000000000000000;
+      final int b_11_08 = i & 0b00000000000000000000111100000000;
+      final int b_07_07 = i & 0b00000000000000000000000010000000;
+
+      final int B_12_12 = (b_31_31 >> 31) << 12;
+      final int B_10_05 = (b_30_25 >> 25) <<  5;
+      final int B_04_01 = (b_11_08 >>  8) <<  1;
+      final int B_11_11 = (b_07_07 <<  7) << 11;
+
+      return B_12_12 | B_11_11 | B_10_05 | B_04_01;
+     }
+
+    public String toString()                                                    // Print instruction
+     {return name + "=B rd="+rd+" subType="+subType+" rs1="+rs1+" rs2="+rs2+" imm="+immediate;
+     }
+   }
+
+  class DecodeS extends Decode                                                  // Decode a S format instruction
+   {final int immediate;                                                        // Immediate value
+
+    DecodeS(Encode Instruction)                                                 // Decode instruction
+     {super(Instruction);
+      final int i = instruction.instruction;
+      immediate   = immediate();                                                // Immediate operand
+     }
+
+    int  immediate()                                                            // Immediate value
+     {final int i       = instruction.instruction;
+
+      final int b_31_25 = i & 0b11111110000000000000000000000000;
+      final int b_11_07 = i & 0b00000000000000000000111110000000;
+
+      final int B_11_05 = (b_31_25 >> 25) << 5;
+      final int B_04_00 = (b_11_07 >>  7) << 0;
+
+      return B_11_05 | B_04_00;
+     }
+
+    public String toString()                                                    // Print instruction
+     {return name + "=S rd="+rd+" funct3="+funct3+" rs1="+rs1+" rs2="+rs2+" imm="+immediate;
+     }
+   }
+
+  class DecodeR extends Decode                                                  // Decode a R format instruction
+   {final int funct7;                                                           // Sub function
+
+    DecodeR(Encode Instruction)                                                 // Decode instruction
+     {super(Instruction);
+      final int i = instruction.instruction;
+      funct7      = (i >> 25) & 0b111_1111;                                     // Sub type
+     }
+
+    public String toString()                                                    // Print instruction
+     {return name + "=R rd="+rd+" funct3="+funct3+" funct7="+funct7+" rs1="+rs1+" rs2="+rs2;
+     }
+   }
+
+  class DecodeRa extends Decode                                                 // Decode a R atomic format instruction
+   {final int funct5;                                                           // Sub function
+    final boolean rl;                                                           // rl
+    final boolean aq;                                                           // aq
+
+    DecodeRa(Encode Instruction)                                                // Decode instruction
+     {super(Instruction);
+      final int i = instruction.instruction;
+      rl          = ((i >> 25) & 0b1) == 0b1;                                   // rl
+      aq          = ((i >> 26) & 0b1) == 0b1;                                   // aq
+      funct5      =  (i >> 27) & 0b1_1111;                                      // Sub type
+     }
+
+    public String toString()                                                    // Print instruction
+     {return name + "=Ra rd="+rd+" funct3="+funct3+" funct5="+funct5+" rl="+rl+" aq="+aq+" rs1="+rs1+" rs2="+rs2;
+     }
+   }
+
+//D1 Instructions                                                               // Instructions
+
+  Encode add() {return new Encode(1);}
 
 //D1 Utility routines                                                           // Utility routines
 
@@ -201,8 +379,14 @@ final public class RiscV                                                        
 
 //D0
 
+  static void test_add()                                                        // Add
+   {RiscV r = new RiscV();
+    r.add();
+    say(r.new Decode(r.code.elementAt(0)));
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
-   {
+   {test_add();
    }
 
   static void newTests()                                                        // Tests being worked on
