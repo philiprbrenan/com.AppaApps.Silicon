@@ -23,7 +23,7 @@ if (1)                                                                          
    {next if $s =~ m(/backup/);
     next if $s =~ m(/images/);
     next if $s =~ m(/java/perl/);
-    next if $s =~ m(/README);
+    #next if $s =~ m(/README);
     my $c = readBinaryFile $s;                                                  # Load file
 
     if ($s =~ m(/README))                                                       # Expand README
