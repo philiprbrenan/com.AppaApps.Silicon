@@ -1631,7 +1631,7 @@ final public class Chip                                                         
 //D2 Periodic Pulses                                                            // Periodic pulses that drive input buses.
 
   class Pulse extends Gate                                                      // A periodic pulse that drives an input bit
-   {final int  period;                                                          // Length of pulses in simulations steps
+   {final int  period;                                                          // Length of pulse. A pulse of zero is considered to be a pulse of infinite period - i.e. it only happens once
     final int      on;                                                          // How long the pulse is in the on state in each period in simulations steps
     final int   delay;                                                          // Offset of the on phase of the pulse in simulations steps
     final int   start;                                                          // Number of cycles to wait before starting this pulse
@@ -1639,9 +1639,11 @@ final public class Chip                                                         
      {super(Operator.Input, Name, null, null);                                  // Pulse name
       period = Period; on = On; delay = Delay; start = Start;                   // Pulse timing details
       systemGate = true;                                                        // The input gate associated with this pulse. The gate will be driven by the simulator.
-      if (on    > period) stop("On", on, "is greater than period", period);
-      if (delay > period) stop("Delay", delay, "is greater than period", period);
-      if (on + delay > period) stop("On + Delay", on, "+", delay, "is greater than period", period);
+      if (period > 0)                                                           // Zero length pulses are considered to be infinite in length and thus occur only once
+       {if (on    > period) stop("On", on, "is greater than period", period);
+        if (delay > period) stop("Delay", delay, "is greater than period", period);
+        if (on + delay > period) stop("On + Delay", on, "+", delay, "is greater than period", period);
+       }
       pulses.put(name, this);                                                   // Save pulse on input chain
      }
     Pulse(Operator Op, String Name, Bit Input1, Bit Input2)                     // Pulse definition as an input gate. Start n means start after n periods.
@@ -1649,7 +1651,7 @@ final public class Chip                                                         
       period = 0; on = 0; delay = 0; start = 0;                                 // No timing information
      }
     void setState()                                                             // Set gate to current state
-     {final int i = (steps-1) % period;
+     {final int i = period > 0 ? (steps-1) % period : (steps - 1);
       nextValue = steps-1 >= start*period ? i >= delay && i < on+delay : false; // Next value for pulse.  Set like this so that the falling edge will be seen and acted on
      }
    }
@@ -2162,7 +2164,7 @@ final public class Chip                                                         
       final String s = b.length() > 0 ? b.toString().substring(2) : "";
       return name+".ok("+s+");";
      }
-    public void ok(Integer ... expected) {okIntegers(log(), expected);}         // Confirm log is as expected
+    public void ok(Integer ... expected) {okIntegers(expected, log());}         // Confirm log is as expected
    }
 
 //D1 Layout                                                                     // Layout the gates and connect them with wires
@@ -4103,17 +4105,17 @@ Step  i     o     O
   static void test_fibonacci()                                                  // First few fibonacci numbers
    {int N = 4;
     Chip        C = new Chip();                                                 // Create a new chip
-    Bits     zero = C.bits("zero", N, 0);                                       // Zero - the first element of the sequence
-    Bits      one = C.bits("one",  N, 1);                                       // One - the second element of the sequence
-    Pulse      in = C.pulse("ia", 1024,  16);                                   // Initialize the registers to their starting values
-    Pulse      la = C.pulse("la",  96,  20, 32, 1);                            // Each pair sum is calculated on a rotating basis
-    Pulse      ma = C.pulse("ma",   la,  10, 10);
-    Pulse      lb = C.pulse("lb",  96,  20, 64, 1);
-    Pulse      mb = C.pulse("mb",   lb,  10, 10);
-    Pulse      lc = C.pulse("lc",  96,  20,  0, 1);
-    Pulse      mc = C.pulse("mc",   lc,  10, 10);
-    Pulse      ed = C.pulse("ed", 1024, 202);                                   // Enable the output register once it has had a chance to stabilize
-    Pulse      pd = C.pulse("pl",   32,   1, 1, 3);                             // Shows when the latest fibonacci number has been produced
+    Bits     zero = C.bits("zero", N,   0);                                     // Zero - the first element of the sequence
+    Bits      one = C.bits("one",  N,   1);                                     // One - the second element of the sequence
+    Pulse      in = C.pulse("ia",  0,  16);                                     // Initialize the registers to their starting values
+    Pulse      la = C.pulse("la", 96,  20, 32, 1);                              // Each pair sum is calculated on a rotating basis
+    Pulse      ma = C.pulse("ma", la,  10, 10);
+    Pulse      lb = C.pulse("lb", 96,  20, 64, 1);
+    Pulse      mb = C.pulse("mb", lb,  10, 10);
+    Pulse      lc = C.pulse("lc", 96,  20,  0, 1);
+    Pulse      mc = C.pulse("mc", lc,  10, 10);
+    Pulse      ed = C.pulse("ed",  0, 202);                                     // Enable the output register once it has had a chance to stabilize
+    Pulse      pd = C.pulse("pl", 32,   1, 1, 3);                               // Shows when the latest fibonacci number has been produced
 
     Bits       ab = C.new BitBus("ab", N);                                      // Pre declare the output of the pair sums so that we can use these buses to drive the registers holding the latest fibonacci numbers
     Bits       ac = C.new BitBus("ac", N);
@@ -4174,35 +4176,6 @@ Step  pl d      ld
  319  0  1101    0 0 0
 """);
    }
-
-/* Expanded trace
-    C.executionTrace(
-      "in  la lb lc   da db dc  a    b    c    d     dl",
-      "%s   %s  %s  %s   %s  %s  %s   %s %s %s   %s    %s",
-      in,  la, lb, lc,  da, db, dc, a, b, c, d, d.load);
-    C.simulationSteps(484);
-    C.simulate();
-    C.printExecutionTrace(); stop();
-    C.ok("""
-Step  in  la lb lc  a    b    c
-   1  1   0  0  0   .... .... ....
-  17  0   0  0  0   .... .... ....
-  21  0   0  0  0   0001 0001 0001
- 129  0   0  0  1   0001 0001 0001
- 161  0   1  0  0   0001 0001 0001
- 164  0   1  0  0   0001 0001 0010
- 193  0   0  1  0   0001 0001 0010
- 196  0   0  1  0   0011 0001 0010
- 225  0   0  0  0   0011 0001 0010
- 228  0   0  0  0   0011 0101 0010
- 257  0   0  0  1   0011 0101 0010
- 289  0   1  0  0   0011 0101 0010
- 292  0   1  0  0   0011 0101 1000
- 321  0   0  1  0   0011 0101 1000
- 324  0   0  1  0   1101 0101 1000
- 353  0   0  0  0   1101 0101 1000
-""");
-*/
 
   static void test_insert_into_array()                                          // Insert a word in an array of words
    {int B = 4;
@@ -4435,6 +4408,28 @@ Step  in  la lb lc  a    b    c
     L.ok(0b00011);
    }
 
+  static void test_binary_increment()                                           // Increment repetitively
+   {int      N = 4;
+    Chip     C = new Chip();                                                    // Create a new chip
+    Bits  zero = C.bits ("zero",   N,  0);                                      // Zero - the first element of the sequence
+    Bits   one = C.bits ("one",    N,  1);                                      // One - the amount to be added
+    Pulse   pz = C.pulse("pz",     0,  4);                                      // Initialize to zero
+    Pulse   pi = C.pulse("pi",    24,  2, 0, 1);                                // Add increment. Current implementation of binary add is alarmingly slow.
+    Bits     i = C.new BitBus("i", N);                                          // Variable
+
+    Register r = C.register  ("r", zero, pz, i, pi);                            // Register holding bits to increment
+    Output   o = C.new Output("o", r, pi);                                      // Log the value of the register just before it is changed by the incoming new result.
+
+    C.binaryAdd("i", r, one);                                                   // Increment
+
+    C.executionTrace("pz  pi  r    i", "%s   %s   %s %s", pz, pi, r, i);
+    C.simulationSteps(640);
+    C.simulate();
+
+    o.ok(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+    //C.printExecutionTrace(); say(o); stop();
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_max_min();
     test_source_file_name();
@@ -4486,11 +4481,11 @@ Step  in  la lb lc  a    b    c
     test_sub_word_bus();
     test_find_words();
     test_btree_split_node();
+    test_binary_increment();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {test_fibonacci();
-    oldTests();
+   {oldTests();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
