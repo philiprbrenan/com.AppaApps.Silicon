@@ -2897,32 +2897,6 @@ final public class Chip                                                         
 
 //D1 Utility routines                                                           // Utility routines
 
-//D2 String routines                                                            // String routines
-
-  static Bit[]stackToBitArray(Stack<Bit> s)                                     // Stack of string to array of string
-   {final Bit[]a = new Bit[s.size()];
-    for (int i = 0; i < s.size(); i++) a[i] = s.elementAt(i);
-    return a;
-   }
-
-  static String[]stackToStringArray(Stack<String> s)                            // Stack of string to array of string
-   {final String[]a = new String[s.size()];
-    for (int i = 0; i < s.size(); i++) a[i] = s.elementAt(i);
-    return a;
-   }
-
-  static String s(Stack<String> S)                                              // Stack of string to string of lines
-   {final StringBuilder b = new StringBuilder();
-    for (String s : S) b.append(s.replaceAll("\\s+$", "")+"\n");
-    return b.toString();
-   }
-
-  static String[] s(String...S)                                                 // Convert strings to words -  sometimes helpful for specifying a list of constant gate names.
-   {final Stack<String> w = new Stack<>();
-    for (String s : S) for (String t : s.split("\\s+")) w.push(t);
-    return stackToStringArray(w);
-   }
-
 //D2 Numeric routines                                                           // Numeric routines
 
   static double max(double n, double...rest)                                    // Maximum number from a list of one or more numbers
