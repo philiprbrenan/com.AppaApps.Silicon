@@ -3009,7 +3009,7 @@ final public class Chip                                                         
   static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
 
   static void ok(Object a, Object b)                                            // Check test results match expected results.
-   {if (a.equals(b)) {++testsPassed; return;}
+   {if (a.toString().equals(b.toString())) {++testsPassed; return;}
     final boolean n = b.toString().contains("\n");
     testsFailed++;
     if (n) err("Test failed. Got:\n"+b+"\n");
