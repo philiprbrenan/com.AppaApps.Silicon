@@ -26,7 +26,8 @@ final public class RiscV                                                        
   final Register x0,  x1,  x2,   x3,  x4,  x5,  x6,  x7,  x8,  x9,
                  x10, x11, x12, x13, x14, x15, x16, x17, x18, x19,
                  x20, x21, x22, x23, x24, x25, x26, x27, x28, x29, x30, x31;
-  final int                        pc = 0;                                      // Program counter
+  int                              pc = 0;                                      // Program counter
+  int                           steps = 0;                                      // Number of steps taken so far in executing the program
 
   RiscV(String Name)                                                            // Create a new program
    {name = Name;                                                                // Name of chip
@@ -47,8 +48,8 @@ final public class RiscV                                                        
   public String toString()                                                      // Convert chip to string
    {final StringBuilder b = new StringBuilder();
     b.append("RiscV      : " + name);
-
-    b.append("Instruction: "+pc);
+    b.append("Step       : " + steps);
+    b.append("Instruction: " + pc);
     b.append("Registers  : ");
     for (int i = 0; i < x.length; i++) b.append(" "+x[i]);                      // Print registers
     return b.toString();                                                        // String describing chip
@@ -63,6 +64,29 @@ final public class RiscV                                                        
       if (x < 0 || x >=XLEN) stop("Register must be 0 to", XLEN,"not", x);
      }
    }
+
+//D1 Simulate                                                                   // Simulate the execution of a Risc V program
+
+  void simulate()                                                               // Simulate the execution of the program
+   {final int actualMaxSimulationSteps =                                        // Actual limit on number of steps
+      maxSimulationSteps != null ? maxSimulationSteps : defaultMaxSimulationSteps;
+    final boolean miss = minSimulationSteps != null;                            // Minimum simulation steps set
+
+    pc = 0;                                                                     // Reset
+    for (int i = 0; i < x.length; i++) x[i].value = 0;
+
+    for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
+     {if (pc >= code.size()) return;                                            // Off the end of the code
+      final Encode e = code.elementAt(pc);
+      final Decode d = decode(e);
+      d.action();
+     }
+    if (maxSimulationSteps == null)                                             // Not enough steps available by default
+     {err("Out of time after", actualMaxSimulationSteps, "steps");
+     }
+   }
+
+//D1 Encode and Decode                                                          // Encode and decode instructions to and from their binary formats in machine code
 
   class Encode                                                                  // Encode an instruction
    {final int instruction;                                                      // Resulting instruction
@@ -102,6 +126,7 @@ final public class RiscV                                                        
 
   class Decode                                                                  // Decode an instruction
    {final Encode instruction;                                                   // Instruction to be decoded
+    final String name;                                                          // Name of instruction
     final int rd;                                                               // Destination register
     final int opCode;                                                           // Operation code
     final int funct3;                                                           // Sub function
@@ -110,7 +135,6 @@ final public class RiscV                                                        
     final int rs1;                                                              // Source 1 register
     final int rs2;                                                              // Source 2 register
     final int subType;                                                          // Sub type
-    final String name;                                                          // Name of operation code
 
     final static int p_opCode  =  0;                                            // Encoded position of op code
     final static int p_rd      =  7;                                            // Encoded position of destination register
@@ -134,8 +158,9 @@ final public class RiscV                                                        
     final static int m_rl      = 0b000_0001;                                    // Mask for rl
     final static int m_aq      = 0b000_0001;                                    // Mask for aq
 
-    Decode(Encode Instruction)                                                  // Decode an instruction
+    Decode(String Name, Encode Instruction)                                     // Decode an instruction
      {instruction = Instruction;
+      name        = Name;
       final int i = instruction.instruction;
       opCode      = (i >> p_opCode)  & m_opCode;
       rd          = (i >> p_rd     ) & m_rd;                                    // Destination register
@@ -145,10 +170,10 @@ final public class RiscV                                                        
       funct5      = (i >> p_funct5 ) & m_funct5;                                // Sub function
       funct7      = (i >> p_funct7 ) & m_funct7;                                // Sub function
       subType     = (i >> p_subType) & m_subType;                               // Sub type
-      name        = switch(opCode)                                              // Op code name
-       {case 1  -> {yield "add";}
-        default -> {yield "";   }
-       };
+     }
+
+    public void action()                                                        // Action required to implement an instruction
+     {
      }
 
     public String toString()                                                    // Print instruction
@@ -156,28 +181,51 @@ final public class RiscV                                                        
      }
    }
 
+  Decode decode(Encode e)                                                       // Decode an instruction
+   {final Decode d = new Decode(null, e);
+     {switch(d.opCode)
+       {case 0b001_0011:
+         {switch(d.funct3)
+           {case 0x0:    return new DecodeI("addi", e) {public void action() {}};
+            case 0x4:    return new DecodeI("xori", e) {public void action() {}};
+            case 0x6:    return new DecodeI("ori",  e) {public void action() {}};
+            case 0x7:    return new DecodeI("andi", e) {public void action() {}};
+            case 0x1:    return new DecodeI("slli", e) {public void action() {}};
+            case 0x5:
+              final DecodeI dI = new DecodeI(null, e);
+              switch((dI.immediate >> 5) & 0b111_1111)
+               {case 0:  return new DecodeI("srli", e) {public void action() {}};
+                case 2:  return new DecodeI("srai", e) {public void action() {}};
+                default: return null;
+               }
+            case 0x2:    return new DecodeI("slti",  e) {public void action() {}};
+            case 0x3:    return new DecodeI("sltiu", e) {public void action() {}};
+            default :    return null;
+           }
+         }
+        default:         return null;
+       }
+     }
+   }
+
   class DecodeI extends Decode                                                  // Decode an I format instruction
    {final int immediate;                                                        // Immediate value
     final static int p_immediate = 20;                                          // Position of immediate value
 
-    DecodeI(Encode Instruction)                                                 // Decode instruction
-     {super(Instruction);
+    DecodeI(String name, Encode Instruction)                                    // Decode instruction
+     {super(name, Instruction);
       final int i = instruction.instruction;
       immediate   = (i >> p_immediate);                                         // Immediate value
      }
 
     public String toString()                                                    // Print instruction
-     {return name + String.format("I %7s rd=%2d rs1=%2d funct3=%3b imm=0x%x, %d",
-        binaryString(opCode, 7), rd, rs1, funct3, immediate, immediate);
+     {return String.format("I %7s %8s rd=%2d rs1=%2d funct3=%3b imm=0x%x, %d",
+        binaryString(opCode, 7), name, rd, rs1, funct3, immediate, immediate);
      }
    }
 
   Encode encodeI(int opCode, Register rd, Register rs1, int funct3, int Immediate)
    {return new Encode(opCode, rd, rs1, null, funct3, 0, 0, 0, Immediate<<DecodeI.p_immediate);
-   }
-
-  DecodeI decodeI(Encode e)
-   {return new DecodeI(e);
    }
 
   class DecodeJ extends Decode                                                  // Decode a J format instruction
@@ -187,8 +235,8 @@ final public class RiscV                                                        
     final static int m_20_20 = 0b00000000000100000000000000000000;
     final static int m_19_12 = 0b00000000000011111111000000000000;
 
-    DecodeJ(Encode Instruction)                                                 // Decode an instruction
-     {super(Instruction);
+    DecodeJ(String Name, Encode Instruction)                                    // Decode an instruction
+     {super(Name, Instruction);
       final int i = instruction.instruction;
       immediate   = immediate();                                                // Immediate value
      }
@@ -210,8 +258,8 @@ final public class RiscV                                                        
      }
 
     public String toString()                                                    // Print instruction
-     {return name + String.format("J %7s rd=%2d imm=0x%x, %d",
-        binaryString(opCode, 7), rd, immediate, immediate);
+     {return name + String.format("J %7s %8s rd=%2d imm=0x%x, %d",
+        binaryString(opCode, 7), rd, name, immediate, immediate);
      }
    }
 
@@ -228,14 +276,14 @@ final public class RiscV                                                        
   class DecodeU extends Decode                                                  // Decode a U format instruction
    {final int immediate;                                                        // Immediate value
 
-    DecodeU(Encode Instruction)                                                 // Decode instruction
-     {super(Instruction);
+    DecodeU(String Name, Encode Instruction)                                    // Decode instruction
+     {super(Name, Instruction);
       final int i = instruction.instruction;
       immediate   = i >> 12;                                                    // Immediate value
      }
     public String toString()                                                    // Print instruction
-     {return name + String.format("U %7s rd=%2d imm=0x%x, %d",
-        binaryString(opCode, 7), rd, immediate, immediate);
+     {return name + String.format("U %7s %8s rd=%2d imm=0x%x, %d",
+        binaryString(opCode, 7), rd, name, immediate, immediate);
      }
    }
 
@@ -250,8 +298,8 @@ final public class RiscV                                                        
     final static int m_11_08 = 0b00000000000000000000111100000000;
     final static int m_07_07 = 0b00000000000000000000000010000000;
 
-    DecodeB(Encode Instruction)                                                 // Decode instruction
-     {super(Instruction);
+    DecodeB(String Name, Encode Instruction)                                    // Decode instruction
+     {super(Name, Instruction);
       final int i = instruction.instruction;
       immediate   = immediate();                                                // Immediate operand
      }
@@ -272,8 +320,8 @@ final public class RiscV                                                        
      }
 
     public String toString()                                                    // Print instruction
-     {return name + String.format("B %7s rs1=%2d rs2=%2d imm=0x%x, %d",
-        binaryString(opCode, 7), rs1, rs2, immediate, immediate);
+     {return name + String.format("B %7s %8s rs1=%2d rs2=%2d imm=0x%x, %d",
+        binaryString(opCode, 7), name, rs1, rs2, immediate, immediate);
      }
    }
 
@@ -292,8 +340,8 @@ final public class RiscV                                                        
     final static int m_31_25 = 0b11111110000000000000000000000000;
     final static int m_11_07 = 0b00000000000000000000111110000000;
 
-    DecodeS(Encode Instruction)                                                 // Decode instruction
-     {super(Instruction);
+    DecodeS(String Name, Encode Instruction)                                    // Decode instruction
+     {super(Name, Instruction);
       final int i = instruction.instruction;
       immediate   = immediate();                                                // Immediate operand
      }
@@ -311,8 +359,8 @@ final public class RiscV                                                        
      }
 
     public String toString()                                                    // Print instruction
-     {return name + String.format("S %7s rd=%2d rs1=%2d  rs2=%2d funct3=%3b imm=0x%x, %d",
-        binaryString(opCode, 7), rd, rs1, rs2, funct3, immediate, immediate);
+     {return name + String.format("S %7s %8s rd=%2d rs1=%2d  rs2=%2d funct3=%3b imm=0x%x, %d",
+        binaryString(opCode, 7), name, rd, rs1, rs2, funct3, immediate, immediate);
      }
    }
 
@@ -326,14 +374,14 @@ final public class RiscV                                                        
 
 
   class DecodeR extends Decode                                                  // Decode a R format instruction
-   {DecodeR(Encode Instruction)                                                 // Decode instruction
-     {super(Instruction);
+   {DecodeR(String Name, Encode Instruction)                                    // Decode instruction
+     {super(Name, Instruction);
       final int i = instruction.instruction;
      }
 
     public String toString()                                                    // Print instruction
-     {return name + String.format("R %7s rd=%2d rs1=%2d rs2=%2d funct3=%2x funct7=%2x",
-        binaryString(opCode, 7), rd, rs1, rs2, funct3, funct7);
+     {return name + String.format("R %7s %8s rd=%2d rs1=%2d rs2=%2d funct3=%2x funct7=%2x",
+        binaryString(opCode, 7), name, rd, rs1, rs2, funct3, funct7);
      }
    }
 
@@ -345,16 +393,16 @@ final public class RiscV                                                        
    {final boolean rl;                                                           // rl
     final boolean aq;                                                           // aq
 
-    DecodeRa(Encode Instruction)                                                // Decode instruction
-     {super(Instruction);
+    DecodeRa(String Name, Encode Instruction)                                   // Decode instruction
+     {super(Name, Instruction);
       final int i = instruction.instruction;
       rl          = ((i >> 25) & 0b1) == 0b1;                                   // rl
       aq          = ((i >> 26) & 0b1) == 0b1;                                   // aq
      }
 
     public String toString()                                                    // Print instruction
-     {return name + String.format("Ra %7s rd=%2d rs1=%2d rs2=%2d funct3=%2x funct5=%2x aq=%d rl=%d",
-        binaryString(opCode, 7), rd, rs1, rs2, funct3, funct5,  aq, rl);
+     {return name + String.format("Ra %7s %8s rd=%2d rs1=%2d rs2=%2d funct3=%2x funct5=%2x aq=%d rl=%d",
+        binaryString(opCode, 7), name, rd, rs1, rs2, funct3, funct5,  aq, rl);
      }
    }
 
@@ -616,7 +664,7 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     final boolean n = b.toString().contains("\n");
     testsFailed++;
     if (n) err("Test failed. Got:\n"+b+"\n");
-    else   err(a, "does not equal\n"+b);
+    else   err(a, "\ndoes not equal\n"+b);
    }
 
   static void okIntegers(Integer[]E, Integer[]G)                                // Check that two integer arrays are are equal
@@ -647,7 +695,7 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
   static void test_add()                                                        // Add
    {RiscV r = new RiscV();
     r.addi(r.x31, r.x0, 2);
-    ok(r.decodeI(r.code.elementAt(0)), "I 0010011 rd=31 rs1= 0 funct3=true imm=0x2, 2");
+    ok(r.decode(r.code.elementAt(0)), "I 0010011     addi rd=31 rs1= 0 funct3=true imm=0x2, 2");
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
