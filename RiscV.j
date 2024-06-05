@@ -182,33 +182,76 @@ final public class RiscV                                                        
      }
 
     public String toString()                                                    // Print instruction
-     {return name + " rd="+rd;
+     {return name
+       + " rd"          + rd
+       + " opCode"      + opCode
+       + " funct3"      + funct3
+       + " funct5"      + funct5
+       + " funct7"      + funct7
+       + " rs1"         + rs1
+       + " rs2"         + rs2
+       + " subType"     + subType;
      }
    }
-
+/*
+Inst   Name                  FMT Opcode  funct3 funct7      Description (C) Note
+add    ADD                     R 0110011 0x0    0x00        rd = rs1 + rs2
+sub    SUB                     R 0110011 0x0    0x20        rd = rs1 - rs2
+xor    XOR                     R 0110011 0x4    0x00        rd = rs1 Ë rs2
+or     OR                      R 0110011 0x6    0x00        rd = rs1 | rs2
+and    AND                     R 0110011 0x7    0x00        rd = rs1 & rs2
+sll    Shift Left Logical      R 0110011 0x1    0x00        rd = rs1 << rs2
+srl    Shift Right Logical     R 0110011 0x5    0x00        rd = rs1 >> rs2
+sra    Shift Right Arith*      R 0110011 0x5    0x20        rd = rs1 >> rs2 msb-extends
+slt    Set Less Than           R 0110011 0x2    0x00        rd = (rs1 < rs2)?1:0
+sltu   Set Less Than (U)       R 0110011 0x3    0x00        rd = (rs1 < rs2)?1:0 zero-extends
+*/
   Decode decode(Encode e)                                                       // Decode an instruction
    {final Decode d = new Decode(null, e);
      {switch(d.opCode)
-       {case 0b001_0011:
+       {case 0b011_0011 ->
+         {if (d.funct7 == 0)
+           {switch(d.funct3)
+             {case 0x0:    return new DecodeR("add",   e) {public void action() {x[rd].value = x[rs1].value +   x[rs2].value; pc++;}};
+              case 0x4:    return new DecodeR("xor",   e) {public void action() {x[rd].value = x[rs1].value ^   x[rs2].value; pc++;}};
+              case 0x6:    return new DecodeR("or",    e) {public void action() {x[rd].value = x[rs1].value |   x[rs2].value; pc++;}};
+              case 0x7:    return new DecodeR("and",   e) {public void action() {x[rd].value = x[rs1].value &   x[rs2].value; pc++;}};
+              case 0x1:    return new DecodeR("sll",   e) {public void action() {x[rd].value = x[rs1].value <<  x[rs2].value; pc++;}};
+              case 0x5:    return new DecodeR("srl",   e) {public void action() {x[rd].value = x[rs1].value >>  x[rs2].value; pc++;}};
+              case 0x2:    return new DecodeR("slt",   e) {public void action() {x[rd].value = x[rs1].value <   x[rs2].value ? 1 : 0; pc++;}};
+              case 0x3:    return new DecodeR("sltu",  e) {public void action() {x[rd].value = x[rs1].value <   x[rs2].value ? 1 : 0; pc++;}};
+              default :    return null;
+             }
+           }
+          else if (d.funct7 == 2)
+           {switch(d.funct3)
+             {case 0x0:    return new DecodeI("sub",   e) {public void action() {x[rd].value = x[rs1].value -   immediate; pc++;}};
+              case 0x5:    return new DecodeI("sra",   e) {public void action() {x[rd].value = x[rs1].value >>> immediate; pc++;}};
+              default:     return null;
+             }
+           }
+          else             return null;
+         }
+        case 0b001_0011 ->
          {switch(d.funct3)
-           {case 0x0:    return new DecodeI("addi", e) {public void action() {x[rd].value = x[rs1].value + immediate; pc++;}};
-            case 0x4:    return new DecodeI("xori", e) {public void action() {}};
-            case 0x6:    return new DecodeI("ori",  e) {public void action() {}};
-            case 0x7:    return new DecodeI("andi", e) {public void action() {}};
-            case 0x1:    return new DecodeI("slli", e) {public void action() {}};
+           {case 0x0:    return new DecodeI("addi",  e) {public void action() {x[rd].value = x[rs1].value +   immediate; pc++;}};
+            case 0x4:    return new DecodeI("xori",  e) {public void action() {x[rd].value = x[rs1].value ^   immediate; pc++;}};
+            case 0x6:    return new DecodeI("ori",   e) {public void action() {x[rd].value = x[rs1].value |   immediate; pc++;}};
+            case 0x7:    return new DecodeI("andi",  e) {public void action() {x[rd].value = x[rs1].value &   immediate; pc++;}};
+            case 0x1:    return new DecodeI("slli",  e) {public void action() {x[rd].value = x[rs1].value <<  immediate; pc++;}};
             case 0x5:
-              final DecodeI dI = new DecodeI(null, e);
+              final DecodeI dI = new DecodeI(null,   e);
               switch((dI.immediate >> 5) & 0b111_1111)
-               {case 0:  return new DecodeI("srli", e) {public void action() {}};
-                case 2:  return new DecodeI("srai", e) {public void action() {}};
+               {case 0:  return new DecodeI("srli",  e) {public void action() {x[rd].value = x[rs1].value >>  immediate; pc++;}};
+                case 2:  return new DecodeI("srai",  e) {public void action() {x[rd].value = x[rs1].value >>> immediate; pc++;}};
                 default: return null;
                }
-            case 0x2:    return new DecodeI("slti",  e) {public void action() {}};
-            case 0x3:    return new DecodeI("sltiu", e) {public void action() {}};
+            case 0x2:    return new DecodeI("slti",  e) {public void action() {x[rd].value = x[rs1].value <   immediate ? 1 : 0; pc++;}};
+            case 0x3:    return new DecodeI("sltiu", e) {public void action() {x[rd].value = x[rs1].value <   immediate ? 1 : 0; pc++;}};
             default :    return null;
            }
          }
-        default:         return null;
+        default ->      {return null;}
        }
      }
    }
@@ -224,7 +267,7 @@ final public class RiscV                                                        
      }
 
     public String toString()                                                    // Print instruction
-     {return String.format("I %7s %8s rd=%2d rs1=%2d funct3=%3b imm=0x%x, %d",
+     {return String.format("I %7s %8s rd=%2d rs1=%2d        funct3=%2x imm=0x%x, %d",
         binaryString(opCode, 7), name, rd, rs1, funct3, immediate, immediate);
      }
    }
@@ -263,7 +306,7 @@ final public class RiscV                                                        
      }
 
     public String toString()                                                    // Print instruction
-     {return name + String.format("J %7s %8s rd=%2d imm=0x%x, %d",
+     {return String.format("J %7s %8s rd=%2d imm=0x%x, %d",
         binaryString(opCode, 7), rd, name, immediate, immediate);
      }
    }
@@ -287,7 +330,7 @@ final public class RiscV                                                        
       immediate   = i >> 12;                                                    // Immediate value
      }
     public String toString()                                                    // Print instruction
-     {return name + String.format("U %7s %8s rd=%2d imm=0x%x, %d",
+     {return String.format("U %7s %8s rd=%2d imm=0x%x, %d",
         binaryString(opCode, 7), rd, name, immediate, immediate);
      }
    }
@@ -325,7 +368,7 @@ final public class RiscV                                                        
      }
 
     public String toString()                                                    // Print instruction
-     {return name + String.format("B %7s %8s rs1=%2d rs2=%2d imm=0x%x, %d",
+     {return String.format("B %7s %8s rs1=%2d rs2=%2d imm=0x%x, %d",
         binaryString(opCode, 7), name, rs1, rs2, immediate, immediate);
      }
    }
@@ -364,7 +407,7 @@ final public class RiscV                                                        
      }
 
     public String toString()                                                    // Print instruction
-     {return name + String.format("S %7s %8s rd=%2d rs1=%2d  rs2=%2d funct3=%3b imm=0x%x, %d",
+     {return String.format("S %7s %8s rd=%2d rs1=%2d  rs2=%2d funct3=%2x imm=0x%x, %d",
         binaryString(opCode, 7), name, rd, rs1, rs2, funct3, immediate, immediate);
      }
    }
@@ -385,7 +428,7 @@ final public class RiscV                                                        
      }
 
     public String toString()                                                    // Print instruction
-     {return name + String.format("R %7s %8s rd=%2d rs1=%2d rs2=%2d funct3=%2x funct7=%2x",
+     {return String.format("R %7s %8s rd=%2d rs1=%2d rs2=%2d funct3=%2x funct7=%2x",
         binaryString(opCode, 7), name, rd, rs1, rs2, funct3, funct7);
      }
    }
@@ -406,7 +449,7 @@ final public class RiscV                                                        
      }
 
     public String toString()                                                    // Print instruction
-     {return name + String.format("Ra %7s %8s rd=%2d rs1=%2d rs2=%2d funct3=%2x funct5=%2x aq=%d rl=%d",
+     {return String.format("Ra %7s %8s rd=%2d rs1=%2d rs2=%2d funct3=%2x funct5=%2x aq=%d rl=%d",
         binaryString(opCode, 7), name, rd, rs1, rs2, funct3, funct5,  aq, rl);
      }
    }
@@ -669,7 +712,7 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     final boolean n = b.toString().contains("\n");
     testsFailed++;
     if (n) err("Test failed. Got:\n"+b+"\n");
-    else   err(a, "\ndoes not equal\n"+b);
+    else   err(""+'"'+a+'"', "\ndoes not equal\n"+'"'+b+'"');
    }
 
   static void okIntegers(Integer[]E, Integer[]G)                                // Check that two integer arrays are are equal
@@ -700,9 +743,12 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
   static void test_add()                                                        // Add
    {RiscV r = new RiscV();
     r.addi(r.x31, r.x0, 2);
-    ok(r.decode(r.code.elementAt(0)), "I 0010011     addi rd=31 rs1= 0 funct3=true imm=0x2, 2");
+    r.add (r.x30, r.x31, r.x31);
+    ok(r.decode(r.code.elementAt(0)), "I 0010011     addi rd=31 rs1= 0        funct3= 0 imm=0x2, 2");
+    ok(r.decode(r.code.elementAt(1)), "R 0110011      add rd=30 rs1=31 rs2=31 funct3= 0 funct7= 0");
     r.simulate();
     ok(r.x31, 2);
+    ok(r.x30, 4);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
