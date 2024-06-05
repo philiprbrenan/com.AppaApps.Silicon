@@ -47,11 +47,14 @@ final public class RiscV                                                        
 
   public String toString()                                                      // Convert chip to string
    {final StringBuilder b = new StringBuilder();
-    b.append("RiscV      : " + name);
-    b.append("Step       : " + steps);
-    b.append("Instruction: " + pc);
+    b.append("RiscV      : " + name  + "\n");
+    b.append("Step       : " + steps + "\n");
+    b.append("Instruction: " + pc    + "\n");
     b.append("Registers  : ");
-    for (int i = 0; i < x.length; i++) b.append(" "+x[i]);                      // Print registers
+    for (int i = 0; i < x.length; i++)                                          // Print non zero registers
+     {final long v = x[i].value;
+      if (v != 0) b.append(" x"+i+"="+v);
+     }
     return b.toString();                                                        // String describing chip
    }
 
@@ -63,6 +66,8 @@ final public class RiscV                                                        
      {x = register;
       if (x < 0 || x >=XLEN) stop("Register must be 0 to", XLEN,"not", x);
      }
+
+    public String toString() {return ""+value;}                                 // Print the value of a register
    }
 
 //D1 Simulate                                                                   // Simulate the execution of a Risc V program
@@ -73,7 +78,7 @@ final public class RiscV                                                        
     final boolean miss = minSimulationSteps != null;                            // Minimum simulation steps set
 
     pc = 0;                                                                     // Reset
-    for (int i = 0; i < x.length; i++) x[i].value = 0;
+    for (int i = 0; i < x.length; i++) x[i].value = 0;                          // Clear registers
 
     for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
      {if (pc >= code.size()) return;                                            // Off the end of the code
@@ -186,7 +191,7 @@ final public class RiscV                                                        
      {switch(d.opCode)
        {case 0b001_0011:
          {switch(d.funct3)
-           {case 0x0:    return new DecodeI("addi", e) {public void action() {}};
+           {case 0x0:    return new DecodeI("addi", e) {public void action() {x[rd].value = x[rs1].value + immediate; pc++;}};
             case 0x4:    return new DecodeI("xori", e) {public void action() {}};
             case 0x6:    return new DecodeI("ori",  e) {public void action() {}};
             case 0x7:    return new DecodeI("andi", e) {public void action() {}};
@@ -696,6 +701,8 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
    {RiscV r = new RiscV();
     r.addi(r.x31, r.x0, 2);
     ok(r.decode(r.code.elementAt(0)), "I 0010011     addi rd=31 rs1= 0 funct3=true imm=0x2, 2");
+    r.simulate();
+    ok(r.x31, 2);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
