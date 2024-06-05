@@ -69,18 +69,18 @@ jobs:
       with:
         website: jdk.java.net
 
+    - name: Test Risc V
+      run: |
+        mkdir -p com/AppaApps/Silicon/
+        cp RiscV.j com/AppaApps/Silicon/
+        java --enable-preview --source 22  com/AppaApps/Silicon/RiscV.j
+
     - name: Install Tree
       run:
         sudo apt install tree
 
     - name: Cpan
       run:  sudo cpan install -T Data::Dump Data::Table::Text GDS2 Digest::SHA1
-
-    - name: Test Risc V
-      run: |
-        mkdir -p com/AppaApps/Silicon/
-        cp RiscV.j com/AppaApps/Silicon/
-        java --enable-preview --source 22  com/AppaApps/Silicon/RiscV.j
 
     - name: Test silicon chips
       run: |
