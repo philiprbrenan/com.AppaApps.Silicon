@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Execute Risc V machine code
+// Execute Risc V machine code. Little endian RV32I.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
@@ -26,13 +26,20 @@ final public class RiscV                                                        
   final Register x0,  x1,  x2,   x3,  x4,  x5,  x6,  x7,  x8,  x9,
                  x10, x11, x12, x13, x14, x15, x16, x17, x18, x19,
                  x20, x21, x22, x23, x24, x25, x26, x27, x28, x29, x30, x31;
+  final byte[]                 memory = new byte[100];                          // Memory
   int                              pc = 0;                                      // Program counter
   int                           steps = 0;                                      // Number of steps taken so far in executing the program
 
   RiscV(String Name)                                                            // Create a new program
    {name = Name;                                                                // Name of chip
     for (int i = 0; i < x.length; i++) x[i] = new Register(i);                  // Create the registers
-    x0 = x[0]; x1 = x[1]; x2 = x[2]; x3 = x[3]; x4 = x[4]; x5 = x[5]; x6 = x[6]; x7 = x[7]; x8 = x[8]; x9 = x[9]; x10 = x[10]; x11 = x[11]; x12 = x[12]; x13 = x[13]; x14 = x[14]; x15 = x[15]; x16 = x[16]; x17 = x[17]; x18 = x[18]; x19 = x[19]; x20 = x[20]; x21 = x[21]; x22 = x[22]; x23 = x[23]; x24 = x[24]; x25 = x[25]; x26 = x[26]; x27 = x[27]; x28 = x[28]; x29 = x[29]; x30 = x[30]; x31 = x[31];
+    x0  = x[ 0];  x1 = x[ 1]; x2  = x[ 2]; x3  = x[ 3]; x4  = x[ 4];
+    x5  = x[ 5];  x6 = x[ 6]; x7  = x[ 7]; x8  = x[ 8]; x9  = x[ 9];
+    x10 = x[10]; x11 = x[11]; x12 = x[12]; x13 = x[13]; x14 = x[14];
+    x15 = x[15]; x16 = x[16]; x17 = x[17]; x18 = x[18]; x19 = x[19];
+    x20 = x[20]; x21 = x[21]; x22 = x[22]; x23 = x[23]; x24 = x[24];
+    x25 = x[25]; x26 = x[26]; x27 = x[27]; x28 = x[28]; x29 = x[29];
+    x30 = x[30]; x31 = x[31];
    }
 
   RiscV()                                                                       // Create a new program with the name of the test
@@ -52,15 +59,22 @@ final public class RiscV                                                        
     b.append("Instruction: " + pc    + "\n");
     b.append("Registers  : ");
     for (int i = 0; i < x.length; i++)                                          // Print non zero registers
-     {final long v = x[i].value;
+     {final int v = x[i].value;
       if (v != 0) b.append(" x"+i+"="+v);
      }
+    b.append("\n");
+    b.append("Memory     : ");
+    for (int i = 0; i < memory.length; i++)                                     // Print non zero memory
+     {final int v = memory[i];
+      if (v != 0) b.append(" "+i+"="+v);
+     }
+    b.append("\n");
     return b.toString();                                                        // String describing chip
    }
 
   class Register                                                                // Description of a register
    {final int x;                                                                // Number of register
-    long value;                                                                 // Current value of the register
+    int value;                                                                  // Current value of the register
 
     Register(int register)                                                      // Describe a register
      {x = register;
@@ -84,6 +98,7 @@ final public class RiscV                                                        
      {if (pc >= code.size()) return;                                            // Off the end of the code
       final Encode e = code.elementAt(pc);
       final Decode d = decode(e);
+      if (d == null) stop("Need data for instruction", pc);
       d.action();
      }
     if (maxSimulationSteps == null)                                             // Not enough steps available by default
@@ -109,15 +124,15 @@ final public class RiscV                                                        
       aq      &= Decode.m_aq;
 
       instruction = opCode | immediate                                          // Overlay the fields - zero fields will have no effect so this safe.
-                  | (rd != null ? rd.x      <<  7 : 0)
-                  | (funct3   << 12)
-                  | (subType  << 12)
-                  | (rs1 != null ? rs1.x    << 15 : 0)
-                  | (rs2 != null ? rs2.x    << 20 : 0)
-                  | (funct7   << 25)
-                  | (rl       << 25)
-                  | (aq       << 26)
-                  | (funct5   << 27);
+                  | (rd  != null ? rd.x  <<  7 : 0)
+                  | (rs1 != null ? rs1.x << 15 : 0)
+                  | (rs2 != null ? rs2.x << 20 : 0)
+                  | (funct3  << 12)
+                  | (subType << 12)
+                  | (funct7  << 25)
+                  | (rl      << 25)
+                  | (aq      << 26)
+                  | (funct5  << 27);
 
       code.push(this);
      }
@@ -193,19 +208,7 @@ final public class RiscV                                                        
        + " subType"     + subType;
      }
    }
-/*
-Inst   Name                  FMT Opcode  funct3 funct7      Description (C) Note
-add    ADD                     R 0110011 0x0    0x00        rd = rs1 + rs2
-sub    SUB                     R 0110011 0x0    0x20        rd = rs1 - rs2
-xor    XOR                     R 0110011 0x4    0x00        rd = rs1 Ë rs2
-or     OR                      R 0110011 0x6    0x00        rd = rs1 | rs2
-and    AND                     R 0110011 0x7    0x00        rd = rs1 & rs2
-sll    Shift Left Logical      R 0110011 0x1    0x00        rd = rs1 << rs2
-srl    Shift Right Logical     R 0110011 0x5    0x00        rd = rs1 >> rs2
-sra    Shift Right Arith*      R 0110011 0x5    0x20        rd = rs1 >> rs2 msb-extends
-slt    Set Less Than           R 0110011 0x2    0x00        rd = (rs1 < rs2)?1:0
-sltu   Set Less Than (U)       R 0110011 0x3    0x00        rd = (rs1 < rs2)?1:0 zero-extends
-*/
+
   Decode decode(Encode e)                                                       // Decode an instruction
    {final Decode d = new Decode(null, e);
      {switch(d.opCode)
@@ -217,7 +220,7 @@ sltu   Set Less Than (U)       R 0110011 0x3    0x00        rd = (rs1 < rs2)?1:0
               case 0x6:    return new DecodeR("or",    e) {public void action() {x[rd].value = x[rs1].value |   x[rs2].value; pc++;}};
               case 0x7:    return new DecodeR("and",   e) {public void action() {x[rd].value = x[rs1].value &   x[rs2].value; pc++;}};
               case 0x1:    return new DecodeR("sll",   e) {public void action() {x[rd].value = x[rs1].value <<  x[rs2].value; pc++;}};
-              case 0x5:    return new DecodeR("srl",   e) {public void action() {x[rd].value = x[rs1].value >>  x[rs2].value; pc++;}};
+              case 0x5:    return new DecodeR("srl",   e) {public void action() {x[rd].value = x[rs1].value >>> x[rs2].value; pc++;}};
               case 0x2:    return new DecodeR("slt",   e) {public void action() {x[rd].value = x[rs1].value <   x[rs2].value ? 1 : 0; pc++;}};
               case 0x3:    return new DecodeR("sltu",  e) {public void action() {x[rd].value = x[rs1].value <   x[rs2].value ? 1 : 0; pc++;}};
               default :    return null;
@@ -226,117 +229,73 @@ sltu   Set Less Than (U)       R 0110011 0x3    0x00        rd = (rs1 < rs2)?1:0
           else if (d.funct7 == 2)
            {switch(d.funct3)
              {case 0x0:    return new DecodeI("sub",   e) {public void action() {x[rd].value = x[rs1].value -   immediate; pc++;}};
-              case 0x5:    return new DecodeI("sra",   e) {public void action() {x[rd].value = x[rs1].value >>> immediate; pc++;}};
+              case 0x5:    return new DecodeI("sra",   e) {public void action() {x[rd].value = x[rs1].value >>  immediate; pc++;}};
               default:     return null;
              }
            }
           else             return null;
          }
+
         case 0b001_0011 ->
          {switch(d.funct3)
-           {case 0x0:    return new DecodeI("addi",  e) {public void action() {x[rd].value = x[rs1].value +   immediate; pc++;}};
-            case 0x4:    return new DecodeI("xori",  e) {public void action() {x[rd].value = x[rs1].value ^   immediate; pc++;}};
-            case 0x6:    return new DecodeI("ori",   e) {public void action() {x[rd].value = x[rs1].value |   immediate; pc++;}};
-            case 0x7:    return new DecodeI("andi",  e) {public void action() {x[rd].value = x[rs1].value &   immediate; pc++;}};
-            case 0x1:    return new DecodeI("slli",  e) {public void action() {x[rd].value = x[rs1].value <<  immediate; pc++;}};
-            case 0x5:
+           {case 0:      return new DecodeI("addi",  e) {public void action() {x[rd].value = x[rs1].value +   immediate; pc++;}};
+            case 4:      return new DecodeI("xori",  e) {public void action() {x[rd].value = x[rs1].value ^   immediate; pc++;}};
+            case 6:      return new DecodeI("ori",   e) {public void action() {x[rd].value = x[rs1].value |   immediate; pc++;}};
+            case 7:      return new DecodeI("andi",  e) {public void action() {x[rd].value = x[rs1].value &   immediate; pc++;}};
+            case 1:      return new DecodeI("slli",  e) {public void action() {x[rd].value = x[rs1].value <<  immediate; pc++;}};
+            case 5:
               final DecodeI dI = new DecodeI(null,   e);
               switch((dI.immediate >> 5) & 0b111_1111)
-               {case 0:  return new DecodeI("srli",  e) {public void action() {x[rd].value = x[rs1].value >>  immediate; pc++;}};
-                case 2:  return new DecodeI("srai",  e) {public void action() {x[rd].value = x[rs1].value >>> immediate; pc++;}};
+               {case 0:  return new DecodeI("srli",  e) {public void action() {x[rd].value = x[rs1].value >>> immediate; pc++;}};
+                case 2:  return new DecodeI("srai",  e) {public void action() {x[rd].value = x[rs1].value >>  immediate; pc++;}};
                 default: return null;
                }
-            case 0x2:    return new DecodeI("slti",  e) {public void action() {x[rd].value = x[rs1].value <   immediate ? 1 : 0; pc++;}};
-            case 0x3:    return new DecodeI("sltiu", e) {public void action() {x[rd].value = x[rs1].value <   immediate ? 1 : 0; pc++;}};
-            default :    return null;
+            case 2:      return new DecodeI("slti",  e) {public void action() {x[rd].value = x[rs1].value <   immediate ? 1 : 0; pc++;}};
+            case 3:      return new DecodeI("sltiu", e) {public void action() {x[rd].value = x[rs1].value <   immediate ? 1 : 0; pc++;}};
+            default:     return null;
            }
          }
+
+        case 0b110_0011 ->
+         {switch(d.funct3)
+           {case 0:      return new DecodeB("beq",   e) {public void action() {if (x[rs1].value == x[rs2].value) pc += immediate; else pc++;}};
+            case 1:      return new DecodeB("bne",   e) {public void action() {if (x[rs1].value != x[rs2].value) pc += immediate; else pc++;}};
+            case 4:      return new DecodeB("blt",   e) {public void action() {if (x[rs1].value <  x[rs2].value) pc += immediate; else pc++;}};
+            case 5:      return new DecodeB("bge",   e) {public void action() {if (x[rs1].value >= x[rs2].value) pc += immediate; else pc++;}};
+            case 6:      return new DecodeB("bltu",  e) {public void action() {if (x[rs1].value <  x[rs2].value) pc += immediate; else pc++;}};
+            case 7:      return new DecodeB("bgeu",  e) {public void action() {if (x[rs1].value >= x[rs2].value) pc += immediate; else pc++;}};
+            default:     return null;
+           }
+         }
+
+        case 0b010_0011 ->
+         {switch(d.funct3)
+           {case 0:      return new DecodeB("sb",    e)
+             {public void action()
+               {pc++;
+                memory[x[rs1].value+immediate]   = (byte) (x[rs2].value & 0xff);
+               }};
+            case 1:      return new DecodeB("sh",    e)
+             {public void action()
+               {pc++;
+                memory[x[rs1].value+immediate]   = (byte) (x[rs2].value & 0xff);
+                memory[x[rs1].value+immediate+1] = (byte)((x[rs2].value>>>8) & 0xff);
+               }};
+            case 2:      return new DecodeB("sw",    e)
+            {public void action()
+               {pc++;
+                memory[x[rs1].value+immediate+0] = (byte)((x[rs2].value>>> 0) & 0xff);
+                memory[x[rs1].value+immediate+1] = (byte)((x[rs2].value>>> 8) & 0xff);
+                memory[x[rs1].value+immediate+2] = (byte)((x[rs2].value>>>16) & 0xff);
+                memory[x[rs1].value+immediate+3] = (byte)((x[rs2].value>>>24) & 0xff);
+               }};
+            default:     return null;
+           }
+         }
+
         default ->      {return null;}
        }
      }
-   }
-
-  class DecodeI extends Decode                                                  // Decode an I format instruction
-   {final int immediate;                                                        // Immediate value
-    final static int p_immediate = 20;                                          // Position of immediate value
-
-    DecodeI(String name, Encode Instruction)                                    // Decode instruction
-     {super(name, Instruction);
-      final int i = instruction.instruction;
-      immediate   = (i >> p_immediate);                                         // Immediate value
-     }
-
-    public String toString()                                                    // Print instruction
-     {return String.format("I %7s %8s rd=%2d rs1=%2d        funct3=%2x imm=0x%x, %d",
-        binaryString(opCode, 7), name, rd, rs1, funct3, immediate, immediate);
-     }
-   }
-
-  Encode encodeI(int opCode, Register rd, Register rs1, int funct3, int Immediate)
-   {return new Encode(opCode, rd, rs1, null, funct3, 0, 0, 0, Immediate<<DecodeI.p_immediate);
-   }
-
-  class DecodeJ extends Decode                                                  // Decode a J format instruction
-   {final        int immediate;                                                 // Immediate value
-    final static int m_31_31 = 0b10000000000000000000000000000000;              // Masks for areas of the intermediate value
-    final static int m_30_21 = 0b01111111111000000000000000000000;
-    final static int m_20_20 = 0b00000000000100000000000000000000;
-    final static int m_19_12 = 0b00000000000011111111000000000000;
-
-    DecodeJ(String Name, Encode Instruction)                                    // Decode an instruction
-     {super(Name, Instruction);
-      final int i = instruction.instruction;
-      immediate   = immediate();                                                // Immediate value
-     }
-
-    int immediate()                                                             // Immediate value
-     {final int i = instruction.instruction;
-      final int b_31_31 = i & m_31_31;
-      final int b_30_21 = i & m_30_21;
-      final int b_20_20 = i & m_20_20;
-      final int b_19_12 = i & m_19_12;
-
-      final int B_20_20 = (b_31_31 >> 31) << 20;
-      final int B_10_01 = (b_30_21 >> 21) <<  1;
-      final int B_11_11 = (b_20_20 >> 20) << 11;
-    //final int B_19_12 = (b_19_12 >> 12) << 12;
-      final int B_19_12 =  b_19_12;
-
-      return B_20_20 | B_19_12 | B_11_11 | B_10_01;
-     }
-
-    public String toString()                                                    // Print instruction
-     {return String.format("J %7s %8s rd=%2d imm=0x%x, %d",
-        binaryString(opCode, 7), rd, name, immediate, immediate);
-     }
-   }
-
-  Encode encodeJ(int opCode, Register rd, int Immediate)
-   {final int i = Immediate;
-    int j = (((i >> 20) << 31) & DecodeJ.m_31_31)
-          | (((i >>  1) << 21) & DecodeJ.m_30_21)
-          | (((i >> 11) << 20) & DecodeJ.m_20_20)
-          | (  i               & DecodeJ.m_20_20);
-
-    return new Encode(opCode, rd, null, null, 0, 0, 0, 0, j);
-   }
-
-  class DecodeU extends Decode                                                  // Decode a U format instruction
-   {final int immediate;                                                        // Immediate value
-
-    DecodeU(String Name, Encode Instruction)                                    // Decode instruction
-     {super(Name, Instruction);
-      final int i = instruction.instruction;
-      immediate   = i >> 12;                                                    // Immediate value
-     }
-    public String toString()                                                    // Print instruction
-     {return String.format("U %7s %8s rd=%2d imm=0x%x, %d",
-        binaryString(opCode, 7), rd, name, immediate, immediate);
-     }
-   }
-
-  Encode encodeU(int opCode, Register rd, int Immediate)
-   {return new Encode(opCode, rd, null, null, 0, 0, 0, 0, Immediate);
    }
 
   class DecodeB extends Decode                                                  // Decode a B format instruction
@@ -346,25 +305,20 @@ sltu   Set Less Than (U)       R 0110011 0x3    0x00        rd = (rs1 < rs2)?1:0
     final static int m_11_08 = 0b00000000000000000000111100000000;
     final static int m_07_07 = 0b00000000000000000000000010000000;
 
-    DecodeB(String Name, Encode Instruction)                                    // Decode instruction
-     {super(Name, Instruction);
-      final int i = instruction.instruction;
-      immediate   = immediate();                                                // Immediate operand
+    static int immediate(int Immediate)                                         // Decode a B format immediate operand
+     {final int i = Immediate;
+
+      final int a = ((i & DecodeB.m_31_31) >>> 31) << 11;
+      final int b = ((i & DecodeB.m_30_25) >>> 25) <<  4;
+      final int c = ((i & DecodeB.m_11_08) >>>  8) <<  0;
+      final int d = ((i & DecodeB.m_07_07) >>>  7) << 10;
+
+      return ((a|b|c|d)<<20)>>20;
      }
 
-    int  immediate()                                                            // Immediate value
-     {final int i       = instruction.instruction;
-      final int b_31_31 = i & m_31_31;
-      final int b_30_25 = i & m_30_25;
-      final int b_11_08 = i & m_11_08;
-      final int b_07_07 = i & m_07_07;
-
-      final int B_12_12 = (b_31_31 >> 31) << 12;
-      final int B_10_05 = (b_30_25 >> 25) <<  5;
-      final int B_04_01 = (b_11_08 >>  8) <<  1;
-      final int B_11_11 = (b_07_07 <<  7) << 11;
-
-      return B_12_12 | B_11_11 | B_10_05 | B_04_01;
+    DecodeB(String Name, Encode Instruction)                                    // Decode instruction
+     {super(Name, Instruction);
+      immediate = DecodeB.immediate(Instruction.instruction);                    // Immediate operand
      }
 
     public String toString()                                                    // Print instruction
@@ -373,58 +327,87 @@ sltu   Set Less Than (U)       R 0110011 0x3    0x00        rd = (rs1 < rs2)?1:0
      }
    }
 
-  Encode encodeB(int opCode, Register rs1, Register rs2, int subType, int Immediate)
+  static int encodeBImmediate(int Immediate)                                    // Encode a B format immediate operand
    {final int i = Immediate;
-    int j = (((i >> 12) << 31) & DecodeB.m_31_31)
-          | (((i >>  5) << 25) & DecodeB.m_30_25)
-          | (((i >>  1) <<  8) & DecodeB.m_11_08)
-          | (((i >> 11) <<  7) & DecodeB.m_07_07);
 
-    return new Encode(opCode, null, rs1, rs2, 0, 0, 0, subType, j);
+    final int a = (((i >>> 11) << 31) & DecodeB.m_31_31);
+    final int b = (((i >>>  4) << 25) & DecodeB.m_30_25);
+    final int c = (((i >>>  0) <<  8) & DecodeB.m_11_08);
+    final int d = (((i >>> 10) <<  7) & DecodeB.m_07_07);
+
+    return a|b|c|d;
    }
 
-  class DecodeS extends Decode                                                  // Decode a S format instruction
-   {final        int immediate;                                                 // Immediate value
-    final static int m_31_25 = 0b11111110000000000000000000000000;
-    final static int m_11_07 = 0b00000000000000000000111110000000;
+  Encode encodeB(int opCode, Register rs1, Register rs2, int subType, int Immediate)
+   {final int i = encodeBImmediate(Immediate);
+    return new Encode(opCode, null, rs1, rs2, 0, 0, 0, subType, i);
+   }
 
-    DecodeS(String Name, Encode Instruction)                                    // Decode instruction
-     {super(Name, Instruction);
-      final int i = instruction.instruction;
-      immediate   = immediate();                                                // Immediate operand
-     }
+  class DecodeI extends Decode                                                  // Decode an I format instruction
+   {final int immediate;                                                        // Immediate value
+    final static int p_immediate = 20;                                          // Position of immediate value
 
-    int  immediate()                                                            // Immediate value
-     {final int i       = instruction.instruction;
-
-      final int b_31_25 = i & m_31_25;
-      final int b_11_07 = i & m_11_07;
-
-      final int B_11_05 = (b_31_25 >> 25) << 5;
-      final int B_04_00 = (b_11_07 >>  7) << 0;
-
-      return B_11_05 | B_04_00;
+    DecodeI(String name, Encode Instruction)                                    // Decode instruction
+     {super(name, Instruction);
+      immediate = instruction.instruction >> p_immediate;                       // Immediate value
      }
 
     public String toString()                                                    // Print instruction
-     {return String.format("S %7s %8s rd=%2d rs1=%2d  rs2=%2d funct3=%2x imm=0x%x, %d",
-        binaryString(opCode, 7), name, rd, rs1, rs2, funct3, immediate, immediate);
+     {return String.format("I %7s %8s rd=%2d rs1=%2d        funct3=%2x imm=0x%x, %d",
+        binaryString(opCode, 7), name, rd, rs1, funct3, immediate, immediate);
      }
    }
 
-  Encode encodeS(int opCode, Register rs1, Register rs2, int funct3, int Immediate)
-   {final int i = Immediate;
-    int j = (((i >>  5) << 25) & DecodeS.m_31_25)
-          | (((i >>  0) <<  7) & DecodeS.m_11_07);
-
-    return new Encode(opCode, null, rs1, rs2, funct3, 0, 0, 0, j);
+  Encode encodeI(int opCode, Register rd, Register rs1, int funct3, int Immediate)
+   {final int i = Immediate << DecodeI.p_immediate;
+    return new Encode(opCode, rd, rs1, null, funct3, 0, 0, 0, i);
    }
 
+  class DecodeJ extends Decode                                                  // Decode a J format instruction
+   {final        int immediate;                                                 // Immediate value
+    final static int m_31_31 = 0b10000000000000000000000000000000;              // Masks for areas of the intermediate value
+    final static int m_30_21 = 0b01111111111000000000000000000000;
+    final static int m_20_20 = 0b00000000000100000000000000000000;
+    final static int m_19_12 = 0b00000000000011111111000000000000;
 
+    static int immediate(int Immediate)                                         // Decode J immediate
+     {final int i = Immediate;
+      final int a = ((i & DecodeJ.m_31_31) >>> 31) << 19;
+      final int b = ((i & DecodeJ.m_30_21) >>> 21) <<  0;
+      final int c = ((i & DecodeJ.m_20_20) >>> 20) << 10;
+      final int d = ((i & DecodeJ.m_19_12) >>>  1) <<  0;
+
+      return ((a|b|c|d)<<12)>>12;
+     }
+
+    DecodeJ(String Name, Encode Instruction)                                    // Decode an instruction
+     {super(Name, Instruction);
+      immediate = DecodeJ.immediate(Instruction.instruction);                    // Immediate value
+     }
+
+    public String toString()                                                    // Print instruction
+     {return String.format("J %7s %8s rd=%2d imm=0x%x, %d",
+        binaryString(opCode, 7), rd, name, immediate, immediate);
+     }
+   }
+
+  static int encodeJImmediate(int Immediate)
+   {final int i = Immediate;
+    final int a = ((i >>> 19) << 31) & DecodeJ.m_31_31;
+    final int b =  (i >>>  0) << 21  & DecodeJ.m_30_21;
+    final int c = ((i >>> 10) << 20) & DecodeJ.m_20_20;
+    final int d = ((i >>>  0) <<  1) & DecodeJ.m_19_12;
+
+    return a|b|c|d;
+   }
+
+  Encode encodeJ(int opCode, Register rd, int Immediate)
+   {final int i = encodeJImmediate(Immediate);
+    return new Encode(opCode, rd, null, null, 0, 0, 0, 0, i);
+   }
   class DecodeR extends Decode                                                  // Decode a R format instruction
    {DecodeR(String Name, Encode Instruction)                                    // Decode instruction
      {super(Name, Instruction);
-      final int i = instruction.instruction;
      }
 
     public String toString()                                                    // Print instruction
@@ -444,8 +427,8 @@ sltu   Set Less Than (U)       R 0110011 0x3    0x00        rd = (rs1 < rs2)?1:0
     DecodeRa(String Name, Encode Instruction)                                   // Decode instruction
      {super(Name, Instruction);
       final int i = instruction.instruction;
-      rl          = ((i >> 25) & 0b1) == 0b1;                                   // rl
-      aq          = ((i >> 26) & 0b1) == 0b1;                                   // aq
+      rl          = ((i >>> 25) & 0b1) == 0b1;                                  // rl
+      aq          = ((i >>> 26) & 0b1) == 0b1;                                  // aq
      }
 
     public String toString()                                                    // Print instruction
@@ -456,6 +439,61 @@ sltu   Set Less Than (U)       R 0110011 0x3    0x00        rd = (rs1 < rs2)?1:0
 
   Encode encodeRa(int opCode, int funct5, Register rd, Register rs1, Register rs2, int funct3, int aq, int rl)
    {return new Encode(opCode, rd, rs1, rs2, funct3, funct5, 0, 0, 0, aq, rl);
+   }
+
+  class DecodeS extends Decode                                                  // Decode a S format instruction
+   {final        int immediate;                                                 // Immediate value
+    final static int m_31_25 = 0b11111110000000000000000000000000;
+    final static int m_11_07 = 0b00000000000000000000111110000000;
+
+    static int immediate(int Immediate)
+     {final int i = Immediate;
+      final int a = ((i & DecodeS.m_31_25) >>> 25) << 5;
+      final int b = ((i & DecodeS.m_11_07) >>>  7) << 0;
+
+      return ((a|b)<<20)>>20;
+     }
+
+    DecodeS(String Name, Encode Instruction)                                    // Decode instruction
+     {super(Name, Instruction);
+      immediate = DecodeS.immediate(Instruction.instruction);                    // Immediate operand
+     }
+
+    public String toString()                                                    // Print instruction
+     {return String.format("S %7s %8s rd=%2d rs1=%2d  rs2=%2d funct3=%2x imm=0x%x, %d",
+        binaryString(opCode, 7), name, rd, rs1, rs2, funct3, immediate, immediate);
+     }
+   }
+
+  static int encodeSImmediate(int Immediate)
+   {final int i = Immediate;
+    final int a = ((i >>> 5) << 25) & DecodeS.m_31_25;
+    final int b = ((i >>> 0) <<  7) & DecodeS.m_11_07;
+
+    return a|b;
+   }
+
+  Encode encodeS(int opCode, Register rs1, Register rs2, int funct3, int Immediate)
+   {final int i = encodeSImmediate(Immediate);
+    return new Encode(opCode, null, rs1, rs2, funct3, 0, 0, 0, i);
+   }
+
+  class DecodeU extends Decode                                                  // Decode a U format instruction
+   {final int immediate;                                                        // Immediate value
+
+    DecodeU(String Name, Encode Instruction)                                    // Decode instruction
+     {super(Name, Instruction);
+      immediate = instruction.instruction >>> 12;                                // Immediate value
+     }
+
+    public String toString()                                                    // Print instruction
+     {return String.format("U %7s %8s rd=%2d imm=0x%x, %d",
+        binaryString(opCode, 7), rd, name, immediate, immediate);
+     }
+   }
+
+  Encode encodeU(int opCode, Register rd, int Immediate)
+   {return new Encode(opCode, rd, null, null, 0, 0, 0, 0, Immediate);
    }
 
 //D1 Instructions                                                               // Instructions
@@ -541,9 +579,9 @@ sw     Store Word              S 0100011 0x2                M[rs1+imm][0:31] = r
 Inst   Name                  FMT Opcode  funct3 funct7      Description (C) Note
 beq    Branch ==               B 1100011 0x0                if(rs1 == rs2) PC += imm
 bne    Branch !=               B 1100011 0x1                if(rs1 != rs2) PC += imm
-blt    Branch <                B 1100011 0x4                if(rs1 < rs2) PC += imm
+blt    Branch <                B 1100011 0x4                if(rs1 < rs2)  PC += imm
 bge    Branch â¥                B 1100011 0x5                if(rs1 >= rs2) PC += imm
-bltu   Branch < (U)            B 1100011 0x6                if(rs1 < rs2) PC += imm zero-extends
+bltu   Branch < (U)            B 1100011 0x6                if(rs1 < rs2)  PC += imm zero-extends
 bgeu   Branch â¥ (U)            B 1100011 0x7                if(rs1 >= rs2) PC += imm zero-extends
 */
 
@@ -557,7 +595,7 @@ bgeu   Branch â¥ (U)            B 1100011 0x7                if(rs1 >= rs2) 
 /*
 Inst   Name                  FMT Opcode  funct3 funct7      Description (C) Note
 jal    Jump And Link           J 1101111                    rd = PC+4; PC += imm
-jalr   Jump And Link Reg       I 1100111 0x0                rd = PC+4; PC = rs1 + imm
+jalr   Jump And Link Reg       I 1100111 0x0                rd = PC+4; PC  = rs1 + imm
 */
 
   Encode  jal (Register rd, int immediate) {return encodeJ(0b110_1111, rd, immediate);}
@@ -666,8 +704,7 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 //D2 Conversion                                                                 // Conversion utilities
 
   static String binaryString(int n, int width)                                  // Convert a integer to a binary string of specified width
-   {final long a = (1<<63) + n;
-    final String b = Long.toBinaryString(a);
+   {final String b = "0".repeat(width)+Long.toBinaryString(n);
     return b.substring(b.length() - width);
    }
 
@@ -713,6 +750,11 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     testsFailed++;
     if (n) err("Test failed. Got:\n"+b+"\n");
     else   err(""+'"'+a+'"', "\ndoes not equal\n"+'"'+b+'"');
+    if (testsFailed > 10) stop("Failed", testsFailed, "tests");
+   }
+
+  void ok(String expected)                                                      // Compare state of machine with expected results
+   {ok(toString(), expected);
    }
 
   static void okIntegers(Integer[]E, Integer[]G)                                // Check that two integer arrays are are equal
@@ -740,6 +782,51 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
 //D0
 
+  static void test_immediate_b()                                                // Immediate b
+   {final int N = powerTwo(11);
+    for (int i = 0; i < N; i++)
+     {final int e = encodeBImmediate(+i);
+      final int d = DecodeB.immediate(e);
+      ok(d, +i);
+     }
+    for (int i = 0; i < N; i++)
+     {final int e = encodeBImmediate(-i);
+      final int d = DecodeB.immediate(e);
+      ok(d, -i);
+     }
+    ok(encodeBImmediate(-1), DecodeB.m_31_31|DecodeB.m_30_25|DecodeB.m_11_08|DecodeB.m_07_07);
+   }
+
+  static void test_immediate_j()                                                // Immediate j
+   {final int N = powerTwo(19);
+    for (int i = 1; i < N; i++)
+     {final int e = encodeJImmediate(+i);
+      final int d = DecodeJ.immediate(e);
+      ok(d, +i);
+     }
+    for (int i = 0; i < N; i++)
+     {final int e = encodeJImmediate(-i);
+      final int d = DecodeJ.immediate(e);
+      ok(d, -i);
+     }
+    ok(encodeJImmediate(-1), DecodeJ.m_31_31|DecodeJ.m_30_21|DecodeJ.m_20_20|DecodeJ.m_19_12);
+   }
+
+  static void test_immediate_s()                                                // Immediate s
+   {final int N = powerTwo(11);
+    for (int i = 1; i < N; i++)
+     {final int e = encodeSImmediate(+i);
+      final int d = DecodeS.immediate(e);
+      ok(d, +i);
+     }
+    for (int i = 0; i < N; i++)
+     {final int e = encodeSImmediate(-i);
+      final int d = DecodeS.immediate(e);
+      ok(d, -i);
+     }
+    ok(encodeSImmediate(-1), DecodeS.m_31_25 | DecodeS.m_11_07);
+   }
+
   static void test_add()                                                        // Add
    {RiscV r = new RiscV();
     r.addi(r.x31, r.x0, 2);
@@ -751,12 +838,46 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     ok(r.x30, 4);
    }
 
+  static void test_fibonacci()                                                  // Fibonacci
+   {RiscV    r = new RiscV();
+    Register z = r.x0;
+    Register a = r.x1;
+    Register b = r.x2;
+    Register c = r.x3;
+    Register i = r.x4;
+    Register N = r.x5;
+
+    r.addi(N, z, 10);
+    r.addi(i, z, 0);
+    r.addi(a, z, 0);
+    r.addi(b, z, 1);
+    r.sw  (i, a, 0);
+    r.add (c, a, b);
+    r.add (a, b, z);
+    r.add (b, c, z);
+    r.addi(i, i, 1);
+    r.blt (i, N, -5);
+    r.simulate();
+    r.ok("""
+RiscV      : fibonacci
+Step       : 65
+Instruction: 10
+Registers  :  x1=55 x2=89 x3=89 x4=10 x5=10
+Memory     :  1=1 2=1 3=2 4=3 5=5 6=8 7=13 8=21 9=34
+""");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
-   {test_add();
+   {if (github_actions) test_immediate_b();
+    if (github_actions) test_immediate_j();
+    if (github_actions) test_immediate_s();
+    test_add();
+    test_fibonacci();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
+    test_fibonacci();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
