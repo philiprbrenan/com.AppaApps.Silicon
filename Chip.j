@@ -3012,7 +3012,7 @@ final public class Chip                                                         
    {if (a.toString().equals(b.toString())) {++testsPassed; return;}
     final boolean n = b.toString().contains("\n");
     testsFailed++;
-    if (n) err("Test failed. Got:\n"+b+"\n");
+    if (n) err("Test failed. Got:\n"+a+"\n");
     else   err(a, "does not equal", b);
    }
 
