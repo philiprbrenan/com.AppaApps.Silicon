@@ -30,6 +30,8 @@ final public class RiscV                                                        
   int                              pc = 0;                                      // Program counter
   int                           steps = 0;                                      // Number of steps taken so far in executing the program
 
+  TreeMap<String, Label>       labels = new TreeMap<>();                       // Labels in assembler code
+
   RiscV(String Name)                                                            // Create a new program
    {name = Name;                                                                // Name of chip
     for (int i = 0; i < x.length; i++) x[i] = new Register(i);                  // Create the registers
@@ -86,6 +88,11 @@ final public class RiscV                                                        
 
 //D1 Simulate                                                                   // Simulate the execution of a Risc V program
 
+  void setLabels()                                                              // Set labels so that they address the targets of branch instructions
+   {final int N  = code.size();
+    for (int i = 0; i < N; i++) code.elementAt(i).setLabel(i);
+   }
+
   void simulate()                                                               // Simulate the execution of the program
    {final int actualMaxSimulationSteps =                                        // Actual limit on number of steps
       maxSimulationSteps != null ? maxSimulationSteps : defaultMaxSimulationSteps;
@@ -93,6 +100,7 @@ final public class RiscV                                                        
 
     pc = 0;                                                                     // Reset
     for (int i = 0; i < x.length; i++) x[i].value = 0;                          // Clear registers
+    setLabels();                                                                // Set branch instructions so they address their targets
 
     for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
      {if (pc >= code.size()) return;                                            // Off the end of the code
@@ -109,11 +117,12 @@ final public class RiscV                                                        
 //D1 Encode and Decode                                                          // Encode and decode instructions to and from their binary formats in machine code
 
   class Encode                                                                  // Encode an instruction
-   {final int instruction;                                                      // Resulting instruction
+   {int instruction;                                                            // Resulting instruction
+    final Label label;                                                          // Label describing target of branch instruction
 
     Encode(int opCode, Register rd, Register rs1, Register rs2,                 // Encode an instruction
       int funct3, int funct5, int funct7, int subType, int immediate,
-      int aq, int rl
+      int aq, int rl, Label Label
      )
      {opCode  &= Decode.m_opCode;                                               // Mask input values to desired ranges
       funct3  &= Decode.m_funct3;
@@ -134,13 +143,32 @@ final public class RiscV                                                        
                   | (aq      << 26)
                   | (funct5  << 27);
 
+      label = Label;
       code.push(this);
      }
 
-    Encode(int opCode, Register rd, Register rs1, Register rs2,                 // Encode an instruction without aq and rl
+    Encode(int opCode, Register rd, Register rs1, Register rs2,                 // Encode an instruction without aq or rl or a label
       int funct3, int funct5, int funct7, int subType, int immediate
      )
-     {this( opCode, rd, rs1, rs2, funct3, funct5, funct7, subType, immediate, 0, 0);
+     {this(opCode, rd, rs1, rs2, funct3, funct5, funct7, subType, immediate,
+           0, 0, null);
+     }
+
+    Encode(int opCode, Register rd, Register rs1, Register rs2,                 // Encode an instruction without aq or rl but with a label
+      int funct3, int funct5, int funct7, int subType, int immediate,
+      Label label
+     )
+     {this(opCode, rd, rs1, rs2, funct3, funct5, funct7, subType, immediate,
+           0, 0, label);
+     }
+
+    void setLabel(int offset)                                                   // Set immediate field from any label referenced by this instruction
+     {if (label == null) return;                                                // No label
+      final Decode d = decode(this);                                            // Decode this instruction so we can reassemble it with the current immediate value
+      final int    i = encodeBImmediate(label.offset - offset);                 // Offset to target from current instruction
+      final Encode e = new Encode(d.opCode, x[d.rd], x[d.rs1], x[d.rs2],        // Encode an instruction without aq or rl or a label
+        d.funct3, d.funct5, d.funct7, d.subType, i);
+      instruction = e.instruction;                                              // Update current instruction with intermediate value showing offset to the target instruction
      }
    }
 
@@ -274,13 +302,15 @@ final public class RiscV                                                        
              {public void action()
                {pc++;
                 memory[x[rs1].value+immediate]   = (byte) (x[rs2].value & 0xff);
-               }};
+               }
+             };
             case 1:      return new DecodeB("sh",    e)
              {public void action()
                {pc++;
                 memory[x[rs1].value+immediate]   = (byte) (x[rs2].value & 0xff);
                 memory[x[rs1].value+immediate+1] = (byte)((x[rs2].value>>>8) & 0xff);
-               }};
+               }
+             };
             case 2:      return new DecodeB("sw",    e)
             {public void action()
                {pc++;
@@ -288,10 +318,60 @@ final public class RiscV                                                        
                 memory[x[rs1].value+immediate+1] = (byte)((x[rs2].value>>> 8) & 0xff);
                 memory[x[rs1].value+immediate+2] = (byte)((x[rs2].value>>>16) & 0xff);
                 memory[x[rs1].value+immediate+3] = (byte)((x[rs2].value>>>24) & 0xff);
-               }};
+               }
+             };
             default:     return null;
            }
          }
+
+        case 0b000_0011 ->
+         {switch(d.funct3)
+           {case 0:      return new DecodeI("lb",    e)
+             {public void action()
+               {pc++;
+                x[rd].value = memory[x[rs1].value+immediate];
+               }
+             };
+            case 4:      return new DecodeI("lbu",   e)
+             {public void action()
+               {pc++;
+                x[rd].value = (memory[x[rs1].value+immediate]<<24)>>24;
+               }
+             };
+            case 1:      return new DecodeI("lh",    e)
+             {public void action()
+               {pc++;
+                x[rd].value = memory[x[rs1].value+immediate] |
+                             (memory[x[rs1].value+immediate+1] << 8);
+               }
+             };
+            case 5:      return new DecodeI("lhu",   e)
+             {public void action()
+               {pc++;
+                x[rd].value = (memory[x[rs1].value+immediate] |
+                              (memory[x[rs1].value+immediate+1] << 8)<<16)>>16;
+               }
+             };
+            case 2:      return new DecodeI("lw",    e)
+            {public void action()
+               {pc++;
+                x[rd].value = memory[x[rs1].value+immediate+0]
+                            | memory[x[rs1].value+immediate+1] <<  8
+                            | memory[x[rs1].value+immediate+2] << 16
+                            | memory[x[rs1].value+immediate+3] << 24;
+               }
+             };
+            default:     return null;
+           }
+         }
+/*
+Inst   Name                  FMT Opcode  funct3 funct7      Description (C) Note
+lb     Load Byte               I 0000011 0x0                rd = M[rs1+imm][0:7]
+lh     Load Half               I 0000011 0x1                rd = M[rs1+imm][0:15]
+lw     Load Word               I 0000011 0x2                rd = M[rs1+imm][0:31]
+lbu    Load Byte (U)           I 0000011 0x4                rd = M[rs1+imm][0:7] zero-extends
+lhu    Load Half (U)           I 0000011 0x5                rd = M[rs1+imm][0:15] zero-extends
+*/
 
         default ->      {return null;}
        }
@@ -338,9 +418,8 @@ final public class RiscV                                                        
     return a|b|c|d;
    }
 
-  Encode encodeB(int opCode, Register rs1, Register rs2, int subType, int Immediate)
-   {final int i = encodeBImmediate(Immediate);
-    return new Encode(opCode, null, rs1, rs2, 0, 0, 0, subType, i);
+  Encode encodeB(int opCode, Register rs1, Register rs2, int subType, Label label) // Encode a B format instruction
+   {return new Encode(opCode, null, rs1, rs2, 0, 0, 0, subType, 0, label);
    }
 
   class DecodeI extends Decode                                                  // Decode an I format instruction
@@ -358,7 +437,7 @@ final public class RiscV                                                        
      }
    }
 
-  Encode encodeI(int opCode, Register rd, Register rs1, int funct3, int Immediate)
+  Encode encodeI(int opCode, Register rd, Register rs1, int funct3, int Immediate) // Encode an I format instruction
    {final int i = Immediate << DecodeI.p_immediate;
     return new Encode(opCode, rd, rs1, null, funct3, 0, 0, 0, i);
    }
@@ -391,7 +470,7 @@ final public class RiscV                                                        
      }
    }
 
-  static int encodeJImmediate(int Immediate)
+  static int encodeJImmediate(int Immediate)                                    // Encode the immediate field of a J format instruction
    {final int i = Immediate;
     final int a = ((i >>> 19) << 31) & DecodeJ.m_31_31;
     final int b =  (i >>>  0) << 21  & DecodeJ.m_30_21;
@@ -401,7 +480,7 @@ final public class RiscV                                                        
     return a|b|c|d;
    }
 
-  Encode encodeJ(int opCode, Register rd, int Immediate)
+  Encode encodeJ(int opCode, Register rd, int Immediate)                        // Encode a J format instruction
    {final int i = encodeJImmediate(Immediate);
     return new Encode(opCode, rd, null, null, 0, 0, 0, 0, i);
    }
@@ -438,7 +517,7 @@ final public class RiscV                                                        
    }
 
   Encode encodeRa(int opCode, int funct5, Register rd, Register rs1, Register rs2, int funct3, int aq, int rl)
-   {return new Encode(opCode, rd, rs1, rs2, funct3, funct5, 0, 0, 0, aq, rl);
+   {return new Encode(opCode, rd, rs1, rs2, funct3, funct5, 0, 0, 0, aq, rl, null);
    }
 
   class DecodeS extends Decode                                                  // Decode a S format instruction
@@ -446,7 +525,7 @@ final public class RiscV                                                        
     final static int m_31_25 = 0b11111110000000000000000000000000;
     final static int m_11_07 = 0b00000000000000000000111110000000;
 
-    static int immediate(int Immediate)
+    static int immediate(int Immediate)                                         // Decode the immediate field of an S format instruction
      {final int i = Immediate;
       final int a = ((i & DecodeS.m_31_25) >>> 25) << 5;
       final int b = ((i & DecodeS.m_11_07) >>>  7) << 0;
@@ -456,7 +535,7 @@ final public class RiscV                                                        
 
     DecodeS(String Name, Encode Instruction)                                    // Decode instruction
      {super(Name, Instruction);
-      immediate = DecodeS.immediate(Instruction.instruction);                    // Immediate operand
+      immediate = DecodeS.immediate(Instruction.instruction);                   // Immediate operand
      }
 
     public String toString()                                                    // Print instruction
@@ -465,7 +544,7 @@ final public class RiscV                                                        
      }
    }
 
-  static int encodeSImmediate(int Immediate)
+  static int encodeSImmediate(int Immediate)                                    // Encode the immediate field of an S format instruction
    {final int i = Immediate;
     final int a = ((i >>> 5) << 25) & DecodeS.m_31_25;
     final int b = ((i >>> 0) <<  7) & DecodeS.m_11_07;
@@ -473,7 +552,7 @@ final public class RiscV                                                        
     return a|b;
    }
 
-  Encode encodeS(int opCode, Register rs1, Register rs2, int funct3, int Immediate)
+  Encode encodeS(int opCode, Register rs1, Register rs2, int funct3, int Immediate) // Encode an S format instruction
    {final int i = encodeSImmediate(Immediate);
     return new Encode(opCode, null, rs1, rs2, funct3, 0, 0, 0, i);
    }
@@ -483,7 +562,7 @@ final public class RiscV                                                        
 
     DecodeU(String Name, Encode Instruction)                                    // Decode instruction
      {super(Name, Instruction);
-      immediate = instruction.instruction >>> 12;                                // Immediate value
+      immediate = instruction.instruction >>> 12;                               // Immediate value
      }
 
     public String toString()                                                    // Print instruction
@@ -492,7 +571,7 @@ final public class RiscV                                                        
      }
    }
 
-  Encode encodeU(int opCode, Register rd, int Immediate)
+  Encode encodeU(int opCode, Register rd, int Immediate)                        // Encode a U format instruction
    {return new Encode(opCode, rd, null, null, 0, 0, 0, 0, Immediate);
    }
 
@@ -585,12 +664,12 @@ bltu   Branch < (U)            B 1100011 0x6                if(rs1 < rs2)  PC +=
 bgeu   Branch â¥ (U)            B 1100011 0x7                if(rs1 >= rs2) PC += imm zero-extends
 */
 
-  Encode   beq(Register rs1, Register rs2, int immediate) {return encodeB(0b110_0011, rs1, rs2, 0, immediate & 0xfff);}
-  Encode   bne(Register rs1, Register rs2, int immediate) {return encodeB(0b110_0011, rs1, rs2, 1, immediate & 0xfff);}
-  Encode   blt(Register rs1, Register rs2, int immediate) {return encodeB(0b110_0011, rs1, rs2, 4, immediate & 0xfff);}
-  Encode   bge(Register rs1, Register rs2, int immediate) {return encodeB(0b110_0011, rs1, rs2, 5, immediate & 0xfff);}
-  Encode  bltu(Register rs1, Register rs2, int immediate) {return encodeB(0b110_0011, rs1, rs2, 6, immediate & 0xfff);}
-  Encode  bgeu(Register rs1, Register rs2, int immediate) {return encodeB(0b110_0011, rs1, rs2, 7, immediate & 0xfff);}
+  Encode   beq(Register rs1, Register rs2, Label l) {return encodeB(0b110_0011, rs1, rs2, 0, l);}
+  Encode   bne(Register rs1, Register rs2, Label l) {return encodeB(0b110_0011, rs1, rs2, 1, l);}
+  Encode   blt(Register rs1, Register rs2, Label l) {return encodeB(0b110_0011, rs1, rs2, 4, l);}
+  Encode   bge(Register rs1, Register rs2, Label l) {return encodeB(0b110_0011, rs1, rs2, 5, l);}
+  Encode  bltu(Register rs1, Register rs2, Label l) {return encodeB(0b110_0011, rs1, rs2, 6, l);}
+  Encode  bgeu(Register rs1, Register rs2, Label l) {return encodeB(0b110_0011, rs1, rs2, 7, l);}
 
 /*
 Inst   Name                  FMT Opcode  funct3 funct7      Description (C) Note
@@ -657,6 +736,19 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
   static int powerTwo(int n) {return 1 << n;}                                   // Power of 2
   static int powerOf (int a, int b)                                             // Raise a to the power b
    {int v = 1; for (int i = 0; i < b; ++i) v *= a; return v;
+   }
+
+//D1 Labels                                                                     // Labels are used to define locations in code
+
+  class Label                                                                   // Label defining a location in code
+   {final String name;                                                          // Name of label
+    int        offset = 0;                                                      // Instruction following label if known
+    Label(String Name)                                                          // Create label assumed to be just after the current instruction
+     {name   = Name;
+      offset = code.size();
+      labels.put(name, this);                                                   // Index label
+     }
+    void set() {offset = code.size();}                                          // Set a label to the current point in the code
    }
 
 //D1 Logging                                                                    // Logging and tracing
@@ -748,7 +840,7 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
    {if (a.toString().equals(b.toString())) {++testsPassed; return;}
     final boolean n = b.toString().contains("\n");
     testsFailed++;
-    if (n) err("Test failed. Got:\n"+b+"\n");
+    if (n) err("Test failed. Got:\n"+a+"\n");
     else   err(""+'"'+a+'"', "\ndoes not equal\n"+'"'+b+'"');
     if (testsFailed > 10) stop("Failed", testsFailed, "tests");
    }
@@ -839,29 +931,30 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
    }
 
   static void test_fibonacci()                                                  // Fibonacci
-   {RiscV    r = new RiscV();
-    Register z = r.x0;
-    Register a = r.x1;
-    Register b = r.x2;
-    Register c = r.x3;
-    Register i = r.x4;
-    Register N = r.x5;
+   {RiscV    r = new RiscV();                                                   // New Risc V machine and program
+    Register z = r.x0;                                                          // Zero
+    Register a = r.x1;                                                          // A
+    Register b = r.x2;                                                          // B
+    Register c = r.x3;                                                          // C = A + B
+    Register i = r.x4;                                                          // Loop counter
+    Register N = r.x5;                                                          // Number of Fibonacci numbers to produce
 
-    r.addi(N, z, 10);
-    r.addi(i, z, 0);
-    r.addi(a, z, 0);
-    r.addi(b, z, 1);
-    r.sw  (i, a, 0);
-    r.add (c, a, b);
-    r.add (a, b, z);
-    r.add (b, c, z);
-    r.addi(i, i, 1);
-    r.blt (i, N, -5);
-    r.simulate();
+    r.addi(N, z, 10);                                                           // N = 10
+    r.addi(i, z, 0);                                                            // i =  0
+    r.addi(a, z, 0);                                                            // a =  0
+    r.addi(b, z, 1);                                                            // b =  1
+    Label start = r.new Label("start");                                         // Start of for loop
+    r.sw  (i, a, 0);                                                            // Save latest result in memory
+    r.add (c, a, b);                                                            // Latest Fibonacci number
+    r.add (a, b, z);                                                            // Move b to a
+    r.add (b, c, z);                                                            // Move c to b
+    r.addi(i, i, 1);                                                            // Increment loop count
+    r.blt (i, N, start);                                                        // Loop
+    r.simulate();                                                               // Run the program
     r.ok("""
 RiscV      : fibonacci
-Step       : 65
-Instruction: 10
+Step       : 66
+Instruction: 11
 Registers  :  x1=55 x2=89 x3=89 x4=10 x5=10
 Memory     :  1=1 2=1 3=2 4=3 5=5 6=8 7=13 8=21 9=34
 """);
