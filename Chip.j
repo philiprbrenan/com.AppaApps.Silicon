@@ -1716,6 +1716,10 @@ final public class Chip                                                         
     return b;
    }
 
+  Bit triggerPulse(String Output, int width, Bit input)                     // Trigger a pulse of specified width started by the falling edge of a specified pulse
+   {return orBits(Output, delayBits(n(Output, "delay"), width, input));         // Create the bit bus
+   }
+
 //D3 Select                                                                     // Send a pulse one way or another depending on a bit allowing us to execute one branch of an if statement or the other and receive a pulse notifying us when the execution of the different length paths are complete.
 
   class Select                                                                  // Select a direction for a pulse from two possibilities depending on the setting of a bit. The pulse is transmitted along the selecetd path for as long as the control bit is true, thereafter both paths revert to false.
@@ -4082,12 +4086,12 @@ Step  i     o     O
    }
 
   static void test_8p5i4()
-   {int N = 8;   // 4 bits = 19 steps 8 = 46 steps
+   {int N = 8;
     Chip      C = new Chip();
-    Bits      a = C.bits("a",  N, 127);
-    Bits      b = C.bits("b",  N, 128);
-    BinaryAdd c = C.binaryAdd("c", a, b);
-    Bit      oc = C.Output("oc", c.carry);
+    Bits      a = C.bits      ("a",  N, 127);
+    Bits      b = C.bits      ("b",  N, 128);
+    BinaryAdd c = C.binaryAdd ("c",  a, b);
+    Bit      oc = C.Output    ("oc", c.carry);
     Bits     os = C.outputBits("os", c.sum);
     C.simulationSteps(48);
     C.simulate();
@@ -4424,6 +4428,32 @@ Step  pl d      ld
     //C.printExecutionTrace(); say(o); stop();
    }
 
+  static void test_trigger_pulse()                                              // Trigger a pulse
+   {int      N = 4;
+    Chip     c = new Chip();                                                    // Create a new chip
+    Pulse    p = c.pulse("p", 0, 1);                                            // Triggering pulse
+    Bit      t = c.triggerPulse("t", 4, p);                                     // The difficulty of replacing a gateas needd by Pulse which is forced yto extend rather than implement Bits
+    Bit      o = c.Output("o", t);
+    c.executionTrack("p  t", "%s   %s", p, t);
+    c.simulationSteps(10);
+    c.simulate();
+
+    //c.printExecutionTrace(); stop();
+    c.ok("""
+Step  p  t
+   1  1   .
+   2  0   .
+   3  0   .
+   4  0   1
+   5  0   1
+   6  0   1
+   7  0   1
+   8  0   0
+   9  0   0
+  10  0   0
+""");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_max_min();
     test_source_file_name();
@@ -4476,10 +4506,12 @@ Step  pl d      ld
     test_find_words();
     test_btree_split_node();
     test_binary_increment();
+    test_trigger_pulse();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
+    test_trigger_pulse();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
