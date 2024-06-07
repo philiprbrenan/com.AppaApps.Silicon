@@ -543,7 +543,7 @@ final public class RiscV                                                        
 
       case 0b001_0111 -> {return d.new U("auipc")                               // Add upper immediate to program counter
        {public void action()
-         {pc += d.immediate << 12;
+         {x[d.rd].value = pc + d.immediate << 12;
          }
        };}
 
