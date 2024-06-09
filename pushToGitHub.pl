@@ -17,7 +17,8 @@ my $repo = q(com.AppaApps.Silicon);                                             
 my $wf   = q(.github/workflows/main.yml);                                       # Work flow on Ubuntu
 
 if (1)                                                                          # Documentation from pod to markdown into read me with well known words expanded
- {push my @files, searchDirectoryTreesForMatchingFiles($home, qw(.j .md .pl .png));
+ {my @pid;
+  push my @files, searchDirectoryTreesForMatchingFiles($home, qw(.j .md .pl .png));
 
   for my $s(@files)                                                             # Upload each selected file
    {next if $s =~ m(/backup/);
@@ -31,12 +32,13 @@ if (1)                                                                          
       $c =  expandWellKnownWordsAsUrlsInMdFormat $c;                            # Expand well known terms
      }
     my $t = swapFilePrefix $s, $home;
-    if (!fork())
+    if (my $pid = fork) {push @pid, $pid} else
      {my $w = writeFileUsingSavedToken($user, $repo, $t, $c);
       lll "$w $s $t";
       exit;
      }
    }
+  waitpid $_, 0 for @pid;
  }
 
 if (1)
