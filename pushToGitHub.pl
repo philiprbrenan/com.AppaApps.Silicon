@@ -31,8 +31,11 @@ if (1)                                                                          
       $c =  expandWellKnownWordsAsUrlsInMdFormat $c;                            # Expand well known terms
      }
     my $t = swapFilePrefix $s, $home;
-    my $w = writeFileUsingSavedToken($user, $repo, $t, $c);
-    lll "$w $s $t";
+    if (!fork())
+     {my $w = writeFileUsingSavedToken($user, $repo, $t, $c);
+      lll "$w $s $t";
+      exit;
+     }
    }
  }
 
