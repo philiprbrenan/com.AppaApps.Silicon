@@ -1654,7 +1654,7 @@ final public class Chip                                                         
    {return new Register(name, in);
    }
 
-//D2 Periodic Pulses                                                            // Periodic pulses that drive input buses.
+//D2 Pulses                                                                     // Periodic pulses that drive input buses.
 
   class Pulse extends Gate                                                      // A periodic pulse that drives an input bit
    {final int  period;                                                          // Length of pulse. A pulse of zero is considered to be a pulse of infinite period - i.e. it only happens once
@@ -1710,10 +1710,24 @@ final public class Chip                                                         
    {return new Pulse(Name, Pulse.period, On, Pulse.on+Pulse.delay - On + Delay, Pulse.start);
    }
 
-  Pulse triggerPulse(String Output, int width, Pulse input)                     // Trigger a pulse of specified width started by the falling edge of a specified pulse. The pulse will start log two of the pulse width steps later than the falling edge as the signal takes time to fan in to the or gate used to implement the pulse
-   {final Bit  b = orBits(Output, delayBits(n(Output, "delay"), width, input)); // Create a new bit from the resulting or gate
-    final Gate g = getGate(b);                                                  // Gate eventually associated with a bit
-    return new Pulse(g);                                                        // Pulse from gate
+  Pulse triggerPulse(String Output, int width, Pulse trigger)                   // Trigger a pulse of specified width started by the falling edge of a specified pulse. The pulse will start log two of the pulse width steps later than the falling edge as the signal takes time to fan in to the or gate used to implement the pulse
+   {final Bits d = delayBits(n(Output, "delay"), width, trigger);               // Delay chain
+    final Bit  b = orBits   (  Output, d);                                      // Or of delay chain
+    final Gate g = getGate(b);                                                  // Gate associated with "or" of delay chain
+    return new Pulse(g);                                                        // Pulse from gate associated with "or" of delay chain
+   }
+
+  Pulse[]choosePulse(String Output, Words choices, Bits choose, Pulse trigger)  // Trigger the pulse in an array of pulses that corresponds to the word choosen.
+   {final int W = choices.words(), b = choices.bits(), B = choices.bits();
+    if (B != b) stop("Choices has:", B+", but choose has:", b, "bits");
+    final Pulse[]pulses = new Pulse[W];
+    for (int i = 1; i <= W; i++)
+     {final Bit eq = compareEq(n(i, Output, "equals"), choices.w(i), choose);
+      final Bit an = And(n(i, Output, "and"), eq, trigger);
+      final Gate g = getGate(an);                                               // Gate associated with "or" of delay chain
+      pulses[i-1]  = new Pulse(g);
+     }
+    return pulses;
    }
 
 //D3 Delay                                                                      // Send a pulse one way or another depending on a bit allowing us to execute one branch of an if statement or the other and receive a pulse notifying us when the execution of the different length paths are complete.
@@ -4528,6 +4542,39 @@ Step  s1   r1   a1    s2  r2   a2   s3 r3
 """);
    }
 
+  static void test_choose_pulse()                                               // Choose a pulse
+   {int         N = 4;
+    Chip        c = new Chip();                                                 // Create a new chip
+    Bits      two = c.bits        ("two",   N,       2);
+    Words   words = c.words       ("words", N, 4, 3, 2, 1);
+
+    Pulse       p = c.pulse       ("s1",    0,       4);
+    Pulse[]     P = c.choosePulse ("P", words, two,  p);
+    Bit        P1 = c.Output      ("P1", P[0]);
+    Bit        P2 = c.Output      ("P2", P[1]);
+    Bit        P3 = c.Output      ("P3", P[2]);
+    Bit        P4 = c.Output      ("P4", P[3]);
+    c.executionTrack(
+      "p   4 3 2 1",
+      "%s   %s %s %s %s",
+       p, P[0], P[1], P[2], P[3]);
+    c.simulationSteps(8);
+    c.simulate();
+
+    //c.printExecutionTrace(); stop();
+    c.ok("""
+Step  p   4 3 2 1
+   1  1   . . . .
+   2  1   . . . .
+   3  1   . . . .
+   4  1   . . . .
+   5  0   . . . .
+   6  0   0 0 1 0
+   7  0   0 0 0 0
+   8  0   0 0 0 0
+""");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_max_min();
     test_source_file_name();
@@ -4582,11 +4629,12 @@ Step  s1   r1   a1    s2  r2   a2   s3 r3
     test_binary_increment();
     test_trigger_pulse();
     test_add_chain();
+    test_choose_pulse();
    }
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    test_add_chain();
+    test_choose_pulse();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
