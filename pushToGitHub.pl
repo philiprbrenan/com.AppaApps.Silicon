@@ -16,8 +16,28 @@ my $user = q(philiprbrenan);                                                    
 my $repo = q(com.AppaApps.Silicon);                                             # Repo
 my $wf   = q(.github/workflows/main.yml);                                       # Work flow on Ubuntu
 
+if (1)                                                                          # Compile java files
+ {my @pids;
+  push my @files, searchDirectoryTreesForMatchingFiles($home, qw(.j));
+  my $d = temporaryFolder;
+  for my $s(@files)                                                             # Upload each selected file
+   {next if $s =~ m(java/backup);
+    say $s;
+    my $t = fpe $d, fn($s), q(java);
+
+    if (my $pid = fork) {push @pids, $pid} else
+     {copyFile($s, $t);
+      my $c = "javac -g -d Classes $t";                                         # Compile java
+      say STDERR qq($c);
+      say STDERR qx($c);
+      exit;
+     }
+   }
+  waitPids @pids;
+ }
+
 if (1)                                                                          # Documentation from pod to markdown into read me with well known words expanded
- {my @pid;
+ {my @pids;
   push my @files, searchDirectoryTreesForMatchingFiles($home, qw(.j .md .pl .png));
 
   for my $s(@files)                                                             # Upload each selected file
@@ -32,13 +52,14 @@ if (1)                                                                          
       $c =  expandWellKnownWordsAsUrlsInMdFormat $c;                            # Expand well known terms
      }
     my $t = swapFilePrefix $s, $home;
-    if (my $pid = fork) {push @pid, $pid} else
+
+    if (my $pid = fork) {push @pids, $pid} else
      {my $w = writeFileUsingSavedToken($user, $repo, $t, $c);
       lll "$w $s $t";
       exit;
      }
    }
-  waitpid $_, 0 for @pid;
+  waitPids @pids;
  }
 
 if (1)
