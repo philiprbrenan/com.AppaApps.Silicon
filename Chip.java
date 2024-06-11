@@ -39,8 +39,8 @@ final public class Chip                                                         
 
   final Map<String, Bit>         bits = new TreeMap<>();                        // Bits by name
   final Map<String, Gate>       gates = new TreeMap<>();                        // Gates by name
-  final Map<String, Bits>  bitBuses = new TreeMap<>();                          // Bit buses
-  final Map<String, Words>wordBuses = new TreeMap<>();                          // Sizes of word buses
+  final Map<String, Bits>    bitBuses = new TreeMap<>();                        // Bit buses
+  final Map<String, Words>  wordBuses = new TreeMap<>();                        // Sizes of word buses
   final TreeSet<String>   outputGates = new TreeSet<>();                        // Output gates
   final TreeMap<String, TreeSet<Gate.WhichPin>>                                 // Pending gate definitions
                               pending = new TreeMap<>();
@@ -62,15 +62,15 @@ final public class Chip                                                         
   int      countAtMostCountedDistance;                                          // The distance at which we have the most gates from an output
   int             mostCountedDistance;                                          // The number of gates at the distance from the drives that has the most gates
   final TreeMap<Integer, TreeSet<String>>                                       // Classify gates by distance to output
-                      distanceToOutput = new TreeMap<>();
+                     distanceToOutput = new TreeMap<>();
   final TreeMap<Integer, Stack<String>>                                         // Each column of gates ordered by Y coordinate in layout
-                               columns = new TreeMap<>();
+                              columns = new TreeMap<>();
   final static TreeMap<String, Diagram>
-                          diagramsDrawn = new TreeMap<>();                      // Avoid redrawing the same layout multiple times by only redrawing a new layout if it has a smaller number of levels or is closer to a square
-  int                         gsx, gsy;                                         // The global scaling factors to be applied to the dimensions of the gates during layout
-  int                 layoutX, layoutY;                                         // Dimensions of chip
-  Stack<Connection>        connections;                                         // Pairs of gates to be connected
-  Diagram                      diagram;                                         // Diagram specifying the layout of the chip
+                        diagramsDrawn = new TreeMap<>();                        // Avoid redrawing the same layout multiple times by only redrawing a new layout if it has a smaller number of levels or is closer to a square
+  int                        gsx, gsy;                                          // The global scaling factors to be applied to the dimensions of the gates during layout
+  int                layoutX, layoutY;                                          // Dimensions of chip
+  Stack<Connection>       connections;                                          // Pairs of gates to be connected
+  Diagram                     diagram;                                          // Diagram specifying the layout of the chip
 
   Chip(String Name)                                                             // Create a new L<chip>.
    {this(Name, 0);                                                              // Name of chip
@@ -3118,7 +3118,7 @@ final public class Chip                                                         
     System.err.println(traceBack());
    }
 
-  static void stop(Object...O)                                                  // Say something. provide an error trace and stop,
+  static void stop(Object...O)                                                  // Say something, provide an error trace and stop
    {say(O);
     System.err.println(traceBack());
     System.exit(1);
@@ -3141,31 +3141,32 @@ final public class Chip                                                         
     final int lg = G.length(), le = E.length();
     final StringBuilder b = new StringBuilder();
 
-    boolean matches = true;
+    boolean matchesLen = true, matches = true;
     if (le != lg)                                                               // Failed on length
-     {matches = false;
+     {matchesLen = false;
       err(b, "Mismatched length, got", lg, "expected", le, "got:\n"+G);
      }
-    else                                                                        // Check characters in equal lengths strings
-     {int l = 1, c = 1;
-      for (int i = 0; i < lg && matches; i++)                                   // Check each character
-       {final int  e = E.charAt(i), g = G.charAt(i);
-        if (e != g)                                                             // Character mismatch
-         {say(b, "Differs at line:"+String.format("%04d", l),
-              "character", c, ", expected:", ((char)e),
-                              ", got:",      ((char)g));
-          say(b, "      0----+----1----+----2----+----3----+----4----+----5----+----6");
-          final String[]t = G.split("\\n");
-          for(int k = 0; k < t.length; k++)                                     // Details of  mismatch
-           {say(b, String.format("%04d  ", k+1)+t[k]);
-            if (l == k+1) say(b, " ".repeat(6+c)+'^');
-           }
-          matches = false;
+
+    int l = 1, c = 1;
+    final int N = le < lg ? le : lg;
+    for (int i = 0; i < N && matches; i++)                                      // Check each character
+     {final int  e = E.charAt(i), g = G.charAt(i);
+      if (e != g)                                                               // Character mismatch
+       {say(b, "Differs at line:"+String.format("%04d", l),
+            "character", c, ", expected:", ((char)e),
+                            ", got:",      ((char)g));
+        say(b, "      0----+----1----+----2----+----3----+----4----+----5----+----6");
+        final String[]t = G.split("\\n");
+        for(int k = 0; k < t.length; k++)                                       // Details of  mismatch
+         {say(b, String.format("%04d  ", k+1)+t[k]);
+          if (l == k+1) say(b, " ".repeat(6+c)+'^');
          }
-        if (e == '\n') {++l; c = 0;} else c++;
+        matches = false;
        }
+      if (e == '\n') {++l; c = 0;} else c++;
      }
-    if (matches) ++testsPassed; else {++testsFailed; err(b);}                   // Show error location with a trace back so we know where the failure occurred
+
+    if (matchesLen && matches) ++testsPassed; else {++testsFailed; err(b);}     // Show error location with a trace back so we know where the failure occurred
    }
 
   static void ok(Integer[]G, Integer[]E)                                        // Check that two integer arrays are are equal
