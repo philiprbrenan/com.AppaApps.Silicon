@@ -49,11 +49,11 @@ if (1)                                                                          
       $c =  expandWellKnownWordsAsUrlsInMdFormat $c;                            # Expand well known terms
      }
 
-    if (my $pid = fork) {push @pids, $pid} else                                 # Upload files
+    #if (my $pid = fork) {push @pids, $pid} else                                 # Upload files
      {my $t = swapFilePrefix $s, $home;
       my $w = writeFileUsingSavedToken($user, $repo, $t, $c);
       lll "$w $s $t";
-      exit;
+      #exit;
      }
    }
   waitPids @pids;
