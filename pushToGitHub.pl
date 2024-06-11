@@ -92,22 +92,25 @@ jobs:
       with:
         website: jdk.java.net
 
-    - name: Compile
-      run: |
-        mkdir -p com/AppaApps/Silicon/tests
-        cp       *.java com/AppaApps/Silicon/
-        cp tests/*.java com/AppaApps/Silicon/tests
-        javac -g -d Classes -cp Classes com/AppaApps/Silicon/Chip.java
-        javac -g -d Classes -cp Classes com/AppaApps/Silicon/RiscV.java
-        javac -g -d Classes -cp Classes com/AppaApps/Silicon/tests/Test1.java
-
     - name: Install Tree
       run:
         sudo apt install tree
 
+    - name: Position
+      run: |
+        mkdir -p com/AppaApps/Silicon/tests
+        cp       *.java com/AppaApps/Silicon/
+        cp tests/*.java com/AppaApps/Silicon/tests
+
     - name: Files
       run:
         tree
+
+    - name: Compile
+      run: |
+        javac -g -d Classes -cp Classes com/AppaApps/Silicon/Chip.java
+        javac -g -d Classes -cp Classes com/AppaApps/Silicon/RiscV.java
+        javac -g -d Classes -cp Classes com/AppaApps/Silicon/tests/Test1.java
 
     - name: Test Risc V
       run: |
