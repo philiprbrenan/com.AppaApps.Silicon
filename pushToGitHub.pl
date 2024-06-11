@@ -16,29 +16,26 @@ my $user = q(philiprbrenan);                                                    
 my $repo = q(com.AppaApps.Silicon);                                             # Repo
 my $wf   = q(.github/workflows/main.yml);                                       # Work flow on Ubuntu
 
-if (1)                                                                          # Compile java files
- {my @pids;
-  push my @files, searchDirectoryTreesForMatchingFiles($home, qw(.j));
-  my $d = temporaryFolder;
+if (0)                                                                          # Compile java files
+ {push my @files, searchDirectoryTreesForMatchingFiles($home, qw(.java));
+  my @pids;
   for my $s(@files)                                                             # Upload each selected file
    {next if $s =~ m(java/backup);
     say $s;
-    my $t = fpe $d, fn($s), q(java);
-
     if (my $pid = fork) {push @pids, $pid} else
-     {copyFile($s, $t);
-      my $c = "javac -g -d Classes $t";                                         # Compile java
+     {my $c = "javac -g -d Classes -cp Classes $s";                             # Compile java
       say STDERR qq($c);
       say STDERR qx($c);
       exit;
      }
    }
   waitPids @pids;
+  exit;
  }
 
 if (1)                                                                          # Documentation from pod to markdown into read me with well known words expanded
  {my @pids;
-  push my @files, searchDirectoryTreesForMatchingFiles($home, qw(.j .md .pl .png));
+  push my @files, searchDirectoryTreesForMatchingFiles($home, qw(.java .md .pl .png));
 
   for my $s(@files)                                                             # Upload each selected file
    {next if $s =~ m(/backup/);
@@ -95,11 +92,15 @@ jobs:
       with:
         website: jdk.java.net
 
-    - name: Test Risc V
+    - name: Compile
       run: |
         mkdir -p com/AppaApps/Silicon/
-        cp RiscV.j com/AppaApps/Silicon/
-        java --enable-preview --source 22  com/AppaApps/Silicon/RiscV.j
+        cp *.java com/AppaApps/Silicon/
+        javac -g -d Classes -cp Classes com/AppaApps/Silicon/*.java
+
+    - name: Test Risc V
+      run: |
+        java -g -d Classes -cp Classes com/AppaApps/Silicon/RiscV
 
     - name: Install Tree
       run:
@@ -110,9 +111,7 @@ jobs:
 
     - name: Test silicon chips
       run: |
-        mkdir -p com/AppaApps/Silicon/
-        cp Chip.j com/AppaApps/Silicon/
-        java --enable-preview --source 22  com/AppaApps/Silicon/Chip.j
+        java -g -d Classes -cp Classes com/AppaApps/Silicon/Chip
 
     - name: Files
       run: |
