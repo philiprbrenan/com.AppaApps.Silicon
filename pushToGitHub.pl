@@ -60,7 +60,6 @@ if (1)                                                                          
      }
    }
   waitPids @pids;
-  exit;
  }
 
 if (1)
