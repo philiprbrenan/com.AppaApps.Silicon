@@ -94,24 +94,31 @@ jobs:
 
     - name: Compile
       run: |
-        mkdir -p com/AppaApps/Silicon/
-        cp *.java com/AppaApps/Silicon/
-        javac -g -d Classes -cp Classes com/AppaApps/Silicon/*.java
-
-    - name: Test Risc V
-      run: |
-        java -g -d Classes -cp Classes com/AppaApps/Silicon/RiscV
+        mkdir -p com/AppaApps/Silicon/tests
+        cp       *.java com/AppaApps/Silicon/
+        cp tests/*.java com/AppaApps/Silicon/tests
+        javac -g -d Classes -cp Classes com/AppaApps/Silicon/Chip.java
+        javac -g -d Classes -cp Classes com/AppaApps/Silicon/RiscV.java
+        javac -g -d Classes -cp Classes com/AppaApps/Silicon/tests/Test1.java
 
     - name: Install Tree
       run:
         sudo apt install tree
+
+    - name: Files
+      run:
+        tree
+
+    - name: Test Risc V
+      run: |
+        java -cp Classes com/AppaApps/Silicon/RiscV
 
     - name: Cpan
       run:  sudo cpan install -T Data::Dump Data::Table::Text GDS2 Digest::SHA1
 
     - name: Test silicon chips
       run: |
-        java -g -d Classes -cp Classes com/AppaApps/Silicon/Chip
+        java -cp Classes com/AppaApps/Silicon/Chip
 
     - name: Files
       run: |
