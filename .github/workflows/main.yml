@@ -1,4 +1,4 @@
-# Test 2024-06-11 at 03:00:29
+# Test 2024-06-11 at 03:09:51
 
 name: Test
 run-name: Silicon Chip
@@ -31,8 +31,8 @@ jobs:
     - name: Test Risc V
       run: |
         mkdir -p com/AppaApps/Silicon/
-        cp RiscV.j com/AppaApps/Silicon/
-        java --enable-preview --source 22  com/AppaApps/Silicon/RiscV.j
+        cp RiscV.java com/AppaApps/Silicon/
+        java com/AppaApps/Silicon/RiscV.java
 
     - name: Install Tree
       run:
@@ -44,8 +44,8 @@ jobs:
     - name: Test silicon chips
       run: |
         mkdir -p com/AppaApps/Silicon/
-        cp Chip.j com/AppaApps/Silicon/
-        java --enable-preview --source 22  com/AppaApps/Silicon/Chip.j
+        cp Chip.java com/AppaApps/Silicon/
+        java com/AppaApps/Silicon/Chip.java
 
     - name: Files
       run: |
