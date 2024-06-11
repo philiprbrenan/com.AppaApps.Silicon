@@ -51,15 +51,16 @@ if (1)                                                                          
      {$c .= "\nModified: ".dateTimeStamp."\n";                                  # Ensure that the README images links get updated as well
       $c =  expandWellKnownWordsAsUrlsInMdFormat $c;                            # Expand well known terms
      }
-    my $t = swapFilePrefix $s, $home;
 
-    if (my $pid = fork) {push @pids, $pid} else
-     {my $w = writeFileUsingSavedToken($user, $repo, $t, $c);
+    if (my $pid = fork) {push @pids, $pid} else                                 # Upload files
+     {my $t = swapFilePrefix $s, $home;
+      my $w = writeFileUsingSavedToken($user, $repo, $t, $c);
       lll "$w $s $t";
       exit;
      }
    }
   waitPids @pids;
+  exit;
  }
 
 if (1)
