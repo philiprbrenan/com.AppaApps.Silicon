@@ -47,7 +47,7 @@ final public class RiscV                                                        
    }
 
   RiscV()                                                                       // Create a new program with the name of the test
-   {this(currentTestName());
+   {this(Chip.currentTestName());
    }
 
   int maxSimulationSteps(int MaxSimulationSteps) {return maxSimulationSteps = MaxSimulationSteps;}  // Maximum simulation steps
@@ -80,7 +80,7 @@ final public class RiscV                                                        
    {final StringBuilder b = new StringBuilder();
     b.append("RiscV Hex Code: " + name  + "\n");
     final int N = code.size();
-    b.append("Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate\n");
+    b.append("Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value\n");
     for (int i = 0; i < N; i++)                                                 // Print each instruction
       b.append(String.format("%04x  %s", i, code.elementAt(i).toString()));
     return b.toString();                                                        // String describing chip
@@ -92,7 +92,7 @@ final public class RiscV                                                        
 
     Register(int register)                                                      // Describe a register
      {x = register;
-      if (x < 0 || x >=XLEN) stop("Register must be 0 to", XLEN,"not", x);
+      if (x < 0 || x >=XLEN) stop("Register must be 0 to", XLEN, "not", x);
      }
 
     public String toString() {return ""+value;}                                 // Print the value of a register
@@ -187,9 +187,9 @@ final public class RiscV                                                        
     public String toString()                                                    // Instruction as string
      {final Decode d = decode(this).details();
       return String.format
-       ("%8s  %4x  %2x %2x %2x  %2x  %2x %2x %2x  %x %x   %8x\n",
+       ("%8s  %4x  %2x %2x %2x  %2x  %2x %2x %2x  %x %x   %8x %8x\n",
         d.name, d.opCode, d.rd,  d.rs1,  d.rs2, d.subType, d.funct3, d.funct5,
-        d.funct7, d.aq ? 1 : 0, d.rl ? 1 : 0, d.immediate);
+        d.funct7, d.aq ? 1 : 0, d.rl ? 1 : 0, d.immediate, instruction);
      }
    }
 
@@ -846,46 +846,6 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
 //D1 Logging                                                                    // Logging and tracing
 
-//D2 Traceback                                                                  // Trace back so we know where we are
-
-  static String traceBack(Exception e)                                          // Get a stack trace that we can use in Geany
-   {final StackTraceElement[]  t = e.getStackTrace();
-    final StringBuilder        b = new StringBuilder();
-    if (e.getMessage() != null)b.append(e.getMessage()+'\n');
-
-    for(StackTraceElement s : t)
-     {final String f = s.getFileName();
-      final String c = s.getClassName();
-      final String m = s.getMethodName();
-      final String l = String.format("%04d", s.getLineNumber());
-      if (f.equals("Main.java") || f.equals("Method.java") || f.equals("DirectMethodHandleAccessor.java")) {}
-      else b.append("  "+f+":"+l+":"+m+'\n');
-     }
-    return b.toString();
-   }
-
-  static String traceBack() {return traceBack(new Exception());}                // Get a stack trace that we can use in Geany
-
-  static String currentTestName(String test_name)                               // Remove prefix from test names
-   {return test_name.replaceFirst("^test_", "");
-   }
-
-  static String currentTestName()                                               // Name of the current test
-   {final StackTraceElement[] T = Thread.currentThread().getStackTrace();       // Current stack trace
-    if (T.length >= 4)                                                          // Perhaps called from a constructor
-     {final String c = T[2].getMethodName();
-      final String C = T[3].getMethodName();
-      return currentTestName(!c.equals("<init>") ? c : C);                      // Remove test marker
-     }
-    if (T.length == 3) return currentTestName(T[2].getMethodName());            // Not called from a constructor
-    return null;
-   }
-
-  static String sourceFileName()                                                // Name of source file containing this method
-   {final StackTraceElement e = Thread.currentThread().getStackTrace()[2];      // 0 is getStackTrace, 1 is this routine, 2 is calling method
-    return e.getFileName();
-   }
-
 //D2 Conversion                                                                 // Conversion utilities
 
   static String binaryString(int n, int width)                                  // Convert a integer to a binary string of specified width
@@ -895,56 +855,18 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
 //D2 Printing                                                                   // Print log messages
 
-  static void say(Object...O)                                                   // Say something
-   {final StringBuilder b = new StringBuilder();
-    for (Object o: O) {b.append(" "); b.append(o);}
-    System.err.println((O.length > 0 ? b.substring(1) : ""));
-    if (makeSayStop)
-     {System.err.println(traceBack());
-      System.exit(1);
-     }
-   }
-
-  static StringBuilder say(StringBuilder b, Object...O)                         // Say something in a string builder
-   {for (Object o: O)
-     {if (b.length() > 0) b.append(" ");
-      b.append(o);
-     }
-    b.append('\n');
-    return b;
-   }
-
-  static void err(Object...O)                                                   // Say something and provide an error trace.
-   {say(O);
-    System.err.println(traceBack());
-   }
-
-  static void stop(Object...O)                                                  // Say something. provide an error trace and stop,
-   {say(O);
-    System.err.println(traceBack());
-    System.exit(1);
-   }
+  static void say (Object...O) {Chip.say(O);}                                   // Say something
+  static StringBuilder say(StringBuilder b, Object...O) {return Chip.say(b, O);}// Say something in a string builder
+  static void err (Object...O) {Chip.err(O);}                                   // Say something and provide an error trace.
+  static void stop(Object...O) {Chip.stop(O);}                                  // Say something and stop
 
 //D1 Testing                                                                    // Test expected output against got output
 
-  static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
+  //static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
 
-  static void ok(Object a, Object b)                                            // Check test results match expected results.
-   {if (a.toString().equals(b.toString())) {++testsPassed; return;}
-    final boolean n = b.toString().contains("\n");
-    testsFailed++;
-    if (n) err("Test failed. Got:\n"+a+"\n");
-    else   err(""+'"'+a+'"', "\ndoes not equal\n"+'"'+b+'"');
-    if (testsFailed > 10) stop("Failed", testsFailed, "tests");
-   }
-
-  void ok(String expected)                                                      // Compare state of machine with expected results
-   {ok(toString(), expected);
-   }
-
-  static void ok(String G, String E)                                            // Check that two strings are are equal
-   {Chip.ok(G, E);
-   }
+  void        ok(String expected)    {ok(toString(), expected);}                // Compare state of machine with expected results
+  static void ok(Object a, Object b) {Chip.ok(a, b);}                           // Check test results match expected results.
+  static void ok(String G, String E) {Chip.ok(G, E);}                           // Say something, provide an error trace and stop
 
 //D0
 
@@ -1007,11 +929,11 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
   static void test_fibonacci()                                                  // Fibonacci
    {RiscV    r = new RiscV();                                                   // New Risc V machine and program
     Register z = r.x0;                                                          // Zero
-    Register a = r.x1;                                                          // A
-    Register b = r.x2;                                                          // B
-    Register c = r.x3;                                                          // C = A + B
-    Register i = r.x4;                                                          // Loop counter
-    Register N = r.x5;                                                          // Number of Fibonacci numbers to produce
+    Register N = r.x1;                                                          // Number of Fibonacci numbers to produce
+    Register a = r.x2;                                                          // A
+    Register b = r.x3;                                                          // B
+    Register c = r.x4;                                                          // C = A + B
+    Register i = r.x5;                                                          // Loop counter
 
     Variable p = r.new Variable("p", 2, 10);                                    // Variable declarations
     Variable o = r.new Variable("a", 4, 10);
@@ -1031,23 +953,23 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 RiscV      : fibonacci
 Step       : 65
 Instruction: 10
-Registers  :  x1=55 x2=89 x3=89 x4=10 x5=10
+Registers  :  x1=10 x2=55 x3=89 x4=89 x5=10
 Memory     :  11=1 12=1 13=2 14=3 15=5 16=8 17=13 18=21 19=34
 """);
-say(r.printCode());
+   //stop(r.printCode());
    ok(r.printCode(), """
 RiscV Hex Code: fibonacci
-Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate
-0000      addi    13   5  0  a   0   0  0  0  0 0          a
-0001      addi    13   4  0  0   0   0  0  0  0 0          0
-0002      addi    13   1  0  0   0   0  0  0  0 0          0
-0003      addi    13   2  0  1   0   0  0  0  0 0          1
-0004        sw    23  14  4  1   2   2  0  0  0 0          a
-0005       add    33   3  1  2   0   0  0  0  0 0          0
-0006       add    33   1  2  0   0   0  0  0  0 0          0
-0007       add    33   2  3  0   0   0  0  0  0 0          0
-0008      addi    13   4  4  1   0   0  0  0  0 0          1
-0009       blt    63  17  4  5   4   4 1f 7f  0 0   fffffffb
+Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
+0000      addi    13   1  0  a   0   0  0  0  0 0          a   a00093
+0001      addi    13   5  0  0   0   0  0  0  0 0          0      293
+0002      addi    13   2  0  0   0   0  0  0  0 0          0      113
+0003      addi    13   3  0  1   0   0  0  0  0 0          1   100193
+0004        sw    23  14  5  2   2   2  0  0  0 0          a   22aa23
+0005       add    33   4  2  3   0   0  0  0  0 0          0   310233
+0006       add    33   2  3  0   0   0  0  0  0 0          0    18133
+0007       add    33   3  4  0   0   0  0  0  0 0          0    201b3
+0008      addi    13   5  5  1   0   0  0  0  0 0          1   128293
+0009       blt    63  17  5  1   4   4 1f 7f  0 0   fffffffb fe12cbe3
 """);
    }
 
@@ -1068,13 +990,10 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate
    {if (args.length > 0 && args[0].equals("compile")) System.exit(0);           // Do a syntax check
     try                                                                         // Get a traceback in a format clickable in Geany if something goes wrong to speed up debugging.
      {if (github_actions) oldTests(); else newTests();                          // Tests to run
-      if (false) {}                                                             // Analyze results of tests
-      else if (testsPassed == 0 && testsFailed == 0) say("No tests runs");
-      else if (testsFailed == 0)   say("PASSed ALL", testsPassed, "tests");
-      else say("Passed "+testsPassed+",    FAILed:", testsFailed, "tests.");
+      Chip.testSummary();
      }
     catch(Exception e)                                                          // Get a traceback in a format clickable in Geany
-     {System.err.println(traceBack(e));
+     {System.err.println(Chip.traceBack(e));
      }
    }
  }
