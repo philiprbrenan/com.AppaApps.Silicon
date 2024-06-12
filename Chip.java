@@ -1033,6 +1033,23 @@ final public class Chip                                                         
     return o;
    }
 
+  Bits andBits(String output, Bits...input)                                     // B<And> one or more equal size bit buses together to make a bit bus of equal size
+   {final int N = input.length;                                                 // Number of inputs
+    if (N == 0) stop("Input bits required");                                    // Need some bits
+    final int B = input[0].bits();                                              // Number of bits in input buses
+    for (int i = 0; i < N; i++)                                                 // Confirm length of each input
+     {final int l = input[i].bits();
+      if (l != B) stop("Input[0] has", B, "bits, but Input["+i+"] has", l);
+     }
+    final Bits o = collectBits(output, B);                                      // Output result
+    for   (int j = 0; j < B; j++)                                               // Each bit of the inputs
+     {final Bit[]a = new Bit[B];
+      for (int i = 0; i < N; i++) a[i] = input[j].b(i);                         // Each input
+      And(o.b(j), a);
+     }
+    return o;                                                                   // And of bits at each index in the inputs
+   }
+
   Bit nandBits(String name, Bits input)                                         // B<Nand> all the bits in a bus to get one bit
    {final int bits = input.bits();                                              // Number of bits in input bus
     final Bit[]b = new Bit[bits];                                               // Arrays of names of bits
@@ -1404,6 +1421,28 @@ final public class Chip                                                         
     final Bits o = collectBits(output, A);                                      // Record bus size
     for (int i = 1; i <= A; i++) And(o.b(i), a.b(i), enable);                   // Choose each bit of input word
     return o;
+   }
+
+  record EnableWord                                                             // A value to be chosen by an index
+   (Bits value,
+    Bits index
+   ) {}
+
+  Bits enableWord(String output, Bits choose, EnableWord...enableWords)         // Choose a word by its index
+   {final int W = enableWords.length;
+    if (W == 0) stop("One or more words to choose from needed");
+    final int I = choose.bits(), N = enableWords[0].value.bits();
+    final Words q = new WordBus(n(output, "equals"), W, I);
+    for (int j = 1; j <= W; j++)                                                 // Each possible world
+     {final EnableWord e = enableWords[j-1];
+      final int        b = e.value.bits();
+      final int        i = e.index.bits();
+      if (b != N) stop("Word[0] value has", N, "bits, but word["+j+"] value has", b);
+      if (i != I) stop("Word[0] index has", I, "bits, but word["+j+"] index has", i);
+      final Bit ie = compareEq(n(j, output, "eqIndex"), choose, e.index);          // Compare with each index
+      enableWord(q.w(j).name(), e.value, ie);                                          // Could it be this word
+     }
+    return orWords(output, q);                                                 // And together the enabled words
    }
 
   Bits findGt(String output, Words w, Bits b)                                   // Bits indicating which words are greater than the specified word
@@ -3612,6 +3651,23 @@ final public class Chip                                                         
      }
    }
 
+  static void test_enable_word_equal()
+   {int B = 4;
+    final int[]x = {0, 2, 4, 6, 8};
+    for (int i = 0; i < x.length; i++)
+     {Chip C = new Chip("enable_word_equal_"+i);
+      var e1 = new EnableWord(C.bits("a1", B, 2), C.bits("b1", B, 1));
+      var e2 = new EnableWord(C.bits("a2", B, 4), C.bits("b2", B, 2));
+      var e3 = new EnableWord(C.bits("a3", B, 6), C.bits("b3", B, 3));
+      var e4 = new EnableWord(C.bits("a4", B, 8), C.bits("b4", B, 4));
+      Bits c = C.bits("c", B, i);
+      Bits q = C.enableWord("o", c, e1, e2, e3, e4);
+      Bits O = C.outputBits("out",  q);
+      C.simulate();
+      O.ok(x[i]);
+     }
+   }
+
   static void test_monotone_mask_to_point_mask()
    {for    (int B = 2; B <= 4; ++B)
      {int N = powerTwo(B);
@@ -4739,6 +4795,7 @@ Step  o     e
     test_compare_lt();
     test_choose_from_two_words();
     test_enable_word();
+    test_enable_word_equal();
     test_monotone_mask_to_point_mask();
     test_choose_word_under_mask();
     test_delay();
@@ -4769,7 +4826,8 @@ Step  o     e
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_input_peripheral();
+    //test_input_peripheral();
+    test_enable_word_equal();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
