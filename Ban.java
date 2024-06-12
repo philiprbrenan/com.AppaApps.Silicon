@@ -45,17 +45,22 @@ final public class Ban                                                          
 //D0
 
   static void test_decode_addi()                                                // Decode an addi instruction
-   {int       N = 4;
-    var      C = new Chip();                                                    // Create a new chip
-    var   addi = C.bits("addi", 32, 0xa00093);                                  // addi x1,x0,10
-    var opCode = C.new SubBitBus("opCode", addi, 1, RiscV.Decode.p_rd);         // Extract op code
-    var ignore = C.new SubBitBus("ignore", addi, 1+RiscV.Decode.p_rd, InstructionWidthBits - RiscV.Decode.p_rd); // Extract op code
-    ignore.anneal();
-    var    out = C.outputBits("out", opCode);
-    C.simulate();
-    out.ok(RiscV.Decode.opArithImm);
+   {int      N = 4;
+//    var      C = new Chip();                                                    // Create a new chip
+//    var   addi = C.bits("addi", 32, 0xa00093);                                  // addi x1,x0,10
+//    var opCode = C.new SubBitBus("opCode", addi, 1,  RiscV.Decode.l_opCode);    // Extract op code
+//    var     rd = C.new SubBitBus("rd",     addi, 1 + RiscV.Decode.p_rd,          RiscV.Decode.l_rd);          // Extract destination register
+//    var    rs1 = C.new SubBitBus("rs1",    addi, 1 + RiscV.Decode.p_rs1,         RiscV.Decode.l_rs1);         // Extract source1 register
+//    var    imm = C.new SubBitBus("imm",    addi, 1 + RiscV.Decode.I.p_immediate, RiscV.Decode.I.l_immediate); // Extract immediate
+//
+//    var    rd1 = C.enableWord("rd1",  addi, 1 + RiscV.Decode.I.p_immediate, RiscV.Decode.I.l_immediate); // Extract immediate
+//    addi.anneal();
+//    C.simulate();
+//    opCode.ok(RiscV.Decode.opArithImm);
+//        rd.ok(1);
+//       rs1.ok(0);
+//       imm.ok(10);
    }
-
 
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_decode_addi();
