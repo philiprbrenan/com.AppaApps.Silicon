@@ -209,38 +209,38 @@ final public class RiscV                                                        
     final int rs2;                                                              // Source 2 register
     final int subType;                                                          // Sub type
 
-    final static int       p_opCode =  0;                                       // Encoded position of op code
-    final static int           p_rd =  7;                                       // Encoded position of destination register
-    final static int          p_rs1 = 15;                                       // Encoded position of source register 1
-    final static int          p_rs2 = 20;                                       // Encoded position of source register 2
-    final static int       p_funct3 = 12;                                       // Encoded position of sub function
-    final static int       p_funct5 = 27;                                       // Encoded position of sub function
-    final static int       p_funct7 = 25;                                       // Encoded position of sub function
-    final static int      p_subType = 12;                                       // Encoded position of sub type
-    final static int           p_rl = 25;                                       // Encoded position of rl
-    final static int           p_aq = 26;                                       // Encoded position of aq
+    final static int   p_opCode =  0, l_opCode  =  7;                           // Encoded position of op code
+    final static int       p_rd =  7, l_rd      =  5;                           // Encoded position of destination register
+    final static int   p_funct3 = 12, l_funct3  =  3;                           // Encoded position of sub function
+    final static int  p_subType = 12, l_subType =  3;                           // Encoded position of sub type
+    final static int      p_rs1 = 15, l_rs1     =  5;                           // Encoded position of source register 1
+    final static int      p_rs2 = 20, l_rs2     =  5;                           // Encoded position of source register 2
+    final static int   p_funct7 = 25, l_funct7  =  7;                           // Encoded position of sub function
+    final static int       p_rl = 25, l_rl      =  1;                           // Encoded position of rl
+    final static int       p_aq = 26, l_aq      =  1;                           // Encoded position of aq
+    final static int   p_funct5 = 27, l_funct5  =  5;                           // Encoded position of sub function
 
-    final static int       m_opCode = 0b111_1111;                               // Mask for op code
-    final static int           m_rd = 0b001_1111;                               // Mask for destination register
-    final static int          m_rs1 = 0b001_1111;                               // Mask for source register 1
-    final static int          m_rs2 = 0b001_1111;                               // Mask for source register 2
-    final static int       m_funct3 = 0b000_0111;                               // Mask for sub function
-    final static int       m_funct5 = 0b001_1111;                               // Mask for sub function
-    final static int       m_funct7 = 0b111_1111;                               // Mask for sub function
-    final static int      m_subType = 0b000_0111;                               // Mask for sub type
-    final static int           m_rl = 0b000_0001;                               // Mask for rl
-    final static int           m_aq = 0b000_0001;                               // Mask for aq
+    final static int   m_opCode = 0b111_1111;                                   // Mask for op code
+    final static int       m_rd = 0b001_1111;                                   // Mask for destination register
+    final static int      m_rs1 = 0b001_1111;                                   // Mask for source register 1
+    final static int      m_rs2 = 0b001_1111;                                   // Mask for source register 2
+    final static int   m_funct3 = 0b000_0111;                                   // Mask for sub function
+    final static int   m_funct5 = 0b001_1111;                                   // Mask for sub function
+    final static int   m_funct7 = 0b111_1111;                                   // Mask for sub function
+    final static int  m_subType = 0b000_0111;                                   // Mask for sub type
+    final static int       m_rl = 0b000_0001;                                   // Mask for rl
+    final static int       m_aq = 0b000_0001;                                   // Mask for aq
 
-    final static int         opLoad = 0b000_0011;                               // Opcodes - load
-    final static int     opArithImm = 0b001_0011;                               // Immediate arithmetic
-    final static int        opAuiPc = 0b001_0111;                               //
-    final static int        opStore = 0b010_0011;                               //
-    final static int        opArith = 0b011_0011;                               // Arithmetic
-    final static int          opLui = 0b011_0111;                               //
-    final static int       opBranch = 0b110_0011;                               //
-    final static int        opEcall = 0b111_0011;                               //
-    final static int          opJal = 0b110_1111;                               //
-    final static int         opJalr = 0b110_0111;                               //
+    final static int     opLoad = 0b000_0011;                                   // Opcodes - load
+    final static int opArithImm = 0b001_0011;                                   // Immediate arithmetic
+    final static int    opAuiPc = 0b001_0111;                                   //
+    final static int    opStore = 0b010_0011;                                   //
+    final static int    opArith = 0b011_0011;                                   // Arithmetic
+    final static int      opLui = 0b011_0111;                                   //
+    final static int   opBranch = 0b110_0011;                                   //
+    final static int    opEcall = 0b111_0011;                                   //
+    final static int      opJal = 0b110_1111;                                   //
+    final static int     opJalr = 0b110_0111;                                   //
 
     Decode(String Name, Encode Instruction)                                     // Decode an instruction
      {instruction = Instruction;
@@ -306,7 +306,7 @@ final public class RiscV                                                        
      }
 
     class I implements Executable                                               // Decode an I format instruction
-     {final static int p_immediate = 20;                                        // Position of immediate value
+     {final static int p_immediate = 20, l_immediate = 12;                      // Position of immediate value
 
       I(String Name)                                                            // Decode instruction
        {name = Name;
