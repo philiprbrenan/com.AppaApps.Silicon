@@ -301,7 +301,7 @@ public class Chip                                                               
      {super(Name);
       op   = Op;
 
-      if (gates.containsKey(Name))                                              // Copy details of a forward declaration if there is an existing Forward gate of this name
+      if (gates.containsKey(Name.toString()))                                   // Copy details of a forward declaration if there is an existing Forward gate of this name
        {final Gate g = gates.get(Name);
         if (g.op != Operator.Forward) stop("Redefining gate", name,
           "but it is not a Forward gate declaration");
@@ -546,7 +546,7 @@ public class Chip                                                               
      }
    } // Gate
 
-  Gate FanIn(Operator Op, String Name, Bit...Input)                             // Normal gate - not a fan out gate
+  Gate FanIn(Operator Op, CharSequence Name, Bit...Input)                       // Normal gate - not a fan out gate
    {final int N = Input.length;
     if (N == 0)                                                                 // Zerad
      {if (!zerad(Op)) stop(Op, "gate:", Name, "does not accept zero inputs");
@@ -587,25 +587,25 @@ public class Chip                                                               
     return new Gate(Op, Name, f, e);
    }
 
-  Gate Input   (CharSequence n)               {return FanIn(Operator.Input,    n.toString());}
-  Gate One     (CharSequence n)               {return FanIn(Operator.One,      n.toString());}
-  Gate Zero    (CharSequence n)               {return FanIn(Operator.Zero,     n.toString());}
-  Gate Output  (CharSequence n, Bit i)        {return FanIn(Operator.Output,   n.toString(), i);}
-  Gate Continue(CharSequence n, Bit i)        {return FanIn(Operator.Continue, n.toString(), i);}
-  Gate Not     (CharSequence n, Bit i)        {return FanIn(Operator.Not,      n.toString(), i);}
+  Gate Input   (CharSequence n)               {return FanIn(Operator.Input,    n);}
+  Gate One     (CharSequence n)               {return FanIn(Operator.One,      n);}
+  Gate Zero    (CharSequence n)               {return FanIn(Operator.Zero,     n);}
+  Gate Output  (CharSequence n, Bit i)        {return FanIn(Operator.Output,   n, i);}
+  Gate Continue(CharSequence n, Bit i)        {return FanIn(Operator.Continue, n, i);}
+  Gate Not     (CharSequence n, Bit i)        {return FanIn(Operator.Not,      n, i);}
 
-  Gate Nxor    (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Nxor,     n.toString(), i, j);}
-  Gate Xor     (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Xor,      n.toString(), i, j);}
-  Gate Gt      (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Gt,       n.toString(), i, j);}
-  Gate Ngt     (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Ngt,      n.toString(), i, j);}
-  Gate Lt      (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Lt,       n.toString(), i, j);}
-  Gate Nlt     (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Nlt,      n.toString(), i, j);}
-  Gate My      (CharSequence n, Bit i, Bit j) {return FanIn(Operator.My,       n.toString(), i, j);} // When pin 1 falls from 1 to 0 record the value of pin 2
+  Gate Nxor    (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Nxor,     n, i, j);}
+  Gate Xor     (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Xor,      n, i, j);}
+  Gate Gt      (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Gt,       n, i, j);}
+  Gate Ngt     (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Ngt,      n, i, j);}
+  Gate Lt      (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Lt,       n, i, j);}
+  Gate Nlt     (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Nlt,      n, i, j);}
+  Gate My      (CharSequence n, Bit i, Bit j) {return FanIn(Operator.My,       n, i, j);} // When pin 1 falls from 1 to 0 record the value of pin 2
 
-  Gate And     (CharSequence n, Bit...i)      {return FanIn(Operator.And,      n.toString(), i);}
-  Gate Nand    (CharSequence n, Bit...i)      {return FanIn(Operator.Nand,     n.toString(), i);}
-  Gate Or      (CharSequence n, Bit...i)      {return FanIn(Operator.Or,       n.toString(), i);}
-  Gate Nor     (CharSequence n, Bit...i)      {return FanIn(Operator.Nor,      n.toString(), i);}
+  Gate And     (CharSequence n, Bit...i)      {return FanIn(Operator.And,      n, i);}
+  Gate Nand    (CharSequence n, Bit...i)      {return FanIn(Operator.Nand,     n, i);}
+  Gate Or      (CharSequence n, Bit...i)      {return FanIn(Operator.Or,       n, i);}
+  Gate Nor     (CharSequence n, Bit...i)      {return FanIn(Operator.Nor,      n, i);}
 
   void distanceToOutput()                                                       // Distance to the nearest output
    {outputGates.clear();
@@ -1431,17 +1431,17 @@ public class Chip                                                               
    {final int W = enableWords.length;
     if (W == 0) stop("One or more words to choose from needed");
     final int I = choose.bits(), N = enableWords[0].value.bits();
-    final Words q = new WordBus(n(output, "equals"), W, I);
-    for (int j = 1; j <= W; j++)                                                 // Each possible world
+    final Words q = new WordBus(n(output, "equals"), W, N);                     // Resulting word is the same width as the values of the choices
+    for (int j = 1; j <= W; j++)                                                // Each possible world
      {final EnableWord e = enableWords[j-1];
       final int        b = e.value.bits();
       final int        i = e.index.bits();
       if (b != N) stop("Word[0] value has", N, "bits, but word["+j+"] value has", b);
       if (i != I) stop("Word[0] index has", I, "bits, but word["+j+"] index has", i);
-      final Bit ie = compareEq(n(j, output, "eqIndex"), choose, e.index);          // Compare with each index
-      enableWord(q.w(j).name(), e.value, ie);                                          // Could it be this word
+      final Bit ie = compareEq(n(j, output, "eqIndex"), choose, e.index);       // Compare with each index
+      enableWord(q.w(j).name(), e.value, ie);                                   // Could it be this word
      }
-    return orWords(output, q);                                                 // And together the enabled words
+    return orWords(output, q);                                                  // And together the enabled words
    }
 
   Bits findGt(String output, Words w, Bits b)                                   // Bits indicating which words are greater than the specified word
@@ -1782,8 +1782,7 @@ public class Chip                                                               
     final Pulse[]pulses = new Pulse[W];
     for (int i = 1; i <= W; i++)
      {final Bit eq = compareEq(n(i, Output, "equals"), choices.w(i), choose);   // Compare choose with word i
-      final Bit an = And(n(i, Output, "and"), eq, trigger);                     // And comparison with trigger so that it is high only during the pulse
-      final Gate g = getGate(an);                                               // Gate associated with "or" of delay chain
+      final Gate g = And(n(i, Output), eq, trigger);                            // And comparison with trigger so that it is high only during the pulse
       pulses[i-1]  = new Pulse(g);                                              // Resulting pulse is triggered for chosen word if any
      }
     return pulses;
@@ -1798,8 +1797,7 @@ public class Chip                                                               
      {final int b = choices[i].bits();
       if (B != b) stop("Choose has:", B+"bits, but choices["+i+"] has", b, "bits"); // Check sizes
       final Bit eq = compareEq(n(i, Output, "equals"), choices[i], choose);     // Compare choose with choice i
-      final Bit an = And(n(i, Output, "and"), eq, trigger);                     // And comparison with trigger so that it is high only during the pulse
-      final Gate g = getGate(an);                                               // Gate associated with "or" of delay chain
+      final Gate g = And(n(i, Output), eq, trigger);                            // And comparison with trigger so that it is high only during the pulse
       pulses[i]  = new Pulse(g);                                                // Resulting pulse is triggered for chosen word if any
      }
     return pulses;
@@ -1807,10 +1805,10 @@ public class Chip                                                               
 
 //D3 Delay                                                                      // Send a pulse one way or another depending on a bit allowing us to execute one branch of an if statement or the other and receive a pulse notifying us when the execution of the different length paths are complete.
 
-  Bit delay(String Output, Pulse input, int delay)                              // Create a delay chain so that one leading edge can trigger another later on as work is performed
-   {Bit p = input;                                                              // Start of chain
+  Pulse delay(String Output, Pulse input, int delay)                              // Create a delay chain so that one leading edge can trigger another later on as work is performed
+   {Pulse p = input;                                                              // Start of chain
     for (int i = 1; i <= delay; i++)                                            // All along the delay line
-      p = Continue(i < delay ? n(i, Output) : Output, p);
+      p = new Pulse(Continue(i < delay ? n(i, Output) : Output, p));
     return p;
    }
 
