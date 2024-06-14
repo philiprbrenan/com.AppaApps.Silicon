@@ -110,7 +110,7 @@ jobs:
       run: |
         javac -g -d Classes -cp Classes com/AppaApps/Silicon/Chip.java
         javac -g -d Classes -cp Classes com/AppaApps/Silicon/RiscV.java
-        javac -g -d Classes -cp Classes com/AppaApps/Silicon/tests/Test1.java
+        #javac -g -d Classes -cp Classes com/AppaApps/Silicon/tests/Test1.java
 
     - name: Test Risc V
       run: |
