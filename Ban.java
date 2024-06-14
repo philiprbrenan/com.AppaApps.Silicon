@@ -73,7 +73,6 @@ final public class Ban extends Chip                                             
     Pulse[]     tp = C.choosePulse("tp", targets, rd, ltd);                     // Pulse loads target register
 
     addi.anneal();
-say("AAAA", C);
     C.simulate();
     opCode.ok(RiscV.Decode.opArithImm);
         rd.ok(1);
