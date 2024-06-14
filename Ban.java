@@ -9,7 +9,7 @@ import java.util.*;
 
 //D1 Construct                                                                  // Construct a Risc V program and execute it
 
-final public class Ban                                                          // Create a chip that contains a Risc V processor extended with Btree instructcions
+final public class Ban extends Chip                                             // Create a chip that contains a Risc V processor extended with Btree instructcions
  {final static int InstructionWidthBits = 32;                                   // Instruction width in bits
   final static int XLEN                 =  4;                                   // Size of instructions
   final static boolean github_actions   =                                       // Whether we are on a github or not
@@ -45,21 +45,37 @@ final public class Ban                                                          
 //D0
 
   static void test_decode_addi()                                                // Decode an addi instruction
-   {int      N = 4;
-//    var      C = new Chip();                                                    // Create a new chip
-//    var   addi = C.bits("addi", 32, 0xa00093);                                  // addi x1,x0,10
-//    var opCode = C.new SubBitBus("opCode", addi, 1,  RiscV.Decode.l_opCode);    // Extract op code
-//    var     rd = C.new SubBitBus("rd",     addi, 1 + RiscV.Decode.p_rd,          RiscV.Decode.l_rd);          // Extract destination register
-//    var    rs1 = C.new SubBitBus("rs1",    addi, 1 + RiscV.Decode.p_rs1,         RiscV.Decode.l_rs1);         // Extract source1 register
-//    var    imm = C.new SubBitBus("imm",    addi, 1 + RiscV.Decode.I.p_immediate, RiscV.Decode.I.l_immediate); // Extract immediate
-//
-//    var    rd1 = C.enableWord("rd1",  addi, 1 + RiscV.Decode.I.p_immediate, RiscV.Decode.I.l_immediate); // Extract immediate
-//    addi.anneal();
-//    C.simulate();
-//    opCode.ok(RiscV.Decode.opArithImm);
-//        rd.ok(1);
-//       rs1.ok(0);
-//       imm.ok(10);
+   {int          N = 4;
+    Chip         C = new Chip();                                                // Create a new chip
+    Pulse    start = C.pulse("start", 0, N);                                    // Start pulse
+    Bits        x0 = C.bits("X0",     N, 0);                                    // Define registers and zero them at the start
+    Bits       add = C.new BitBus("add", N);
+    Register    x1 = C.register("x1", new RegIn(x0, start), new RegIn(add, C.new Pulse(C.new Bit(n(1, "tp")))));
+    Register    x2 = C.register("x2", new RegIn(x0, start), new RegIn(add, C.new Pulse(C.new Bit(n(2, "tp")))));
+    Register    x3 = C.register("x3", new RegIn(x0, start), new RegIn(add, C.new Pulse(C.new Bit(n(3, "tp")))));
+
+    Bits      addi = C.bits("addi", 32, 0xa00093);                              // addi x1,x0,10
+    Bits    opCode = C.new SubBitBus("opCode", addi, 1,  RiscV.Decode.l_opCode);// Extract op code
+    Bits        rd = C.new SubBitBus("rd",     addi, 1 + RiscV.Decode.p_rd,          RiscV.Decode.l_rd);          // Extract destination register
+    Bits       rs1 = C.new SubBitBus("rs1",    addi, 1 + RiscV.Decode.p_rs1,         RiscV.Decode.l_rs1);         // Extract source1 register
+    Bits       imm = C.new SubBitBus("imm",    addi, 1 + RiscV.Decode.I.p_immediate, RiscV.Decode.I.l_immediate); // Extract immediate
+
+    EnableWord s1v = new EnableWord(x1, C.bits("x1v", RiscV.Decode.l_rs1, 1));  // Get values of registers
+    EnableWord s2v = new EnableWord(x2, C.bits("x2v", RiscV.Decode.l_rs1, 2));
+    EnableWord s3v = new EnableWord(x3, C.bits("x3v", RiscV.Decode.l_rs1, 3));
+
+    Bits      rs1v = C.enableWord ("rs1v", rs1, s1v, s2v, s3v);                 // The value of the selected rs1 register
+    BinaryAdd  Add = C.binaryAdd  ("add",  rs1v, imm);                          // Add the selected register to the immediate value
+    Words  targets = C.words      ("targets", N, 1, 2, 3);                      // Target registers
+    Bits       ltd = C.delayBits  ("ltd",  16, start);                          // Wait this long before attempting to load the targets
+    Pulse[]     tp = C.choosePulse("tp", targets, ltd);                     // Pulse for target register
+
+    addi.anneal();
+    C.simulate();
+    opCode.ok(RiscV.Decode.opArithImm);
+        rd.ok(1);
+       rs1.ok(0);
+       imm.ok(10);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
