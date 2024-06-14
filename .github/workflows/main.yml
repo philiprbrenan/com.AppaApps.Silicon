@@ -1,4 +1,4 @@
-# Test 2024-06-14 at 05:11:04
+# Test 2024-06-14 at 06:11:57
 
 name: Test
 run-name: Silicon Chip
@@ -35,7 +35,7 @@ jobs:
     - name: Position
       run: |
         mkdir -p com/AppaApps/Silicon/tests
-        cp       *.java com/AppaApps/Silicon/
+        cp       *.java com/AppaApps/Silicon
         cp tests/*.java com/AppaApps/Silicon/tests
 
     - name: Files
@@ -44,13 +44,15 @@ jobs:
 
     - name: Compile
       run: |
-        javac -g -d Classes -cp Classes com/AppaApps/Silicon/Chip.java
-        javac -g -d Classes -cp Classes com/AppaApps/Silicon/RiscV.java
-        #javac -g -d Classes -cp Classes com/AppaApps/Silicon/tests/Test1.java
+        javac -g -d Classes -cp Classes com/AppaApps/Silicon/Chip.java com/AppaApps/Silicon/RiscV.java com/AppaApps/Silicon/Ban.java com/AppaApps/Silicon/tests/Test1.java
 
     - name: Test Risc V
       run: |
         java -cp Classes com/AppaApps/Silicon/RiscV
+
+    - name: Test Ban
+      run: |
+        java -cp Classes com/AppaApps/Silicon/Ban
 
     - name: Cpan
       run:  sudo cpan install -T Data::Dump Data::Table::Text GDS2 Digest::SHA1
