@@ -3,11 +3,11 @@
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 // Draw all layouts when on Github
-// updateEdge() should use stack of memory cells
-// systemGate bit should be removed as all it does is prevent the printing of the clock which seems pointless
+// updateEdge() should use stack of memory cells so we do not have to iterate over all gates
 // Add fell to gate Chip.toString() and update pin information
 // CN: check gate names match variable names
 // Remove field loaded from Register
+// On fanOut/fanIn add the principle gate name to the fan gate names for easier identification in chip listing
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
 
 import java.io.*;
@@ -16,7 +16,7 @@ import java.util.stream.*;
 
 //D1 Construct                                                                  // Construct a L<silicon> L<chip> using standard L<lgs>, components and sub chips combined via buses.
 
-final public class Chip                                                         // Describe a chip and emulate its operation.
+public class Chip                                                               // Describe a chip and emulate its operation.
  {final static boolean github_actions =                                         // Whether we are on a github
     "true".equals(System.getenv("GITHUB_ACTIONS"));
 
@@ -91,7 +91,7 @@ final public class Chip                                                         
      {clock0 = null;
       clock1 = null;
      }
-    for (Gate g : gates.values()) g.setSystemGate();                          // Mark all gates produced so far as system gates
+    for (Gate g : gates.values()) g.setSystemGate();                            // Mark all gates produced so far as system gates
    }
 
   Integer      layoutLTGates(Integer      LayoutLTGates) {return          layoutLTGates =          LayoutLTGates;}  // Always draw the layout if it has less than this many gates in it
@@ -103,7 +103,8 @@ final public class Chip                                                         
   void simulationSteps(int steps)        {minSimulationSteps(steps); maxSimulationSteps(steps);}                    // Stop cleanly at this number of steps
 
   enum Operator                                                                 // Gate operations
-   {And, Continue, FanOut, Gt, Input, Lt, My, Nand, Ngt, Nlt, Nor, Not, Nxor,
+   {And, Continue, FanOut, Forward, Gt, Input, Lt, My,                          // The forward gate is used to create a forward gate definition that will be replaced later in the design with an actual gate definition
+    Nand, Ngt, Nlt, Nor, Not, Nxor,
     One, Or, Output, Xor, Zero;
    }
 
@@ -259,6 +260,7 @@ final public class Chip                                                         
 
   Bit collectBit(String Name)                                                   // Get a named bit or define such a bit if it does not already exist
    {final Bit b = bits.get(name);
+
     return b == null ? new Bit(Name) : b;
    }
 
@@ -279,7 +281,9 @@ final public class Chip                                                         
     String     nearestOutput;                                                   // The name of the nearest output so we can sort each layer to position each gate vertically so that it is on approximately the same Y value as its nearest output.
     int               px, py;                                                   // Position in x and y of gate in latest layout
 
-    void indexGate() {gates.put(name, this);}                                   // Index the gate
+    void indexGate()                                                            // Index the gate
+     {gates.put(name, this);
+     }
 
     private Gate(Operator Op)                                                   // System created gate of a specified type with a unique system generated name. As yet the inputs are unknown.
      {super();
@@ -296,6 +300,14 @@ final public class Chip                                                         
     public Gate(Operator Op, CharSequence Name, Bit Input1, Bit Input2)         // User created gate with a user supplied name and inputs
      {super(Name);
       op   = Op;
+
+      if (gates.containsKey(Name))                                              // Copy details of a forward declaration if there is an existing Forward gate of this name
+       {final Gate g = gates.get(Name);
+        if (g.op != Operator.Forward) stop("Redefining gate", name,
+          "but it is not a Forward gate declaration");
+        drives.addAll(g.drives);
+       }
+
       indexGate();
       if (commutative(op))                                                      // Any input pin will do
        {if (Input1 != null) impinge(Input1);
@@ -448,6 +460,11 @@ final public class Chip                                                         
            }
          }
        }
+     }
+
+    void checkGate()                                                            // Check thatthe gate is being driven or is an input gate
+     {if (iGate1 == null && iGate2 == null && !zerad(op))                       // All gates except input gates require at least one input
+        stop("Gate name:", name, "type:", op, "is not being driven by any other gate");
      }
 
     void updateEdge()                                                           // Update a memory gate on a falling edge. The memory bit on pin 2 is loaded when the value on pin 1 goes from high to low because reasoning about trailing edges seems to be easier than reasoning about leading edges
@@ -770,6 +787,7 @@ final public class Chip                                                         
 
   Diagram simulate(Inputs inputs)                                               // Simulate the operation of a chip
    {compileChip();                                                              // Check that the inputs to each gate are defined
+    for (Gate g : gates.values()) g.checkGate();                                // Check each gate is being driven
     initializeGates(inputs);                                                    // Set the value of each input gate
 
     final int actualMaxSimulationSteps =                                        // Actual limit on number of steps
@@ -866,25 +884,6 @@ final public class Chip                                                         
       return v;                                                                 // Value of bit bus
      }
 
-//    public default void set(Integer value)                                      // Set the value of this input bus
-//     {int v = 0, p = 1;
-//      final int B = bits();
-//      final boolean[]b = bitStack(B, value);                                    // Value as bits
-//
-//      for  (int i = 1; i <= B; i++)                                             // Each bit on bus
-//       {final Bit b = b(i);
-//        final Gate g = b.chip().getGate(b);
-//        if (g == null)
-//         {err("No such gate as:", name(), i);                                   // Generally occurs during testing where we might want to continue to see what other errors  occur
-//          return null;
-//         }
-//        if (g.value == null) return null;                                       // Bit state not known
-//        if (g.value) v += p;
-//        p *= 2;
-//       }
-//      return v;                                                                 // Value of bit bus
-//     }
-
     public default void ok(Integer e)                                           // Confirm the expected values of the bit bus. Write a message describing any unexpected values
      {final Integer g = Int();                                                  // The values we actually got
       final StringBuilder b = new StringBuilder();
@@ -973,7 +972,7 @@ final public class Chip                                                         
    {final Bits b = bitBuses.get(name);
 
     if (b != null)                                                              // Bus already exists
-     {if (b.bits() != bits)
+     {if (b.bits() != bits)                                                     // Bus already exists and with different characteristics
        {stop("A bit bus with name:", name, "and bits", b.bits(),
              "has already been defined versus bits requested:", bits);
        }
@@ -1734,6 +1733,9 @@ final public class Chip                                                         
      {super(Gate);                                                              // Gate providing pulse
       period = 0; on = 0; delay = 0; start = 0;                                 // No timing information
      }
+    Pulse(Bit Bit)                                                              // Pulse definition from a bit that will eventually be backed by a gate
+     {this(Operator.Forward, Bit.name, null, null);                             // Gate that will be replaced
+     }
     void setState()                                                             // Set gate implementing pulse to current state.
      {final int i = period > 0 ? (steps-1) % period : (steps - 1);
       nextValue = steps-1 >= start*period ? i >= delay && i < on+delay : false; // Next value for pulse.  Set like this so that the falling edge will be seen and acted on
@@ -1741,7 +1743,9 @@ final public class Chip                                                         
    }
 
   void loadPulses()                                                             // Load all the pulses for this chip
-   {for (Pulse p : pulses.values()) p.setState();
+   {for (Pulse p : pulses.values())
+     {p.setState();
+     }
    }
 
   Pulse pulse(String Name, int Period, int On, int Delay, int Start)            // Create a pulse
@@ -1765,35 +1769,52 @@ final public class Chip                                                         
    }
 
   Pulse triggerPulse(String Output, int width, Pulse trigger)                   // Trigger a pulse of specified width started by the falling edge of a specified pulse. The pulse will start log two of the pulse width steps later than the falling edge as the signal takes time to fan in to the or gate used to implement the pulse
-   {final Bits d = delayBits(n(Output, "delay"), width, trigger);               // Delay chain
-    final Bit  b = orBits   (  Output, d);                                      // Or of delay chain
-    final Gate g = getGate(b);                                                  // Gate associated with "or" of delay chain
-    return new Pulse(g);                                                        // Pulse from gate associated with "or" of delay chain
+   {final Bits  d = delayBits(n(Output, "delay"), width, trigger);              // Delay chain
+    final Bit   b = orBits   (  Output, d);                                     // Or of delay chain
+    final Gate  g = getGate(b);                                                 // Gate associated with "or" of delay chain
+    final Pulse p = new Pulse(g);                                               // Pulse from gate associated with "or" of delay chain
+    return p;
    }
 
   Pulse[]choosePulse(String Output, Words choices, Bits choose, Pulse trigger)  // Trigger the pulse in an array of pulses that corresponds to the word choosen.
-   {final int W = choices.words(), b = choices.bits(), B = choices.bits();
+   {final int W = choices.words(), b = choose.bits(), B = choices.bits();
     if (B != b) stop("Choices has:", B+", but choose has:", b, "bits");
     final Pulse[]pulses = new Pulse[W];
     for (int i = 1; i <= W; i++)
-     {final Bit eq = compareEq(n(i, Output, "equals"), choices.w(i), choose);
-      final Bit an = And(n(i, Output, "and"), eq, trigger);
+     {final Bit eq = compareEq(n(i, Output, "equals"), choices.w(i), choose);   // Compare choose with word i
+      final Bit an = And(n(i, Output, "and"), eq, trigger);                     // And comparison with trigger so that it is high only during the pulse
       final Gate g = getGate(an);                                               // Gate associated with "or" of delay chain
-      pulses[i-1]  = new Pulse(g);
+      pulses[i-1]  = new Pulse(g);                                              // Resulting pulse is triggered for chosen word if any
+     }
+    return pulses;
+   }
+
+  Pulse[]choosePulse(String Output, Bits choose, Pulse trigger, Bits...choices) // Trigger the pulse in an array of pulses that corresponds to the word choosen by mathcimng its index to "choose".
+   {final int C = choices.length;
+    if (C == 0) stop("Need one or more choices");
+    final Pulse[]pulses = new Pulse[C];
+    final int B = choose.bits();
+    for (int i = 0; i < choices.length; i++)
+     {final int b = choices[i].bits();
+      if (B != b) stop("Choose has:", B+"bits, but choices["+i+"] has", b, "bits"); // Check sizes
+      final Bit eq = compareEq(n(i, Output, "equals"), choices[i], choose);     // Compare choose with choice i
+      final Bit an = And(n(i, Output, "and"), eq, trigger);                     // And comparison with trigger so that it is high only during the pulse
+      final Gate g = getGate(an);                                               // Gate associated with "or" of delay chain
+      pulses[i]  = new Pulse(g);                                                // Resulting pulse is triggered for chosen word if any
      }
     return pulses;
    }
 
 //D3 Delay                                                                      // Send a pulse one way or another depending on a bit allowing us to execute one branch of an if statement or the other and receive a pulse notifying us when the execution of the different length paths are complete.
 
-  Bit delay(String Output, Bit input, int delay)                                // Create a delay chain so that one leading edge can trigger another later on as work is performed
+  Bit delay(String Output, Pulse input, int delay)                              // Create a delay chain so that one leading edge can trigger another later on as work is performed
    {Bit p = input;                                                              // Start of chain
     for (int i = 1; i <= delay; i++)                                            // All along the delay line
       p = Continue(i < delay ? n(i, Output) : Output, p);
     return p;
    }
 
-  Bits delayBits(String Output, int delay, Bit input)                           // Create a bit bus where the delay bit propagates across each bit in turn. Viewed as an integer the bit bus takes successive powers of two after receiving the start bit
+  Bits delayBits(String Output, int delay, Pulse input)                         // Create a bit bus where the delay bit propagates across each bit in turn. Viewed as an integer the bit bus takes successive powers of two after receiving the start bit
    {final BitBus b = new BitBus(Output, delay);                                 // Create the bit bus
     Bit p = input;                                                              // Start at the input gate
     for (int i = 1; i <= delay; i++) p = Continue(b.b(i), p);                   // All along the delay line
@@ -4623,12 +4644,38 @@ Step  pl d      ld
    {int      N = 4;
     Chip     c = new Chip();                                                    // Create a new chip
     Pulse    p = c.pulse("p", 0, 1);                                            // Triggering pulse
-    Bit      t = c.triggerPulse("t", 4, p);                                     // The difficulty of replacing a gateas needd by Pulse which is forced yto extend rather than implement Bits
+    Bit      t = c.triggerPulse("t", 4, p);                                     // The difficulty of replacing a gate as needed by Pulse which is forced to extend rather than implement Bits
     Bit      o = c.Output("o", t);
     c.executionTrack("p  t", "%s   %s", p, t);
     c.simulationSteps(10);
     c.simulate();
+    //c.printExecutionTrace(); stop();
+    c.ok("""
+Step  p  t
+   1  1   .
+   2  0   .
+   3  0   .
+   4  0   1
+   5  0   1
+   6  0   1
+   7  0   1
+   8  0   0
+   9  0   0
+  10  0   0
+""");
+   }
 
+  static void test_pulse_doubled()                                              // Double a pulse
+   {int      N = 4;
+    Chip     c = new Chip();                                                    // Create a new chip
+    Bit      b = c.collectBit("p");                                             // Forward declaration
+    Pulse    q = c.new Pulse(b);                                                // Triggering pulse
+    Bit      t = c.triggerPulse("t", 4, q);                                     // The difficulty of replacing a gate as needed by Pulse which is forced to extend rather than implement Bits
+    Bit      o = c.Output("o", t);
+    Pulse    p = c.pulse("p", 0, 1);                                            // Triggering pulse
+    c.executionTrack("p  t", "%s   %s", p, t);
+    c.simulationSteps(10);
+    c.simulate();
     //c.printExecutionTrace(); stop();
     c.ok("""
 Step  p  t
@@ -4740,6 +4787,85 @@ Step  p   4 3 2 1
 """);
    }
 
+  static void test_choose_pulse_route()                                         // Route a pulse along one of several possible paths
+   {int         N = 4;
+    for (int i = 0; i <= N; i++)
+     {Chip    c = new Chip();
+      Pulse   p = c.pulse       ("pp",  0, N);
+      Bits  two = c.bits        ("two", N, i);
+      Bits   b1 = c.bits        ("b1",  N, 1);
+      Bits   b2 = c.bits        ("b2",  N, 2);
+      Bits   b3 = c.bits        ("b3",  N, 3);
+      Bits   b4 = c.bits        ("b4",  N, 4);
+
+      Pulse[] P = c.choosePulse ("P", two, p, b1, b2, b3, b4);
+      Bit    P1 = c.Output      ("P1", P[0]);
+      Bit    P2 = c.Output      ("P2", P[1]);
+      Bit    P3 = c.Output      ("P3", P[2]);
+      Bit    P4 = c.Output      ("P4", P[3]);
+      c.executionTrack(
+        "p   1 2 3 4",
+        "%s   %s %s %s %s",
+         p, P[0], P[1], P[2], P[3]);
+      c.simulationSteps(7);
+      c.simulate();
+
+      //c.printExecutionTrace();
+      switch(i)
+       {case 0 -> c.ok("""
+Step  p   1 2 3 4
+   1  1   . . . .
+   2  1   . . . .
+   3  1   . . . .
+   4  1   . . . .
+   5  0   . . . .
+   6  0   0 0 0 0
+   7  0   0 0 0 0
+""");
+        case 1 -> c.ok("""
+Step  p   1 2 3 4
+   1  1   . . . .
+   2  1   . . . .
+   3  1   . . . .
+   4  1   . . . .
+   5  0   . . . .
+   6  0   1 0 0 0
+   7  0   0 0 0 0
+""");
+        case 2 -> c.ok("""
+Step  p   1 2 3 4
+   1  1   . . . .
+   2  1   . . . .
+   3  1   . . . .
+   4  1   . . . .
+   5  0   . . . .
+   6  0   0 1 0 0
+   7  0   0 0 0 0
+""");
+        case 3 -> c.ok("""
+Step  p   1 2 3 4
+   1  1   . . . .
+   2  1   . . . .
+   3  1   . . . .
+   4  1   . . . .
+   5  0   . . . .
+   6  0   0 0 1 0
+   7  0   0 0 0 0
+""");
+        case 4 -> c.ok("""
+Step  p   1 2 3 4
+   1  1   . . . .
+   2  1   . . . .
+   3  1   . . . .
+   4  1   . . . .
+   5  0   . . . .
+   6  0   0 0 0 1
+   7  0   0 0 0 0
+""");
+       }
+     }
+   }
+
   static void test_input_peripheral()                                           // Input from a peripheral
    {int         N = 4;
     Chip        c = new Chip();
@@ -4821,13 +4947,13 @@ Step  o     e
     test_trigger_pulse();
     test_add_chain();
     test_choose_pulse();
+    test_choose_pulse_route();
     test_input_peripheral();
+    test_pulse_doubled();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    //test_input_peripheral();
-    test_enable_word_equal();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
