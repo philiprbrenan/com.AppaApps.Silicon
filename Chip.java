@@ -288,27 +288,31 @@ public class Chip                                                               
     private Gate(Operator Op)                                                   // System created gate of a specified type with a unique system generated name. As yet the inputs are unknown.
      {super();
       op = Op;
-      indexGate();
+      resolveForward();
      }
 
     private Gate(Gate gate)                                                     // Replace an existing gate
      {super(gate.name);
       op = gate.op;
+      resolveForward();
+     }
+
+    void resolveForward()                                                       // Copy details of a forward declaration if there is an existing Forward gate of this name
+     {if (gates.containsKey(name))
+       {final Gate g = gates.get(name);
+        if (op != g.op && g.op != Operator.Forward)                             // Gate being transformed into a different type unless this is explicitly permitted with a Forward declaration
+          stop("Redefining gate:", g.name, "type:", g.op,
+            "but it is not a Forward gate declaration");
+        drives.addAll(g.drives);
+       }
       indexGate();
      }
 
     public Gate(Operator Op, CharSequence Name, Bit Input1, Bit Input2)         // User created gate with a user supplied name and inputs
      {super(Name);
       op   = Op;
+      resolveForward();                                                         // Copy details of a forward declaration if there is an existing Forward gate of this name
 
-      if (gates.containsKey(Name.toString()))                                   // Copy details of a forward declaration if there is an existing Forward gate of this name
-       {final Gate g = gates.get(Name);
-        if (g.op != Operator.Forward) stop("Redefining gate", name,
-          "but it is not a Forward gate declaration");
-        drives.addAll(g.drives);
-       }
-
-      indexGate();
       if (commutative(op))                                                      // Any input pin will do
        {if (Input1 != null) impinge(Input1);
         if (Input2 != null) impinge(Input2);
@@ -1805,8 +1809,8 @@ public class Chip                                                               
 
 //D3 Delay                                                                      // Send a pulse one way or another depending on a bit allowing us to execute one branch of an if statement or the other and receive a pulse notifying us when the execution of the different length paths are complete.
 
-  Pulse delay(String Output, Pulse input, int delay)                              // Create a delay chain so that one leading edge can trigger another later on as work is performed
-   {Pulse p = input;                                                              // Start of chain
+  Pulse delay(String Output, Pulse input, int delay)                            // Create a delay chain so that one leading edge can trigger another later on as work is performed
+   {Pulse p = input;                                                            // Start of chain
     for (int i = 1; i <= delay; i++)                                            // All along the delay line
       p = new Pulse(Continue(i < delay ? n(i, Output) : Output, p));
     return p;
