@@ -1,4 +1,4 @@
-# Test 2024-06-14 at 03:29:15
+# Test 2024-06-14 at 03:30:11
 
 name: Test
 run-name: Silicon Chip
@@ -46,7 +46,7 @@ jobs:
       run: |
         javac -g -d Classes -cp Classes com/AppaApps/Silicon/Chip.java
         javac -g -d Classes -cp Classes com/AppaApps/Silicon/RiscV.java
-        javac -g -d Classes -cp Classes com/AppaApps/Silicon/tests/Test1.java
+        #javac -g -d Classes -cp Classes com/AppaApps/Silicon/tests/Test1.java
 
     - name: Test Risc V
       run: |
