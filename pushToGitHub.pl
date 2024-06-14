@@ -61,6 +61,7 @@ if (1)                                                                          
 
 if (1)
  {my $d = dateTimeStamp;
+  my $c = q(com/AppaApps/Silicon);
   my $y = <<"END";
 # Test $d
 
@@ -99,8 +100,8 @@ jobs:
     - name: Position
       run: |
         mkdir -p com/AppaApps/Silicon/tests
-        cp       *.java com/AppaApps/Silicon/
-        cp tests/*.java com/AppaApps/Silicon/tests
+        cp       *.java $c
+        cp tests/*.java $c/tests
 
     - name: Files
       run:
@@ -108,20 +109,22 @@ jobs:
 
     - name: Compile
       run: |
-        javac -g -d Classes -cp Classes com/AppaApps/Silicon/Chip.java
-        javac -g -d Classes -cp Classes com/AppaApps/Silicon/RiscV.java
-        #javac -g -d Classes -cp Classes com/AppaApps/Silicon/tests/Test1.java
+        javac -g -d Classes -cp Classes $c/Chip.java $c/RiscV.java $c/Ban.java $c/tests/Test1.java
 
     - name: Test Risc V
       run: |
-        java -cp Classes com/AppaApps/Silicon/RiscV
+        java -cp Classes $c/RiscV
+
+    - name: Test Ban
+      run: |
+        java -cp Classes $c/Ban
 
     - name: Cpan
       run:  sudo cpan install -T Data::Dump Data::Table::Text GDS2 Digest::SHA1
 
     - name: Test silicon chips
       run: |
-        java -cp Classes com/AppaApps/Silicon/Chip
+        java -cp Classes $c/Chip
 
     - name: Files
       run: |
