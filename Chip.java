@@ -964,7 +964,7 @@ public class Chip                                                               
      }
 
     public String toString() {return string();}                                 // Convert the bits represented by an output bus to a string
-    public Bit  b    (int i) {return collectBit(source[i]);}                    // Name of a bit in the bus
+    public Bit  b    (int i) {return collectBit(source[i-1]);}                  // Name of a bit in the bus
     public void  anneal()    {outputBits(nextGateName(), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
@@ -2038,6 +2038,50 @@ public class Chip                                                               
     final Bit r8 = And("r7", s1, s2, c);
     final Bit  o = Or(output, r2, r5, r6, r8);                                  // True if less than.
     return o;
+   }
+
+  Bits shiftLeftMultiple(String output, Bits input, Bits shift)                 // Shift the input bits left by the number of positions specified in shift filling in with zeroes.
+   {final int B = input.bits();                                                 // Number of bits in input
+    final Bits[]s = new Bits[B+1];                                              // Shifted bits
+    final Bits  z = bits(n(output, "zero"), B, 0);                              // Zero
+    for (int i = 0; i <= B; i++)                                                // Each possible shift
+     {final Bit[]S = new Bit[B];                                                // Bits in possible shift
+      for (int j = 0; j < i; ++j) S[j] =     z.b(1+j);                          // Shift in zeros
+      for (int j = i; j < B; ++j) S[j] = input.b(1+j - i);                      // Shift in bits
+      final Bits t = new ConCatBits(n(i, output, "concat"), S);                 // Concatenate the bits
+      final Bits I =   bits(n(i, output, "shift"), shift.bits(), i);            // Select this shift
+      s[i] = enableWordIfEq(n(i, output, "enable"), t, shift, I);               // Enable shifted bits
+     }
+    return orBits(output, s);                                                   // Or together the shifts
+   }
+
+  Bits shiftRightMultiple(String output, Bits input, Bits shift)                // Shift the input bits right by the number of positions specified in shift filling in with zeroes.
+   {final int B = input.bits();                                                 // Number of bits in input
+    final Bits[]s = new Bits[B+1];                                              // Shifted bits
+    final Bits  z = bits(n(output, "zero"), B, 0);                              // Zero
+    for (int i = 0; i <= B; i++)                                                // Each possible shift
+     {final Bit[]S = new Bit[B];                                                // Bits in possible shift
+      for (int j = 0; j < i; ++j) S[B-1-j] = z.b(1+j);                          // Shift in zeros
+      for (int j = i; j < B; ++j) S[B-1-j] = input.b(B-j+i);                    // Shift in bits
+      final Bits t = new ConCatBits(n(i, output, "concat"), S);                 // Concatenate the bits
+      final Bits I =   bits(n(i, output, "shift"), shift.bits(), i);            // Select this shift
+      s[i] = enableWordIfEq(n(i, output, "enable"), t, shift, I);               // Enable shifted bits
+     }
+    return orBits(output, s);                                                   // Or together the shifts
+   }
+
+  Bits shiftRightArithmetic(String output, Bits input, Bits shift)              // Shift the input bits right by the number of positions specified in shift filling in the highest bit
+   {final int B = input.bits();                                                 // Number of bits in input
+    final Bits[]s = new Bits[B+1];                                              // Shifted bits
+    for (int i = 0; i <= B; i++)                                                // Each possible shift
+     {final Bit[]S = new Bit[B];                                                // Bits in possible shift
+      for (int j = 0; j < i; ++j) S[B-1-j] = input.b(B);                        // Shift in highest bit
+      for (int j = i; j < B; ++j) S[B-1-j] = input.b(B-j+i);                    // Shift in bits
+      final Bits t = new ConCatBits(n(i, output, "concat"), S);                 // Concatenate the bits
+      final Bits I =   bits(n(i, output, "shift"), shift.bits(), i);            // Select this shift
+      s[i] = enableWordIfEq(n(i, output, "enable"), t, shift, I);               // Enable shifted bits
+     }
+    return orBits(output, s);                                                   // Or together the shifts
    }
 
 //D2 B-tree                                                                     // Circuits useful in the construction and traversal of B-trees.
@@ -5075,6 +5119,62 @@ Step  o     e
      }
    }
 
+  static void test_shiftLeftMultiple()
+   {int      N = 4;
+    for (int i = 0; i <= N; i++)
+     {Chip   c = new Chip();
+      Bits one = c.bits("one", N, 1);
+      Bits   I = c.bits("i",   N, i);
+      Bits   s = c.shiftLeftMultiple("s", one, I);
+      s.anneal();
+      c.simulate();
+      s.ok(switch(i)
+       {case  0 -> 0b0001;
+        case  1 -> 0b0010;
+        case  2 -> 0b0100;
+        case  3 -> 0b1000;
+        default -> 0b0000;
+       });
+     }
+   }
+
+  static void test_shiftRightMultiple()
+   {int      N = 4;
+    for (int i = 0; i <= N; i++)
+     {Chip   c = new Chip();
+      Bits one = c.bits("one", N, 8);
+      Bits   I = c.bits("i",   N, i);
+      Bits   s = c.shiftRightMultiple("s", one, I);
+      s.anneal();
+      c.simulate();
+      s.ok(switch(i)
+       {case  0 -> 0b1000;
+        case  1 -> 0b0100;
+        case  2 -> 0b0010;
+        case  3 -> 0b0001;
+        default -> 0b0000;
+       });
+     }
+   }
+
+  static void test_shiftRightArithmetic()
+   {int      N = 4;
+    for (int i = 1; i <= N; i++)
+     {Chip   c = new Chip();
+      Bits one = c.bits("one", N, 0b1000);
+      Bits   I = c.bits("i",   N, i);
+      Bits   s = c.shiftRightArithmetic("s", one, I);
+      s.anneal();
+      c.simulate();
+      s.ok(switch(i)
+       {case  0 -> 0b1000;
+        case  1 -> 0b1100;
+        case  2 -> 0b1110;
+        default -> 0b1111;
+       });
+     }
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_max_min();
     test_source_file_name();
@@ -5137,11 +5237,15 @@ Step  o     e
     test_enable_word_if_equal();
     test_twos_complement_arith();
     test_twos_complement_compare_lt();
+    test_shiftLeftMultiple();
+    test_shiftRightMultiple();
+    test_shiftRightArithmetic();
+    test_shiftRightArithmetic();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_twos_complement_compare_lt();
+   {oldTests();
+//  test_shiftRightArithmetic();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
