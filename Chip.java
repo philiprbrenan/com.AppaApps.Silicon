@@ -8,6 +8,7 @@
 // CN: check gate names match variable names
 // Remove field loaded from Register
 // On fanOut/fanIn add the principle gate name to the fan gate names for easier identification in chip listing
+// SubBitBus - merge constructors
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
 
 import java.io.*;
@@ -258,8 +259,8 @@ public class Chip                                                               
      }
    }
 
-  Bit collectBit(String Name)                                                   // Get a named bit or define such a bit if it does not already exist
-   {final Bit b = bits.get(name);
+  Bit collectBit(CharSequence Name)                                             // Get a named bit or define such a bit if it does not already exist
+   {final Bit b = bits.get(name.toString());
 
     return b == null ? new Bit(Name) : b;
    }
@@ -952,6 +953,21 @@ public class Chip                                                               
     public void  anneal()    {outputBits(nextGateName(), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
+  class ConCatBits implements Bits                                              // Concatenate a sequence of bits
+   {final String name; public String name() {return name;}                      // Name of bus
+    final int    bits; public int    bits() {return bits;}                      // Number of bits of bus - the width of the bus
+    final Bit[]source;                                                          // The bit bus from which supplies the bits for this sub bit bus
+
+    ConCatBits(CharSequence Name, Bit...Source)                                 // Concatenate bits
+     {name = Name.toString(); source = Source; bits = source.length;
+      bitBuses.put(name, this);
+     }
+
+    public String toString() {return string();}                                 // Convert the bits represented by an output bus to a string
+    public Bit  b    (int i) {return collectBit(source[i]);}                    // Name of a bit in the bus
+    public void  anneal()    {outputBits(nextGateName(), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+   }
+
   static String n(String...C)                                                   // Gate name from no index probably to make a bus connected to a name
    {return concatenateNames(concatenateNames((Object[])C));
    }
@@ -1014,6 +1030,13 @@ public class Chip                                                               
     return o;                                                                   // Resulting bit bus
    }
 
+  Bits continueBits(String name, Bits input)                                    // Create a B<continue> bus made of bits.
+   {final int bits = input.bits();                                              // Number of bits in input bus
+    final Bits o = collectBits(name, bits);                                     // Resulting bit bus
+    for (int b = 1; b <= bits; ++b) Continue(o.b(b), input.b(b));               // Bus of continue gates
+    return o;                                                                   // Resulting bit bus
+   }
+
   Bits notBits(String name, Bits input)                                         // Create a B<not> bus made of bits.
    {final int bits = input.bits();                                              // Number of bits in input bus
     final Bits o = collectBits(name, bits);                                     // Resulting bit bus
@@ -1045,9 +1068,9 @@ public class Chip                                                               
       if (l != B) stop("Input[0] has", B, "bits, but Input["+i+"] has", l);
      }
     final Bits o = collectBits(output, B);                                      // Output result
-    for   (int j = 0; j < B; j++)                                               // Each bit of the inputs
-     {final Bit[]a = new Bit[B];
-      for (int i = 0; i < N; i++) a[i] = input[j].b(i);                         // Each input
+    for   (int j = 1; j <= B; j++)                                              // Each bit of the inputs
+     {final Bit[]a = new Bit[N];
+      for (int i = 0; i < N; i++) a[i] = input[i].b(j);                         // Each input
       And(o.b(j), a);
      }
     return o;                                                                   // And of bits at each index in the inputs
@@ -1081,6 +1104,23 @@ public class Chip                                                               
     final Bits o = collectBits(output, b);                                      // Resulting bit bus
     for (int i = 1; i <= b; ++i) Or(o.b(i), input1.b(i), input2.b(i));          // Or each pair of bits
     return o;                                                                   // Size of resulting bus
+   }
+
+  Bits orBits(String output, Bits...input)                                      // B<Or> one or more equal size bit buses together to make a bit bus of equal size
+   {final int N = input.length;                                                 // Number of inputs
+    if (N == 0) stop("Input bits required");                                    // Need some bits
+    final int B = input[0].bits();                                              // Number of bits in input buses
+    for (int i = 0; i < N; i++)                                                 // Confirm length of each input
+     {final int l = input[i].bits();
+      if (l != B) stop("Input[0] has", B, "bits, but Input["+i+"] has", l);
+     }
+    final Bits o = collectBits(output, B);                                      // Output result
+    for   (int j = 1; j <= B; j++)                                              // Each bit of the inputs
+     {final Bit[]a = new Bit[N];
+      for (int i = 0; i < N; i++) a[i] = input[i].b(j);                         // Each input
+      Or(o.b(j), a);
+     }
+    return o;                                                                   // Or of bits at each index in the inputs
    }
 
   Bit norBits(String name, Bits input)                                          // B<Nor> all the bits in a bus to get one bit
@@ -1446,6 +1486,13 @@ public class Chip                                                               
       enableWord(q.w(j).name(), e.value, ie);                                   // Could it be this word
      }
     return orWords(output, q);                                                  // And together the enabled words
+   }
+
+  Bits enableWordIfEq(String output, Bits result, Bits a, Bits b)               // Set the output to result if a == b else 0
+   {final int  B = result.bits();
+    final Bits e = new BitBus(n(output), B);                                    // Enabled word
+    final Bit  q = compareEq(n(output, "eq"), a, b);                            // Compare
+    return enableWord(output, result, q);                                       // Enable the result if a equals b
    }
 
   Bits findGt(String output, Words w, Bits b)                                   // Bits indicating which words are greater than the specified word
@@ -1890,7 +1937,10 @@ public class Chip                                                               
   record BinaryAdd                                                              // Results of a binary add
    (Bit carry,                                                                  // Carry out gate
     Bits  sum                                                                   // Sum
-   ){}
+   )
+   {public Bit  binaryAddCarry() {return carry;}
+    public Bits binaryAddSum  () {return sum;}
+   }
 
   BinaryAdd binaryAdd(String output, Bits in1, Bits in2)                        // Add two bit buses of the same size to make a bit bus one bit wider
    {final int b = in1.bits();                                                   // Number of bits in input monotone mask
@@ -1931,6 +1981,65 @@ public class Chip                                                               
      }
 
     return new BinaryAdd(c.b(b), o);                                            // Carry out of the highest bit, result
+   }
+
+  Bits binaryTwosComplement(String output, Bits in)                             // Form the binary twos complement of a number
+   {final int         B = in.bits();                                            // Number of bits
+    final Bits        n =   notBits(n(output, "not"), in);                      // Not of input
+    final Bits      one =      bits(n(output, "one"), in.bits(), 1);            // A one of the correct width
+    final BinaryAdd add = binaryAdd(n(output), n, one);                         // Add one to form twos complement
+    return add.sum;                                                             // Ignore sum
+   }
+
+  Bits binaryTCAdd(String output, Bits in1, Bits in2)                           // Twos complement addition
+   {final int b = in1.bits();                                                   // Number of bits in input monotone mask
+    final int B = in2.bits();                                                   // Number of bits in input monotone mask
+    if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
+    final BinaryAdd sub = binaryAdd(n(output), in1, in2);                       // Effect the addition
+    return sub.sum;
+   }
+
+  Bits binaryTCSubtract(String output, Bits in1, Bits in2)                      // Twos complement subtraction
+   {final int b = in1.bits();                                                   // Number of bits in input monotone mask
+    final int B = in2.bits();                                                   // Number of bits in input monotone mask
+    if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
+    final Bits        m = binaryTwosComplement(n(output, "subtract"), in2);     // Twos complement of subtrahend
+    final BinaryAdd sub = binaryAdd(n(output), in1, m);                         // Effect the subtraction
+    return sub.sum;
+   }
+
+// #   1 2 c   R
+// 1   0 0 0   0
+// 2   0 0 1   1
+// 3   0 1 0   0
+// 4   0 1 1   0
+// 5   1 0 0   1
+// 6   1 0 1   1
+// 7   1 1 0   1
+// 8   1 1 1   0
+
+  record bc(Bits i1, Bit s1, Bits i2, Bit s2, Bit c, Bit o, Bit r2, Bit r5, Bit r6, Bit r7){}
+
+  bc binaryTCCompareLt(String output, Bits in1, Bits in2)                      // Twos complement less than comparison
+   {final int b = in1.bits();                                                   // Number of bits in input monotone mask
+    final int B = in2.bits();                                                   // Number of bits in input monotone mask
+    if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
+    final Bits i1 = new SubBitBus(n(output, "n1"),  in1, 1, b - 1);             // Numeric part of first number
+    final Bit  s1 = in1.b(b);                                                   // Sign of first number
+    final Bits i2 = new SubBitBus(n(output, "n2"),  in2, 1, b - 1);             // Numeric part of second number
+    final Bit  s2 = in2.b(b);                                                   // Sign of second number
+    final Bit   c = compareLt    (n(output, "cmp"), i1, i2);                    // Compare number
+
+    final Bit  S1 = Not(n(output, "notS1"), s1);                                // Invert
+    final Bit  S2 = Not(n(output, "notS2"), s2);
+    final Bit   C = Not(n(output, "notC"),   c);
+
+    final Bit r2 = And("r2", S1, S2, c);                                        // Locate ones
+    final Bit r5 = And("r5", s1, S2, C);
+    final Bit r6 = And("r6", s1, S2, c);
+    final Bit r7 = And("r7", s1, s2, C);
+    final Bit  o = Or(output, r2, r5, r6, r7);                                          // True if less than.
+    return new bc(i1, s1, i2, s2, c, o, r2, r5, r6, r7);
    }
 
 //D2 B-tree                                                                     // Circuits useful in the construction and traversal of B-trees.
@@ -3691,6 +3800,21 @@ public class Chip                                                               
      }
    }
 
+  static void test_enable_word_if_equal()
+   {int B = 4;
+    final int[]x = {0, 2, 4, 6, 8};
+    for (int i = 0; i < x.length; i++)
+     {Chip C = new Chip("enable_word_if_equal_"+i);
+      Bits I = C.bits("i", B, i);
+      Bits e = C.bits("e", B, 4);
+      Bits r = C.bits("r", B, i+1);
+      Bits s = C.enableWordIfEq("R", r, I, e);
+      Bits O = C.outputBits("out",  s);
+      C.simulate();
+      O.ok(i == 4 ? i + 1 : 0);
+     }
+   }
+
   static void test_monotone_mask_to_point_mask()
    {for    (int B = 2; B <= 4; ++B)
      {int N = powerTwo(B);
@@ -4176,7 +4300,7 @@ Step  C P  t e
           Bits      I = c.bits("i", B, i);
           Bits      J = c.bits("j", B, j);
           BinaryAdd a = c.binaryAdd ("ij",  I, J);
-          Bits      o = c.outputBits("o", a.sum);
+          Bits      o = c.outputBits("o", a.sum());
           c.Output    ("co", a.carry);
           c.simulate  ();
           a.sum  .ok((i+j) %  B2);
@@ -4305,7 +4429,7 @@ Step  i     o     O
     Bits      a = C.bits      ("a",  N, 127);
     Bits      b = C.bits      ("b",  N, 128);
     BinaryAdd c = C.binaryAdd ("c",  a, b);
-    Bit      oc = C.Output    ("oc", c.carry);
+    Bit      oc = C.Output    ("oc", c.carry());
     Bits     os = C.outputBits("os", c.sum);
     C.simulationSteps(48);
     C.simulate();
@@ -4893,6 +5017,91 @@ Step  o     e
 """);
    }
 
+  static void test_twos_complement_arith()
+   {int         N = 4;
+    Chip        c = new Chip();
+    Bits    seven = c.bits            ("seven", N, 7);
+    Bits      two = c.bits            ("two",   N, 2);
+    Bits     nine = c.binaryTCAdd     ("nine",  seven, two);
+    Bits     five = c.binaryTCSubtract("five",  seven, two);
+    nine.anneal();
+    five.anneal();
+    c.simulate();
+    seven.ok(7);
+      two.ok(2);
+     nine.ok(9);
+     five.ok(5);
+   }
+
+// iiii iii jjjj jjj I J C O
+// 1110 110 1110 110 1 1 0 1 false
+// 1110 110 1111 111 1 1 1 0 true
+// 1110 110 0000 000 1   0 0 true
+// 1110 110 0001 001 1   0 0 true
+// 1110 110 0010 010 1   0 0 true
+// 1111 111 1110 110 1 1 0 1 false
+// 1111 111 1111 111 1 1 0 1 false
+// 1111 111 0000 000 1   0 0 true
+// 1111 111 0001 001 1   0 0 true
+// 1111 111 0010 010 1   0 0 true
+// 0000 000 1110 110   1 1 1 false
+// 0000 000 1111 111   1 1 1 false
+// 0000 000 0000 000     0 0 false
+// 0000 000 0001 001     1 1 true
+// 0000 000 0010 010     1 1 true
+// 0001 001 1110 110   1 1 1 false
+// 0001 001 1111 111   1 1 1 false
+// 0001 001 0000 000     0 0 false
+// 0001 001 0001 001     0 0 false
+// 0001 001 0010 010     1 1 true
+// 0010 010 1110 110   1 1 1 false
+// 0010 010 1111 111   1 1 1 false
+// 0010 010 0000 000     0 0 false
+// 0010 010 0001 001     0 0 false
+// 0010 010 0010 010     0 0 false
+
+// 6   1 0 1   1
+
+  static void test_twos_complement_compare_lt()
+   {int        N = 4;
+    say("iiii jjjj 1 2 C O R    2 5 6 7");
+    for   (int i = -8; i <= 8; i++)
+     {for (int j = -8; j <= 8; j++)
+       {//i = -7; j = 7;
+        Chip   c = new Chip();
+        Bits   I = c.bits("i", N, i);
+        Bits   J = c.bits("j", N, j);
+        bc     L = c.binaryTCCompareLt("c", I, J);
+        L.i1.anneal();
+        L.s1.anneal();
+        L.i2.anneal();
+        L.s2.anneal();
+        L.c.anneal();
+        L.o.anneal();
+        L.r2.anneal();
+        L.r5.anneal();
+        L.r6.anneal();
+        L.r7.anneal();
+        c.simulate();
+        say(I,
+        J,
+        c.getGate(L.s1).value ? '1' : ' ',
+        c.getGate(L.s2).value ? '1' : ' ',
+        c.getGate(L.c) .value ? '1' : ' ',
+        c.getGate(L.o) .value ? '1' : ' ',
+        i < j ? '1' : ' ',
+        "  ",
+        c.getGate(L.r2).value ? '2' : ' ',
+        c.getGate(L.r5).value ? '5' : ' ',
+        c.getGate(L.r6).value ? '6' : ' ',
+        c.getGate(L.r7).value ? '7' : ' '
+       );
+       L.o.ok(i < j);
+       //stop();
+       }
+     }
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_max_min();
     test_source_file_name();
@@ -4952,10 +5161,14 @@ Step  o     e
     test_choose_pulse_route();
     test_input_peripheral();
     test_pulse_doubled();
+    test_enable_word_if_equal();
+    test_twos_complement_arith();
+    test_twos_complement_compare_lt();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
+    test_twos_complement_compare_lt();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
