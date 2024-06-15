@@ -2015,14 +2015,12 @@ public class Chip                                                               
 // 4   0 1 1   0
 // 5   1 0 0   1
 // 6   1 0 1   1
-// 7   1 1 0   1
-// 8   1 1 1   0
+// 7   1 1 0   0
+// 8   1 1 1   1
 
-  record bc(Bits i1, Bit s1, Bits i2, Bit s2, Bit c, Bit o, Bit r2, Bit r5, Bit r6, Bit r7){}
-
-  bc binaryTCCompareLt(String output, Bits in1, Bits in2)                      // Twos complement less than comparison
-   {final int b = in1.bits();                                                   // Number of bits in input monotone mask
-    final int B = in2.bits();                                                   // Number of bits in input monotone mask
+  Bit binaryTCCompareLt(String output, Bits in1, Bits in2)                      // Twos complement less than comparison
+   {final int b = in1.bits();                                                   // Number of bits in first input
+    final int B = in2.bits();                                                   // Number of bits in second input
     if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
     final Bits i1 = new SubBitBus(n(output, "n1"),  in1, 1, b - 1);             // Numeric part of first number
     final Bit  s1 = in1.b(b);                                                   // Sign of first number
@@ -2037,9 +2035,9 @@ public class Chip                                                               
     final Bit r2 = And("r2", S1, S2, c);                                        // Locate ones
     final Bit r5 = And("r5", s1, S2, C);
     final Bit r6 = And("r6", s1, S2, c);
-    final Bit r7 = And("r7", s1, s2, C);
-    final Bit  o = Or(output, r2, r5, r6, r7);                                          // True if less than.
-    return new bc(i1, s1, i2, s2, c, o, r2, r5, r6, r7);
+    final Bit r8 = And("r7", s1, s2, c);
+    final Bit  o = Or(output, r2, r5, r6, r8);                                  // True if less than.
+    return o;
    }
 
 //D2 B-tree                                                                     // Circuits useful in the construction and traversal of B-trees.
@@ -5064,40 +5062,15 @@ Step  o     e
 
   static void test_twos_complement_compare_lt()
    {int        N = 4;
-    say("iiii jjjj 1 2 C O R    2 5 6 7");
-    for   (int i = -8; i <= 8; i++)
-     {for (int j = -8; j <= 8; j++)
-       {//i = -7; j = 7;
-        Chip   c = new Chip();
+    for   (int i = -8; i <= 7; i++)
+     {for (int j = -8; j <= 7; j++)
+       {Chip   c = new Chip();
         Bits   I = c.bits("i", N, i);
         Bits   J = c.bits("j", N, j);
-        bc     L = c.binaryTCCompareLt("c", I, J);
-        L.i1.anneal();
-        L.s1.anneal();
-        L.i2.anneal();
-        L.s2.anneal();
-        L.c.anneal();
-        L.o.anneal();
-        L.r2.anneal();
-        L.r5.anneal();
-        L.r6.anneal();
-        L.r7.anneal();
+        Bit    L = c.binaryTCCompareLt("c", I, J);
+        L.anneal();
         c.simulate();
-        say(I,
-        J,
-        c.getGate(L.s1).value ? '1' : ' ',
-        c.getGate(L.s2).value ? '1' : ' ',
-        c.getGate(L.c) .value ? '1' : ' ',
-        c.getGate(L.o) .value ? '1' : ' ',
-        i < j ? '1' : ' ',
-        "  ",
-        c.getGate(L.r2).value ? '2' : ' ',
-        c.getGate(L.r5).value ? '5' : ' ',
-        c.getGate(L.r6).value ? '6' : ' ',
-        c.getGate(L.r7).value ? '7' : ' '
-       );
-       L.o.ok(i < j);
-       //stop();
+        L.ok(i < j);
        }
      }
    }
