@@ -224,23 +224,32 @@ final public class RiscV                                                        
     final static int       m_rd = 0b001_1111;                                   // Mask for destination register
     final static int      m_rs1 = 0b001_1111;                                   // Mask for source register 1
     final static int      m_rs2 = 0b001_1111;                                   // Mask for source register 2
-    final static int   m_funct3 = 0b000_0111;                                   // Mask for sub function
-    final static int   m_funct5 = 0b001_1111;                                   // Mask for sub function
-    final static int   m_funct7 = 0b111_1111;                                   // Mask for sub function
+    final static int   m_funct3 = 0b000_0111;                                   // Mask for sub function 3
+    final static int   m_funct5 = 0b001_1111;                                   // Mask for sub function 5
+    final static int   m_funct7 = 0b111_1111;                                   // Mask for sub function 7
     final static int  m_subType = 0b000_0111;                                   // Mask for sub type
     final static int       m_rl = 0b000_0001;                                   // Mask for rl
     final static int       m_aq = 0b000_0001;                                   // Mask for aq
 
     final static int     opLoad = 0b000_0011;                                   // Opcodes - load
-    final static int opArithImm = 0b001_0011;                                   // Immediate arithmetic
-    final static int    opAuiPc = 0b001_0111;                                   //
-    final static int    opStore = 0b010_0011;                                   //
-    final static int    opArith = 0b011_0011;                                   // Arithmetic
-    final static int      opLui = 0b011_0111;                                   //
-    final static int   opBranch = 0b110_0011;                                   //
-    final static int    opEcall = 0b111_0011;                                   //
-    final static int      opJal = 0b110_1111;                                   //
-    final static int     opJalr = 0b110_0111;                                   //
+    final static int opArithImm = 0b001_0011;
+    final static int    opAuiPc = 0b001_0111;
+    final static int    opStore = 0b010_0011;
+    final static int    opArith = 0b011_0011;
+    final static int      opLui = 0b011_0111;
+    final static int   opBranch = 0b110_0011;
+    final static int    opEcall = 0b111_0011;
+    final static int      opJal = 0b110_1111;
+    final static int     opJalr = 0b110_0111;
+
+    final static int     f3_add = 0x0;                                          // Funct3 op codes
+    final static int     f3_xor = 0x4;
+    final static int      f3_or = 0x6;
+    final static int     f3_and = 0x7;
+    final static int     f3_sll = 0x1;
+    final static int     f3_srl = 0x5;
+    final static int     f3_slt = 0x2;
+    final static int    f3_sltu = 0x3;
 
     Decode(String Name, Encode Instruction)                                     // Decode an instruction
      {instruction = Instruction;
