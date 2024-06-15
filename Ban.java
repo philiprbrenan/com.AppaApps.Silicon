@@ -129,7 +129,7 @@ final public class Ban extends Chip                                             
     Bits    f3_and = C.bits("f3_and",  RiscV.Decode.l_funct3, 0x7);
 //  Bits    f3_sll = C.bits("f3_sll",  RiscV.Decode.l_funct3, 0x1);
 //  Bits    f3_srl = C.bits("f3_srl",  RiscV.Decode.l_funct3, 0x5);
-//  Bits    f3_slt = C.bits("f3_slt",  RiscV.Decode.l_funct3, 0x2);
+    Bits    f3_slt = C.bits("f3_slt",  RiscV.Decode.l_funct3, 0x2);
     Bits   f3_sltu = C.bits("f3_sltu", RiscV.Decode.l_funct3, 0x3);
 
     Bits      rs1v = C.enableWord ("rs1v",  rs1,  s1v, s2v, s3v);               // The value of the selected rs1 register
@@ -137,15 +137,18 @@ final public class Ban extends Chip                                             
     Bits      xorI = C.xorBits    ("xorI",  rs1v, imm);                         // Xor the selected register to the immediate value
     Bits       orI = C.orBits     ("orI",   rs1v, imm);                         // Or the selected register to the immediate value
     Bits      andI = C.andBits    ("andI",  rs1v, imm);                         // And the selected register to the immediate value
-    Bit    compare = C.compareLt  ("comp",  rs1v, imm);                         // Compare
-    Bits     sltui = C.enableWord ("sltui", one,  compare);                     // Enable a one if the register is less than the immediate value using unsigned arithmetic
+    Bit       cmpI = C.binaryTCCompareLt("cmpI",  rs1v, imm);                   // Compare signed
+    Bit      cmpuI = C.compareLt  ("cmpuI", rs1v, imm);                         // Compare unsigned
+    Bits      sltI = C.enableWord ("sltI",  one,  cmpI);                        // Enable a one if the register is less than the immediate value using signed arithmetic
+    Bits     sltuI = C.enableWord ("sltuI", one,  cmpuI);                       // Enable a one if the register is less than the immediate value using unsigned arithmetic
 
     Bits     rAddi = C.enableWordIfEq("rAddi",   addI, funct3, f3_add);         // Enable result of addition
     Bits     rXori = C.enableWordIfEq("rXori",   xorI, funct3, f3_xor);         // Enable result of xor
     Bits      rOri = C.enableWordIfEq("rOri",     orI, funct3, f3_or);          // Enable result of or
     Bits     rAndi = C.enableWordIfEq("rAndi",   andI, funct3, f3_and);         // Enable result of and
-    Bits    rSltui = C.enableWordIfEq("rSltui", sltui, funct3, f3_sltu);        // Enable a one if the register is less than the immediate value using unsigned arithmetic
-    Bits    Result = C.orBits("result", rAddi, rXori, rOri, rAndi, rSltui);     // Combine results of all immediate operations
+    Bits     rSlti = C.enableWordIfEq("rSlti",   sltI, funct3, f3_slt);         // Enable a one if the register is less than the immediate value using unsigned arithmetic
+    Bits    rSltui = C.enableWordIfEq("rSltui", sltuI, funct3, f3_sltu);        // Enable a one if the register is less than the immediate value using unsigned arithmetic
+    Bits    Result = C.orBits("result", rAddi, rXori, rOri, rAndi, rSlti, rSltui);
 
     Words  targets = C.words      ("targets", N, 1, 2, 3);                      // Target register to load result into
     Pulse      ltd = C.delay      ("ltd",  start, 22);                          // Wait this long before attempting to load the targets. Its cruclai thatthis be just long ewnough fo r all the computation to complete otherwise we get a partial answer which is usually wrong.
