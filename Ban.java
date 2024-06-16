@@ -106,7 +106,7 @@ final public class Ban extends Chip                                             
         x1.ok(10);                                                              // Target register set to expected value
    }
 
-  static void test_decode_I32()                                                 // Decode an immediate instruction
+  static void test_decode_RV32I ()                                              // Decode an immediate instruction
    {final int    N = 4;                                                         // Register widths in bits
     final int  LF3 = RiscV.Decode.l_funct3;                                     // Length of function codes
     final int  LF5 = RiscV.Decode.l_funct5;
@@ -117,7 +117,9 @@ final public class Ban extends Chip                                             
     Bits       one = C.bits ("one",   N, 1);                                    // Constant one
     Bits        x0 = C.bits ("X0",    N, 0);                                    // Define registers and zero them at the start
     Bits    result = C.new BitBus("result", N);                                 // Results of addition that will be sent to the destination register
-    Register    x1 = C.register("x1", new RegIn(x0, start), new RegIn(result, C.pulse(n(1, "tp")))); // Initialize or reload each register
+
+    //Register    pc = C.register("pc", new RegIn(x0, start), new RegIn(result, C.pulse(n(1, "tpc")))); // Risc V registers
+    Register    x1 = C.register("x1", new RegIn(x0, start), new RegIn(result, C.pulse(n(1, "tp"))));
     Register    x2 = C.register("x2", new RegIn(x0, start), new RegIn(result, C.pulse(n(2, "tp"))));
     Register    x3 = C.register("x3", new RegIn(x0, start), new RegIn(result, C.pulse(n(3, "tp"))));
 
@@ -135,10 +137,11 @@ final public class Ban extends Chip                                             
     Bits      immI = C.new  SubBitBus("immI",   decode, 1 + RiscV.Decode.I.p_immediate, min(N, RiscV.Decode.I.l_immediate));
     Bits      immU = C.new  SubBitBus("immU",   decode, 1 + RiscV.Decode.U.p_immediate, min(N, RiscV.Decode.U.l_immediate));
     Bits      immB = C.new ConCatBits("immB",                                   // Immediate operand from B format
-       decode.b( 9), decode.b(10), decode.b(11), decode.b(12));                 // 1 based
-//     decode.b(26), decode.b(27), decode.b(28), decode.b(29), decode.b(30), decode.b(31),
-//     decode.b( 8),
-//     decode.b(32));
+      x0.b(1),                                                                  // First bit known to be 0.
+      decode.b( 9), decode.b(10), decode.b(11), decode.b(12),                   // Field offsets are one based: in riscv-spec-20191213.pdf they are zero based.
+      decode.b(26), decode.b(27), decode.b(28), decode.b(29), decode.b(30), decode.b(31),
+      decode.b( 8),
+      decode.b(32));
 
     Bits      immJ = C.new ConCatBits("immJ",                                   // Immediate operand from J format
        decode.b(22), decode.b(23), decode.b(24), decode.b(25), decode.b(26), decode.b(27), decode.b(28), decode.b(29), decode.b(30), decode.b(31),
@@ -158,14 +161,20 @@ final public class Ban extends Chip                                             
     EnableWord S2v = new EnableWord(x2, C.bits("X2v", RiscV.Decode.l_rs2, 2));
     EnableWord S3v = new EnableWord(x3, C.bits("X3v", RiscV.Decode.l_rs2, 3));
 
-    Bits    f3_add = C.bits("f3_add",  LF3, 0x0);                               // Funct3 op codes
-    Bits    f3_xor = C.bits("f3_xor",  LF3, 0x4);
-    Bits     f3_or = C.bits("f3_or",   LF3, 0x6);
-    Bits    f3_and = C.bits("f3_and",  LF3, 0x7);
-    Bits    f3_sll = C.bits("f3_sll",  LF3, 0x1);
-    Bits    f3_srl = C.bits("f3_srl",  LF3, 0x5);
-    Bits    f3_slt = C.bits("f3_slt",  LF3, 0x2);
-    Bits   f3_sltu = C.bits("f3_sltu", LF3, 0x3);
+    Bits    f3_add = C.bits("f3_add",  LF3, 0);                                 // Funct3 op codes
+    Bits    f3_xor = C.bits("f3_xor",  LF3, 4);
+    Bits     f3_or = C.bits("f3_or",   LF3, 6);
+    Bits    f3_and = C.bits("f3_and",  LF3, 7);
+    Bits    f3_sll = C.bits("f3_sll",  LF3, 1);
+    Bits    f3_srl = C.bits("f3_srl",  LF3, 5);
+    Bits    f3_slt = C.bits("f3_slt",  LF3, 2);
+    Bits   f3_sltu = C.bits("f3_sltu", LF3, 3);
+    Bits    f3_beq = C.bits("f3_beq",  LF3, 0);
+    Bits    f3_bne = C.bits("f3_bne",  LF3, 1);
+    Bits    f3_blt = C.bits("f3_blt",  LF3, 4);
+    Bits    f3_bge = C.bits("f3_bge",  LF3, 5);
+    Bits   f3_bltu = C.bits("f3_bltu", LF3, 6);
+    Bits   f3_bgeu = C.bits("f3_bgeu", LF3, 7);
 
     Bits      rs1v = C.enableWord          ("rs1v",  rs1,  s1v, s2v, s3v);      // The value of the selected s1 register
     Bits      rs2v = C.enableWord          ("rs2v",  rs2,  S1v, S2v, S3v);      // The value of the selected s2 register
@@ -241,7 +250,10 @@ final public class Ban extends Chip                                             
 //          case 5:      return d.new B("bge")    {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate; else pc++;}};
 //          case 6:      return d.new B("bltu")   {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate; else pc++;}};
 //          case 7:      return d.new B("bgeu")   {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate; else pc++;}};
-//    Bits      beq  = C.compareEq("beq", rs1v, rs2v);
+      Bit       eq12 = C.compareEq        ("eq12",  rs1v, rs2v);
+      Bit       lt12 = C.binaryTCCompareLt("lt12",  rs1v, rs2v);
+      Bit      ltu12 = C.compareLt        ("ltu12", rs1v, rs2v);
+
 //    Bits      bne  = C.binaryTCAdd         ("addD",  rs1v, rs2v);
 //    Bits      blt  = C.binaryTCAdd         ("addD",  rs1v, rs2v);
 //    Bits      bge  = C.binaryTCAdd         ("addD",  rs1v, rs2v);
@@ -255,12 +267,23 @@ final public class Ban extends Chip                                             
     Pulse[]     tp = C.choosePulse("tp", targets, rd, ltd);                     // Pulse loads target register
 
     decode.anneal();
+     f3_beq.anneal();
+     f3_bne.anneal();
+     f3_blt.anneal();
+     f3_bge.anneal();
+    f3_bltu.anneal();
+    f3_bgeu.anneal();
+    eq12.anneal();
+    lt12.anneal();
+    ltu12.anneal();
+
     C.simulate();
+
     opCode.ok(RiscV.Decode.opArithImm);
     funct3.ok(RiscV.Decode.f3_add);
         rd.ok(   1);
        rs1.ok(   0);
-      immB.ok(   0);  // 1024
+      immB.ok(2048);
       immI.ok(  10);
       immJ.ok(   5);
       immS.ok(   1);
@@ -277,12 +300,12 @@ final public class Ban extends Chip                                             
 
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_decode_addi();
-    test_decode_I32();
+    test_decode_RV32I();
    }
 
   static void newTests()                                                        // Tests being worked on
    {test_decode_addi();
-    test_decode_I32();
+    test_decode_RV32I();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
