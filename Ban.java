@@ -59,9 +59,9 @@ final public class Ban extends Chip                                             
     Pulse    start = C.pulse("start", 0, N);                                    // Start pulse
     Bits        x0 = C.bits("X0",     N, 0);                                    // Define registers and zero them at the start
     Bits    result = C.new BitBus("result", N);                                 // Results of addition that will be sent to the destination register
-    Register    x1 = C.register("x1", new RegIn(x0, start), new RegIn(result, C.new Pulse(C.new Bit(n(1, "tp")))));
-    Register    x2 = C.register("x2", new RegIn(x0, start), new RegIn(result, C.new Pulse(C.new Bit(n(2, "tp")))));
-    Register    x3 = C.register("x3", new RegIn(x0, start), new RegIn(result, C.new Pulse(C.new Bit(n(3, "tp")))));
+    Register    x1 = C.register("x1", new RegIn(x0, start), new RegIn(result, C.pulse(n(1, "tp"))));
+    Register    x2 = C.register("x2", new RegIn(x0, start), new RegIn(result, C.pulse(n(2, "tp"))));
+    Register    x3 = C.register("x3", new RegIn(x0, start), new RegIn(result, C.pulse(n(3, "tp"))));
 
     Bits    decode = C.bits("addi", 32, 0xa00093);                              // addi x1,x0,10
     Bits    opCode = C.new SubBitBus("opCode", decode, 1 + RiscV.Decode.p_opCode,      RiscV.Decode.l_opCode);      // Extract op code
@@ -117,9 +117,9 @@ final public class Ban extends Chip                                             
     Bits       one = C.bits ("one",   N, 1);                                    // Constant one
     Bits        x0 = C.bits ("X0",    N, 0);                                    // Define registers and zero them at the start
     Bits    result = C.new BitBus("result", N);                                 // Results of addition that will be sent to the destination register
-    Register    x1 = C.register("x1", new RegIn(x0, start), new RegIn(result, C.new Pulse(C.new Bit(n(1, "tp"))))); // Initialize or reload each register
-    Register    x2 = C.register("x2", new RegIn(x0, start), new RegIn(result, C.new Pulse(C.new Bit(n(2, "tp")))));
-    Register    x3 = C.register("x3", new RegIn(x0, start), new RegIn(result, C.new Pulse(C.new Bit(n(3, "tp")))));
+    Register    x1 = C.register("x1", new RegIn(x0, start), new RegIn(result, C.pulse(n(1, "tp")))); // Initialize or reload each register
+    Register    x2 = C.register("x2", new RegIn(x0, start), new RegIn(result, C.pulse(n(2, "tp"))));
+    Register    x3 = C.register("x3", new RegIn(x0, start), new RegIn(result, C.pulse(n(3, "tp"))));
 
     Bits    decode = C.bits("decode", 32, 0xa00093);                            // addi x1,x0,10
 
