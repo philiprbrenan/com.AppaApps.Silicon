@@ -20,6 +20,15 @@ final public class Ban extends Chip                                             
    {name = Chip.currentTestName();                                              // Name of current test
    }
 
+//D1 Numerics                                                                   // Numeric facilitites
+
+  static int min(int...a)                                                       // Minimum of some numbers
+   {if (a.length == 0) stop("Need some integers");
+    int m = a[0];
+    for (int i = 0; i < a.length; i++) m = m > a[i] ? a[i] : m;
+    return m;
+   }
+
 //D1 Logging                                                                    // Logging and tracing
 
 //D2 Conversion                                                                 // Conversion utilities
@@ -57,11 +66,9 @@ final public class Ban extends Chip                                             
     Bits    decode = C.bits("addi", 32, 0xa00093);                              // addi x1,x0,10
     Bits    opCode = C.new SubBitBus("opCode", decode, 1 + RiscV.Decode.p_opCode,      RiscV.Decode.l_opCode);      // Extract op code
     Bits    funct3 = C.new SubBitBus("funct3", decode, 1 + RiscV.Decode.p_funct3,      RiscV.Decode.l_funct3);      // Extract op type
-//  Bits        rd = C.new SubBitBus("rd",     decode, 1 + RiscV.Decode.p_rd,          RiscV.Decode.l_rd);          // Extract destination register
-    Bits        rd = C.new SubBitBus("rd",     decode, 1 + RiscV.Decode.p_rd,          N);                          // Extract destination register adapted to the width of the registers
+    Bits        rd = C.new SubBitBus("rd",     decode, 1 + RiscV.Decode.p_rd,   min(N, RiscV.Decode.l_rd));         // Extract destination register adapted to the width of the registers
     Bits       rs1 = C.new SubBitBus("rs1",    decode, 1 + RiscV.Decode.p_rs1,         RiscV.Decode.l_rs1);         // Extract source1 register
-//  Bits       imm = C.new SubBitBus("imm",    decode, 1 + RiscV.Decode.I.p_immediate, RiscV.Decode.I.l_immediate); // Extract immediate
-    Bits       imm = C.new SubBitBus("imm",    decode, 1 + RiscV.Decode.I.p_immediate, N);                          // Extract immediate  adapted to the width of the registers
+    Bits       imm = C.new SubBitBus("imm",    decode, 1 + RiscV.Decode.I.p_immediate, min(N, RiscV.Decode.I.l_immediate)); // Extract immediate
 
     EnableWord s1v = new EnableWord(x1, C.bits("x1v", RiscV.Decode.l_rs1, 1));  // Get values of registers
     EnableWord s2v = new EnableWord(x2, C.bits("x2v", RiscV.Decode.l_rs1, 2));
@@ -100,7 +107,11 @@ final public class Ban extends Chip                                             
    }
 
   static void test_decode_I32()                                                 // Decode an immediate instruction
-   {int          N = 4;
+   {final int    N = 4;                                                         // Register widths in bits
+    final int  LF3 = RiscV.Decode.l_funct3;                                     // Length of function codes
+    final int  LF5 = RiscV.Decode.l_funct5;
+    final int  LF7 = RiscV.Decode.l_funct7;
+
     Chip         C = new Chip();                                                // Create a new chip
     Pulse    start = C.pulse("start", 0, N);                                    // Start pulse
     Bits       one = C.bits ("one",   N, 1);                                    // Constant one
@@ -111,16 +122,33 @@ final public class Ban extends Chip                                             
     Register    x3 = C.register("x3", new RegIn(x0, start), new RegIn(result, C.new Pulse(C.new Bit(n(3, "tp")))));
 
     Bits    decode = C.bits("decode", 32, 0xa00093);                            // addi x1,x0,10
-    Bits    opCode = C.new SubBitBus("opCode", decode, 1 + RiscV.Decode.p_opCode,      RiscV.Decode.l_opCode);      // Extract op code
-    Bits    funct3 = C.new SubBitBus("funct3", decode, 1 + RiscV.Decode.p_funct3,      RiscV.Decode.l_funct3);      // Extract op type
-    Bits    funct5 = C.new SubBitBus("funct5", decode, 1 + RiscV.Decode.p_funct5,      RiscV.Decode.l_funct5);      // Extract op type
-    Bits    funct7 = C.new SubBitBus("funct7", decode, 1 + RiscV.Decode.p_funct7,      RiscV.Decode.l_funct7);      // Extract op type
-//  Bits        rd = C.new SubBitBus("rd",     decode, 1 + RiscV.Decode.p_rd,          RiscV.Decode.l_rd);          // Extract destination register
-    Bits        rd = C.new SubBitBus("rd",     decode, 1 + RiscV.Decode.p_rd,          N);                          // Extract destination register adapted to the width of the registers
-    Bits       rs1 = C.new SubBitBus("rs1",    decode, 1 + RiscV.Decode.p_rs1,         RiscV.Decode.l_rs1);         // Extract source 1 register
-    Bits       rs2 = C.new SubBitBus("rs2",    decode, 1 + RiscV.Decode.p_rs2,         RiscV.Decode.l_rs2);         // Extract source 2 register
-//  Bits       imm = C.new SubBitBus("imm",    decode, 1 + RiscV.Decode.I.p_immediate, RiscV.Decode.I.l_immediate); // Extract immediate
-    Bits       imm = C.new SubBitBus("imm",    decode, 1 + RiscV.Decode.I.p_immediate, N);                          // Extract immediate  adapted to the width of the registers
+
+    Bits    opCode = C.new  SubBitBus("opCode", decode, 1 + RiscV.Decode.p_opCode,      RiscV.Decode.l_opCode);      // Decode the instruction
+    Bits    funct3 = C.new  SubBitBus("funct3", decode, 1 + RiscV.Decode.p_funct3,      RiscV.Decode.l_funct3);
+    Bits    funct5 = C.new  SubBitBus("funct5", decode, 1 + RiscV.Decode.p_funct5,      RiscV.Decode.l_funct5);
+    Bits    funct7 = C.new  SubBitBus("funct7", decode, 1 + RiscV.Decode.p_funct7,      RiscV.Decode.l_funct7);
+    Bits        rd = C.new  SubBitBus("rd",     decode, 1 + RiscV.Decode.p_rd,   min(N, RiscV.Decode.l_rd));
+    Bits       rs1 = C.new  SubBitBus("rs1",    decode, 1 + RiscV.Decode.p_rs1,         RiscV.Decode.l_rs1);
+    Bits       rs2 = C.new  SubBitBus("rs2",    decode, 1 + RiscV.Decode.p_rs2,         RiscV.Decode.l_rs2);
+
+                                                                                // Decode immediate field
+    Bits      immI = C.new  SubBitBus("immI",   decode, 1 + RiscV.Decode.I.p_immediate, min(N, RiscV.Decode.I.l_immediate));
+    Bits      immU = C.new  SubBitBus("immU",   decode, 1 + RiscV.Decode.U.p_immediate, min(N, RiscV.Decode.U.l_immediate));
+    Bits      immB = C.new ConCatBits("immB",                                   // Immediate operand from B format
+       decode.b( 9), decode.b(10), decode.b(11), decode.b(12));                 // 1 based
+//     decode.b(26), decode.b(27), decode.b(28), decode.b(29), decode.b(30), decode.b(31),
+//     decode.b( 8),
+//     decode.b(32));
+
+    Bits      immJ = C.new ConCatBits("immJ",                                   // Immediate operand from J format
+       decode.b(22), decode.b(23), decode.b(24), decode.b(25), decode.b(26), decode.b(27), decode.b(28), decode.b(29), decode.b(30), decode.b(31),
+       decode.b(21),
+       decode.b(13), decode.b(14), decode.b(15), decode.b(16), decode.b(17), decode.b(18), decode.b(19), decode.b(20),
+       decode.b(32));
+
+    Bits      immS = C.new ConCatBits("immS",                                   // Immediate operand from S format
+       decode.b( 8), decode.b( 9), decode.b(10), decode.b(11), decode.b(12),
+       decode.b(26), decode.b(27), decode.b(28), decode.b(29), decode.b(30), decode.b(31), decode.b(32));
 
     EnableWord s1v = new EnableWord(x1, C.bits("x1v", RiscV.Decode.l_rs1, 1));  // Get value of s1 register
     EnableWord s2v = new EnableWord(x2, C.bits("x2v", RiscV.Decode.l_rs1, 2));
@@ -130,28 +158,28 @@ final public class Ban extends Chip                                             
     EnableWord S2v = new EnableWord(x2, C.bits("X2v", RiscV.Decode.l_rs2, 2));
     EnableWord S3v = new EnableWord(x3, C.bits("X3v", RiscV.Decode.l_rs2, 3));
 
-    Bits    f3_add = C.bits("f3_add",  RiscV.Decode.l_funct3, 0x0);             // Funct3 op codes
-    Bits    f3_xor = C.bits("f3_xor",  RiscV.Decode.l_funct3, 0x4);
-    Bits     f3_or = C.bits("f3_or",   RiscV.Decode.l_funct3, 0x6);
-    Bits    f3_and = C.bits("f3_and",  RiscV.Decode.l_funct3, 0x7);
-    Bits    f3_sll = C.bits("f3_sll",  RiscV.Decode.l_funct3, 0x1);
-    Bits    f3_srl = C.bits("f3_srl",  RiscV.Decode.l_funct3, 0x5);
-    Bits    f3_slt = C.bits("f3_slt",  RiscV.Decode.l_funct3, 0x2);
-    Bits   f3_sltu = C.bits("f3_sltu", RiscV.Decode.l_funct3, 0x3);
+    Bits    f3_add = C.bits("f3_add",  LF3, 0x0);                               // Funct3 op codes
+    Bits    f3_xor = C.bits("f3_xor",  LF3, 0x4);
+    Bits     f3_or = C.bits("f3_or",   LF3, 0x6);
+    Bits    f3_and = C.bits("f3_and",  LF3, 0x7);
+    Bits    f3_sll = C.bits("f3_sll",  LF3, 0x1);
+    Bits    f3_srl = C.bits("f3_srl",  LF3, 0x5);
+    Bits    f3_slt = C.bits("f3_slt",  LF3, 0x2);
+    Bits   f3_sltu = C.bits("f3_sltu", LF3, 0x3);
 
     Bits      rs1v = C.enableWord          ("rs1v",  rs1,  s1v, s2v, s3v);      // The value of the selected s1 register
     Bits      rs2v = C.enableWord          ("rs2v",  rs2,  S1v, S2v, S3v);      // The value of the selected s2 register
 
-    Bits      addI = C.binaryTCAdd         ("addI",  rs1v, imm);                // Immediate operation
-    Bits      subI = C.binaryTCSubtract    ("subI",  rs1v, imm);
-    Bits      xorI = C.xorBits             ("xorI",  rs1v, imm);
-    Bits       orI = C.orBits              ("orI",   rs1v, imm);
-    Bits      andI = C.andBits             ("andI",  rs1v, imm);
-    Bits      sllI = C.shiftLeftMultiple   ("sllI",  rs1v, imm);
-    Bits      srlI = C.shiftRightMultiple  ("srlI",  rs1v, imm);
-    Bits      sraI = C.shiftRightArithmetic("sraI",  rs1v, imm);
-    Bit       cmpI = C.binaryTCCompareLt   ("cmpI",  rs1v, imm);
-    Bit      cmpuI = C.compareLt           ("cmpuI", rs1v, imm);
+    Bits      addI = C.binaryTCAdd         ("addI",  rs1v, immI);               // Immediate operation
+    Bits      subI = C.binaryTCSubtract    ("subI",  rs1v, immI);
+    Bits      xorI = C.xorBits             ("xorI",  rs1v, immI);
+    Bits       orI = C.orBits              ("orI",   rs1v, immI);
+    Bits      andI = C.andBits             ("andI",  rs1v, immI);
+    Bits      sllI = C.shiftLeftMultiple   ("sllI",  rs1v, immI);
+    Bits      srlI = C.shiftRightMultiple  ("srlI",  rs1v, immI);
+    Bits      sraI = C.shiftRightArithmetic("sraI",  rs1v, immI);
+    Bit       cmpI = C.binaryTCCompareLt   ("cmpI",  rs1v, immI);
+    Bit      cmpuI = C.compareLt           ("cmpuI", rs1v, immI);
     Bits      sltI = C.enableWord          ("sltI",  one,  cmpI);
     Bits     sltuI = C.enableWord          ("sltuI", one,  cmpuI);
 
@@ -168,8 +196,8 @@ final public class Ban extends Chip                                             
     Bits       iR0 = C.orBits("iR0", rAddi, rXori, rOri, rAndi, rSlli, rSrli, rSlti, rSltui);
     Bits       iR2 = C.orBits("iR2", rSubi, rSrai);
 
-    EnableWord eiR0 = new EnableWord(iR0, C.bits("if70", RiscV.Decode.l_funct7, 0));  // Decode funct7 for immediate opcode
-    EnableWord eiR2 = new EnableWord(iR2, C.bits("if72", RiscV.Decode.l_funct7, 2));
+    EnableWord eiR0 = new EnableWord(iR0, C.bits("if70", LF7, 0));              // Decode funct7 for immediate opcode
+    EnableWord eiR2 = new EnableWord(iR2, C.bits("if72", LF7, 2));
 
     Bits        iR = C.enableWord("iR", funct7, eiR0, eiR2);                    // Choose the dyadic operation
 
@@ -199,13 +227,26 @@ final public class Ban extends Chip                                             
     Bits       dR0 = C.orBits("dR0", rAddd, rXord, rOrd, rAndd, rSlld, rSrld, rSltd, rSltud);
     Bits       dR2 = C.orBits("dR2", rSubd, rSrad);
 
-    EnableWord edR0 = new EnableWord(dR0, C.bits("df70", RiscV.Decode.l_funct7, 0));  // Decode funct7 for dyadic operation
-    EnableWord edR2 = new EnableWord(dR2, C.bits("df72", RiscV.Decode.l_funct7, 2));
+    EnableWord edR0 = new EnableWord(dR0, C.bits("df70", LF7, 0));              // Decode funct7 for dyadic operation
+    EnableWord edR2 = new EnableWord(dR2, C.bits("df72", LF7, 2));
 
     Bits        dR = C.enableWord("dR", funct7, edR0, edR2);                    // Choose the dyadic operation
 
-    EnableWord eid13 = new EnableWord(iR, C.bits("opCode13", RiscV.Decode.l_opCode, 0x13)); // Decode funct7 for dyadic operation
+    EnableWord eid13 = new EnableWord(iR, C.bits("opCode13", RiscV.Decode.l_opCode, 0x13)); // Decode funct7 for immediate operation
     EnableWord eid33 = new EnableWord(dR, C.bits("opCode33", RiscV.Decode.l_opCode, 0x33)); // Decode funct7 for dyadic operation
+
+//         {case 0:      return d.new B("beq")    {public void action() {if (x[d.rs1].value == x[d.rs2].value) pc += d.immediate; else pc++;}};
+//          case 1:      return d.new B("bne")    {public void action() {if (x[d.rs1].value != x[d.rs2].value) pc += d.immediate; else pc++;}};
+//          case 4:      return d.new B("blt")    {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate; else pc++;}};
+//          case 5:      return d.new B("bge")    {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate; else pc++;}};
+//          case 6:      return d.new B("bltu")   {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate; else pc++;}};
+//          case 7:      return d.new B("bgeu")   {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate; else pc++;}};
+//    Bits      beq  = C.compareEq("beq", rs1v, rs2v);
+//    Bits      bne  = C.binaryTCAdd         ("addD",  rs1v, rs2v);
+//    Bits      blt  = C.binaryTCAdd         ("addD",  rs1v, rs2v);
+//    Bits      bge  = C.binaryTCAdd         ("addD",  rs1v, rs2v);
+//    Bits      bltu = C.binaryTCAdd         ("addD",  rs1v, rs2v);
+//    Bits      bgeu = C.binaryTCAdd         ("addD",  rs1v, rs2v);
 
     Bits    Result = C.enableWord("result", opCode, eid13, eid33);              // Choose between immediate or dyadic operation
 
@@ -217,18 +258,21 @@ final public class Ban extends Chip                                             
     C.simulate();
     opCode.ok(RiscV.Decode.opArithImm);
     funct3.ok(RiscV.Decode.f3_add);
-        rd.ok( 1);
-       rs1.ok( 0);
-       imm.ok(10);
-      addI.ok(10);
-       orI.ok(10);
-     rAddi.ok(10);
-     rXori.ok(0);
-      rOri.ok(0);
-     rAndi.ok(0);
-    rSltui.ok(0);
-    Result.ok(10);
-        x1.ok(10);                                                              // Target register set to expected value
+        rd.ok(   1);
+       rs1.ok(   0);
+      immB.ok(   0);  // 1024
+      immI.ok(  10);
+      immJ.ok(   5);
+      immS.ok(   1);
+      addI.ok(  10);
+       orI.ok(  10);
+     rAddi.ok(  10);
+     rXori.ok(   0);
+      rOri.ok(   0);
+     rAndi.ok(   0);
+    rSltui.ok(   0);
+    Result.ok(  10);
+        x1.ok(  10);                                                              // Target register set to expected value
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -237,7 +281,8 @@ final public class Ban extends Chip                                             
    }
 
   static void newTests()                                                        // Tests being worked on
-   {test_decode_I32();
+   {test_decode_addi();
+    test_decode_I32();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
