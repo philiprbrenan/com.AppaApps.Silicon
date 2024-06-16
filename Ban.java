@@ -54,14 +54,14 @@ final public class Ban extends Chip                                             
     Register    x2 = C.register("x2", new RegIn(x0, start), new RegIn(result, C.new Pulse(C.new Bit(n(2, "tp")))));
     Register    x3 = C.register("x3", new RegIn(x0, start), new RegIn(result, C.new Pulse(C.new Bit(n(3, "tp")))));
 
-    Bits      addi = C.bits("addi", 32, 0xa00093);                              // addi x1,x0,10
-    Bits    opCode = C.new SubBitBus("opCode", addi, 1 + RiscV.Decode.p_opCode,      RiscV.Decode.l_opCode);      // Extract op code
-    Bits    funct3 = C.new SubBitBus("funct3", addi, 1 + RiscV.Decode.p_funct3,      RiscV.Decode.l_funct3);      // Extract op type
-//  Bits        rd = C.new SubBitBus("rd",     addi, 1 + RiscV.Decode.p_rd,          RiscV.Decode.l_rd);          // Extract destination register
-    Bits        rd = C.new SubBitBus("rd",     addi, 1 + RiscV.Decode.p_rd,          N);                          // Extract destination register adapted to the width of the registers
-    Bits       rs1 = C.new SubBitBus("rs1",    addi, 1 + RiscV.Decode.p_rs1,         RiscV.Decode.l_rs1);         // Extract source1 register
-//  Bits       imm = C.new SubBitBus("imm",    addi, 1 + RiscV.Decode.I.p_immediate, RiscV.Decode.I.l_immediate); // Extract immediate
-    Bits       imm = C.new SubBitBus("imm",    addi, 1 + RiscV.Decode.I.p_immediate, N);                          // Extract immediate  adapted to the width of the registers
+    Bits    decode = C.bits("addi", 32, 0xa00093);                              // addi x1,x0,10
+    Bits    opCode = C.new SubBitBus("opCode", decode, 1 + RiscV.Decode.p_opCode,      RiscV.Decode.l_opCode);      // Extract op code
+    Bits    funct3 = C.new SubBitBus("funct3", decode, 1 + RiscV.Decode.p_funct3,      RiscV.Decode.l_funct3);      // Extract op type
+//  Bits        rd = C.new SubBitBus("rd",     decode, 1 + RiscV.Decode.p_rd,          RiscV.Decode.l_rd);          // Extract destination register
+    Bits        rd = C.new SubBitBus("rd",     decode, 1 + RiscV.Decode.p_rd,          N);                          // Extract destination register adapted to the width of the registers
+    Bits       rs1 = C.new SubBitBus("rs1",    decode, 1 + RiscV.Decode.p_rs1,         RiscV.Decode.l_rs1);         // Extract source1 register
+//  Bits       imm = C.new SubBitBus("imm",    decode, 1 + RiscV.Decode.I.p_immediate, RiscV.Decode.I.l_immediate); // Extract immediate
+    Bits       imm = C.new SubBitBus("imm",    decode, 1 + RiscV.Decode.I.p_immediate, N);                          // Extract immediate  adapted to the width of the registers
 
     EnableWord s1v = new EnableWord(x1, C.bits("x1v", RiscV.Decode.l_rs1, 1));  // Get values of registers
     EnableWord s2v = new EnableWord(x2, C.bits("x2v", RiscV.Decode.l_rs1, 2));
@@ -86,7 +86,7 @@ final public class Ban extends Chip                                             
     Pulse      ltd = C.delay      ("ltd",  start, 18);                          // Wait this long before attempting to load the targets
     Pulse[]     tp = C.choosePulse("tp", targets, rd, ltd);                     // Pulse loads target register
 
-    addi.anneal();
+    decode.anneal();
     C.simulate();
     opCode.ok(RiscV.Decode.opArithImm);
     funct3.ok(RiscV.Decode.f3_add);
@@ -99,62 +99,121 @@ final public class Ban extends Chip                                             
         x1.ok(10);                                                              // Target register set to expected value
    }
 
-  static void test_decode_imm()                                                 // Decode an immediate instruction
+  static void test_decode_I32()                                                 // Decode an immediate instruction
    {int          N = 4;
     Chip         C = new Chip();                                                // Create a new chip
     Pulse    start = C.pulse("start", 0, N);                                    // Start pulse
-    Bits       one = C.bits("one",    N, 1);                                    // Constant one
-    Bits        x0 = C.bits("X0",     N, 0);                                    // Define registers and zero them at the start
+    Bits       one = C.bits ("one",   N, 1);                                    // Constant one
+    Bits        x0 = C.bits ("X0",    N, 0);                                    // Define registers and zero them at the start
     Bits    result = C.new BitBus("result", N);                                 // Results of addition that will be sent to the destination register
     Register    x1 = C.register("x1", new RegIn(x0, start), new RegIn(result, C.new Pulse(C.new Bit(n(1, "tp"))))); // Initialize or reload each register
     Register    x2 = C.register("x2", new RegIn(x0, start), new RegIn(result, C.new Pulse(C.new Bit(n(2, "tp")))));
     Register    x3 = C.register("x3", new RegIn(x0, start), new RegIn(result, C.new Pulse(C.new Bit(n(3, "tp")))));
 
-    Bits      addi = C.bits("addi", 32, 0xa00093);                              // addi x1,x0,10
-    Bits    opCode = C.new SubBitBus("opCode", addi, 1 + RiscV.Decode.p_opCode,      RiscV.Decode.l_opCode);      // Extract op code
-    Bits    funct3 = C.new SubBitBus("funct3", addi, 1 + RiscV.Decode.p_funct3,      RiscV.Decode.l_funct3);      // Extract op type
-//  Bits        rd = C.new SubBitBus("rd",     addi, 1 + RiscV.Decode.p_rd,          RiscV.Decode.l_rd);          // Extract destination register
-    Bits        rd = C.new SubBitBus("rd",     addi, 1 + RiscV.Decode.p_rd,          N);                          // Extract destination register adapted to the width of the registers
-    Bits       rs1 = C.new SubBitBus("rs1",    addi, 1 + RiscV.Decode.p_rs1,         RiscV.Decode.l_rs1);         // Extract source1 register
-//  Bits       imm = C.new SubBitBus("imm",    addi, 1 + RiscV.Decode.I.p_immediate, RiscV.Decode.I.l_immediate); // Extract immediate
-    Bits       imm = C.new SubBitBus("imm",    addi, 1 + RiscV.Decode.I.p_immediate, N);                          // Extract immediate  adapted to the width of the registers
+    Bits    decode = C.bits("decode", 32, 0xa00093);                            // addi x1,x0,10
+    Bits    opCode = C.new SubBitBus("opCode", decode, 1 + RiscV.Decode.p_opCode,      RiscV.Decode.l_opCode);      // Extract op code
+    Bits    funct3 = C.new SubBitBus("funct3", decode, 1 + RiscV.Decode.p_funct3,      RiscV.Decode.l_funct3);      // Extract op type
+    Bits    funct5 = C.new SubBitBus("funct5", decode, 1 + RiscV.Decode.p_funct5,      RiscV.Decode.l_funct5);      // Extract op type
+    Bits    funct7 = C.new SubBitBus("funct7", decode, 1 + RiscV.Decode.p_funct7,      RiscV.Decode.l_funct7);      // Extract op type
+//  Bits        rd = C.new SubBitBus("rd",     decode, 1 + RiscV.Decode.p_rd,          RiscV.Decode.l_rd);          // Extract destination register
+    Bits        rd = C.new SubBitBus("rd",     decode, 1 + RiscV.Decode.p_rd,          N);                          // Extract destination register adapted to the width of the registers
+    Bits       rs1 = C.new SubBitBus("rs1",    decode, 1 + RiscV.Decode.p_rs1,         RiscV.Decode.l_rs1);         // Extract source 1 register
+    Bits       rs2 = C.new SubBitBus("rs2",    decode, 1 + RiscV.Decode.p_rs2,         RiscV.Decode.l_rs2);         // Extract source 2 register
+//  Bits       imm = C.new SubBitBus("imm",    decode, 1 + RiscV.Decode.I.p_immediate, RiscV.Decode.I.l_immediate); // Extract immediate
+    Bits       imm = C.new SubBitBus("imm",    decode, 1 + RiscV.Decode.I.p_immediate, N);                          // Extract immediate  adapted to the width of the registers
 
-    EnableWord s1v = new EnableWord(x1, C.bits("x1v", RiscV.Decode.l_rs1, 1));  // Get values of registers
+    EnableWord s1v = new EnableWord(x1, C.bits("x1v", RiscV.Decode.l_rs1, 1));  // Get value of s1 register
     EnableWord s2v = new EnableWord(x2, C.bits("x2v", RiscV.Decode.l_rs1, 2));
     EnableWord s3v = new EnableWord(x3, C.bits("x3v", RiscV.Decode.l_rs1, 3));
+
+    EnableWord S1v = new EnableWord(x1, C.bits("X1v", RiscV.Decode.l_rs2, 1));  // Get values of s2 register
+    EnableWord S2v = new EnableWord(x2, C.bits("X2v", RiscV.Decode.l_rs2, 2));
+    EnableWord S3v = new EnableWord(x3, C.bits("X3v", RiscV.Decode.l_rs2, 3));
 
     Bits    f3_add = C.bits("f3_add",  RiscV.Decode.l_funct3, 0x0);             // Funct3 op codes
     Bits    f3_xor = C.bits("f3_xor",  RiscV.Decode.l_funct3, 0x4);
     Bits     f3_or = C.bits("f3_or",   RiscV.Decode.l_funct3, 0x6);
     Bits    f3_and = C.bits("f3_and",  RiscV.Decode.l_funct3, 0x7);
-//  Bits    f3_sll = C.bits("f3_sll",  RiscV.Decode.l_funct3, 0x1);
-//  Bits    f3_srl = C.bits("f3_srl",  RiscV.Decode.l_funct3, 0x5);
+    Bits    f3_sll = C.bits("f3_sll",  RiscV.Decode.l_funct3, 0x1);
+    Bits    f3_srl = C.bits("f3_srl",  RiscV.Decode.l_funct3, 0x5);
     Bits    f3_slt = C.bits("f3_slt",  RiscV.Decode.l_funct3, 0x2);
     Bits   f3_sltu = C.bits("f3_sltu", RiscV.Decode.l_funct3, 0x3);
 
-    Bits      rs1v = C.enableWord ("rs1v",  rs1,  s1v, s2v, s3v);               // The value of the selected rs1 register
-    Bits      addI = C.binaryTCAdd("addI",  rs1v, imm);                         // Add the selected register to the immediate value
-    Bits      xorI = C.xorBits    ("xorI",  rs1v, imm);                         // Xor the selected register to the immediate value
-    Bits       orI = C.orBits     ("orI",   rs1v, imm);                         // Or the selected register to the immediate value
-    Bits      andI = C.andBits    ("andI",  rs1v, imm);                         // And the selected register to the immediate value
-    Bit       cmpI = C.binaryTCCompareLt("cmpI",  rs1v, imm);                   // Compare signed
-    Bit      cmpuI = C.compareLt  ("cmpuI", rs1v, imm);                         // Compare unsigned
-    Bits      sltI = C.enableWord ("sltI",  one,  cmpI);                        // Enable a one if the register is less than the immediate value using signed arithmetic
-    Bits     sltuI = C.enableWord ("sltuI", one,  cmpuI);                       // Enable a one if the register is less than the immediate value using unsigned arithmetic
+    Bits      rs1v = C.enableWord          ("rs1v",  rs1,  s1v, s2v, s3v);      // The value of the selected s1 register
+    Bits      rs2v = C.enableWord          ("rs2v",  rs2,  S1v, S2v, S3v);      // The value of the selected s2 register
 
-    Bits     rAddi = C.enableWordIfEq("rAddi",   addI, funct3, f3_add);         // Enable result of addition
-    Bits     rXori = C.enableWordIfEq("rXori",   xorI, funct3, f3_xor);         // Enable result of xor
-    Bits      rOri = C.enableWordIfEq("rOri",     orI, funct3, f3_or);          // Enable result of or
-    Bits     rAndi = C.enableWordIfEq("rAndi",   andI, funct3, f3_and);         // Enable result of and
-    Bits     rSlti = C.enableWordIfEq("rSlti",   sltI, funct3, f3_slt);         // Enable a one if the register is less than the immediate value using unsigned arithmetic
-    Bits    rSltui = C.enableWordIfEq("rSltui", sltuI, funct3, f3_sltu);        // Enable a one if the register is less than the immediate value using unsigned arithmetic
-    Bits    Result = C.orBits("result", rAddi, rXori, rOri, rAndi, rSlti, rSltui);
+    Bits      addI = C.binaryTCAdd         ("addI",  rs1v, imm);                // Immediate operation
+    Bits      subI = C.binaryTCSubtract    ("subI",  rs1v, imm);
+    Bits      xorI = C.xorBits             ("xorI",  rs1v, imm);
+    Bits       orI = C.orBits              ("orI",   rs1v, imm);
+    Bits      andI = C.andBits             ("andI",  rs1v, imm);
+    Bits      sllI = C.shiftLeftMultiple   ("sllI",  rs1v, imm);
+    Bits      srlI = C.shiftRightMultiple  ("srlI",  rs1v, imm);
+    Bits      sraI = C.shiftRightArithmetic("sraI",  rs1v, imm);
+    Bit       cmpI = C.binaryTCCompareLt   ("cmpI",  rs1v, imm);
+    Bit      cmpuI = C.compareLt           ("cmpuI", rs1v, imm);
+    Bits      sltI = C.enableWord          ("sltI",  one,  cmpI);
+    Bits     sltuI = C.enableWord          ("sltuI", one,  cmpuI);
+
+    Bits     rAddi = C.enableWordIfEq("rAddi",   addI, funct3, f3_add);         // Enable result of immediate operation
+    Bits     rSubi = C.enableWordIfEq("rSubi",   subI, funct3, f3_add);
+    Bits     rXori = C.enableWordIfEq("rXori",   xorI, funct3, f3_xor);
+    Bits      rOri = C.enableWordIfEq("rOri",     orI, funct3, f3_or);
+    Bits     rAndi = C.enableWordIfEq("rAndi",   andI, funct3, f3_and);
+    Bits     rSlli = C.enableWordIfEq("rSlli",   sllI, funct3, f3_sll);
+    Bits     rSrli = C.enableWordIfEq("rSrli",   srlI, funct3, f3_srl);
+    Bits     rSrai = C.enableWordIfEq("rSrai",   sraI, funct3, f3_srl);
+    Bits     rSlti = C.enableWordIfEq("rSlti",   sltI, funct3, f3_slt);
+    Bits    rSltui = C.enableWordIfEq("rSltui", sltuI, funct3, f3_sltu);
+    Bits       iR0 = C.orBits("iR0", rAddi, rXori, rOri, rAndi, rSlli, rSrli, rSlti, rSltui);
+    Bits       iR2 = C.orBits("iR2", rSubi, rSrai);
+
+    EnableWord eiR0 = new EnableWord(iR0, C.bits("if70", RiscV.Decode.l_funct7, 0));  // Decode funct7 for immediate opcode
+    EnableWord eiR2 = new EnableWord(iR2, C.bits("if72", RiscV.Decode.l_funct7, 2));
+
+    Bits        iR = C.enableWord("iR", funct7, eiR0, eiR2);                    // Choose the dyadic operation
+
+    Bits      addD = C.binaryTCAdd         ("addD",  rs1v, rs2v);
+    Bits      subD = C.binaryTCSubtract    ("subD",  rs1v, rs2v);
+    Bits      xorD = C.xorBits             ("xorD",  rs1v, rs2v);
+    Bits       orD = C.orBits              ("orD",   rs1v, rs2v);
+    Bits      andD = C.andBits             ("andD",  rs1v, rs2v);
+    Bits      sllD = C.shiftLeftMultiple   ("sllD",  rs1v, rs2v);
+    Bits      srlD = C.shiftRightMultiple  ("srlD",  rs1v, rs2v);
+    Bits      sraD = C.shiftRightArithmetic("sraD",  rs1v, rs2v);
+    Bit       cmpD = C.binaryTCCompareLt   ("cmpD",  rs1v, rs2v);
+    Bit      cmpuD = C.compareLt           ("cmpuD", rs1v, rs2v);
+    Bits      sltD = C.enableWord          ("sltD",  one,  cmpD);
+    Bits     sltuD = C.enableWord          ("sltuD", one,  cmpuD);
+
+    Bits     rAddd = C.enableWordIfEq("rAddd",   addD, funct3, f3_add);         // Enable result of dyadic operation
+    Bits     rSubd = C.enableWordIfEq("rSubd",   subD, funct3, f3_add);
+    Bits     rXord = C.enableWordIfEq("rXord",   xorD, funct3, f3_xor);
+    Bits      rOrd = C.enableWordIfEq("rOrd",     orD, funct3, f3_or);
+    Bits     rAndd = C.enableWordIfEq("rAndd",   andD, funct3, f3_and);
+    Bits     rSlld = C.enableWordIfEq("rSlld",   sllD, funct3, f3_sll);
+    Bits     rSrld = C.enableWordIfEq("rSrld",   srlD, funct3, f3_srl);
+    Bits     rSrad = C.enableWordIfEq("rSrad",   sraD, funct3, f3_srl);
+    Bits     rSltd = C.enableWordIfEq("rSltd",   sltD, funct3, f3_slt);
+    Bits    rSltud = C.enableWordIfEq("rSltud", sltuD, funct3, f3_sltu);
+    Bits       dR0 = C.orBits("dR0", rAddd, rXord, rOrd, rAndd, rSlld, rSrld, rSltd, rSltud);
+    Bits       dR2 = C.orBits("dR2", rSubd, rSrad);
+
+    EnableWord edR0 = new EnableWord(dR0, C.bits("df70", RiscV.Decode.l_funct7, 0));  // Decode funct7 for dyadic operation
+    EnableWord edR2 = new EnableWord(dR2, C.bits("df72", RiscV.Decode.l_funct7, 2));
+
+    Bits        dR = C.enableWord("dR", funct7, edR0, edR2);                    // Choose the dyadic operation
+
+    EnableWord eid13 = new EnableWord(iR, C.bits("opCode13", RiscV.Decode.l_opCode, 0x13)); // Decode funct7 for dyadic operation
+    EnableWord eid33 = new EnableWord(dR, C.bits("opCode33", RiscV.Decode.l_opCode, 0x33)); // Decode funct7 for dyadic operation
+
+    Bits    Result = C.enableWord("result", opCode, eid13, eid33);              // Choose between immediate or dyadic operation
 
     Words  targets = C.words      ("targets", N, 1, 2, 3);                      // Target register to load result into
-    Pulse      ltd = C.delay      ("ltd",  start, 22);                          // Wait this long before attempting to load the targets. Its cruclai thatthis be just long ewnough fo r all the computation to complete otherwise we get a partial answer which is usually wrong.
+    Pulse      ltd = C.delay      ("ltd",  start, 28);                          // Wait this long before attempting to load the targets. Its cruclai thatthis be just long ewnough fo r all the computation to complete otherwise we get a partial answer which is usually wrong.
     Pulse[]     tp = C.choosePulse("tp", targets, rd, ltd);                     // Pulse loads target register
 
-    addi.anneal();
+    decode.anneal();
     C.simulate();
     opCode.ok(RiscV.Decode.opArithImm);
     funct3.ok(RiscV.Decode.f3_add);
@@ -174,10 +233,11 @@ final public class Ban extends Chip                                             
 
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_decode_addi();
+    test_decode_I32();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {test_decode_imm();
+   {test_decode_I32();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
