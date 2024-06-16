@@ -458,7 +458,7 @@ public class Chip                                                               
           else if (T.iGate1 == null && t.ok1()) T.iGate1 = this;                // Use input pin 1
           else if (T.iGate2 == null && t.ok2()) T.iGate2 = this;                // Use input pin 2
           else                                                                  // No input pin available
-           {if (t.pin == null) stop("Gate:", T.name,
+           {if (t.pin == null) stop("Gate name:", T.name, "type", T.op,
               "driven by too many other gates, including one from gate:", name);
             else               stop("Gate:", T.name,
               "does not have enough pins to be driven by:", t, "from", name);
@@ -2032,10 +2032,10 @@ public class Chip                                                               
     final Bit  S2 = Not(n(output, "notS2"), s2);
     final Bit   C = Not(n(output, "notC"),   c);
 
-    final Bit r2 = And("r2", S1, S2, c);                                        // Locate ones
-    final Bit r5 = And("r5", s1, S2, C);
-    final Bit r6 = And("r6", s1, S2, c);
-    final Bit r8 = And("r7", s1, s2, c);
+    final Bit r2 = And(n(output, "r2"), S1, S2, c);                             // Locate ones
+    final Bit r5 = And(n(output, "r5"), s1, S2, C);
+    final Bit r6 = And(n(output, "r6"), s1, S2, c);
+    final Bit r8 = And(n(output, "r7"), s1, s2, c);
     final Bit  o = Or(output, r2, r5, r6, r8);                                  // True if less than.
     return o;
    }
