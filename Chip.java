@@ -1828,6 +1828,8 @@ public class Chip                                                               
     return p;
    }
 
+  Pulse pulse(String Name) {return new Pulse(new Bit(Name));}                   // Forward declare a pulse by name
+
   Pulse[]choosePulse(String Output, Words choices, Bits choose, Pulse trigger)  // Trigger the pulse in an array of pulses that corresponds to the word choosen.
    {final int W = choices.words(), b = choose.bits(), B = choices.bits();
     if (B != b) stop("Choices has:", B+", but choose has:", b, "bits");
@@ -4008,7 +4010,7 @@ public class Chip                                                               
   static void test_Btree(Btree b, Inputs i, int find, int found, boolean layout)
    {test_Btree(b, i, find, found);
 
-    if (layout) b.chip().draw(6, 1);
+    //if (layout) b.chip().draw(6, 1);                                          // Layout chip - takes time so supressed during development
    }
 
   static void test_Btree()
