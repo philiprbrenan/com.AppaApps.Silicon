@@ -897,7 +897,8 @@ public class Chip                                                               
       else if (e == null && g == null) {}
       else if (e != null && g == null) {b.append(String.format("Expected %d, but got null\n", e   )); ++fails;}
       else if (e == null && g != null) {b.append(String.format("Expected null, but got %d\n", g   )); ++fails;}
-      else if (e != g)                 {b.append(String.format("Expected %d, but got %d\n",   e, g)); ++fails;}
+      else if (!e.toString().equals(g.toString()))
+                                       {b.append(String.format("Expected %d, but got %d\n",   e, g)); ++fails;}
       else ++passes;
       if (fails > 0) err(b);
       testsPassed += passes; testsFailed += fails;                              // Passes and fails
