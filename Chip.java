@@ -2087,6 +2087,17 @@ public class Chip                                                               
     return orBits(output, s);                                                   // Or together the shifts
    }
 
+  Bits binaryTCSignExtend(String output, Bits input, int width)                 // Extend the sign of a twos complement integer to the specified width
+   {final int B = input.bits(), W = width;                                      // Number of bits in input
+    final String n = input.name();                                              // Name of input field
+    if (B == width) return input;                                               // No need to extend
+    if (B >  width) return new SubBitBus(output, input, 1, width);              // Field already wider
+    final Bit[]s = new Bit[width];                                              // Result
+    for (int i = 1;   i <= B; i++) s[i-1] = input.b(i);                         // Existing bits
+    for (int i = B+1; i <= W; i++) s[i-1] = input.b(B);                         // Sign bit
+    return new ConCatBits(output, s);                                           // Concatenate the bits
+   }
+
 //D2 B-tree                                                                     // Circuits useful in the construction and traversal of B-trees.
 
   class BtreeNode                                                               // Description of a node in a binary tree
@@ -5178,6 +5189,21 @@ Step  o     e
      }
    }
 
+  static void test_signExtend(int length, int result)
+   {Chip   c = new Chip();
+    Bits   i = c.bits("i", 4, 0b1001);
+    Bits   I = c.binaryTCSignExtend("I", i, length);
+    I.anneal(); i.anneal();
+    c.simulate();
+    I.ok(result);
+   }
+
+  static void test_signExtend()
+   {test_signExtend(2,        0b01);
+    test_signExtend(4,      0b1001);
+    test_signExtend(8, 0b1111_1001);
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_max_min();
     test_source_file_name();
@@ -5243,12 +5269,12 @@ Step  o     e
     test_shiftLeftMultiple();
     test_shiftRightMultiple();
     test_shiftRightArithmetic();
-    test_shiftRightArithmetic();
+    test_signExtend();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
-//  test_shiftRightArithmetic();
+   {//oldTests();
+    test_signExtend();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
