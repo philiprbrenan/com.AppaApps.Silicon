@@ -289,10 +289,11 @@ final public class RiscV                                                        
      }
 
     class B implements Executable                                               // Decode a B format instruction
-     {final static int m_31_31 = 0b10000000000000000000000000000000;
-      final static int m_30_25 = 0b01111110000000000000000000000000;
-      final static int m_11_08 = 0b00000000000000000000111100000000;
-      final static int m_07_07 = 0b00000000000000000000000010000000;
+     {final static int immWidth = 12;                                           // Immediate width
+      final static int m_31_31  = 0b10000000000000000000000000000000;
+      final static int m_30_25  = 0b01111110000000000000000000000000;
+      final static int m_11_08  = 0b00000000000000000000111100000000;
+      final static int m_07_07  = 0b00000000000000000000000010000000;
 
       static int immediate(int i)                                               // Decode a B format immediate operand
        {final int a = ((i & m_31_31) >>> 31) << 11;
@@ -337,10 +338,10 @@ final public class RiscV                                                        
       final static int m_19_12 = 0b00000000000011111111000000000000;
 
       static int immediate(int i)                                               // Decode J immediate
-       {final int a = ((i & m_31_31) >>> 31) << 19;
-        final int b = ((i & m_30_21) >>> 21) <<  0;
-        final int c = ((i & m_20_20) >>> 20) << 10;
-        final int d = ((i & m_19_12) >>>  1) <<  0;
+       {final int a = ((i & m_31_31) >>> 31) << 19;                             // 20
+        final int b = ((i & m_30_21) >>> 21) <<  0;                             // 10-1
+        final int c = ((i & m_20_20) >>> 20) << 10;                             // 11
+        final int d = ((i & m_19_12) >>>  1) <<  0;                             // 19-12
 
         return ((a|b|c|d)<<12)>>12;
        }
@@ -413,9 +414,11 @@ final public class RiscV                                                        
 
 
     class U implements Executable                                               // Decode a U format instruction
-     {U(String Name)                                                            // Decode instruction
+     {final static int p_immediate = 12, l_immediate = 20;                      // Position of immediate value
+
+      U(String Name)                                                            // Decode instruction
        {name = Name;
-        immediate = instruction.instruction >>> 12;                             // Immediate value
+        immediate = instruction.instruction >>> p_immediate;                    // Immediate value
        }
 
       public Decode details() {return Decode.this;}                             // Decoded instruction details
