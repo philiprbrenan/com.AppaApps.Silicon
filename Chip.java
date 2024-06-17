@@ -950,8 +950,9 @@ public class Chip                                                               
      }
 
     public String toString() {return string();}                                 // Convert the bits represented by an output bus to a string
-    public Bit  b   (int i)  {return collectBit(n(start-1+i, source.name()));}  // Name of a bit in the bus
-    public void  anneal()    {outputBits(nextGateName(), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+//  public Bit b(int i)      {return collectBit(n(start-1+i, source.name()));}  // Name of a bit in the bus
+    public Bit b(int i)      {return source.b(start-1+i);}                      // Bit in the bus
+    public void anneal()     {outputBits(nextGateName(), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
   class ConCatBits implements Bits                                              // Concatenate a sequence of bits
@@ -1391,6 +1392,12 @@ public class Chip                                                               
     final Bits eq = collectBits(n(output, "equal"), A);                         // Compare each pair of bits
     for (int i = 1; i <= B; i++) Nxor(eq.b(i), a.b(i), b.b(i));                 // Test each bit pair for equality
     return andBits(output, eq);                                                 // All bits must be equal
+   }
+
+  Bit compareEq(String output, Bits a, int b)                                   // Compare an unsigned binary integer to a constant
+   {final int A = a.bits();                                                     // Width of bus
+    final Bits B = bits(n(output, "b"), A, b);                                  // Create target of comparison.
+    return compareEq(output, a, B);                                             // Compare
    }
 
   Bit compareGt(CharSequence output, Bits a, Bits b)                            // Compare two unsigned binary integers for greater than.
@@ -3762,12 +3769,14 @@ public class Chip                                                               
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
          {Chip c = new Chip("compare_eq_"+B);
-          Bits I = c.bits("i", B, i);
-          Bits J = c.bits("j", B, j);
+          Bits I = c.bits     ("i", B, i);
+          Bits J = c.bits     ("j", B, j);
           Bit  o = c.compareEq("o", I, J);
-          Bit  O = c.Output("O", o);
+          Bit  p = c.compareEq("p", I, j);
+          o.anneal(); p.anneal();
           c.simulate();
-          ok(c.steps >= 5 && c.steps <= 6, true);
+          o.ok(i == j);
+          p.ok(i == j);
          }
        }
      }
@@ -3779,8 +3788,8 @@ public class Chip                                                               
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
          {Chip c = new Chip("compare_gt_"+B);
-          Bits I = c.bits("i", B, i);
-          Bits J = c.bits("j", B, j);
+          Bits I = c.bits     ("i", B, i);
+          Bits J = c.bits     ("j", B, j);
           Bit  o = c.compareGt("o", I, J);
           Bit  O = c.Output   ("O", o);
           c.simulate();
@@ -5274,6 +5283,7 @@ Step  o     e
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
+    test_compare_eq();
     test_signExtend();
    }
 
