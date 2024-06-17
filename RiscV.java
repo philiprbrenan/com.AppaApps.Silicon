@@ -9,7 +9,7 @@ import java.util.*;
 
 //D1 Construct                                                                  // Construct a Risc V program and execute it
 
-final public class RiscV                                                        // Load and execute a program written in RiscV machine code
+public class RiscV                                                        // Load and execute a program written in RiscV machine code
  {final static int XLEN               = 32;                                     // Size of instructions
   final static boolean github_actions =                                         // Whether we are on a github or not
     "true".equals(System.getenv("GITHUB_ACTIONS"));
