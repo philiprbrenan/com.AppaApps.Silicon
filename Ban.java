@@ -10,9 +10,10 @@ import java.util.*;
 //D1 Construct                                                                  // Construct a Risc V program and execute it
 
 final public class Ban extends Chip                                             // Create a chip that contains a Risc V processor extended with Btree instructcions
- {final static int InstructionWidthBits = 32;                                   // Instruction width in bits
-  final static int XLEN                 =  4;                                   // Size of instructions
-  final static boolean github_actions   =                                       // Whether we are on a github or not
+ {final static int InstructionWidthBits  = 32;                                  // Instruction width in bits
+  final static int InstructionWidthBytes =  4;                                  // Instruction width in bytes
+  final static int XLEN                  = 32;                                  // Number of bits in a register
+  final static boolean github_actions    =                                      // Whether we are on a github or not
     "true".equals(System.getenv("GITHUB_ACTIONS"));
 
   final String name;                                                            // Name of chip
@@ -115,10 +116,12 @@ final public class Ban extends Chip                                             
     Chip         C = new Chip();                                                // Create a new chip
     Pulse    start = C.pulse("start", 0, N);                                    // Start pulse
     Bits       one = C.bits ("one",   N, 1);                                    // Constant one
+    Bits      insw = C.bits ("insw",  N, InstructionWidthBytes);                // Instruction width
+
     Bits        x0 = C.bits ("X0",    N, 0);                                    // Define registers and zero them at the start
     Bits    result = C.new BitBus("result", N);                                 // Results of addition that will be sent to the destination register
 
-    //Register    pc = C.register("pc", new RegIn(x0, start), new RegIn(result, C.pulse(n(1, "tpc")))); // Risc V registers
+    Register    pc = C.register("pc", new RegIn(x0, start), new RegIn(result, C.pulse("ltd")));      // Risc V registers
     Register    x1 = C.register("x1", new RegIn(x0, start), new RegIn(result, C.pulse(n(1, "tp"))));
     Register    x2 = C.register("x2", new RegIn(x0, start), new RegIn(result, C.pulse(n(2, "tp"))));
     Register    x3 = C.register("x3", new RegIn(x0, start), new RegIn(result, C.pulse(n(3, "tp"))));
@@ -134,24 +137,31 @@ final public class Ban extends Chip                                             
     Bits       rs2 = C.new  SubBitBus("rs2",    decode, 1 + RiscV.Decode.p_rs2,         RiscV.Decode.l_rs2);
 
                                                                                 // Decode immediate field
-    Bits      immI = C.new  SubBitBus("immI",   decode, 1 + RiscV.Decode.I.p_immediate, min(N, RiscV.Decode.I.l_immediate));
-    Bits      immU = C.new  SubBitBus("immU",   decode, 1 + RiscV.Decode.U.p_immediate, min(N, RiscV.Decode.U.l_immediate));
-    Bits      immB = C.new ConCatBits("immB",                                   // Immediate operand from B format
+    Bits      immi = C.new  SubBitBus("immi",   decode, 1 + RiscV.Decode.I.p_immediate, min(N, RiscV.Decode.I.l_immediate)); // Imipac: the weapon that defends itself.
+    Bits      immu = C.new  SubBitBus("immu",   decode, 1 + RiscV.Decode.U.p_immediate, min(N, RiscV.Decode.U.l_immediate));
+    Bits      immb = C.new ConCatBits("immb",                                   // Immediate operand from B format
       x0.b(1),                                                                  // First bit known to be 0.
       decode.b( 9), decode.b(10), decode.b(11), decode.b(12),                   // Field offsets are one based: in riscv-spec-20191213.pdf they are zero based.
       decode.b(26), decode.b(27), decode.b(28), decode.b(29), decode.b(30), decode.b(31),
       decode.b( 8),
       decode.b(32));
 
-    Bits      immJ = C.new ConCatBits("immJ",                                   // Immediate operand from J format
+    Bits      immj = C.new ConCatBits("immj",                                   // Immediate operand from J format
        decode.b(22), decode.b(23), decode.b(24), decode.b(25), decode.b(26), decode.b(27), decode.b(28), decode.b(29), decode.b(30), decode.b(31),
        decode.b(21),
        decode.b(13), decode.b(14), decode.b(15), decode.b(16), decode.b(17), decode.b(18), decode.b(19), decode.b(20),
        decode.b(32));
 
-    Bits      immS = C.new ConCatBits("immS",                                   // Immediate operand from S format
+    Bits      imms = C.new ConCatBits("imms",                                   // Immediate operand from S format
        decode.b( 8), decode.b( 9), decode.b(10), decode.b(11), decode.b(12),
        decode.b(26), decode.b(27), decode.b(28), decode.b(29), decode.b(30), decode.b(31), decode.b(32));
+
+    Bits      immB = C.binaryTCSignExtend("immB", immb,  N);                    // Sign extend the immediate field
+    Bits      immI = C.binaryTCSignExtend("immI", immi,  N);
+    Bits      immJ = C.binaryTCSignExtend("immJ", immj,  N);
+    Bits      immS = C.binaryTCSignExtend("immS", imms,  N);
+    Bits      immU = C.binaryTCSignExtend("immU", immu,  N);
+
 
     EnableWord s1v = new EnableWord(x1, C.bits("x1v", RiscV.Decode.l_rs1, 1));  // Get value of s1 register
     EnableWord s2v = new EnableWord(x2, C.bits("x2v", RiscV.Decode.l_rs1, 2));
@@ -161,7 +171,7 @@ final public class Ban extends Chip                                             
     EnableWord S2v = new EnableWord(x2, C.bits("X2v", RiscV.Decode.l_rs2, 2));
     EnableWord S3v = new EnableWord(x3, C.bits("X3v", RiscV.Decode.l_rs2, 3));
 
-    Bits    f3_add = C.bits("f3_add",  LF3, 0);                                 // Funct3 op codes
+    Bits    f3_add = C.bits("f3_add",  LF3, RiscV.Decode.f3_add);               // Funct3 op codes
     Bits    f3_xor = C.bits("f3_xor",  LF3, 4);
     Bits     f3_or = C.bits("f3_or",   LF3, 6);
     Bits    f3_and = C.bits("f3_and",  LF3, 7);
@@ -241,26 +251,31 @@ final public class Ban extends Chip                                             
 
     Bits        dR = C.enableWord("dR", funct7, edR0, edR2);                    // Choose the dyadic operation
 
-    EnableWord eid13 = new EnableWord(iR, C.bits("opCode13", RiscV.Decode.l_opCode, 0x13)); // Decode funct7 for immediate operation
-    EnableWord eid33 = new EnableWord(dR, C.bits("opCode33", RiscV.Decode.l_opCode, 0x33)); // Decode funct7 for dyadic operation
+    Bit         eq12 = C.compareEq        ("eq12",  rs1v, rs2v);
+    Bit         lt12 = C.binaryTCCompareLt("lt12",  rs1v, rs2v);
+    Bit        ltu12 = C.compareLt        ("ltu12", rs1v, rs2v);
+    Bits         pci = C.binaryTCAdd("pci", pc, immB);                          // Pc plus sign extended immediate
+    Bits         pc4 = C.binaryTCAdd("pc4", pc, insw);                          // Pc plus instruction width
 
-//         {case 0:      return d.new B("beq")    {public void action() {if (x[d.rs1].value == x[d.rs2].value) pc += d.immediate; else pc++;}};
-//          case 1:      return d.new B("bne")    {public void action() {if (x[d.rs1].value != x[d.rs2].value) pc += d.immediate; else pc++;}};
-//          case 4:      return d.new B("blt")    {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate; else pc++;}};
-//          case 5:      return d.new B("bge")    {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate; else pc++;}};
-//          case 6:      return d.new B("bltu")   {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate; else pc++;}};
-//          case 7:      return d.new B("bgeu")   {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate; else pc++;}};
-      Bit       eq12 = C.compareEq        ("eq12",  rs1v, rs2v);
-      Bit       lt12 = C.binaryTCCompareLt("lt12",  rs1v, rs2v);
-      Bit      ltu12 = C.compareLt        ("ltu12", rs1v, rs2v);
+    Bits        rBeq = C.chooseFromTwoWords("rBeq",  pc4, pci,  eq12);          // Jump targets
+    Bits        rBne = C.chooseFromTwoWords("rBne",  pci, pc4,  eq12);
+    Bits        rBlt = C.chooseFromTwoWords("rBlt",  pc4, pci,  lt12);
+    Bits        rBge = C.chooseFromTwoWords("rBge",  pci, pc4,  lt12);
+    Bits       rBltu = C.chooseFromTwoWords("rBltu", pci, pc4, ltu12);
+    Bits       rBgeu = C.chooseFromTwoWords("rBgeu", pc4, pci, ltu12);
 
-//    Bits      bne  = C.binaryTCAdd         ("addD",  rs1v, rs2v);
-//    Bits      blt  = C.binaryTCAdd         ("addD",  rs1v, rs2v);
-//    Bits      bge  = C.binaryTCAdd         ("addD",  rs1v, rs2v);
-//    Bits      bltu = C.binaryTCAdd         ("addD",  rs1v, rs2v);
-//    Bits      bgeu = C.binaryTCAdd         ("addD",  rs1v, rs2v);
+    Bits        eBeq = C.enableWordIfEq("eBeq",  rBeq,  funct3, f3_beq);        // Enable result of branch operation
+    Bits        eBne = C.enableWordIfEq("eBne",  rBne,  funct3, f3_bne);
+    Bits        eBlt = C.enableWordIfEq("eBlt",  rBlt,  funct3, f3_blt);
+    Bits        eBge = C.enableWordIfEq("eBge",  rBge,  funct3, f3_bge);
+    Bits       eBltu = C.enableWordIfEq("eBltu", rBltu, funct3, f3_bltu);
+    Bits       eBgeu = C.enableWordIfEq("eBgeu", rBgeu, funct3, f3_bgeu);
+    Bits      branch = C.orBits("branch", eBeq, eBne, eBlt, eBge, eBltu, eBgeu);
 
-    Bits    Result = C.enableWord("result", opCode, eid13, eid33);              // Choose between immediate or dyadic operation
+    EnableWord eid13 = new EnableWord(iR, C.bits("opCode13", RiscV.Decode.l_opCode, RiscV.Decode.opArithImm )); // Decode funct7 for immediate operation
+    EnableWord eid33 = new EnableWord(dR, C.bits("opCode33", RiscV.Decode.l_opCode, RiscV.Decode.opArith));     // Decode funct7 for dyadic operation
+
+    Bits    Result = C.enableWord("result", opCode, eid13, eid33, eb);              // Choose between immediate or dyadic operation
 
     Words  targets = C.words      ("targets", N, 1, 2, 3);                      // Target register to load result into
     Pulse      ltd = C.delay      ("ltd",  start, 28);                          // Wait this long before attempting to load the targets. Its cruclai thatthis be just long ewnough fo r all the computation to complete otherwise we get a partial answer which is usually wrong.
@@ -276,6 +291,8 @@ final public class Ban extends Chip                                             
     eq12.anneal();
     lt12.anneal();
     ltu12.anneal();
+    pci.anneal();
+    pc4.anneal();
 
     C.simulate();
 
@@ -283,10 +300,13 @@ final public class Ban extends Chip                                             
     funct3.ok(RiscV.Decode.f3_add);
         rd.ok(   1);
        rs1.ok(   0);
-      immB.ok(2048);
+      immB.ok(   0);
       immI.ok(  10);
       immJ.ok(   5);
       immS.ok(   1);
+      immU.ok(   0);
+       pci.ok(  10);
+       pc4.ok(   4);
       addI.ok(  10);
        orI.ok(  10);
      rAddi.ok(  10);
