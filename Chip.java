@@ -9,6 +9,8 @@
 // Remove field loaded from Register
 // On fanOut/fanIn add the principle gate name to the fan gate names for easier identification in chip listing
 // SubBitBus - merge constructors
+// Each test should print the chip to make sure that all collected bits have been defined.  See CompareLT for an example of why this is important.
+// Words words( should accept null values
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
 
 import java.io.*;
@@ -52,6 +54,8 @@ public class Chip                                                               
   final TreeMap<String, OutputUnit>                                             // Output devices connected to the chip
                               outputs = new TreeMap<>();
   final TreeMap<String, Pulse> pulses = new TreeMap<>();                        // Bits that are externally driven by periodic pulses of a specified duty cycle
+  final TreeMap<String, Monitor>                                                // Monitor pulses used to clock registers to ensure they remain viable during execution
+                             monitors = new TreeMap<>();
   final Bits                 clock0;                                            // Negative clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
   final Bits                 clock1;                                            // Positive clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
 
@@ -106,7 +110,7 @@ public class Chip                                                               
   enum Operator                                                                 // Gate operations
    {And, Continue, FanOut, Forward, Gt, Input, Lt, My,                          // The forward gate is used to create a forward gate definition that will be replaced later in the design with an actual gate definition
     Nand, Ngt, Nlt, Nor, Not, Nxor,
-    One, Or, Output, Xor, Zero;
+    One, Or, Output, Xor, Xxx, Zero;
    }
 
   boolean commutative(Operator op)                                              // Whether the pin order matters on the gate or not
@@ -115,7 +119,8 @@ public class Chip                                                               
    }
 
   boolean zerad(Operator op)                                                    // Whether the gate takes zero inputs
-   {return op == Operator.Input || op == Operator.One || op == Operator.Zero;
+   {return op == Operator.Input || op == Operator.One ||
+           op == Operator.Xxx   || op == Operator.Zero;
    }
 
   boolean monad(Operator op)                                                    // Whether the gate takes a single input or not
@@ -162,9 +167,8 @@ public class Chip                                                               
      {b.append(""+bitBuses.size()+" Bit buses\n");
       b.append("Bits  Bus_____________________________  Value\n");
       for (String n : bitBuses.keySet())
-       {final Bits  B = bitBuses.get(n);
-        final Integer v = B.Int();
-        b.append(String.format("%4d  %32s", bitBuses.get(n).bits(), n));
+       {b.append(String.format("%4d  %32s", bitBuses.get(n).bits(), n));
+        final Integer v = bitBuses.get(n).Int();
         if (v != null) b.append(String.format("  %d\n", v));
                        b.append(System.lineSeparator());
        }
@@ -475,7 +479,7 @@ public class Chip                                                               
     void updateEdge()                                                           // Update a memory gate on a falling edge. The memory bit on pin 2 is loaded when the value on pin 1 goes from high to low because reasoning about trailing edges seems to be easier than reasoning about leading edges
      {if (op == Operator.My)                                                    // Memory updates are triggered by a falling edge on input pin 1
        {if (iGate1.value != null && iGate1.value && iGate1.nextValue != null && !iGate1.nextValue) // Falling edge on pin 1
-         {if (iGate2.value != null)
+         {//if (iGate2.value != null)                                           // Unknown must also be propogated
            {changed = iGate2.value != iGate2.nextValue;
             value   = iGate2.nextValue;
            }
@@ -507,6 +511,7 @@ public class Chip                                                               
         case Nxor    ->{if (g != null && G != null)  yield !(g ^   G);                                                               else yield null;}
         case Xor     ->{if (g != null && G != null)  yield   g ^   G;                                                                else yield null;}
         case One     -> true;
+        case Xxx     -> null;
         case Zero    -> false;
         case Input   -> value;
         case Continue, FanOut, Output -> g;
@@ -594,6 +599,7 @@ public class Chip                                                               
 
   Gate Input   (CharSequence n)               {return FanIn(Operator.Input,    n);}
   Gate One     (CharSequence n)               {return FanIn(Operator.One,      n);}
+  Gate Xxx     (CharSequence n)               {return FanIn(Operator.Xxx,      n);}
   Gate Zero    (CharSequence n)               {return FanIn(Operator.Zero,     n);}
   Gate Output  (CharSequence n, Bit i)        {return FanIn(Operator.Output,   n, i);}
   Gate Continue(CharSequence n, Bit i)        {return FanIn(Operator.Continue, n, i);}
@@ -808,6 +814,7 @@ public class Chip                                                               
       for (InputUnit  i: this.inputs.values()) i.action();                      // Action on each input peripheral affected by a falling edge
       for (OutputUnit o: outputs.values()) if (o.fell()) o.action();            // Action on each output peripheral affected by a falling edge
       if (executionTrace != null) executionTrace.trace();                       // Trace requested
+      for (Monitor m: monitors.values()) m.check();                             // Check register load signals remain viable during execution
 
       if (!changes())                                                           // No changes occurred
        {if (!miss || steps >= minSimulationSteps) return layoutLTGates == null  // No changes occurred and we are beyond the minimum simulation time or no such time was set
@@ -825,8 +832,8 @@ public class Chip                                                               
 
 //D2 Bits                                                                       // Operations on bits
 
-  Gate bit(CharSequence name, int value)                                        // Create a constant bit as true if the supplied number is non zero else false
-   {return value > 0 ? One(name) : Zero(name);
+  Gate bit(CharSequence name, Integer value)                                    // Create a constant bit as true if the supplied number is non zero else false
+   {return value == null ? Xxx(name) : value > 0 ? One(name) : Zero(name);
    }
 
   static boolean[]bitStack(int bits, int value)                                 // Create a stack of bits, padded with zeroes if necessary, representing an unsigned integer with the least significant bit lowest.
@@ -864,8 +871,9 @@ public class Chip                                                               
     public default String string()                                              // Convert the bits represented by an output bus to a string
      {final StringBuilder s = new StringBuilder();
       for (int i = 1; i <= bits(); i++)
-       {final Bit b = b(i);
-        final Gate g = b.chip().getGate(b);
+       {final Bit  b = b(i);
+        final Chip c = b.chip();                                                // We are in an interface and so static
+        final Gate g = c.getGate(b);
         if (g != null) s.append(g.value == null ? '.' : g.value ? '1' : '0');
         else stop("No such gate as:", b.name);
        }
@@ -877,7 +885,8 @@ public class Chip                                                               
       final int B = bits();
       for  (int i = 1; i <= B; i++)                                             // Each bit on bus
        {final Bit b = b(i);
-        final Gate g = b.chip().getGate(b);
+        final Chip c = b.chip();                                                // We are in an interface and so static
+        final Gate g = c.getGate(b);                                            // We are in an interface and so static
         if (g == null)
          {err("No such gate as:", name(), i);                                   // Generally occurs during testing where we might want to continue to see what other errors  occur
           return null;
@@ -1007,11 +1016,13 @@ public class Chip                                                               
    {return collectBits(name.toString(), bits);
    }
 
-  Bits bits(String n, int bits, int value)                                      // Create a bus set to a specified number.
-   {final boolean[]b = bitStack(bits, value);                                   // Number as a stack of bits padded to specified width
-    final Bits     B = collectBits(n, bits);
-    for(int i = 1; i <= bits; ++i)                                              // Generate constant
-      if (b[i-1]) One(B.b(i)); else Zero(B.b(i));
+  Bits bits(String n, int bits, Integer value)                                  // Create a bus set to a specified number.
+   {final Bits B = collectBits(n, bits);
+    if (value != null)
+     {final boolean[]b = bitStack(bits, value);                                 // Number as a stack of bits padded to specified width
+      for(int i = 1; i <= bits; ++i) if (b[i-1]) One(B.b(i)); else Zero(B.b(i));// Generate constant
+     }
+    else for(int i = 1; i <= bits; ++i) Xxx(B.b(i));                            // Unknown values
     return B;
    }
 
@@ -1395,7 +1406,7 @@ public class Chip                                                               
    }
 
   Bit compareEq(String output, Bits a, int b)                                   // Compare an unsigned binary integer to a constant
-   {final int A = a.bits();                                                     // Width of bus
+   {final int  A = a.bits();                                                    // Width of bus
     final Bits B = bits(n(output, "b"), A, b);                                  // Create target of comparison.
     return compareEq(output, a, B);                                             // Compare
    }
@@ -1428,24 +1439,44 @@ public class Chip                                                               
     a.sameSize(b);
 
     final String out = output.toString();
-    final Bits oe = collectBits(n(out, "equal"),   A);                          // Bits equal in input buses
+    final Bits oe = collectBits(n(out, "equal"),   A-1);                        // Bits equal in input buses
     final Bits ol = collectBits(n(out, "less"),    A);                          // Bits less than
-    final Bits oc = collectBits(n(out, "compare"), A);                          // Bit less than with all other bits equal
+    final Bits oc = collectBits(n(out, "compare"), A-1);                        // Bit less than with all other bits equal
 
-    for (int i = 2; i <= B; i++) Nxor(oe.b(i), a.b(i), b.b(i));                 // Test all but the lowest bit pair for equality
-    for (int i = 1; i <= B; i++) Lt  (ol.b(i), a.b(i), b.b(i));                 // Test each bit pair for more than
+    for (int i = 2; i <= B; i++) Nxor(oe.b(i-1), a.b(i), b.b(i));               // Test all but the lowest bit pair for equality
+    for (int i = 1; i <= B; i++) Lt  (ol.b(i),   a.b(i), b.b(i));               // Test each bit pair for more than
 
     for (int j = 2; j <= B; ++j)                                                // More than on one bit and all preceding bits are equal
      {final Bit[]and = new Bit[B+2-j]; and[0] = ol.b(j-1);
-      for (int i = j; i <= B; i++) and[i+1-j] = oe.b(i);
-      And(oc.b(j), and);
+      for (int i = j; i <= B; i++) and[i+1-j] = oe.b(i-1);
+      And(oc.b(j-1), and);
      }
 
     final Bit[]or = new Bit[B];  or[0]   = ol.b(B);
-    for (int i = 2; i <= B; i++) or[i-1] = oc.b(i);                             // Equals followed by less than
+    for (int i = 2; i <= B; i++) or[i-1] = oc.b(i-1);                           // Equals followed by less than
 
     return Or(output, or);                                                      // Any set bit indicates that first is less than second
    }
+
+  Bits findGt(String output, Words w, Bits b)                                   // Bits indicating which words are greater than the specified word
+   {final int bb = b.bits(), ww = w.words(), wb = w.bits();
+    if (wb != bb) stop("Each word has", wb, "bits,",
+      "but the search key has", bb);
+    final Bits m = new BitBus(output, ww);
+    for (int i = 1; i <= ww; i++) compareGt(m.b(i), w.w(i), b);
+    return m;
+   }
+
+  Bits findLt(String output, Words w, Bits b)                                   // Bits indicating which words are less than the specified word
+   {final int bb = b.bits(), ww = w.words(), wb = w.bits();
+    if (wb != bb) stop("Each word has", wb, "bits,",
+      "but the search key has", bb);
+    final Bits m = new BitBus(output, ww);
+    for (int i = 1; i <= ww; i++) compareLt(m.b(i), w.w(i), b);
+    return m;
+   }
+
+//D2 Choices                                                                    // Choose one word or another
 
   Bits chooseFromTwoWords(String output, Bits a, Bits b, Bit choose)            // Choose one of two words depending on a choice bit.  The first word is chosen if the bit is B<0> otherwise the second word is chosen.
    {final int A = a.bits(), B = b.bits();
@@ -1465,6 +1496,20 @@ public class Chip                                                               
       Or (o.b(i), ga, gb);                                                      // Or results of choice
      }
     return o;                                                                   // Record bus size
+   }
+
+  Bits chooseThenElseIfEQ(String output, Bits Then, Bits Else, Bits a, Bits b)  // Choose "then" if bits a and b are equal else "else"
+   {final int T = Then.bits(), E = Else.bits(), A = a.bits(), B = b.bits();
+    Then.sameSize(Else);
+    a.sameSize(b);
+
+    final Bit eq = compareEq(n(output, "equals"), a, b);                        // Compare and b
+    return chooseFromTwoWords (output, Else, Then, eq);                         // Choose between else and then based on result of comparison
+   }
+
+  Bits chooseThenElseIfEQ(String output, Bits Then, Bits Else, Bits A, int B)   // Choose "then" if bits a equal b else "else"
+   {final Bits b = bits(n(output, "bAsBits"), A.bits(), B);                     // Convert argument b to bits
+    return chooseThenElseIfEQ(output, Then, Else, A, b);
    }
 
   Bits enableWord(String output, Bits a, Bit enable)                            // Output a word or zeros depending on a choice bit.  The word is chosen if the choice bit is B<1> otherwise all zeroes are chosen.
@@ -1501,24 +1546,6 @@ public class Chip                                                               
     final Bits e = new BitBus(n(output), B);                                    // Enabled word
     final Bit  q = compareEq(n(output, "eq"), a, b);                            // Compare
     return enableWord(output, result, q);                                       // Enable the result if a equals b
-   }
-
-  Bits findGt(String output, Words w, Bits b)                                   // Bits indicating which words are greater than the specified word
-   {final int bb = b.bits(), ww = w.words(), wb = w.bits();
-    if (wb != bb) stop("Each word has", wb, "bits,",
-      "but the search key has", bb);
-    final Bits m = new BitBus(output, ww);
-    for (int i = 1; i <= ww; i++) compareGt(m.b(i), w.w(i), b);
-    return m;
-   }
-
-  Bits findLt(String output, Words w, Bits b)                                   // Bits indicating which words are less than the specified word
-   {final int bb = b.bits(), ww = w.words(), wb = w.bits();
-    if (wb != bb) stop("Each word has", wb, "bits,",
-      "but the search key has", bb);
-    final Bits m = new BitBus(output, ww);
-    for (int i = 1; i <= ww; i++) compareLt(m.b(i), w.w(i), b);
-    return m;
    }
 
 //D2 Masks                                                                      // Point masks and monotone masks. A point mask has a single bit set to true, the rest are set to false.  The true bit indicates the point at which something is to happen.
@@ -1678,10 +1705,41 @@ public class Chip                                                               
 
 //D2 Registers                                                                  // Create registers
 
+  class Monitor                                                                 // Monitor the load signals for a register to ensure that they remain viable at all times
+   {final String name;
+    final Bit [] bits;
+    Monitor(String Name, Bit[]Bits)
+     {name = Name; bits = Bits;
+      monitors.put(name, this);
+     }
+    void check()                                                                // Check load signals are viable
+     {int high = 0;
+      for (int i = 0; i < bits.length; i++)                                     // Check each signal
+       {final Bit  b = bits[i];
+        final Gate g = getGate(b);
+        if (g.value == null)
+          stop("Monitor", name, "null on bit:", i+1, b.name, "at step", steps);
+        if (g.value) ++high;
+       }
+      if (high <= 1) return;                                                    // Signals remain viable
+      final StringBuilder s = new StringBuilder();                              // Report signals in error
+      for (int i = 0; i < bits.length; i++)
+       {final Bit  b = bits[i];
+        final Gate g = getGate(b);
+        if (g.value) s.append(" ["+i+"] == "+b.name);
+       }
+      say("Monitor", name, "has", high, "bits:", s);
+     }
+   }
+
+  Monitor monitor(String name, Bit...bits) {return new Monitor(name, bits);}    // Create a new monitor
+
   record RegIn                                                                  // A Bits, bit pair representing one possible input to a register
    (Bits input,                                                                 // Input bus from which the register is loaded
     Pulse load                                                                  // Load pulse: when this pulse goes from high to low the register is loaded from the bits.
    ) {}
+
+  RegIn regIn(Bits Input, Pulse Load) {return new RegIn(Input, Load);}          // Create a register input specification
 
   class Register implements Bits                                                // Description of a register
    {final String output;                                                        // The name of the register
@@ -1689,6 +1747,7 @@ public class Chip                                                               
     final RegIn []  I;                                                          // Inputs: pairs of bits and pulses that can be individually loaded into the register in the falling edges of the pulses
     final Bits  []  E;                                                          // Bits enables by their pulse. The pulse should be wide enough to give the data a chance to reach the input to the 'My' gates comprising the register.
     final Bits      e;                                                          // Combined pulse so we see all falling edges
+    final Bit   []  Q;                                                          // Load signals
     final Bit   []  P;                                                          // Buffer to ensure that the load signal is created as quickly as possible undelayed by fan out during which time, if the fan out were permitted to occur, the inputs might change leading to loading the wrong value  into the register.
     final Bit    load;                                                          // Combined load - the register gets loaded after a short delay after this bit falls from 1 to 0.
 
@@ -1698,13 +1757,14 @@ public class Chip                                                               
       I           = new RegIn[1]; I[0] = new RegIn(Input, Load);                // Record inputs
       final int b = Input.bits();                                               // Number of bits in register
       for (int i  = 1; i <= b; i++) My(n(i, output), Load, Input.b(i));         // Create the memory bits
-      e = null; E = null; load = Load; P = null;
+      e = null; E = null; load = Load; P = null; Q = null;
      }
 
-    Register(String Output, Bits Input1, Pulse Load1, Bits Input2, Pulse Load2) // Create register from two driving inputs and their associated pulses
+    Register(String Output, Bits Input1, Pulse Load1, Bits Input2, Pulse Load2) // Create register from two driving inputs and their associated pulses.
      {output = Output;                                                          // Name of register
       reg    = collectBits(output, Input1.bits());                              // Bit bus created by register
 
+      Q      = new Bit[2]; Q[0] = Load1; Q[1] = Load2;                          // Protect the load edge from fan out
       P      = new Bit[2];                                                      // Protect the load edge from fan out
       P[0]   = Continue(n(1, output, "preload"), Load1);
       P[1]   = Continue(n(2, output, "preload"), Load2);
@@ -1719,39 +1779,46 @@ public class Chip                                                               
       e      = orBitBuses(n(output, "enable"),  E);                             // Combined input
       load   = Or        (n(output, "load"),    Load1, Load2);                  // Combined load bit
 
+      monitor(n(output, "monitor"), Q);                                         // Ensure that the load signals are always viable
+
       final int N = Input1.bits();
       for (int i = 1; i <= N; i++) My(b(i), load, e.b(i));                      // The load pulse should be wide enough to allow the data to reach the inputs of the 'My' gates.
      }
 
-    Register(String Output, RegIn...in)                                         // Create register from multiple inputs
+    Register(String Output, RegIn...in)                                         // Create a register loaded from multiple inputs
      {output = Output;                                                          // Name of register
       if (in.length == 0) stop("Need at least one register input specification");
       final int N = in.length, B = in[0].input.bits();                          // Number of drivers. Number of bits in register
 
       I = in;                                                                   // Save input specifications
       for (int i = 1; i < N; i++) in[0].input.sameSize(in[i].input);            // Check sizes
-      P = new Bit [N];                                                          // Preload bits
+      Q = new Bit [N];                                                          // Load bits
+      P = new Bit [N];                                                          // Pre-load bits while pulse is high
       E = new Bits[N];                                                          // Enabled inputs
       final Bit[]L = new Bit[N];                                                // Or load bits
 
       for (int i = 0; i < N; i++)                                               // Enable each bus
-       {final String n = n(output, "enable"+i);                                 // Generate a name for the enabled version of the input bus
+       {final String n = n(i, output, "enable");                                // Generate a name for the enabled version of the input bus
         final RegIn  R = I[i];                                                  // Register input specification
-        P[i] = Continue(n(i, output, "preload"), R.load);                       // Check sizes
+        Q[i] = R.load;                                                          // Load bit
+        P[i] = Continue(n(i, output, "preload"), R.load);                       // Stabilize the load delay for this register at a cost of making it one step longer
         E[i] = enableWord(n, R.input, P[i]);                                    // Enable input
         L[i] = R.load;                                                          // Load with no delay after the falling edge occurs
        }
-      e    = orBitBuses(n(output, "e"), E);                                     // Combined input
-      load = Or        (n(output, "l"), L);                                     // Combined load
+      monitor(n(output, "monitor"), Q);                                         // Ensure that the load signals are always viable
+      e    = orBitBuses(n(output, "e"), E);                                     // Combined input words
+      load = Or        (n(output, "l"), L);                                     // Combined load pulse
       reg  = collectBits(output, B);                                            // Create register bit bus if necessary
-      for (int i = 1; i <= B; i++) My(n(i, output), load,  e.b(i));             // The load pulse should be wide enough to allow the data to reach the inputs of the 'My' gates.
+      for (int i = 1; i <= B; i++) My(n(i, output), load, e.b(i));              // The load pulse should be wide enough to allow the data to reach the inputs of the 'My' gates.
      }
-    public void anneal()     {}
     public String name()     {return reg.name();}
     public int bits   ()     {return reg.bits();}
     public Bit  b(int i)     {return reg.b(i);}
     public String toString() {return reg.string();}
-
+    public void anneal()                                                        // Anneal the register
+     {final int N = reg.bits();
+      for (int i = 1; i <= N; i++) reg.b(i).anneal();
+     }
    }
 
   Register register(String name, Bits input, Pulse load)                        // Create a register loaded from one source
@@ -3386,9 +3453,11 @@ public class Chip                                                               
     for (int i = 0; i < N && matches; i++)                                      // Check each character
      {final int  e = E.charAt(i), g = G.charAt(i);
       if (e != g)                                                               // Character mismatch
-       {say(b, "Differs at line:"+String.format("%04d", l),
-            "character", c, ", expected:", ((char)e),
-                            ", got:",      ((char)g));
+       {final String ee = e == '\n' ? "new-line" : ""+(char)e;
+        final String gg = g == '\n' ? "new-line" : ""+(char)g;
+
+         say(b, "Differs at line: "+String.format("%04d", l),
+            "character "+c+", expected="+ee+"= got="+gg+"=");
         say(b, "      0----+----1----+----2----+----3----+----4----+----5----+----6");
         final String[]t = G.split("\\n");
         for(int k = 0; k < t.length; k++)                                       // Details of  mismatch
@@ -4397,9 +4466,9 @@ Step  Reg_   1 2  l  e     e2    e2
    2  ....   1 0  1  ....  .00.  0.0.  0
    3  ....   0 0  1  ..0.  .00.  0.0.  0
    4  ....   0 1  0  ..0.  1001  0000  0
-   5  ..0.   0 1  1  1001  1001  0000  0
-   6  ..0.   0 0  1  1001  0000  0000  0
-   7  ..0.   1 0  0  0000  0000  0101  1
+   5  1001   0 1  1  1001  1001  0000  0
+   6  1001   0 0  1  1001  0000  0000  0
+   7  1001   1 0  0  0000  0000  0101  1
    8  0101   1 0  1  0101  0000  0101  1
    9  0101   0 0  1  0101  0000  0000  0
   10  0101   0 1  0  0000  1001  0000  1
@@ -4439,9 +4508,7 @@ Step  Reg_   1 2  l  e     e2    e2
 
     Register r = C.register("r",  new RegIn(o1, p1), new RegIn(o2, p2));
     Bits     o = C.outputBits("o", r);
-    //Bit     or = C.Output("or", r.loaded);
     C.simulationSteps(20);
-    //C.executionTrace("Reg_ ld   1 2  l  e     e2    e2", "%s  %s   %s %s  %s  %s  %s  %s", r, r.loaded, p1, p2, r.load, r.e, r.E[0], r.E[1]);
     C.executionTrace("Reg_  1 2  l  e     e2    e2", "%s  %s %s  %s  %s  %s  %s", r, p1, p2, r.load, r.e, r.E[0], r.E[1]);
     C.simulate();
     //C.printExecutionTrace(); stop();
@@ -4464,6 +4531,44 @@ Step  Reg_ ld   1 2  l  e     e2    e2
   17  0101  0   1 0  0  0000  0000  0000
   19  0101  0   1 0  1  0000  1001  0000
   20  0101  0   0 0  1  1001  1001  0000
+""");
+   }
+
+  static void test_register_sources_Xxx()
+   {int N = 4;
+
+    Chip   C = new Chip();
+    Bits  o1 = C.bits ("o1",  N,  9);
+    Bits  o2 = C.bits ("o2",  N,  null);
+    Pulse p1 = C.pulse("p1", 10, 3, 0);
+    Pulse p2 = C.pulse("p2", 10, 4, 4);
+
+    Register r = C.register("r",  new RegIn(o1, p1), new RegIn(o2, p2));
+    Bits     o = C.outputBits("o", r);
+    C.simulationSteps(18);
+    C.executionTrack("Reg_  1 2  l  e     e2    e2", "%s  %s %s  %s  %s  %s  %s", r, p1, p2, r.load, r.e, r.E[0], r.E[1]);
+    C.simulate();
+    //C.printExecutionTrace(); stop();
+    C.ok("""
+Step  Reg_  1 2  l  e     e2    e2
+   1  ....  1 0  .  ....  ....  ....
+   2  ....  1 0  1  ....  .00.  ....
+   3  ....  1 0  1  ....  .00.  ....
+   4  ....  0 0  1  ....  1001  0000
+   5  ....  0 1  0  1001  1001  0000
+   6  1001  0 1  1  1001  1001  0000
+   7  1001  0 1  1  1001  0000  0000
+   8  1001  0 1  1  0000  0000  ....
+   9  1001  0 0  1  ....  0000  ....
+  10  1001  0 0  0  ....  0000  ....
+  11  ....  1 0  0  ....  0000  ....
+  12  ....  1 0  1  ....  0000  0000
+  13  ....  1 0  1  0000  0000  0000
+  14  ....  0 0  1  0000  1001  0000
+  15  ....  0 1  0  1001  1001  0000
+  16  1001  0 1  1  1001  1001  0000
+  17  1001  0 1  1  1001  0000  0000
+  18  1001  0 1  1  0000  0000  ....
 """);
    }
 
@@ -5213,6 +5318,20 @@ Step  o     e
     test_signExtend(8, 0b1111_1001);
    }
 
+  static void test_then_if_eq_else()
+   {final int N = 4;
+    Chip   c = new Chip();
+    Bits   t = c.bits("t", N, 1);
+    Bits   e = c.bits("e", N, 2);
+    Bits   a = c.bits("a", N, 3);
+    Bits   T = c.chooseThenElseIfEQ("T", t, e, a, 3);
+    Bits   E = c.chooseThenElseIfEQ("E", t, e, a, 2);
+    T.anneal(); E.anneal();
+    c.simulate();
+    T.ok(1);
+    E.ok(2);
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_max_min();
     test_source_file_name();
@@ -5257,6 +5376,7 @@ Step  o     e
     test_8p5i4();
     test_register();
     test_register_sources();
+    test_register_sources_Xxx();
     test_fibonacci();
     test_insert_into_array();
     test_remove_from_array();
@@ -5279,12 +5399,12 @@ Step  o     e
     test_shiftRightMultiple();
     test_shiftRightArithmetic();
     test_signExtend();
+    test_then_if_eq_else();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_compare_eq();
-    test_signExtend();
+   {oldTests();
+    test_then_if_eq_else();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
