@@ -964,6 +964,10 @@ public class Chip                                                               
     public void anneal()     {outputBits(nextGateName(), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
+  SubBitBus subBitBus(String Name, Bits Source, int Start, int Bits)            // Create a new sub bit bus as part of an existing bit bus
+   {return new SubBitBus(Name, Source, Start, Bits);                            // Create a new sub bit bus as part of an existing bit bus
+   }
+
   class ConCatBits implements Bits                                              // Concatenate a sequence of bits
    {final String name; public String name() {return name;}                      // Name of bus
     final int    bits; public int    bits() {return bits;}                      // Number of bits of bus - the width of the bus
@@ -978,6 +982,12 @@ public class Chip                                                               
     public Bit  b    (int i) {return collectBit(source[i-1]);}                  // Name of a bit in the bus
     public void  anneal()    {outputBits(nextGateName(), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
+
+  ConCatBits conCatBits(CharSequence Name, Bit...Source)                        // Concatenate bits
+   {return new ConCatBits(Name, Source);
+   }
+
+//D3 Bits                                                                       // An array of bits that can be manipulated via one name.
 
   static String n(String...C)                                                   // Gate name from no index probably to make a bus connected to a name
    {return concatenateNames(concatenateNames((Object[])C));
@@ -996,8 +1006,6 @@ public class Chip                                                               
     for (Object o: O) {b.append("_"); b.append(o);}
     return O.length > 0 ? b.substring(1) : "";
    }
-
-//D3 Bits                                                                       // An array of bits that can be manipulated via one name.
 
   Bits collectBits(String name, int bits)                                       // Get a predefined bit bus or define a new one if there is no predefined bit bus of the same name.  This allows us to create bit buses needed in advance of knowing the gates that will be attached to them - in effect - forward declaring the bit bus.
    {final Bits b = bitBuses.get(name);
@@ -1523,6 +1531,10 @@ public class Chip                                                               
    (Bits value,
     Bits index
    ) {}
+
+  EnableWord enableWord(Bits value, Bits index)                                 // A value to be chosen by an index
+   {return new EnableWord(value, index);
+   }
 
   Bits enableWord(String output, Bits choose, EnableWord...enableWords)         // Choose a word by its index
    {final int W = enableWords.length;
@@ -3271,7 +3283,6 @@ public class Chip                                                               
 
 //D2 Groupings                                                                  // Group chips into two classes and see if any single bit predicts the classification.  Finding a bit that does predict a classification can help resolve edge cases. We could try testing all dyadic gates to see if there is any correlation between their outputs and any other pins indicating that the gate might be redundant. Use class Grouping to achieve this.
 
-
   static class Grouping                                                         // Group multiple runs into two classes and then see if any bits predict the grouping. (Grouping, bit name, bit value)
    {final TreeMap<Boolean, TreeMap<String, Boolean>> grouping = new TreeMap<>();
 
@@ -3318,17 +3329,36 @@ public class Chip                                                               
 
 //D1 Utility routines                                                           // Utility routines
 
+//D2 String routines                                                            // String routines
+
+  static String binaryString(int n, int width)                                  // Convert a integer to a binary string of specified width
+   {final String b = "0".repeat(width)+Long.toBinaryString(n);
+    return b.substring(b.length() - width);
+   }
+
 //D2 Numeric routines                                                           // Numeric routines
+
+  static int max(int n, int...rest)                                             // Maximum of some numbers
+   {int m = n;
+    for (int i = 0; i < rest.length; i++) m = m < rest[i] ? rest[i] : m;
+    return m;
+   }
+
+  static int min(int n, int...rest)                                             // Minimum of some numbers
+   {int m = n;
+    for (int i = 0; i < rest.length; i++) m = m > rest[i] ? rest[i] : m;
+    return m;
+   }
 
   static double max(double n, double...rest)                                    // Maximum number from a list of one or more numbers
    {double m = n;
-    for (int i = 0; i < rest.length; ++i) m = rest[i] > m ? rest[i] : m;
+    for (int i = 0; i < rest.length; ++i) m = m < rest[i] ? rest[i] : m;
     return m;
    }
 
   static double min(double n, double...rest)                                    // Minimum number from a list of one or more numbers
    {double m = n;
-    for (int i = 0; i < rest.length; ++i) m = rest[i] < m ? rest[i] : m;
+    for (int i = 0; i < rest.length; ++i) m = m > rest[i] ? rest[i] : m;
     return m;
    }
 
@@ -3505,8 +3535,10 @@ public class Chip                                                               
 //D0
 
   static void test_max_min()
-   {ok(min(3, 2, 1), 1d);
-    ok(max(1, 2, 3), 3d);
+   {ok(min(3,  2,  1),  1);
+    ok(max(1,  2,  3),  3);
+    ok(min(3d, 2d, 1d), 1d);
+    ok(max(1d, 2d, 3d), 3d);
    }
 
   static void test_source_file_name()
