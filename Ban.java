@@ -114,17 +114,21 @@ final public class Ban extends Chip                                             
     final int  LF7 = RiscV.Decode.l_funct7;
 
     Chip         C = new Chip();                                                // Create a new chip
-    Pulse    start = C.pulse("start", 0, N);                                    // Start pulse
-    Bits       one = C.bits ("one",   N, 1);                                    // Constant one
-    Bits      insw = C.bits ("insw",  N, InstructionWidthBytes);                // Instruction width
+    Pulse    start = C.pulse("start",  0, N);                                   // Start pulse
+    Pulse   update = C.pulse("update", 0, N, 48);                               // Update registers at end of decode/execute cycle.
+    Bits       one = C.bits ("one",    N, 1);                                   // Constant one
+    Bits      insw = C.bits ("insw",   N, InstructionWidthBytes);               // Instruction width
 
-    Bits        x0 = C.bits ("X0",    N, 0);                                    // Define registers and zero them at the start
-    Bits    result = C.new BitBus("result", N);                                 // Results of addition that will be sent to the destination register
+    Bits        x0 = C.bits ("X0",     N, 0);                                   // Define registers and zero them at the start
+    Bits        PC = C.collectBits("PC", N);                                    // Next value for program counter forward declaration
+    Register    pc = C.register("pc", C.regIn(x0, start), C.regIn(PC, update)); // Risc V registers
 
-    Register    pc = C.register("pc", new RegIn(x0, start), new RegIn(result, C.pulse("ltd")));      // Risc V registers
-    Register    x1 = C.register("x1", new RegIn(x0, start), new RegIn(result, C.pulse(n(1, "tp"))));
-    Register    x2 = C.register("x2", new RegIn(x0, start), new RegIn(result, C.pulse(n(2, "tp"))));
-    Register    x3 = C.register("x3", new RegIn(x0, start), new RegIn(result, C.pulse(n(3, "tp"))));
+    Bits     X[] = new Bits    [N];                                             // New value for register
+    Register x[] = new Register[N];                                             // Registers
+    for (int i = 1; i < N; i++)
+     {X[i] = C.collectBits("X"+i, N);
+      x[i] = C.register   ("x"+i, new RegIn(x0, start), new RegIn(X[i], update));
+     }
 
     Bits    decode = C.bits("decode", 32, 0xa00093);                            // addi x1,x0,10
 
@@ -163,13 +167,13 @@ final public class Ban extends Chip                                             
     Bits      immU = C.binaryTCSignExtend("immU", immu,  N);
 
 
-    EnableWord s1v = new EnableWord(x1, C.bits("x1v", RiscV.Decode.l_rs1, 1));  // Get value of s1 register
-    EnableWord s2v = new EnableWord(x2, C.bits("x2v", RiscV.Decode.l_rs1, 2));
-    EnableWord s3v = new EnableWord(x3, C.bits("x3v", RiscV.Decode.l_rs1, 3));
+    EnableWord s1v = new EnableWord(x[1], C.bits("x1v", RiscV.Decode.l_rs1, 1));// Get value of s1 register
+    EnableWord s2v = new EnableWord(x[2], C.bits("x2v", RiscV.Decode.l_rs1, 2));
+    EnableWord s3v = new EnableWord(x[3], C.bits("x3v", RiscV.Decode.l_rs1, 3));
 
-    EnableWord S1v = new EnableWord(x1, C.bits("X1v", RiscV.Decode.l_rs2, 1));  // Get values of s2 register
-    EnableWord S2v = new EnableWord(x2, C.bits("X2v", RiscV.Decode.l_rs2, 2));
-    EnableWord S3v = new EnableWord(x3, C.bits("X3v", RiscV.Decode.l_rs2, 3));
+    EnableWord S1v = new EnableWord(x[1], C.bits("X1v", RiscV.Decode.l_rs2, 1));// Get values of s2 register
+    EnableWord S2v = new EnableWord(x[2], C.bits("X2v", RiscV.Decode.l_rs2, 2));
+    EnableWord S3v = new EnableWord(x[3], C.bits("X3v", RiscV.Decode.l_rs2, 3));
 
     Bits    f3_add = C.bits("f3_add",  LF3, RiscV.Decode.f3_add);               // Funct3 op codes
     Bits    f3_xor = C.bits("f3_xor",  LF3, 4);
@@ -271,31 +275,37 @@ final public class Ban extends Chip                                             
     Bits       eBltu = C.enableWordIfEq("eBltu", rBltu, funct3, f3_bltu);
     Bits       eBgeu = C.enableWordIfEq("eBgeu", rBgeu, funct3, f3_bgeu);
     Bits      branch = C.orBits("branch", eBeq, eBne, eBlt, eBge, eBltu, eBgeu);
+    Bit  branchInstr = C.compareEq("branchInstr", opCode,    RiscV.Decode.opBranch); // True if we are on a branch instruction
+                       C.chooseFromTwoWords("PC", pc4, branch, branchInstr);    // Advance normally or jump by branch instruction immediate amount
 
-    EnableWord eid13 = new EnableWord(iR, C.bits("opCode13", RiscV.Decode.l_opCode, RiscV.Decode.opArithImm )); // Decode funct7 for immediate operation
-    EnableWord eid33 = new EnableWord(dR, C.bits("opCode33", RiscV.Decode.l_opCode, RiscV.Decode.opArith));     // Decode funct7 for dyadic operation
+    EnableWord eid13 = new EnableWord(iR, C.bits("opCode13", RiscV.Decode.l_opCode, RiscV.Decode.opArithImm)); // Decode funct7 for immediate operation
+    EnableWord eid33 = new EnableWord(dR, C.bits("opCode33", RiscV.Decode.l_opCode, RiscV.Decode.opArith   )); // Decode funct7 for dyadic operation
 
-    Bits    Result = C.enableWord("result", opCode, eid13, eid33, eb);              // Choose between immediate or dyadic operation
+    Bits      result = C.enableWord("result", opCode, eid13, eid33);            // Choose between immediate or dyadic operation
 
-    Words  targets = C.words      ("targets", N, 1, 2, 3);                      // Target register to load result into
-    Pulse      ltd = C.delay      ("ltd",  start, 28);                          // Wait this long before attempting to load the targets. Its cruclai thatthis be just long ewnough fo r all the computation to complete otherwise we get a partial answer which is usually wrong.
-    Pulse[]     tp = C.choosePulse("tp", targets, rd, ltd);                     // Pulse loads target register
+    for (int i = 1; i < N; i++)                                                 // Values to reload back into registers
+      C.chooseThenElseIfEQ("X"+i, result, x[i], rd, i);
 
-    decode.anneal();
+     decode.anneal();
      f3_beq.anneal();
      f3_bne.anneal();
      f3_blt.anneal();
      f3_bge.anneal();
     f3_bltu.anneal();
     f3_bgeu.anneal();
-    eq12.anneal();
-    lt12.anneal();
-    ltu12.anneal();
-    pci.anneal();
-    pc4.anneal();
+       eq12.anneal();
+       lt12.anneal();
+      ltu12.anneal();
+        pci.anneal();
+        pc4.anneal();
+    C.executionTrack(
+      "pc    pci   pc4   PC    start update  e   l",
+      "%s  %s  %s  %s  %s   %s     %s %s",
+       pc, pci, pc4, PC, start, update, C.collectBits("pc_e", N), C.getGate("pc_l"));
 
+    C.simulationSteps(64);
     C.simulate();
-
+    C.printExecutionTrace(); //stop();
     opCode.ok(RiscV.Decode.opArithImm);
     funct3.ok(RiscV.Decode.f3_add);
         rd.ok(   1);
@@ -305,7 +315,8 @@ final public class Ban extends Chip                                             
       immJ.ok(   5);
       immS.ok(   1);
       immU.ok(   0);
-       pci.ok(  10);
+        pc.ok(   4);
+       pci.ok(   4);
        pc4.ok(   4);
       addI.ok(  10);
        orI.ok(  10);
@@ -314,8 +325,9 @@ final public class Ban extends Chip                                             
       rOri.ok(   0);
      rAndi.ok(   0);
     rSltui.ok(   0);
-    Result.ok(  10);
-        x1.ok(  10);                                                              // Target register set to expected value
+      x[1].ok(  10);
+      x[2].ok(   0);
+      x[3].ok(   0);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -324,7 +336,7 @@ final public class Ban extends Chip                                             
    }
 
   static void newTests()                                                        // Tests being worked on
-   {test_decode_addi();
+   {//test_decode_addi();
     test_decode_RV32I();
    }
 
