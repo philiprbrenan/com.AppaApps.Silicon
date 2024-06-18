@@ -22,6 +22,7 @@ import java.util.stream.*;
 public class Chip                                                               // Describe a chip and emulate its operation.
  {final static boolean github_actions =                                         // Whether we are on a github
     "true".equals(System.getenv("GITHUB_ACTIONS"));
+  final static long             start = System.nanoTime();                      // Start time
 
   final String                   name;                                          // Name of chip
   final int                clockWidth;                                          // Number of bits in system clock. Zero implies no clock.
@@ -231,7 +232,7 @@ public class Chip                                                               
       return name;
      }
 
-    void ok(Object expected)                                                    // Confirm that a bit has the expected value
+    void ok(Boolean expected)                                                   // Confirm that a bit has the expected value
      {final Gate g = getGate(this);
       if (g == null) stop("No gate associated with bit:", name);
       final Boolean value = g.value;
@@ -805,16 +806,21 @@ public class Chip                                                               
       maxSimulationSteps != null ? maxSimulationSteps : defaultMaxSimulationSteps;
     final boolean miss = minSimulationSteps != null;                            // Minimum simulation steps set
 
+    final Gate      []G = this.gates   .values().toArray(new Gate      [0]);    // Gates on chip
+    final InputUnit []I = this.inputs  .values().toArray(new InputUnit [0]);    // Input peripherals
+    final OutputUnit[]O = this.outputs .values().toArray(new OutputUnit[0]);    // Output peripherals
+    final Monitor   []M = this.monitors.values().toArray(new Monitor   [0]);    // Check register load signals remain viable during execution
+
     for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
      {loadClock();                                                              // Load the value of the clock into the clock input bus
-      for (Gate g  : gates.values()) g.step();                                  // Compute next value for  each gate
+      for (Gate       g : G) g.step();                                          // Compute next value for  each gate
       loadPulses();                                                             // A pulse is a agte and so we must set its next value  just like any other gate
-      for (Gate g  : gates.values()) g.updateEdge();                            // Update each gate triggered by a falling edge transition
-      for (Gate g  : gates.values()) g.updateValue();                           // Update each gate not affected by a falling edge after the gates that are
-      for (InputUnit  i: this.inputs.values()) i.action();                      // Action on each input peripheral affected by a falling edge
-      for (OutputUnit o: outputs.values()) if (o.fell()) o.action();            // Action on each output peripheral affected by a falling edge
+      for (Gate       g : G) g.updateEdge();                                    // Update each gate triggered by a falling edge transition
+      for (Gate       g : G) g.updateValue();                                   // Update each gate not affected by a falling edge after the gates that are
+      for (InputUnit  i : I) i.action();                                        // Action on each input peripheral affected by a falling edge
+      for (OutputUnit o : O) if (o.fell()) o.action();                          // Action on each output peripheral affected by a falling edge
       if (executionTrace != null) executionTrace.trace();                       // Trace requested
-      for (Monitor m: monitors.values()) m.check();                             // Check register load signals remain viable during execution
+      for (Monitor    m : M) m.check();                                         // Check register load signals remain viable during execution
 
       if (!changes())                                                           // No changes occurred
        {if (!miss || steps >= minSimulationSteps) return layoutLTGates == null  // No changes occurred and we are beyond the minimum simulation time or no such time was set
@@ -3526,10 +3532,12 @@ public class Chip                                                               
    }
 
   static void testSummary()                                                     // Print a summary of the testing
-   {if (false) {}                                                               // Analyze results of tests
-    else if (testsPassed == 0 && testsFailed == 0) say("No tests runs");
-    else if (testsFailed == 0)   say("PASSed ALL", testsPassed, "tests");
-    else say("Passed "+testsPassed+",    FAILed:", testsFailed, "tests.");
+   {final double delta = (System.nanoTime() - start) / (double)(1<<30);         // Run time in seconds
+    final String d = String.format("tests in %5.2f seconds.", delta);           // Format run time
+    if (false) {}                                                               // Analyze results of tests
+    else if (testsPassed == 0 && testsFailed == 0) say("No",    d);
+    else if (testsFailed == 0)   say("PASSed ALL", testsPassed, d);
+    else say("Passed "+testsPassed+",    FAILed:", testsFailed, d);
    }
 
 //D0
