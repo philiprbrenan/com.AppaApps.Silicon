@@ -195,7 +195,7 @@ public class RiscV extends Chip                                                 
      }
    }
 
-  class Decode                                                                  // Decode an instruction
+  static class Decode                                                           // Decode an instruction
    {final Encode instruction;                                                   // Instruction to be decoded
     String name = null;                                                         // Name of instruction
     int immediate = 0;                                                          // Immediate value
