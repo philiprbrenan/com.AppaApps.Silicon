@@ -16,35 +16,30 @@ final public class Ban extends Chip                                             
   final static boolean github_actions    =                                      // Whether we are on a github or not
     "true".equals(System.getenv("GITHUB_ACTIONS"));
 
+  final static class D extends RiscV.Decode {D(){super(null);}}                 // Easier access to static constants
+
   final static int                                                              // Decode the instruction
-    p_opCode = 1 + RiscV.Decode.p_opCode, l_opCode = RiscV.Decode.l_opCode,
-    p_funct3 = 1 + RiscV.Decode.p_funct3, l_funct3 = RiscV.Decode.l_funct3,
-    p_funct5 = 1 + RiscV.Decode.p_funct5, l_funct5 = RiscV.Decode.l_funct5,
-    p_funct7 = 1 + RiscV.Decode.p_funct7, l_funct7 = RiscV.Decode.l_funct7,
-    p_rd     = 1 + RiscV.Decode.p_rd,     l_rd     = RiscV.Decode.l_rd,
-    p_rs1    = 1 + RiscV.Decode.p_rs1,    l_rs1    = RiscV.Decode.l_rs1,
-    p_rs2    = 1 + RiscV.Decode.p_rs2,    l_rs2    = RiscV.Decode.l_rs2,
+    p_opCode = 1 + D.p_opCode, l_opCode = D.l_opCode,
+    p_funct3 = 1 + D.p_funct3, l_funct3 = D.l_funct3,
+    p_funct5 = 1 + D.p_funct5, l_funct5 = D.l_funct5,
+    p_funct7 = 1 + D.p_funct7, l_funct7 = D.l_funct7,
+    p_rd     = 1 + D.p_rd,     l_rd     = D.l_rd,
+    p_rs1    = 1 + D.p_rs1,    l_rs1    = D.l_rs1,
+    p_rs2    = 1 + D.p_rs2,    l_rs2    = D.l_rs2,
 
-    ip_immediate = RiscV.Decode.I.p_immediate + 1,
-    il_immediate = RiscV.Decode.I.l_immediate,
-    up_immediate = RiscV.Decode.U.p_immediate + 1,
-    ul_immediate = RiscV.Decode.U.l_immediate,
+    ip_immediate = D.I.p_immediate + 1, il_immediate = D.I.l_immediate,
+    up_immediate = D.U.p_immediate + 1, ul_immediate = D.U.l_immediate,
 
-    opArithImm   = RiscV.Decode.opArithImm,
-    opArith      = RiscV.Decode.opArith;
+    opArithImm   = D.opArithImm,        opArith      = D.opArith;
 
 //D0
 
   static void test_decode_RV32I ()                                              // Decode an immediate instruction
-   {final int    N = 32; //4;                                                         // Register widths in bits
-    final int  LF3 = RiscV.Decode.l_funct3;                                     // Length of function codes
-    final int  LF5 = RiscV.Decode.l_funct5;
-    final int  LF7 = RiscV.Decode.l_funct7;
+   {final int    N = 32;                                                        // Register widths in bits
 
     Chip         C = new Chip();                                                // Create a new chip
-    Pulse    start = C.pulse("start",  0, N);                                   // Start pulse
-//  Pulse   update = C.pulse("update", 0, N, 48);                               // Update registers at end of decode/execute cycle.
-    Pulse   update = C.pulse("update", 0, N, 64);                               // Update registers at end of decode/execute cycle.
+    Pulse    start = C.pulse("start",  0, 2);                                   // Start pulse
+    Pulse   update = C.pulse("update", 0, 6, 34);                               // Update registers at end of decode/execute cycle.
     Bits       one = C.bits ("one",    N, 1);                                   // Constant one
     Bits      insw = C.bits ("insw",   N, InstructionWidthBytes);               // Instruction width
 
@@ -69,8 +64,8 @@ final public class Ban extends Chip                                             
     Bits    rs1 = C.subBitBus("rs1",    decode, p_rs1,         l_rs1);
     Bits    rs2 = C.subBitBus("rs2",    decode, p_rs2,         l_rs2);
                                                                                 // Decode immediate field
-    Bits   immi = C.subBitBus("immi",   decode, ip_immediate, min(N, il_immediate)); // Imipac: the weapon that defends itself.
-    Bits   immu = C.subBitBus("immu",   decode, up_immediate, min(N, ul_immediate));
+    Bits   immi = C.subBitBus("immi",   decode, ip_immediate, il_immediate);    // Imipac: the weapon that defends itself.
+    Bits   immu = C.subBitBus("immu",   decode, up_immediate, ul_immediate);    // Immediate from U format
     Bits   immb = C.conCatBits("immb",                                          // Immediate operand from B format
       x0.b(1),                                                                  // First bit known to be 0.
       decode.b( 9), decode.b(10), decode.b(11), decode.b(12),                   // Field offsets are one based: in riscv-spec-20191213.pdf they are zero based.
@@ -98,28 +93,28 @@ final public class Ban extends Chip                                             
     Bits      immS = C.binaryTCSignExtend("immS", imms,  N);
     Bits      immU = C.binaryTCSignExtend("immU", immu,  N);
 
-    EnableWord s1v = C.enableWord(x[1], C.bits("x1v", RiscV.Decode.l_rs1, 1));  // Get value of s1 register
-    EnableWord s2v = C.enableWord(x[2], C.bits("x2v", RiscV.Decode.l_rs1, 2));
-    EnableWord s3v = C.enableWord(x[3], C.bits("x3v", RiscV.Decode.l_rs1, 3));
+    EnableWord s1v = C.enableWord(x[1], C.bits("x1v", D.l_rs1, 1));             // Get value of s1 register
+    EnableWord s2v = C.enableWord(x[2], C.bits("x2v", D.l_rs1, 2));
+    EnableWord s3v = C.enableWord(x[3], C.bits("x3v", D.l_rs1, 3));
 
-    EnableWord S1v = C.enableWord(x[1], C.bits("X1v", RiscV.Decode.l_rs2, 1));  // Get values of s2 register
-    EnableWord S2v = C.enableWord(x[2], C.bits("X2v", RiscV.Decode.l_rs2, 2));
-    EnableWord S3v = C.enableWord(x[3], C.bits("X3v", RiscV.Decode.l_rs2, 3));
+    EnableWord S1v = C.enableWord(x[1], C.bits("X1v", D.l_rs2, 1));             // Get values of s2 register
+    EnableWord S2v = C.enableWord(x[2], C.bits("X2v", D.l_rs2, 2));
+    EnableWord S3v = C.enableWord(x[3], C.bits("X3v", D.l_rs2, 3));
 
-    Bits    f3_add = C.bits("f3_add",  LF3, RiscV.Decode.f3_add);               // Funct3 op codes
-    Bits    f3_xor = C.bits("f3_xor",  LF3, RiscV.Decode.f3_xor);
-    Bits     f3_or = C.bits("f3_or",   LF3, RiscV.Decode.f3_or);
-    Bits    f3_and = C.bits("f3_and",  LF3, RiscV.Decode.f3_and);
-    Bits    f3_sll = C.bits("f3_sll",  LF3, RiscV.Decode.f3_sll);
-    Bits    f3_srl = C.bits("f3_srl",  LF3, RiscV.Decode.f3_srl);
-    Bits    f3_slt = C.bits("f3_slt",  LF3, RiscV.Decode.f3_slt);
-    Bits   f3_sltu = C.bits("f3_sltu", LF3, RiscV.Decode.f3_sltu);
-    Bits    f3_beq = C.bits("f3_beq",  LF3, RiscV.Decode.f3_beq);
-    Bits    f3_bne = C.bits("f3_bne",  LF3, RiscV.Decode.f3_bne);
-    Bits    f3_blt = C.bits("f3_blt",  LF3, RiscV.Decode.f3_blt);
-    Bits    f3_bge = C.bits("f3_bge",  LF3, RiscV.Decode.f3_bge);
-    Bits   f3_bltu = C.bits("f3_bltu", LF3, RiscV.Decode.f3_bltu);
-    Bits   f3_bgeu = C.bits("f3_bgeu", LF3, RiscV.Decode.f3_bgeu);
+    Bits    f3_add = C.bits("f3_add",  D.l_funct3, D.f3_add);                   // Funct3 op codes
+    Bits    f3_xor = C.bits("f3_xor",  D.l_funct3, D.f3_xor);
+    Bits     f3_or = C.bits("f3_or",   D.l_funct3, D.f3_or);
+    Bits    f3_and = C.bits("f3_and",  D.l_funct3, D.f3_and);
+    Bits    f3_sll = C.bits("f3_sll",  D.l_funct3, D.f3_sll);
+    Bits    f3_srl = C.bits("f3_srl",  D.l_funct3, D.f3_srl);
+    Bits    f3_slt = C.bits("f3_slt",  D.l_funct3, D.f3_slt);
+    Bits   f3_sltu = C.bits("f3_sltu", D.l_funct3, D.f3_sltu);
+    Bits    f3_beq = C.bits("f3_beq",  D.l_funct3, D.f3_beq);
+    Bits    f3_bne = C.bits("f3_bne",  D.l_funct3, D.f3_bne);
+    Bits    f3_blt = C.bits("f3_blt",  D.l_funct3, D.f3_blt);
+    Bits    f3_bge = C.bits("f3_bge",  D.l_funct3, D.f3_bge);
+    Bits   f3_bltu = C.bits("f3_bltu", D.l_funct3, D.f3_bltu);
+    Bits   f3_bgeu = C.bits("f3_bgeu", D.l_funct3, D.f3_bgeu);
 
     Bits      rs1v = C.enableWord          ("rs1v",  rs1,  s1v, s2v, s3v);      // The value of the selected s1 register
     Bits      rs2v = C.enableWord          ("rs2v",  rs2,  S1v, S2v, S3v);      // The value of the selected s2 register
@@ -151,8 +146,8 @@ final public class Ban extends Chip                                             
                                      rSlli, rSrli, rSlti, rSltui);
     Bits       iR2 = C.orBits("iR2", rSubi, rSrai);
 
-    var       eiR0 = new EnableWord(iR0, C.bits("if70", LF7, 0));               // Decode funct7 for immediate opcode
-    var       eiR2 = new EnableWord(iR2, C.bits("if72", LF7, 2));
+    var       eiR0 = new EnableWord(iR0, C.bits("if70", D.l_funct7, 0));        // Decode funct7 for immediate opcode
+    var       eiR2 = new EnableWord(iR2, C.bits("if72", D.l_funct7, 2));
 
     Bits        iR = C.enableWord("iR", funct7, eiR0, eiR2);                    // Choose the dyadic operation
 
@@ -183,8 +178,8 @@ final public class Ban extends Chip                                             
                                      rSlld, rSrld, rSltd, rSltud);
     Bits       dR2 = C.orBits("dR2", rSubd, rSrad);
 
-    var       edR0 = C.enableWord(dR0, C.bits("df70", LF7, 0));                 // Decode funct7 for dyadic operation
-    var       edR2 = C.enableWord(dR2, C.bits("df72", LF7, 2));
+    var       edR0 = C.enableWord(dR0, C.bits("df70", D.l_funct7, 0));          // Decode funct7 for dyadic operation
+    var       edR2 = C.enableWord(dR2, C.bits("df72", D.l_funct7, 2));
 
     Bits        dR = C.enableWord("dR", funct7, edR0, edR2);                    // Choose the dyadic operation
 
@@ -208,7 +203,7 @@ final public class Ban extends Chip                                             
     Bits     eBltu = C.enableWordIfEq("eBltu", rBltu, funct3, f3_bltu);
     Bits     eBgeu = C.enableWordIfEq("eBgeu", rBgeu, funct3, f3_bgeu);
     Bits    branch = C.orBits("branch", eBeq, eBne, eBlt, eBge, eBltu, eBgeu);
-    Bit  branchIns = C.compareEq("branchIns", opCode, RiscV.Decode.opBranch);   // True if we are on a branch instruction
+    Bit  branchIns = C.compareEq("branchIns", opCode, D.opBranch);              // True if we are on a branch instruction
     Bits  brOrStep = C.chooseFromTwoWords("PC", pc4, branch, branchIns);        // Advance normally or jump by branch instruction immediate amount
 
     var      eid13 = C.enableWord(iR, C.bits("opCode13", l_opCode, opArithImm));// Decode funct7 for immediate operation
@@ -231,11 +226,11 @@ final public class Ban extends Chip                                             
 //    "%s %s %s  %s  %s",
 //     start, update, pc, pc4, pci);
 
-    C.simulationSteps(164);
+    C.simulationSteps(68);
     C.simulate();
 //  C.printExecutionTrace(); //stop();
-    opCode.ok(RiscV.Decode.opArithImm);
-    funct3.ok(RiscV.Decode.f3_add);
+    opCode.ok(D.opArithImm);
+    funct3.ok(D.f3_add);
         rd.ok(   1);
        rs1.ok(   0);
  branchIns.ok(false);
