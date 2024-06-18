@@ -36,14 +36,15 @@ final public class Ban extends Chip                                             
 //D0
 
   static void test_decode_RV32I ()                                              // Decode an immediate instruction
-   {final int    N = 4;                                                         // Register widths in bits
+   {final int    N = 32; //4;                                                         // Register widths in bits
     final int  LF3 = RiscV.Decode.l_funct3;                                     // Length of function codes
     final int  LF5 = RiscV.Decode.l_funct5;
     final int  LF7 = RiscV.Decode.l_funct7;
 
     Chip         C = new Chip();                                                // Create a new chip
     Pulse    start = C.pulse("start",  0, N);                                   // Start pulse
-    Pulse   update = C.pulse("update", 0, N, 48);                               // Update registers at end of decode/execute cycle.
+//  Pulse   update = C.pulse("update", 0, N, 48);                               // Update registers at end of decode/execute cycle.
+    Pulse   update = C.pulse("update", 0, N, 64);                               // Update registers at end of decode/execute cycle.
     Bits       one = C.bits ("one",    N, 1);                                   // Constant one
     Bits      insw = C.bits ("insw",   N, InstructionWidthBytes);               // Instruction width
 
@@ -58,7 +59,7 @@ final public class Ban extends Chip                                             
       x[i] = C.register   ("x"+i, C.regIn(x0, start), C.regIn(X[i], update));
      }
 
-    Bits decode = C.bits("decode", 32, 0xa00093);                               // addi x1,x0,10
+    Bits decode = C.bits("decode", 32, 0x00a00093);                             // addi x1,x0,10
 
     Bits opCode = C.subBitBus("opCode", decode, p_opCode,      l_opCode);       // Decode the instruction
     Bits funct3 = C.subBitBus("funct3", decode, p_funct3,      l_funct3);
@@ -208,7 +209,7 @@ final public class Ban extends Chip                                             
     Bits     eBgeu = C.enableWordIfEq("eBgeu", rBgeu, funct3, f3_bgeu);
     Bits    branch = C.orBits("branch", eBeq, eBne, eBlt, eBge, eBltu, eBgeu);
     Bit  branchIns = C.compareEq("branchIns", opCode, RiscV.Decode.opBranch);   // True if we are on a branch instruction
-                     C.chooseFromTwoWords("PC", pc4, branch, branchIns);        // Advance normally or jump by branch instruction immediate amount
+    Bits  brOrStep = C.chooseFromTwoWords("PC", pc4, branch, branchIns);        // Advance normally or jump by branch instruction immediate amount
 
     var      eid13 = C.enableWord(iR, C.bits("opCode13", l_opCode, opArithImm));// Decode funct7 for immediate operation
     var      eid33 = C.enableWord(dR, C.bits("opCode33", l_opCode, opArith   ));// Decode funct7 for dyadic operation
@@ -225,21 +226,29 @@ final public class Ban extends Chip                                             
 //    "%s  %s  %s  %s  %s   %s     %s %s",
 //     pc, pci, pc4, PC, start, update, C.collectBits("pc_e", N), C.getGate("pc_l"));
 
-    C.simulationSteps(64);
+//  C.executionTrack(
+//    "S U pc                   pc4              pci",
+//    "%s %s %s  %s  %s",
+//     start, update, pc, pc4, pci);
+
+    C.simulationSteps(164);
     C.simulate();
-    //C.printExecutionTrace(); //stop();
+//  C.printExecutionTrace(); //stop();
     opCode.ok(RiscV.Decode.opArithImm);
     funct3.ok(RiscV.Decode.f3_add);
         rd.ok(   1);
        rs1.ok(   0);
-      immB.ok(   0);
+ branchIns.ok(false);
+      insw.ok(   4);
+      immB.ok(2048);
       immI.ok(  10);
       immJ.ok(   5);
       immS.ok(   1);
-      immU.ok(   0);
+      immU.ok(2560);
+        PC.ok(   8);
         pc.ok(   4);
-       pci.ok(   4);
-       pc4.ok(   4);
+       pci.ok(2052);
+       pc4.ok(   8);
       addI.ok(  10);
        orI.ok(  10);
      rAddi.ok(  10);
