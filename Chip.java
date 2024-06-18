@@ -829,8 +829,7 @@ public class Chip                                                               
       noChangeGates();                                                          // Reset change indicators
      }
     if (maxSimulationSteps == null)                                             // Not enough steps available by default
-     {err("Out of time after", actualMaxSimulationSteps, "steps");
-     }
+      err("Out of time after", actualMaxSimulationSteps, "steps");
     return null;
    }
 
