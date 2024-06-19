@@ -2093,6 +2093,10 @@ public class Chip                                                               
     return sub.sum;
    }
 
+  Bits binaryTCAdd(String output, Bits in1, int in2)                            // Twos complement addition of an immediate value
+   {return binaryTCAdd(output, in1, bits(n(output, "in2"), in1.bits(), in2));
+   }
+
   Bits binaryTCSubtract(String output, Bits in1, Bits in2)                      // Twos complement subtraction
    {final int b = in1.bits();                                                   // Number of bits in input monotone mask
     final int B = in2.bits();                                                   // Number of bits in input monotone mask
@@ -2100,6 +2104,10 @@ public class Chip                                                               
     final Bits        m = binaryTwosComplement(n(output, "subtract"), in2);     // Twos complement of subtrahend
     final BinaryAdd sub = binaryAdd(n(output), in1, m);                         // Effect the subtraction
     return sub.sum;
+   }
+
+  Bits binaryTCSubtract(String output, Bits in1, int in2)                       // Twos complement subtraction of an immediate value
+   {return binaryTCSubtract(output, in1, bits(n(output, "in2"),in1.bits(),in2));
    }
 
 // #   1 2 c   R
@@ -3408,19 +3416,13 @@ public class Chip                                                               
 
   static String traceBack() {return traceBack(new Exception());}                // Get a stack trace that we can use in Geany
 
-  static String currentTestName(String test_name)                               // Remove prefix from test names
-   {return test_name.replaceFirst("^test_", "");
-   }
-
   static String currentTestName()                                               // Name of the current test
    {final StackTraceElement[] T = Thread.currentThread().getStackTrace();       // Current stack trace
-    if (T.length >= 4)                                                          // Perhaps called from a constructor
-     {final String c = T[2].getMethodName();
-      final String C = T[3].getMethodName();
-      return currentTestName(!c.equals("<init>") ? c : C);                      // Remove test marker
+    for (StackTraceElement t : T)                                               // Locate deepest method that starts with test
+     {final String c = t.getMethodName();
+      if (c.matches("\\Atest_\\w+\\Z")) return c.substring(5);
      }
-    if (T.length == 3) return currentTestName(T[2].getMethodName());            // Not called from a constructor
-    return null;
+    return null;                                                                // Not called in a test
    }
 
   static String sourceFileName()                                                // Name of source file containing this method
