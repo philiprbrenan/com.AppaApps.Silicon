@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// RiscV driving Btree on a silicon chip
+// RiscV 32I and Btree on a silicon chip
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
@@ -35,174 +35,86 @@ final public class Ban extends Chip                                             
 
   static class RV32I                                                            // Decode and execute an RV32I instruction
    {final String   out;                                                         // Name for this instruction processor
-    final Pulse  start;                                                         // Start pulse has to be wide enough to load the registers
+//  final Pulse  start;                                                         // Start pulse has to be wide enough to load the registers
     final Pulse update;                                                         // Update registers pulse at end of decode/execute cycle.
+    final Bits    zero;                                                         // Constant zero
     final Bits     one;                                                         // Constant one
 
-    final Bits      x0;                                                         // Define registers and zero them at the start
+//  final Bits      x0;                                                         // Define registers and zero them at the start
     final Bits      PC;                                                         // Next value for program counter forward declaration
     final Register  pc;                                                         // Risc V registers
 
-    final Bits     X[] = new Bits    [XLEN];                                    // New value for register
-    final Register x[] = new Register[XLEN];                                    // Registers
+    final Register x[];                                                         // Registers
+    final Bits     X[] = new Bits[XLEN];                                        // New value for registers
 
-    final Bits decode;                                                          // Instruction to decode and execute
+    final Bits  decode;                                                         // Instruction to decode and execute
 
-    final Bits opCode;                                                          // Decode the instruction
-    final Bits funct3;
-    final Bits funct5;
-    final Bits funct7;
-    final Bits     rd;
-    final Bits    rs1;
-    final Bits    rs2;
-                                                                                // Decode immediate field
-    final Bits   immi;                                                          // Imipac: the weapon that defends itself.
-    final Bits   immu;                                                          // Immediate from U format
-    final Bits   immb;                                                          // Immediate operand from B format
-    final Bits   immj;                                                          // Immediate operand from J format
-    final Bits   imms;                                                          // Immediate operand from S format
+    final Bits  opCode;                                                         // Decode the instruction
+    final Bits  funct3, funct5, funct7;                                         // Function codes
+    final Bits      rd, rs1, rs2;                                               // Register numbers
 
-    final Bits   immB;                                                          // Sign extend the immediate field
-    final Bits   immI;
-    final Bits   immJ;
-    final Bits   immS;
-    final Bits   immU;
+    final Bits    immi, immu, immb, immj, imms;                                 // Imipac: the weapon that defends itself.
+    final Bits    immB, immI, immJ, immS, immU;                                 // Sign extend the immediate field
 
-    final EnableWord s1v;                                                       // Get value of s1 register
-    final EnableWord s2v;
-    final EnableWord s3v;
-                  ;
-    final EnableWord S1v;                                                       // Get values of s2 register
-    final EnableWord S2v;
-    final EnableWord S3v;
-                  ;
-    final Bits    f3_add;                                                       // Funct3 op codes
-    final Bits    f3_xor;
-    final Bits     f3_or;
-    final Bits    f3_and;
-    final Bits    f3_sll;
-    final Bits    f3_srl;
-    final Bits    f3_slt;
-    final Bits   f3_sltu;
-    final Bits    f3_beq;
-    final Bits    f3_bne;
-    final Bits    f3_blt;
-    final Bits    f3_bge;
-    final Bits   f3_bltu;
-    final Bits   f3_bgeu;
+    final EnableWord[]sv, Sv;                                                   // Get value of s1, s2 registers
+    final Bits      rs1v, rs2v;                                                 // The value of the selected s1, s2 registers
 
-    final Bits      rs1v;                                                       // The value of the selected s1 register
-    final Bits      rs2v;                                                       // The value of the selected s2 register
+    final Bits  f3_add,  f3_xor,  f3_or,  f3_and, f3_sll, f3_srl,               // Funct3 op codes
+                f3_slt,  f3_sltu, f3_beq, f3_bne, f3_blt, f3_bge,
+               f3_bltu,  f3_bgeu;
 
-    final Bits      addI;                                                       // Immediate operation
-    final Bits      subI;
-    final Bits      xorI;
-    final Bits       orI;
-    final Bits      andI;
-    final Bits      sllI;
-    final Bits      srlI;
-    final Bits      sraI;
-    final Bit       cmpI;
-    final Bit      cmpuI;
-    final Bits      sltI;
-    final Bits     sltuI;
+    final Bits    addI, subI, xorI, orI, andI, sllI, srlI, sraI, sltI, sltuI;   // Immediate operation
+    final Bit     cmpI, cmpuI;
 
-    final Bits     rAddi;                                                       // Enable result of immediate operation
-    final Bits     rSubi;
-    final Bits     rXori;
-    final Bits      rOri;
-    final Bits     rAndi;
-    final Bits     rSlli;
-    final Bits     rSrli;
-    final Bits     rSrai;
-    final Bits     rSlti;
-    final Bits    rSltui;
-    final Bits       iR0;
+    final Bits   rAddi, rSubi, rXori, rOri, rAndi, rSlli, rSrli, rSrai,         // Enable result of immediate operation
+                 rSlti, rSltui;
 
-    final Bits       iR2;
+    final Bits        iR0,  iR2, iR;                                            // Choose the immediate operation
+    final EnableWord eiR0, eiR2;                                                // Decode funct7 for immediate opcode
 
-    final EnableWord eiR0;                                                      // Decode funct7 for immediate opcode
-    final EnableWord eiR2;
+    final Bits     addD, subD, xorD, orD, andD, sllD, srlD, sraD, sltD, sltuD;  // Dyadic operation
 
-    final Bits        iR;                                                       // Choose the dyadic operation
+    final Bit      cmpD, cmpuD;
+    final Bits    rAddd, rSubd, rXord, rOrd, rAndd, rSlld, rSrld, rSrad,        // Enable result of dyadic operation
+                  rSltd, rSltud;
 
-    final Bits      addD;
-    final Bits      subD;
-    final Bits      xorD;
-    final Bits       orD;
-    final Bits      andD;
-    final Bits      sllD;
-    final Bits      srlD;
-    final Bits      sraD;
-    final Bit       cmpD;
-    final Bit      cmpuD;
-    final Bits      sltD;
-    final Bits     sltuD;
+    final Bits        dR0, dR2, dR;                                             // Choose the dyadic operation
+    final EnableWord edR0, edR2;                                                // Decode funct7 for dyadic operation
 
-    final Bits     rAddd;                                                       // Enable result of dyadic operation
-    final Bits     rSubd;
-    final Bits     rXord;
-    final Bits      rOrd;
-    final Bits     rAndd;
-    final Bits     rSlld;
-    final Bits     rSrld;
-    final Bits     rSrad;
-    final Bits     rSltd;
-    final Bits    rSltud;
-    final Bits       dR0;
-
-    final Bits       dR2;
-
-    final EnableWord edR0;                                                      // Decode funct7 for dyadic operation
-    final EnableWord edR2;
-
-    final Bits        dR;                                                       // Choose the dyadic operation
-
-    final Bit       eq12;
-    final Bit       lt12;
-    final Bit      ltu12;
+    final Bit       eq12, lt12, ltu12;                                          // Comparison operation
     final Bits       pci;                                                       // Pc plus sign extended immediate
     final Bits       pc4;                                                       // Pc plus instruction width
-
-    final Bits      rBeq;                                                       // Jump targets
-    final Bits      rBne;
-    final Bits      rBlt;
-    final Bits      rBge;
-    final Bits     rBltu;
-    final Bits     rBgeu;
-
-    final Bits      eBeq;                                                       // Enable result of branch operation
-    final Bits      eBne;
-    final Bits      eBlt;
-    final Bits      eBge;
-    final Bits     eBltu;
-    final Bits     eBgeu;
+    final Bits      rBeq, rBne, rBlt, rBge, rBltu, rBgeu;                       // Jump targets
+    final Bits      eBeq, eBne, eBlt, eBge, eBltu, eBgeu;                       // Enable result of branch operation
     final Bits    branch;
     final Bit  branchIns;                                                       // True if we are on a branch instruction
     final Bits  brOrStep;                                                       // Advance normally or jump by branch instruction immediate amount
 
-    final EnableWord eid13;                                                     // Decode funct7 for immediate operation
-    final EnableWord eid33;                                                     // Decode funct7 for dyadic operation
+    final EnableWord eid13, eid33;                                              // Decode funct7 for immediate or dyadic operation
 
     final Bits    result;                                                       // Choose between immediate or dyadic operation
+    final Bits[]ox = new Bits[XLEN];                                            // Output choice between existing register and new result
 
     String q(String n) {return Chip.n(out, n);}                                 // Prefix this block
 
-    RV32I(Chip C, String Out, Bits Decode)                                      // Decode the specified bits as a RV32I instruction and execute it
+    RV32I(Chip C, String Out, Bits Decode, Register ipc, Register[]ix)          // Decode the specified bits as a RV32I instruction and execute it
      {   out = Out;                                                             // Name for this area of silicon and the prefix for the gates therein
       decode = Decode;                                                          // Instruction to decode
-       start = C.pulse(q("start"),  0, 2);                                      // Start pulse has to be wide enough to load the registers
-      update = C.pulse(q("update"), 0, 6, 34);                                  // Update registers pulse at end of decode/execute cycle.
+          pc = ipc;                                                             // Program counter at start
+           x = ix;                                                              // Registers at start
+//     start = C.pulse(q("start"),  0, 2);                                      // Start pulse has to be wide enough to load the registers
+      update = C.pulse(q("update"), 0, 6, 38);                                  // Update registers pulse at end of decode/execute cycle.
          one = C.bits (q("one"),    XLEN, 1);                                   // Constant one
+        zero = C.bits (q("zero"),   XLEN, 0);                                   // Constant zero
 
-          x0 = C.bits    (q("X0"),  XLEN, 0);                                   // Define registers and zero them at the start
-          PC = C.bits    (q("PC"),  XLEN);                                      // Next value for program counter forward declaration
-          pc = C.register(q("pc"), C.regIn(x0, start), C.regIn(PC, update));    // Risc V registers
+//        x0 = C.bits    (q("X0"),  XLEN, 0);                                   // Define registers and zero them at the start
+//        PC = C.bits    (q("PC"),  XLEN);                                      // Next value for program counter forward declaration
+//        pc = C.register(q("pc"), C.regIn(x0, start), C.regIn(PC, update));    // Risc V registers
 
-      for (int i = 1; i < XLEN; i++)                                            // Load registers. Initially from x0 later with instruction results
-       {X[i] = C.bits    (q("X")+i, XLEN);
-        x[i] = C.register(q("x")+i, C.regIn(x0, start), C.regIn(X[i], update));
-       }
+//      for (int i = 1; i < XLEN; i++)                                            // Load registers. Initially from x0 later with instruction results
+//       {X[i] = C.bits    (q("X")+i, XLEN);
+//        x[i] = C.register(q("x")+i, C.regIn(x0, start), C.regIn(X[i], update));
+//       }
 
       opCode = C.subBitBus(q("opCode"), decode, p_opCode,     l_opCode);        // Decode the instruction
       funct3 = C.subBitBus(q("funct3"), decode, p_funct3,     l_funct3);
@@ -215,7 +127,7 @@ final public class Ban extends Chip                                             
         immi = C.subBitBus(q("immi"),   decode, ip_immediate, il_immediate);    // Imipac: the weapon that defends itself.
         immu = C.subBitBus(q("immu"),   decode, up_immediate, ul_immediate);    // Immediate from U format
         immb = C.conCatBits(q("immb"),                                          // Immediate operand from B format
-          x0.b(1),                                                              // First bit known to be 0.
+          zero.b(1),                                                            // First bit known to be 0.
           decode.b( 9), decode.b(10), decode.b(11), decode.b(12),               // Field offsets are one based: in riscv-spec-20191213.pdf they are zero based.
           decode.b(26), decode.b(27), decode.b(28), decode.b(29),
           decode.b(30), decode.b(31),
@@ -241,13 +153,17 @@ final public class Ban extends Chip                                             
         immS = C.binaryTCSignExtend(q("immS"), imms, XLEN);
         immU = C.binaryTCSignExtend(q("immU"), immu, XLEN);
 
-         s1v = C.enableWord(x[1], C.bits(q("x1v"), D.l_rs1, 1));                // Get value of s1 register
-         s2v = C.enableWord(x[2], C.bits(q("x2v"), D.l_rs1, 2));
-         s3v = C.enableWord(x[3], C.bits(q("x3v"), D.l_rs1, 3));
+      sv = new EnableWord[XLEN];                                                // Get values of s1 and s2
+      Sv = new EnableWord[XLEN];
+      sv[0] = C.enableWord(zero, C.bits(q("xv0"), D.l_rs1, 0));                 // Get value of s1 register
+      Sv[0] = C.enableWord(zero, C.bits(q("Xv0"), D.l_rs2, 0));                 // Get value of s2 register
+      for (int i = 1; i < XLEN; i++)
+       {sv[i] = C.enableWord(x[i], C.bits(q("xv")+i, D.l_rs1, i));              // Get value of s1 register
+        Sv[i] = C.enableWord(x[i], C.bits(q("Xv")+i, D.l_rs2, i));              // Get value of s2 register
+       }
 
-         S1v = C.enableWord(x[1], C.bits(q("X1v"), D.l_rs2, 1));                // Get values of s2 register
-         S2v = C.enableWord(x[2], C.bits(q("X2v"), D.l_rs2, 2));
-         S3v = C.enableWord(x[3], C.bits(q("X3v"), D.l_rs2, 3));
+        rs1v = C.enableWord(q("rs1v"),  rs1,  sv);                              // The value of the selected s1 register
+        rs2v = C.enableWord(q("rs2v"),  rs2,  Sv);                              // The value of the selected s2 register
 
          f3_add = C.bits(q("f3_add"),  l_funct3, D.f3_add);                     // Funct3 op codes
          f3_xor = C.bits(q("f3_xor"),  l_funct3, D.f3_xor);
@@ -263,9 +179,6 @@ final public class Ban extends Chip                                             
          f3_bge = C.bits(q("f3_bge"),  l_funct3, D.f3_bge);
         f3_bltu = C.bits(q("f3_bltu"), l_funct3, D.f3_bltu);
         f3_bgeu = C.bits(q("f3_bgeu"), l_funct3, D.f3_bgeu);
-
-           rs1v = C.enableWord          (q("rs1v"),  rs1,  s1v, s2v, s3v);      // The value of the selected s1 register
-           rs2v = C.enableWord          (q("rs2v"),  rs2,  S1v, S2v, S3v);      // The value of the selected s2 register
 
            addI = C.binaryTCAdd         (q("addI"),  rs1v, immI);               // Immediate operation
            subI = C.binaryTCSubtract    (q("subI"),  rs1v, immI);
@@ -352,24 +265,35 @@ final public class Ban extends Chip                                             
           eBgeu = C.enableWordIfEq(q("eBgeu"), rBgeu, funct3, f3_bgeu);
          branch = C.orBits(q("branch"), eBeq, eBne, eBlt, eBge, eBltu, eBgeu);
       branchIns = C.compareEq(q("branchIns"), opCode, D.opBranch);              // True if we are on a branch instruction
-       brOrStep = C.chooseFromTwoWords(q("PC"), pc4, branch, branchIns);        // Advance normally or jump by branch instruction immediate amount
+       brOrStep = C.chooseFromTwoWords(q("brOrStep"), pc4, branch, branchIns);  // Advance normally or jump by branch instruction immediate amount
 
           eid13 = C.enableWord(iR, C.bits(q("opCode13"), l_opCode, opArithImm));// Decode funct7 for immediate operation
           eid33 = C.enableWord(dR, C.bits(q("opCode33"), l_opCode, opArith   ));// Decode funct7 for dyadic operation
 
          result = C.enableWord(q("result"), opCode, eid13, eid33);              // Choose between immediate or dyadic operation
 
+      PC   = C.register(q("PC"), brOrStep, update);                             // New program counter
+      X[0] = C.register("X0",    zero,     update);                             // X0
       for (int i = 1; i < XLEN; i++)                                            // Values to reload back into registers
-        C.chooseThenElseIfEQ(q("X")+i, result, x[i], rd, i);
+       {ox[i] = C.chooseThenElseIfEQ(q("X")+i, result, x[i], rd, i);
+        X [i] = C.register("X"+i, ox[i], update);
+       }
      }
    }
 
 //D0
 
   static void test_decode_RV32I ()                                              // Decode an immediate instruction
-   {final Chip  C = new Chip();
-    final Bits  decode = C.bits("decode", XLEN, 0xa00093);                      // Instruction to decode and execute
-    final RV32I R = new RV32I(C, "a", decode);
+   {final Chip      C = new Chip();
+    final Pulse start = C.pulse   ("start", 0, 2);
+    final Register pc = C.register("pc",  C.bits("bpc",  XLEN, 4), start);      // Initialize pc
+    final Register[]x = new Register[XLEN];
+    for (int i = 1; i < XLEN; i++)                                              // Initialize registers
+                 x[i] = C.register("x"+i, C.bits("bx"+i, XLEN, i), start);
+    final Bits decode = C.bits("decode", XLEN, 0xa00093);                       // Instruction to decode and execute
+    final RV32I     R = new RV32I(C, "a", decode, pc, x);
+    for (int i = 0; i < XLEN; i++) R.X[i].anneal();
+    R.PC.anneal();
 
 //  C.executionTrack(
 //    "pc    pci   pc4   PC    start update  e   l",
@@ -381,7 +305,7 @@ final public class Ban extends Chip                                             
 //    "%s %s %s  %s  %s",
 //     start, update, pc, pc4, pci);
 
-    C.simulationSteps(68);
+    C.simulationSteps(55);
     C.simulate();
 //  C.printExecutionTrace(); //stop();
     R.   opCode.ok(D.opArithImm);
@@ -405,9 +329,14 @@ final public class Ban extends Chip                                             
     R.     rOri.ok(   0);
     R.    rAndi.ok(   0);
     R.   rSltui.ok(   0);
-    R.     x[1].ok(  10);
-    R.     x[2].ok(   0);
-    R.     x[3].ok(   0);
+    R.     x[1].ok(   1);
+    R.     x[2].ok(   2);
+    R.     x[3].ok(   3);
+    R.     X[1].ok(  10);
+    R.     X[2].ok(   2);
+    R.     X[3].ok(   3);
+    R.   result.ok(  10);
+    R.    ox[1].ok(  10);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
