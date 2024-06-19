@@ -837,7 +837,7 @@ public class Chip                                                               
 
 //D2 Bits                                                                       // Operations on bits
 
-  Gate bit(CharSequence name, Integer value)                                    // Create a constant bit as true if the supplied number is non zero else false
+  Bit bit(CharSequence name, Integer value)                                     // Create a constant bit as true if the supplied number is non zero else false
    {return value == null ? Xxx(name) : value > 0 ? One(name) : Zero(name);
    }
 
@@ -860,6 +860,27 @@ public class Chip                                                               
    }
 
 //D2 Buses                                                                      // A bus is an array of bits or an array of arrays of bits
+
+//D3 Bits                                                                       // An array of bits that can be manipulated via one name.
+
+  static String n(String...C)                                                   // Gate name from no index probably to make a bus connected to a name
+   {return concatenateNames(concatenateNames((Object[])C));
+   }
+
+  static String n(int i, String...C)                                            // Gate name from single index.
+   {return concatenateNames(concatenateNames((Object[])C), i);
+   }
+
+  static String n(int i, int j, String...c)                                     // Gate name from double index.
+   {return concatenateNames(concatenateNames((Object[])c), i, j);
+   }
+
+  static String concatenateNames(Object...O)                                    // Concatenate names to construct a gate name
+   {final StringBuilder b = new StringBuilder();
+    for (Object o: O) {b.append("_"); b.append(o);}
+    return O.length > 0 ? b.substring(1) : "";
+   }
+
 
   interface Bits                                                                // A bus made out of bits
    {String name();                                                              // Name of bus
@@ -984,27 +1005,7 @@ public class Chip                                                               
    {return new ConCatBits(Name, Source);
    }
 
-//D3 Bits                                                                       // An array of bits that can be manipulated via one name.
-
-  static String n(String...C)                                                   // Gate name from no index probably to make a bus connected to a name
-   {return concatenateNames(concatenateNames((Object[])C));
-   }
-
-  static String n(int i, String...C)                                            // Gate name from single index.
-   {return concatenateNames(concatenateNames((Object[])C), i);
-   }
-
-  static String n(int i, int j, String...c)                                     // Gate name from double index.
-   {return concatenateNames(concatenateNames((Object[])c), i, j);
-   }
-
-  static String concatenateNames(Object...O)                                    // Concatenate names to construct a gate name
-   {final StringBuilder b = new StringBuilder();
-    for (Object o: O) {b.append("_"); b.append(o);}
-    return O.length > 0 ? b.substring(1) : "";
-   }
-
-  Bits bits(CharSequence name, int bits)                                        // Get a predefined bit bus or define a new one if there is no predefined bit bus of the same name.  This allows us to create bit buses needed in advance of knowing the gates that will be attached to them - in effect - forward declaring the bit bus.
+  Bits bits(CharSequence name, int bits)                                        // Forward declare a bit bus: get a predefined bit bus or define a new one if there is no predefined bit bus of the same name.  This allows us to create bit buses needed in advance of knowing the gates that will be attached to them - in effect - forward declaring the bit bus.
    {final Bits b = bitBuses.get(name);
 
     if (b != null)                                                              // Bus already exists
@@ -1260,6 +1261,10 @@ public class Chip                                                               
       return b.toString();
      }
    } // WordBus
+
+  WordBus words(String Name, int Words, int Bits)                               // Forward declaration of a word bus
+   {return new WordBus(Name, Words, Bits);
+   }
 
   class SubWordBus implements Words                                             // Select the specified range of words from a word bus
    {final String name; public String name() {return name;}                      // Name of the word bus
