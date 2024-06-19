@@ -38,7 +38,7 @@ final public class Ban extends Chip                                             
     final Pulse  start;                                                         // Start pulse has to be wide enough to load the registers
     final Pulse update;                                                         // Update registers pulse at end of decode/execute cycle.
     final Bits     one;                                                         // Constant one
-                ;
+
     final Bits      x0;                                                         // Define registers and zero them at the start
     final Bits      PC;                                                         // Next value for program counter forward declaration
     final Register  pc;                                                         // Risc V registers
@@ -188,22 +188,21 @@ final public class Ban extends Chip                                             
 
     String q(String n) {return Chip.n(out, n);}                                 // Prefix this block
 
-    RV32I(Chip C, String Out)                                                   // Add the capability to decode and execute an RV32I instruction to a chip
-     {   out = Out;
+    RV32I(Chip C, String Out, Bits Decode)                                      // Decode the specified bits as a RV32I instruction and execute it
+     {   out = Out;                                                             // Name for this area of silicon and the prefix for the gates therein
+      decode = Decode;                                                          // Instruction to decode
        start = C.pulse(q("start"),  0, 2);                                      // Start pulse has to be wide enough to load the registers
       update = C.pulse(q("update"), 0, 6, 34);                                  // Update registers pulse at end of decode/execute cycle.
          one = C.bits (q("one"),    XLEN, 1);                                   // Constant one
 
-          x0 = C.bits       (q("X0"),  XLEN, 0);                                // Define registers and zero them at the start
-          PC = C.collectBits(q("PC"),  XLEN);                                   // Next value for program counter forward declaration
+          x0 = C.bits    (q("X0"),  XLEN, 0);                                   // Define registers and zero them at the start
+          PC = C.bits    (q("PC"),  XLEN);                                      // Next value for program counter forward declaration
           pc = C.register(q("pc"), C.regIn(x0, start), C.regIn(PC, update));    // Risc V registers
 
       for (int i = 1; i < XLEN; i++)                                            // Load registers. Initially from x0 later with instruction results
-       {X[i] = C.collectBits(q("X")+i, XLEN);
-        x[i] = C.register   (q("x")+i, C.regIn(x0, start), C.regIn(X[i], update));
+       {X[i] = C.bits    (q("X")+i, XLEN);
+        x[i] = C.register(q("x")+i, C.regIn(x0, start), C.regIn(X[i], update));
        }
-
-      decode = C.bits(q("decode"), XLEN, 0xa00093);                             // Instruction to decode and execute
 
       opCode = C.subBitBus(q("opCode"), decode, p_opCode,     l_opCode);        // Decode the instruction
       funct3 = C.subBitBus(q("funct3"), decode, p_funct3,     l_funct3);
@@ -369,7 +368,8 @@ final public class Ban extends Chip                                             
 
   static void test_decode_RV32I ()                                              // Decode an immediate instruction
    {final Chip  C = new Chip();
-    final RV32I R = new RV32I(C, "a");
+    final Bits  decode = C.bits("decode", XLEN, 0xa00093);                      // Instruction to decode and execute
+    final RV32I R = new RV32I(C, "a", decode);
 
 //  C.executionTrack(
 //    "pc    pci   pc4   PC    start update  e   l",
