@@ -5,7 +5,7 @@
 // Draw all layouts when on Github
 // updateEdge() should use stack of memory cells so we do not have to iterate over all gates
 // Add fell to gate Chip.toString() and update pin information
-// CN: check gate names match variable names
+// Check gate names match variable names
 // Remove field loaded from Register
 // On fanOut/fanIn add the principle gate name to the fan gate names for easier identification in chip listing
 // SubBitBus - merge constructors
@@ -1011,7 +1011,7 @@ public class Chip                                                               
     if (b != null)                                                              // Bus already exists
      {if (b.bits() != bits)                                                     // Bus already exists and with different characteristics
        {stop("A bit bus with name:", name, "and bits", b.bits(),
-             "has already been defined versus bits requested:", bits);
+             "has already been defined which differs from:", bits, "bits");
        }
       return b;                                                                 // Treat as reuse if a bus of the same name and size already exists
      }
@@ -1203,6 +1203,14 @@ public class Chip                                                               
     return o;                                                                   // Size of resulting bus
    }
 
+  Bits   outputBits(Bits output, Bits input) {return   outputBits(output.name(), input);}
+  Bits continueBits(Bits output, Bits input) {return continueBits(output.name(), input);}
+  Bits      notBits(Bits output, Bits input) {return      notBits(output.name(), input);}
+  Bit       andBits(Bits output, Bits input) {return      andBits(output.name(), input);}
+  Bit      nandBits(Bits output, Bits input) {return     nandBits(output.name(), input);}
+  Bit        orBits(Bits output, Bits input) {return       orBits(output.name(), input);}
+  Bit       norBits(Bits output, Bits input) {return      norBits(output.name(), input);}
+
 //D3 Words                                                                      // An array of arrays of bits that can be manipulated via one name.
 
   interface Words                                                               // Description of a word bus
@@ -1241,7 +1249,10 @@ public class Chip                                                               
      {name = Name; bits = Bits; words = Words;
       final Words w = wordBuses.get(name);                                      // Chip, bits bus name, words, bits per word, options
       if (w != null)
-        stop("A word bus with name:", name, "has already been defined");
+        if (words == w.words() && bits == w.bits()) {}                          // Reuse existing definition if it has the same dimensions
+        else stop("A word bus with name:", name, "with words", w.words(),
+         "and bits", w.bits(), "has already been defined",
+         "which differs from words", words, "and bits", bits);
       wordBuses.put(name, this);                                                // Index bus
       for (int b = 1; b <= words; ++b)                                          // Size of bit bus for each word in the word bus
        {final String s = n(b, name);
@@ -1749,7 +1760,7 @@ public class Chip                                                               
 
     Register(String Output, Bits Input, Pulse Load)                             // Create register from single input and pulse
      {output      = Output;                                                     // Name of register
-      reg         = Chip.this.bits(output, Input.bits());                                 // Bit bus created by register
+      reg         = Chip.this.bits(output, Input.bits());                       // Bit bus created by register
       I           = new RegIn[1]; I[0] = new RegIn(Input, Load);                // Record inputs
       final int b = Input.bits();                                               // Number of bits in register
       for (int i  = 1; i <= b; i++) My(n(i, output), Load, Input.b(i));         // Create the memory bits
@@ -5352,6 +5363,36 @@ Step  o     e
     E.ok(2);
    }
 
+  static void test_bits_forward()
+   {final int B = 4;
+    Chip   c = new Chip();
+    Bit zero = c.bit("zero", 0);
+    Bit  one = c.bit("one",  1);
+    Bits   b = c.bits("b",   2);
+    Bits  bb = c.bits("b",   2);
+    Bit   b0 = c.Not(b.b(1), one);
+    Bit   b1 = c.Not(b.b(2), zero);
+    b0.anneal(); b1.anneal();
+    c.simulate();
+    b0.ok(false);
+    b1.ok(true);
+   }
+
+  static void test_words_forward()
+   {final int W = 2, B = 4;
+    Chip   c = new Chip();
+    Bits one = c.bits("one", B, 1);
+    Bits two = c.bits("two", B, 2);
+    Words  w = c.words("w", W, B);
+    Words ww = c.words("w", W, B);
+    Bits  w1 = c.notBits(w.w(1), one);
+    Bits  w2 = c.notBits(w.w(2), two);
+    w1.anneal(); w2.anneal();
+    c.simulate();
+    w1.ok(14);
+    w2.ok(13);
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_max_min();
     test_source_file_name();
@@ -5420,11 +5461,14 @@ Step  o     e
     test_shiftRightArithmetic();
     test_signExtend();
     test_then_if_eq_else();
+    test_bits_forward();
+    test_words_forward();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_then_if_eq_else();
+    test_words_forward();
+    test_bits_forward();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
