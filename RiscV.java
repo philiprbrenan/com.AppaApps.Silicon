@@ -940,6 +940,35 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     ok(r.x30, 4);
    }
 
+  static void test_slt()                                                        // Fibonacci
+   {RiscV    r = new RiscV();                                                   // New Risc V machine and program
+    Register z = r.x0;                                                          // Zero
+    Register a = r.x1;                                                          // A
+    Register b = r.x2;                                                          // B
+    Register c = r.x31;                                                         // C = A < B
+
+    r.addi(a, z, 10);
+    r.addi(b, z, 201);
+    r.slt (c, a, b);                                                            // a =  0
+    r.emulate();                                                                // Run the program
+say(r);
+    r.ok("""
+RiscV      : slt
+Step       : 4
+Instruction: 3
+Registers  :  x1=10 x2=201 x31=1
+Memory     :
+""");
+   //stop(r.printCode());
+   ok(r.printCode(), """
+RiscV Hex Code: slt
+Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
+0000      addi    13   1  0  a   0   0  0  0  0 0          a   a00093
+0001      addi    13   2  0  9   0   0  1  6  0 0         c9  c900113
+0002       slt    33  1f  1  2   2   2  0  0  0 0          0   20afb3
+""");
+   }
+
   static void test_fibonacci()                                                  // Fibonacci
    {RiscV    r = new RiscV();                                                   // New Risc V machine and program
     Register z = r.x0;                                                          // Zero
@@ -992,12 +1021,13 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     if (github_actions) test_immediate_j();
     if (github_actions) test_immediate_s();
     test_add();
+    test_slt();
     test_fibonacci();
    }
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    test_fibonacci();
+    test_slt();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
