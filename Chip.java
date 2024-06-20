@@ -1713,29 +1713,32 @@ public class Chip                                                               
 //D2 Registers                                                                  // Create registers
 
   class Monitor                                                                 // Monitor the load signals for a register to ensure that they remain viable at all times
-   {final String name;
-    final Bit [] bits;
+   {final String name;                                                          // Name of Monitor
+    final Bit [] bits;                                                          // Bits to monitor
+    final Boolean[]B;                                                           // Snapshot of the current bit values
+
     Monitor(String Name, Bit[]Bits)
      {name = Name; bits = Bits;
       monitors.put(name, this);
+      B = new Boolean[bits.length];
      }
     void check()                                                                // Check load signals are viable
-     {int high = 0;
-      for (int i = 0; i < bits.length; i++)                                     // Check each signal
+     {for (int i = 0; i < bits.length; i++)                                     // Capture each load signal state
        {final Bit  b = bits[i];
         final Gate g = getGate(b);
-        if (g.value == null)
-          stop("Monitor", name, "null on bit:", i+1, b.name, "at step", steps);
-        if (g.value) ++high;
+        B[i] = g.value;
        }
-      if (high <= 1) return;                                                    // Signals remain viable
+      int h = 0, l = 0, n = 0;
+      for (int i = 0; i < bits.length; i++)                                     // Signal statistics
+        if (B[i] == null) ++n; else if (B[i]) ++h; else ++l;
+      if (h == 1) return;                                                       // Load signals are combined with 'or' so if one signal is high we have a definte result and no clash with any other load signal.
+      if (h == 0 && n == 0) return;                                             // All load signals are low so we have a definite result and no clashes
       final StringBuilder s = new StringBuilder();                              // Report signals in error
       for (int i = 0; i < bits.length; i++)
-       {final Bit  b = bits[i];
-        final Gate g = getGate(b);
-        if (g.value) s.append(" ["+i+"] == "+b.name);
+       {if      (B[i] == null ) s.append(""+i+" => null");
+        else if (B[i])          s.append(""+i+" => 1");
        }
-      say("Monitor", name, "has", high, "bits:", s);
+      say("Monitor", name, "has", h, "1 bits and", n, "null bits:", s);
      }
    }
 
