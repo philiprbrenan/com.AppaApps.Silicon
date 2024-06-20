@@ -36,16 +36,16 @@ final public class Ban extends Chip                                             
   static class RV32I                                                            // Decode and execute an RV32I instruction
    {final String   out;                                                         // Name for this instruction processor
 //  final Pulse  start;                                                         // Start pulse has to be wide enough to load the registers
-    final Pulse update;                                                         // Update registers pulse at end of decode/execute cycle.
+//  final Pulse update;                                                         // Update registers pulse at end of decode/execute cycle.
     final Bits    zero;                                                         // Constant zero
     final Bits     one;                                                         // Constant one
 
 //  final Bits      x0;                                                         // Define registers and zero them at the start
     final Bits      PC;                                                         // Next value for program counter forward declaration
-    final Register  pc;                                                         // Risc V registers
+    final Bits      pc;                                                         // Risc V registers
 
-    final Register x[];                                                         // Registers
-    final Bits     X[] = new Bits[XLEN];                                        // New value for registers
+    final Bits       x[];                                                       // Registers
+    final Bits       X[] = new Bits[XLEN];                                      // New value for registers
 
     final Bits  decode;                                                         // Instruction to decode and execute
 
@@ -88,7 +88,7 @@ final public class Ban extends Chip                                             
     final Bits      eBeq, eBne, eBlt, eBge, eBltu, eBgeu;                       // Enable result of branch operation
     final Bits    branch;
     final Bit  branchIns;                                                       // True if we are on a branch instruction
-    final Bits  brOrStep;                                                       // Advance normally or jump by branch instruction immediate amount
+//  final Bits  brOrStep;                                                       // Advance normally or jump by branch instruction immediate amount
 
     final EnableWord eid13, eid33;                                              // Decode funct7 for immediate or dyadic operation
 
@@ -97,13 +97,25 @@ final public class Ban extends Chip                                             
 
     String q(String n) {return Chip.n(out, n);}                                 // Prefix this block
 
-    RV32I(Chip C, String Out, Bits Decode, Register ipc, Register[]ix)          // Decode the specified bits as a RV32I instruction and execute it
+    public String toString()                                                    // Show the differences between the input and output registers
+     {final StringBuilder b = new StringBuilder();
+      if (pc.Int() != PC.Int()) b.append("pc="+PC.Int()+" ");
+      for (int i = 1; i < XLEN; i++)
+        if (x[i].Int() != X[i].Int()) b.append("x"+i+"="+X[i].Int()+" ");
+      return b.toString().substring(0, b.length()-1);
+     }
+
+    void ok(String expected)                                                    // Compare expected with got string representation of instruction execution
+     {Chip.ok(toString(), expected);
+     }
+
+    RV32I(Chip C, String Out, Bits Decode, Bits pc, Bits[]x)                    // Decode the specified bits as a RV32I instruction and execute it
      {   out = Out;                                                             // Name for this area of silicon and the prefix for the gates therein
       decode = Decode;                                                          // Instruction to decode
-          pc = ipc;                                                             // Program counter at start
-           x = ix;                                                              // Registers at start
+     this.pc = pc;                                                              // Program counter at start
+      this.x = x;                                                               // Registers at start
 //     start = C.pulse(q("start"),  0, 2);                                      // Start pulse has to be wide enough to load the registers
-      update = C.pulse(q("update"), 0, 6, 38);                                  // Update registers pulse at end of decode/execute cycle.
+//    update = C.pulse(q("update"), 0, 6, 38);                                  // Update registers pulse at end of decode/execute cycle.
          one = C.bits (q("one"),    XLEN, 1);                                   // Constant one
         zero = C.bits (q("zero"),   XLEN, 0);                                   // Constant zero
 
@@ -265,49 +277,59 @@ final public class Ban extends Chip                                             
           eBgeu = C.enableWordIfEq(q("eBgeu"), rBgeu, funct3, f3_bgeu);
          branch = C.orBits(q("branch"), eBeq, eBne, eBlt, eBge, eBltu, eBgeu);
       branchIns = C.compareEq(q("branchIns"), opCode, D.opBranch);              // True if we are on a branch instruction
-       brOrStep = C.chooseFromTwoWords(q("brOrStep"), pc4, branch, branchIns);  // Advance normally or jump by branch instruction immediate amount
+             PC = C.chooseFromTwoWords(q("PC"), pc4, branch, branchIns);        // Advance normally or jump by branch instruction immediate amount
 
           eid13 = C.enableWord(iR, C.bits(q("opCode13"), l_opCode, opArithImm));// Decode funct7 for immediate operation
           eid33 = C.enableWord(dR, C.bits(q("opCode33"), l_opCode, opArith   ));// Decode funct7 for dyadic operation
 
          result = C.enableWord(q("result"), opCode, eid13, eid33);              // Choose between immediate or dyadic operation
 
-      PC   = C.register(q("PC"), brOrStep, update);                             // New program counter
-      X[0] = C.register("X0",    zero,     update);                             // X0
+      X[0] = null;                                                              // X0
       for (int i = 1; i < XLEN; i++)                                            // Values to reload back into registers
-       {ox[i] = C.chooseThenElseIfEQ(q("X")+i, result, x[i], rd, i);
-        X [i] = C.register("X"+i, ox[i], update);
-       }
+        X[i] = C.chooseThenElseIfEQ(q("X")+i, result, x[i], rd, i);             // Either the passed in register value or the newly computed one
      }
    }
+//    for (int i = 1; i < XLEN; i++)                                            // Values to reload back into registers
+//     {ox[i] = C.chooseThenElseIfEQ(q("X")+i, result, x[i], rd, i);
+//      X [i] = C.register("X"+i, ox[i], update);
+//     }
+
+    static RV32I rv32i(Chip chip, String out, Bits decode, Bits pc, Bits[]x)    // Decode the specified bits as a RV32I instruction and execute it
+     {return new RV32I(chip, out, decode, pc, x);                               // Decode the specified bits as a RV32I instruction and execute it
+     }
 
 //D0
 
-  static void test_decode_RV32I ()                                              // Decode an immediate instruction
+  static RV32I test_instruction(Integer instruction)                            // Test an instruction
    {final Chip      C = new Chip();
-    final Pulse start = C.pulse   ("start", 0, 2);
-    final Register pc = C.register("pc",  C.bits("bpc",  XLEN, 4), start);      // Initialize pc
-    final Register[]x = new Register[XLEN];
-    for (int i = 1; i < XLEN; i++)                                              // Initialize registers
-                 x[i] = C.register("x"+i, C.bits("bx"+i, XLEN, i), start);
-    final Bits decode = C.bits("decode", XLEN, 0xa00093);                       // Instruction to decode and execute
-    final RV32I     R = new RV32I(C, "a", decode, pc, x);
-    for (int i = 0; i < XLEN; i++) R.X[i].anneal();
+    final Bits     pc = C.bits("pc",  XLEN, 4);                                 // Initialize pc
+    final Bits []   x = new Bits[XLEN];
+    for (int i = 1; i < XLEN; i++) x[i] = C.bits("x"+i, XLEN, i);               // Initialize registers
+
+    final Bits decode = C.bits("decode", XLEN, instruction);                    // Instruction to decode and execute
+    final RV32I     R = rv32i(C, "a", decode, pc, x);
+    for (int i = 1; i < XLEN; i++) R.X[i].anneal();                             // Anneal the outputs
     R.PC.anneal();
+//  C.simulationSteps(60);
+    C.maxSimulationSteps(300);
+    C.simulate();
+    return R;
+   }
+
+  static void test_decode_addi()
+   {final RV32I     R = test_instruction(0xa00093);
 
 //  C.executionTrack(
 //    "pc    pci   pc4   PC    start update  e   l",
 //    "%s  %s  %s  %s  %s   %s     %s %s",
 //     pc, pci, pc4, PC, start, update, C.collectBits("pc_e", XLEN), C.getGate("pc_l"));
-
 //  C.executionTrack(
 //    "S U pc                   pc4              pci",
 //    "%s %s %s  %s  %s",
 //     start, update, pc, pc4, pci);
-
-    C.simulationSteps(55);
-    C.simulate();
 //  C.printExecutionTrace(); //stop();
+
+    R.ok("pc=8 x1=10");
     R.   opCode.ok(D.opArithImm);
     R.   funct3.ok(D.f3_add);
     R.       rd.ok(   1);
@@ -336,15 +358,22 @@ final public class Ban extends Chip                                             
     R.     X[2].ok(   2);
     R.     X[3].ok(   3);
     R.   result.ok(  10);
-    R.    ox[1].ok(  10);
+//  R.    ox[1].ok(  10);
    }
 
+  static void test_decode_add1() {test_instruction(0x310233).ok("pc=8 x4=5");}
+  static void test_decode_add2() {test_instruction(0x0201b3).ok("pc=8 x3=4");}
+  static void test_decode_slt () {test_instruction(0x20afb3).ok("pc=8 x31=1");}
+
   static void oldTests()                                                        // Tests thought to be in good shape
-   {test_decode_RV32I();
+   {test_decode_addi();
+    test_decode_add1();
+    test_decode_slt();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {test_decode_RV32I();
+   {//oldTests();
+    test_decode_slt();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
