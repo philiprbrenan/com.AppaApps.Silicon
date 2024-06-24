@@ -363,17 +363,19 @@ final public class Ban extends Chip                                             
 
   static void test_decode_add1() {test_instruction(0x310233).ok("pc=8 x4=5");}
   static void test_decode_add2() {test_instruction(0x0201b3).ok("pc=8 x3=4");}
-  static void test_decode_slt () {test_instruction(0x20afb3).ok("pc=8 x31=1");}
+  static void test_decode_slt1() {test_instruction(0x20afb3).ok("pc=8 x31=1");}
+  static void test_decode_slt2() {test_instruction(0x112f33).ok("pc=8 x30=0");}
 
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_decode_addi();
     test_decode_add1();
-    test_decode_slt();
+    test_decode_slt1();
+    test_decode_slt2();
    }
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    test_decode_slt();
+    test_decode_slt2();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
