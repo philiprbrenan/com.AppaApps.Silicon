@@ -2,12 +2,9 @@
 // Design, simulate and layout a binary tree on a silicon chip.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
-// Draw all layouts when on Github
 // updateEdge() should use stack of memory cells so we do not have to iterate over all gates
 // Add fell to gate Chip.toString() and update pin information
 // Check gate names match variable names
-// Remove field loaded from Register
-// On fanOut/fanIn add the principle gate name to the fan gate names for easier identification in chip listing
 // SubBitBus - merge constructors
 // Each test should print the chip to make sure that all collected bits have been defined.  See CompareLT for an example of why this is important.
 // Words words( should accept null values
@@ -41,22 +38,21 @@ public class Chip                                                               
   final static Stack<String>  gdsPerl = new Stack<>();                          // Perl code to create GDS2 output files
   final static TreeSet<String> errors = new TreeSet<>();                        // Unique error messages during the compilation of a chip
 
-  final Map<String, Bit>         bits = new TreeMap<>();                        // Bits by name
   final Map<String, Gate>       gates = new TreeMap<>();                        // Gates by name
-  final Map<String, Bits>    bitBuses = new TreeMap<>();                        // Bit buses
-  final Map<String, Words>  wordBuses = new TreeMap<>();                        // Sizes of word buses
-  final TreeSet<String>   outputGates = new TreeSet<>();                        // Output gates
-  final TreeMap<String, TreeSet<Gate.WhichPin>>                                 // Pending gate definitions
+  final Map<String, Bits>    bitBuses = new TreeMap<>();                        // Several bits make a bit bus
+  final Map<String, Words>  wordBuses = new TreeMap<>();                        // Several bit buses make a word bus
+  final Set<String>       outputGates = new TreeSet<>();                        // Output gates
+  final Map<String, TreeSet<Gate.WhichPin>>                                     // Pending gate definitions
                               pending = new TreeMap<>();
-  final TreeMap<String, Gate>                                                   // Gates that are connected to an output gate
+  final Map<String, Gate>                                                       // Gates that are connected to an output gate
                     connectedToOutput = new TreeMap<>();
-  final TreeMap<String, InputUnit>                                              // Input devices connected to the chip
-                               inputs = new TreeMap<>();
-  final TreeMap<String, OutputUnit>                                             // Output devices connected to the chip
+  final Map<String, InputUnit> inputs = new TreeMap<>();                        // Input devices connected to the chip
+
+  final Map<String, OutputUnit>                                                 // Output devices connected to the chip
                               outputs = new TreeMap<>();
-  final TreeMap<String, Pulse> pulses = new TreeMap<>();                        // Bits that are externally driven by periodic pulses of a specified duty cycle
-  final TreeMap<String, Monitor>                                                // Monitor pulses used to clock registers to ensure they remain viable during execution
-                             monitors = new TreeMap<>();
+  final Map<String, Pulse>     pulses = new TreeMap<>();                        // Bits that are externally driven by periodic pulses of a specified duty cycle
+  final Map<String, Monitor> monitors = new TreeMap<>();                        // Monitor pulses used to clock registers to ensure they remain viable during execution
+
   final Bits                 clock0;                                            // Negative clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
   final Bits                 clock1;                                            // Positive clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
 
@@ -109,9 +105,9 @@ public class Chip                                                               
   void simulationSteps(int steps)        {minSimulationSteps(steps); maxSimulationSteps(steps);}                    // Stop cleanly at this number of steps
 
   enum Operator                                                                 // Gate operations
-   {And, Continue, FanOut, Forward, Gt, Input, Lt, My,                          // The forward gate is used to create a forward gate definition that will be replaced later in the design with an actual gate definition
+   {And, Continue, FanOut, Gt, Input, Lt, My,
     Nand, Ngt, Nlt, Nor, Not, Nxor,
-    One, Or, Output, Xor, Xxx, Zero;
+    One, Or, Output, Xor, Zero;
    }
 
   boolean commutative(Operator op)                                              // Whether the pin order matters on the gate or not
@@ -120,8 +116,7 @@ public class Chip                                                               
    }
 
   boolean zerad(Operator op)                                                    // Whether the gate takes zero inputs
-   {return op == Operator.Input || op == Operator.One ||
-           op == Operator.Xxx   || op == Operator.Zero;
+   {return op == Operator.Input || op == Operator.One || op == Operator.Zero;
    }
 
   boolean monad(Operator op)                                                    // Whether the gate takes a single input or not
@@ -131,12 +126,10 @@ public class Chip                                                               
   boolean dyad(Operator op) {return !(zerad(op) || monad(op));}                 // Whether the gate takes two inputs or not
 
   int gates              () {return gates.size();}                              // Number of gates in this chip
-  int nextGateNumber     () {return ++gateSeq;}                                 // Numbers for gates
-  String nextGateName    () {return ""+nextGateNumber();}                       // Create a numeric generated gate name
 
   boolean definedGate(Bit bit)                                                  // Check whether a gate has been defined yet
    {final Gate g = gates.get(bit.name);
-    return g != null;
+    return g != null;                                                           // A bit can be forward defined without a definite gate type, although eventually they must be backed by a gate.
    }
 
   Gate getGate(String name)                                                     // Get details of named gate. Gates that have not been created yet will return null even though their details are pending.
@@ -202,28 +195,17 @@ public class Chip                                                               
    }
 
   class Bit implements CharSequence                                             // Name of a bit that will eventually be generated by a gate
-   {final int seq;                                                              // Sequence number for this bit
-    final String name;                                                          // Name of the bit.  This is also the name of the gate and the output of the gate. FanOut gates have a second output which is the name suffixed by the secondary marker. The secondary marker is not normally used in a gate name so a name that ends in ! is easily recognized as the second output of a fan out gate.
+   {final String name;                                                          // Name of the bit.  This is also the name of the gate and the output of the gate. FanOut gates have a second output which is the name suffixed by the secondary marker. The secondary marker is not normally used in a gate name so a name that ends in ! is easily recognized as the second output of a fan out gate.
 
-    Bit()                                                                       // Unnamed bit
-     {seq  = nextGateNumber();
-      name = ""+seq;
-      bits.put(name, this);
+    Bit(CharSequence Name)                                                      // Named bit
+     {name = validateName(Name.toString());                                     // Validate name
      }
-
-    Bit(String Name)                                                            // Named bit
-     {name = validateName(Name);                                                // Validate name
-      final Bit b = bits.get(name);                                             // Get details of bit
-      seq = b == null ? nextGateNumber() : b.seq;                               // Sequence number for gate
-      if (b == null) bits.put(name, this);                                      // Tree of gates
-     }
-
-    Bit(CharSequence Name) {this(Name.toString());}                             // Named bit
 
     Chip chip() {return Chip.this;}                                             // The chip implementing this bit
 
     String validateName(String name)                                            // Confirm that a component name looks like a variable name and has not already been used
-     {final String[]words = name.split("_");
+     {if (name == null) stop("Name needed");
+      final String[]words = name.split("_");
       for (int i = 0; i < words.length; i++)
        {final String w = words[i];
         if (!w.matches("\\A([a-zA-Z][a-zA-Z0-9_.:]*|\\d+)\\Z"))
@@ -232,10 +214,14 @@ public class Chip                                                               
       return name;
      }
 
-    void ok(Boolean expected)                                                   // Confirm that a bit has the expected value
-     {final Gate g = getGate(this);
+    Boolean value()                                                             // Value of bit
+     {final Gate g = getGate(name);
       if (g == null) stop("No gate associated with bit:", name);
-      final Boolean value = g.value;
+      return g.value;
+     }
+
+    void ok(Boolean expected)                                                   // Confirm that a bit has the expected value
+     {final Boolean value = value();
       int fails = 0;
       if      (false) {}                                                        // The various combinations with null
       else if (value == null && expected == null) {}
@@ -249,7 +235,7 @@ public class Chip                                                               
       else ++testsPassed;                                                       // Passed
      }
 
-    void anneal() {Output(nextGateName(), this);}                               // Anneal bit if it is not required for some reason although this would waste surface area and power on a real chip.
+    void anneal() {Output(n(name, "anneal"), this);}                            // Anneal bit if it is not required for some reason although this would waste surface area and power on a real chip.
     public String toString()      {return name;}                                // Name of bit
     public char charAt(int index) {return name.charAt(index);}
     public int  length()          {return name.length();}
@@ -264,60 +250,33 @@ public class Chip                                                               
      }
    }
 
-  Bit collectBit(CharSequence Name)                                             // Get a named bit or define such a bit if it does not already exist
-   {final Bit b = bits.get(name.toString());
-
-    return b == null ? new Bit(Name) : b;
-   }
+  Bit bit(CharSequence Name) {return new Bit(Name);}                            // Get a named bit or define such a bit if it does not already exist
 
   class Gate extends Bit                                                        // Description of a gate that produces a bit
    {final Operator     op;                                                      // Operation performed by gate
+    final int         seq;                                                      // Sequence number for gate
+    static int        Seq = 0;                                                  // Sequence numbers for gates
     Gate           iGate1,  iGate2;                                             // Gates driving the inputs of this gate as during simulation but not during layout
     Bit  soGate1, soGate2, tiGate1, tiGate2;                                    // Pin assignments on source and target gates used during layout but not during simulation
     final TreeSet<WhichPin>
                       drives = new TreeSet<>();                                 // The names of the gates that are driven by the output of this gate with a possible pin selection attached
-    boolean       systemGate = false;                                           // System gate if true.
+    boolean           pulsed = false;                                           // Used by Pulse type gates to create a pulse in response to a falling edge.
+    boolean       systemGate = false;                                           // System gate if true. Supresses checking that this gate is driven by something as it is driven externally by the surrounding environment.
     boolean             fell = false;                                           // Gate fell from high to low during the latest step
-    Integer distanceToOutput;                                                   // Distance to nearest output
+    Integer distanceToOutput;                                                   // Distance to nearest output. Used during layout to position gate on silicon surface.
     Boolean            value;                                                   // Current output value of this gate
-    Boolean        nextValue;                                                   // Next value to be assumed by the gate
-    boolean          changed;                                                   // Changed on current simulation step
-    int     firstStepChanged;                                                   // First step at which we changed
-    int      lastStepChanged;                                                   // Last step at which we changed
+    Boolean        nextValue;                                                   // Next value to be assumed by the gate at the end of the step.
+    boolean          changed;                                                   // Value if this gate changed during current simulation step
+    int     firstStepChanged;                                                   // First step at which we changed - used to help position gate on silicon surface during layout.
+    int      lastStepChanged;                                                   // Last step at which we changed - used to help position gate on silicon surface during layout.
     String     nearestOutput;                                                   // The name of the nearest output so we can sort each layer to position each gate vertically so that it is on approximately the same Y value as its nearest output.
     int               px, py;                                                   // Position in x and y of gate in latest layout
 
-    void indexGate()                                                            // Index the gate
-     {gates.put(name, this);
-     }
-
-    private Gate(Operator Op)                                                   // System created gate of a specified type with a unique system generated name. As yet the inputs are unknown.
-     {super();
-      op = Op;
-      resolveForward();
-     }
-
-    private Gate(Gate gate)                                                     // Replace an existing gate
-     {super(gate.name);
-      op = gate.op;
-      resolveForward();
-     }
-
-    void resolveForward()                                                       // Copy details of a forward declaration if there is an existing Forward gate of this name
-     {if (gates.containsKey(name))
-       {final Gate g = gates.get(name);
-        if (op != g.op && g.op != Operator.Forward)                             // Gate being transformed into a different type unless this is explicitly permitted with a Forward declaration
-          stop("Redefining gate:", g.name, "type:", g.op,
-            "but it is not a Forward gate declaration");
-        drives.addAll(g.drives);
-       }
-      indexGate();
-     }
-
     public Gate(Operator Op, CharSequence Name, Bit Input1, Bit Input2)         // User created gate with a user supplied name and inputs
      {super(Name);
-      op   = Op;
-      resolveForward();                                                         // Copy details of a forward declaration if there is an existing Forward gate of this name
+      op  = Op;
+      seq = ++Seq;
+      gates.put(name, this);
 
       if (commutative(op))                                                      // Any input pin will do
        {if (Input1 != null) impinge(Input1);
@@ -330,6 +289,7 @@ public class Chip                                                               
         impinge(Input1, true);
         impinge(Input2, false);
        }
+
       final TreeSet<WhichPin> d = pending.get(name);                            // Add any pending gate references to this gate definition
       if (d != null)
        {pending.remove(name);
@@ -338,6 +298,8 @@ public class Chip                                                               
          }
        }
      }
+
+    public Gate(Operator Op, CharSequence Name) {this(Op, Name, null, null);}   // User created gate with a user supplied name
 
     void setSystemGate() {systemGate = true;}                                   // Mark as a system gate so that it does not get reported as lacking a driver
 
@@ -472,7 +434,7 @@ public class Chip                                                               
        }
      }
 
-    void checkGate()                                                            // Check thatthe gate is being driven or is an input gate
+    void compile()                                                              // Check that the gate is being driven or is an input gate
      {if (iGate1 == null && iGate2 == null && !zerad(op))                       // All gates except input gates require at least one input
         stop("Gate name:", name, "type:", op, "is not being driven by any other gate");
      }
@@ -481,7 +443,7 @@ public class Chip                                                               
      {if (op == Operator.My)                                                    // Memory updates are triggered by a falling edge on input pin 1
        {if (iGate1.value != null && iGate1.value && iGate1.nextValue != null && !iGate1.nextValue) // Falling edge on pin 1
          {//if (iGate2.value != null)                                           // Unknown must also be propogated
-           {changed = iGate2.value != iGate2.nextValue;
+           {changed = iGate2.value != iGate2.nextValue; // Necessary?
             value   = iGate2.nextValue;
            }
          }
@@ -506,17 +468,17 @@ public class Chip                                                               
         case Nor     ->{if (g != null && G != null)  yield !(g ||  G); else if ((g != null &&  g) || (G != null &&  G)) yield false; else yield null;}
         case Gt      ->{if (g != null && G != null)  yield   g && !G;                                                                else yield null;}
         case Lt      ->{if (g != null && G != null)  yield  !g &&  G;                                                                else yield null;}
+        case My      -> null;
         case Ngt     ->{if (g != null && G != null)  yield  !g ||  G;                                                                else yield null;}
         case Nlt     ->{if (g != null && G != null)  yield   g || !G;                                                                else yield null;}
         case Not     ->{if (g != null)               yield  !g;                                                                      else yield null;}
         case Nxor    ->{if (g != null && G != null)  yield !(g ^   G);                                                               else yield null;}
         case Xor     ->{if (g != null && G != null)  yield   g ^   G;                                                                else yield null;}
         case One     -> true;
-        case Xxx     -> null;
         case Zero    -> false;
         case Input   -> value;
         case Continue, FanOut, Output -> g;
-        default      -> null;
+        default      -> {stop("Unexpected gate type", op); yield null;}
        };
      }
 
@@ -527,7 +489,8 @@ public class Chip                                                               
 
       final WhichPin[]D = drives.toArray(new WhichPin[N]);                      // The input pins driven by this output spread across the fan
 
-      final Gate g = new Gate(Operator.FanOut), f = new Gate(Operator.FanOut);  // Even and greater than 2
+      final Gate g = new Gate(Operator.FanOut, n(1, name, "f"));                // Even and greater than 2
+      final Gate f = new Gate(Operator.FanOut, n(2, name, "f"));
       final int P = logTwo(N);                                                  // Length of fan out path - we want to make all the fanout paths the same length to simplify timing issues
       final int Q = powerTwo(P-1);                                              // Size of a full half
       for (int i = 0; i < Q; ++i)                                               // Lower half full tree
@@ -549,7 +512,7 @@ public class Chip                                                               
         f.fanOut();                                                             // Fan out lower gate
        }
       else                                                                      // To few entries to fill more than half of the leaves so push the sub tree down one level
-       {final Gate e = new Gate(Operator.FanOut);                               // Extend the path
+       {final Gate e = new Gate(Operator.FanOut, n(name, "f"));                 // Extend the path
         drives.add(new WhichPin(e));                                            // The old gate drives the extension gate
         e.drives.add(new WhichPin(f));                                          // The extension gate drives the new gate
         f.fanOut();                                                             // Fanout the smaller sub stree
@@ -557,8 +520,9 @@ public class Chip                                                               
      }
    } // Gate
 
-  Gate FanIn(Operator Op, CharSequence Name, Bit...Input)                       // Normal gate - not a fan out gate
-   {final int N = Input.length;
+  Gate FanIn(Operator Op, CharSequence Named, Bit...Input)                      // Normal gate - not a fan out gate
+   {final String Name = Named.toString();
+    final int N = Input.length;
     if (N == 0)                                                                 // Zerad
      {if (!zerad(Op)) stop(Op, "gate:", Name, "does not accept zero inputs");
       return new Gate(Op, Name, null, null);
@@ -589,18 +553,17 @@ public class Chip                                                               
       default        -> Op;
      };
 
-    final Gate f = FanIn(l, nextGateName(), Arrays.copyOfRange(Input, 0, Q));   // Lower half is a full sub tree
-    final Gate g = FanIn(u, nextGateName(), Arrays.copyOfRange(Input, Q, N));   // Upper half might not be full
+    final Gate f = FanIn(l, n(1, Name, "F"), Arrays.copyOfRange(Input, 0, Q));  // Lower half is a full sub tree
+    final Gate g = FanIn(u, n(2, Name, "F"), Arrays.copyOfRange(Input, Q, N));  // Upper half might not be full
 
     if (2 * N >= 3 * Q) return new Gate(Op, Name, f, g);                        // No need to extend path to balance it
 
-    final Gate e = FanIn(Operator.Continue, nextGateName(), g);                 // Extension gate to make the upper half paths the same length as the lower half paths
+    final Gate e = FanIn(Operator.Continue, n(Name, "F"), g);                   // Extension gate to make the upper half paths the same length as the lower half paths
     return new Gate(Op, Name, f, e);
    }
 
   Gate Input   (CharSequence n)               {return FanIn(Operator.Input,    n);}
   Gate One     (CharSequence n)               {return FanIn(Operator.One,      n);}
-  Gate Xxx     (CharSequence n)               {return FanIn(Operator.Xxx,      n);}
   Gate Zero    (CharSequence n)               {return FanIn(Operator.Zero,     n);}
   Gate Output  (CharSequence n, Bit i)        {return FanIn(Operator.Output,   n, i);}
   Gate Continue(CharSequence n, Bit i)        {return FanIn(Operator.Continue, n, i);}
@@ -631,7 +594,7 @@ public class Chip                                                               
 
     connectedToOutput.clear();                                                  // Gates that are connected to an output gate
 
-    TreeSet<String> check = outputGates;                                        // Search backwards from the output gates
+    Set<String> check = outputGates;                                            // Search backwards from the output gates
     for (int d = 0; d < gates.size() && check.size() > 0; ++d)                  // Set distance to nearest output
      {final TreeSet<String> next = new TreeSet<>();
       maximumDistanceToOutput    = d;                                           // Maximum distance from an output
@@ -681,8 +644,12 @@ public class Chip                                                               
 
   void compileChip()                                                            // Check that an input value has been provided for every input pin on the chip.
    {final Gate[]G = gates.values().toArray(new Gate[0]);
-    for (Gate g : G) g.fanOut();                                                // Fan the output of each gate if necessary which might introduce more gates
-    for (Gate g : gates.values()) g.compileGate();                              // Each gate on chip
+    for (Gate  g : G) g.fanOut();                                               // Fan the output of each gate if necessary which might introduce more gates
+    for (Pulse p : pulses.values()) p.compile();                                // Compile the details of the pulse
+    for (Gate  g : gates.values())  g.compileGate();                            // Each gate on chip
+    for (Gate  g : gates.values())  g.compile();                                // Check each gate is being driven
+    for (Bit   b : gates.values())   getGate(b);                                // Check that each bit is realized as a gate
+
     printErrors();
     distanceToOutput();                                                         // Output gates
    }
@@ -707,7 +674,7 @@ public class Chip                                                               
           if (v != null) g.value = v;
           else stop("No input value provided for gate:", g.name);
          }
-        else stop("Input gate", g.name, "has no initial value");
+        else stop("Input gate \""+g.name+"\" has no initial value");
        }
      }
     for (InputUnit  i : this.inputs.values()) i.start();                        // Each input  peripheral on chip
@@ -799,7 +766,6 @@ public class Chip                                                               
 
   Diagram simulate(Inputs inputs)                                               // Simulate the operation of a chip
    {compileChip();                                                              // Check that the inputs to each gate are defined
-    for (Gate g : gates.values()) g.checkGate();                                // Check each gate is being driven
     initializeGates(inputs);                                                    // Set the value of each input gate
 
     final int actualMaxSimulationSteps =                                        // Actual limit on number of steps
@@ -807,6 +773,7 @@ public class Chip                                                               
     final boolean miss = minSimulationSteps != null;                            // Minimum simulation steps set
 
     final Gate      []G = this.gates   .values().toArray(new Gate      [0]);    // Gates on chip
+    final Pulse     []P = this.pulses  .values().toArray(new Pulse     [0]);    // Pulses
     final InputUnit []I = this.inputs  .values().toArray(new InputUnit [0]);    // Input peripherals
     final OutputUnit[]O = this.outputs .values().toArray(new OutputUnit[0]);    // Output peripherals
     final Monitor   []M = this.monitors.values().toArray(new Monitor   [0]);    // Check register load signals remain viable during execution
@@ -814,7 +781,7 @@ public class Chip                                                               
     for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
      {loadClock();                                                              // Load the value of the clock into the clock input bus
       for (Gate       g : G) g.step();                                          // Compute next value for  each gate
-      loadPulses();                                                             // A pulse is a agte and so we must set its next value  just like any other gate
+      for (Pulse      p : P) p.setState();                                      // Load all the pulses for this chip
       for (Gate       g : G) g.updateEdge();                                    // Update each gate triggered by a falling edge transition
       for (Gate       g : G) g.updateValue();                                   // Update each gate not affected by a falling edge after the gates that are
       for (InputUnit  i : I) i.action();                                        // Action on each input peripheral affected by a falling edge
@@ -836,10 +803,6 @@ public class Chip                                                               
 //D1 Circuits                                                                   // Some useful circuits
 
 //D2 Bits                                                                       // Operations on bits
-
-  Bit bit(CharSequence name, Integer value)                                     // Create a constant bit as true if the supplied number is non zero else false
-   {return value == null ? Xxx(name) : value > 0 ? One(name) : Zero(name);
-   }
 
   static boolean[]bitStack(int bits, int value)                                 // Create a stack of bits, padded with zeroes if necessary, representing an unsigned integer with the least significant bit lowest.
    {final boolean[]b = new boolean[bits];
@@ -881,38 +844,49 @@ public class Chip                                                               
     return O.length > 0 ? b.substring(1) : "";
    }
 
+  class Bits                                                                    // A bus made out of bits
+   {final String name; String name() {return name;}                             // Name of bus
+    final int bits;    int    bits() {return bits;}                             // Number of bits of bus - the width of the bus
+    Bit       b(int i)               {return new Bit(n(i, name));}              // Name of a bit in the bus
+    boolean implemented = false;                                                // When false this is a forward declaration, when true the forward declaration has been backed by real bits
+    void anneal()                                                               // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+     {for (int i = 1; i <= bits; i++) b(i).anneal();
+     }
 
-  interface Bits                                                                // A bus made out of bits
-   {String name();                                                              // Name of bus
-    int    bits();                                                              // Number of bits of bus - the width of the bus
-    Bit       b(int i);                                                         // Name of a bit in the bus
-    void anneal();                                                              // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+    Bits(String Name, int Bits)                                                 // Declare the size of a named bit bus
+     {name = Name; bits = Bits;
+      if (bitBuses.containsKey(name))                                           // If the bits have already been defined, check that the number of bits matches
+       {final Bits b = bitBuses.get(name);
+        if (b.bits != Bits)
+          stop("BitBus", name, "has already been defined with", b.bits,
+            "versus", Bits, "requested");
+       }
+      bitBuses.put(name, this);                                                 // This will be overwritten by teh sub class if we are being called from a sub class - but that is not a problem as we still have this information present
+     }
 
-    public default void sameSize(Bits b)                                        // Check two buses are the same size and stop if they are not
+    public void sameSize(Bits b)                                                // Check two buses are the same size and stop if they are not
      {final int A = bits(), B = b.bits();
       if (A != B) stop("Input",  name(), "has width", A, "but input", b.name(),
                        "has width", B);
      }
 
-    public default String string()                                              // Convert the bits represented by an output bus to a string
+    public String toString()                                                    // Convert the bits represented by an output bus to a string
      {final StringBuilder s = new StringBuilder();
       for (int i = 1; i <= bits(); i++)
        {final Bit  b = b(i);
-        final Chip c = b.chip();                                                // We are in an interface and so static
-        final Gate g = c.getGate(b);
+        final Gate g = getGate(b);
         if (g != null) s.append(g.value == null ? '.' : g.value ? '1' : '0');
         else stop("No such gate as:", b.name);
        }
       return s.reverse().toString();
      }
 
-    public default Integer Int()                                                // Convert the bits represented by an output bus to an integer
+    public Integer Int()                                                        // Convert the bits represented by an output bus to an integer
      {int v = 0, p = 1;
       final int B = bits();
       for  (int i = 1; i <= B; i++)                                             // Each bit on bus
        {final Bit b = b(i);
-        final Chip c = b.chip();                                                // We are in an interface and so static
-        final Gate g = c.getGate(b);                                            // We are in an interface and so static
+        final Gate g = getGate(b);                                              // We are in an interface and so static
         if (g == null)
          {err("No such gate as:", name(), i);                                   // Generally occurs during testing where we might want to continue to see what other errors  occur
           return null;
@@ -924,7 +898,7 @@ public class Chip                                                               
       return v;                                                                 // Value of bit bus
      }
 
-    public default void ok(Integer e)                                           // Confirm the expected values of the bit bus. Write a message describing any unexpected values
+    public void ok(Integer e)                                                   // Confirm the expected values of the bit bus. Write a message describing any unexpected values
      {final Integer g = Int();                                                  // The values we actually got
       final StringBuilder b = new StringBuilder();
       int fails = 0, passes = 0;
@@ -940,71 +914,6 @@ public class Chip                                                               
      }
    }
 
-  class BitBus implements Bits                                                  // A bus made out of bits supplied directly by gates
-   {final String name; public String name() {return name;}                      // Name of bus
-    final int    bits; public int    bits() {return bits;}                      // Number of bits of bus - the width of the bus
-
-    BitBus(CharSequence Name, int Bits)                                         // Create a new bit bus
-     {name = Name.toString();
-      bits = Bits;
-      if (bitBuses.containsKey(name))
-        stop("BitBus", name, "has already been defined");
-      bitBuses.put(name, this);
-     }
-
-    public String toString() {return string();}                                 // Convert the bits represented by an output bus to a string
-    public Bit  b   (int i)  {return collectBit(n(i, name));}                   // Bit in the bus
-    public void  anneal()    {outputBits(nextGateName(), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
-
-    void set(int value)                                                         // Set the value of an input word bus
-     {final boolean[]b = bitStack(bits, value);                                 // Bit value
-      for (int i = 1; i <= bits; i++) b(i).set(b[i-1]);                         // Set bit value
-     }
-   }
-
-  class SubBitBus implements Bits                                               // A bit bus made out of part of another bit bus
-   {final String name; public String name() {return name;}                      // Name of bus
-    final int    bits; public int    bits() {return bits;}                      // Number of bits of bus - the width of the bus
-    final Bits source;                                                          // The bit bus from which supplies the bits for this sub bit bus
-    final int   start;                                                          // Start of this bus in the source bus
-
-    SubBitBus(CharSequence Name, Bits Source, int Start, int Bits)              // Create a new sub bit bus as part of an existing bit bus
-     {name = Name.toString(); bits = Bits; source = Source; start = Start;
-      if (bitBuses.containsKey(name))
-       {stop("BitBus", name, "has already been defined");
-       }
-      bitBuses.put(name, this);
-     }
-
-    public String toString() {return string();}                                 // Convert the bits represented by an output bus to a string
-//  public Bit b(int i)      {return collectBit(n(start-1+i, source.name()));}  // Name of a bit in the bus
-    public Bit b(int i)      {return source.b(start-1+i);}                      // Bit in the bus
-    public void anneal()     {outputBits(nextGateName(), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
-   }
-
-  SubBitBus subBitBus(CharSequence Name, Bits Source, int Start, int Bits)      // Create a new sub bit bus as part of an existing bit bus
-   {return new SubBitBus(Name, Source, Start, Bits);                            // Create a new sub bit bus as part of an existing bit bus
-   }
-
-  class ConCatBits implements Bits                                              // Concatenate a sequence of bits
-   {final String name; public String name() {return name;}                      // Name of bus
-    final int    bits; public int    bits() {return bits;}                      // Number of bits of bus - the width of the bus
-    final Bit[]source;                                                          // The bit bus from which supplies the bits for this sub bit bus
-
-    ConCatBits(CharSequence Name, Bit...Source)                                 // Concatenate bits
-     {name = Name.toString(); source = Source; bits = source.length;
-      bitBuses.put(name, this);
-     }
-
-    public String toString() {return string();}                                 // Convert the bits represented by an output bus to a string
-    public Bit  b    (int i) {return collectBit(source[i-1]);}                  // Name of a bit in the bus
-    public void  anneal()    {outputBits(nextGateName(), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
-   }
-
-  ConCatBits conCatBits(CharSequence Name, Bit...Source)                        // Concatenate bits
-   {return new ConCatBits(Name, Source);
-   }
-
   Bits bits(CharSequence name, int bits)                                        // Forward declare a bit bus: get a predefined bit bus or define a new one if there is no predefined bit bus of the same name.  This allows us to create bit buses needed in advance of knowing the gates that will be attached to them - in effect - forward declaring the bit bus.
    {final Bits b = bitBuses.get(name);
 
@@ -1015,21 +924,63 @@ public class Chip                                                               
        }
       return b;                                                                 // Treat as reuse if a bus of the same name and size already exists
      }
-    return new BitBus(name, bits);                                              // Create new bit bus
+
+    return new Bits(name.toString(), bits);                                     // Resulting bit bus
    }
 
-  Bits bits(String name, int bits, Integer value)                               // Create a bus set to a specified number.
+  Bits bits(String name, int bits, int value)                                   // Create a bus set to a specified number.
    {final Bits B = bits(name, bits);
-    if (value != null)
-     {final boolean[]b = bitStack(bits, value);                                 // Number as a stack of bits padded to specified width
-      for(int i = 1; i <= bits; ++i) if (b[i-1]) One(B.b(i)); else Zero(B.b(i));// Generate constant
-     }
-    else for(int i = 1; i <= bits; ++i) Xxx(B.b(i));                            // Unknown values
+    final boolean[]b = bitStack(bits, value);                                   // Number as a stack of bits padded to specified width
+    for(int i = 1; i <= bits; ++i) if (b[i-1]) One(B.b(i)); else Zero(B.b(i));  // Generate constant
     return B;
    }
 
-  Bits bits(int bits, int value)                                                // Create an unnamed bus set to a specified number.
-   {return bits(nextGateName(), bits, value);                                   // Create bus
+  class BitBus extends Bits                                                     // A bus made out of bits. Define gates with the names of the bits in the bus to realize the bus.
+   {BitBus(CharSequence Name, int Bits)                                         // Create a new bit bus
+     {super(Name.toString(), Bits);
+      bitBuses.put(name, this);
+     }
+
+    public Bit  b   (int i)  {return bit(n(i, name));}                          // Bit in the bus
+    public void  anneal()    {outputBits(n(name, "anneal"), this);}             // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+
+    void set(int value)                                                         // Set the value of bus
+     {final boolean[]b = bitStack(bits, value);                                 // Bit value
+      for (int i = 1; i <= bits; i++) b(i).set(b[i-1]);                         // Set bit value
+     }
+   }
+
+  class SubBitBus extends Bits                                                  // A bit bus made out of part of another bit bus
+   {final Bits source;                                                          // The bit bus from which supplies the bits for this sub bit bus
+    final int   start;                                                          // Start of this bus in the source bus
+
+    SubBitBus(CharSequence Name, Bits Source, int Start, int Bits)              // Create a new sub bit bus as part of an existing bit bus
+     {super(Name.toString(), Bits);
+      source = Source; start = Start;
+      bitBuses.put(name, this);
+     }
+
+    public Bit b(int i)      {return source.b(start-1+i);}                      // Bit in the bus
+   }
+
+  SubBitBus subBitBus(CharSequence Name, Bits Source, int Start, int Bits)      // Create a new sub bit bus as part of an existing bit bus
+   {return new SubBitBus(Name, Source, Start, Bits);                            // Create a new sub bit bus as part of an existing bit bus
+   }
+
+  class ConCatBits extends Bits                                                 // Concatenate a sequence of bits
+   {final Bit[]source;                                                          // The bit bus from which supplies the bits for this sub bit bus
+
+    ConCatBits(CharSequence Name, Bit...Source)                                 // Concatenate bits
+     {super(Name.toString(), Source.length);
+      source = Source;
+      bitBuses.put(name, this);
+     }
+
+    public Bit  b    (int i) {return bit(source[i-1]);}                         // Name of a bit in the bus
+   }
+
+  ConCatBits conCatBits(CharSequence Name, Bit...Source)                        // Concatenate bits
+   {return new ConCatBits(Name, Source);
    }
 
   Bits inputBits(String name, int bits)                                         // Create an B<input> bus made of bits.
@@ -1264,7 +1215,7 @@ public class Chip                                                               
     WordBus(String Name, Words Words) {this(Name, Words.words(), Words.bits());}// Create a word bus with the same dimensions as the specified word bus.
 
     public Bits w(int i)        {return bitBuses.get(n(i,    name));}           // Get a bit bus in the word bus
-    public Bit  b(int i, int j) {return collectBit  (n(i, j, name));}           // Get a bit from a bit bus in the word bus
+    public Bit  b(int i, int j) {return bit         (n(i, j, name));}           // Get a bit from a bit bus in the word bus
     public String toString()                                                    // Print words
      {final StringBuilder b = new StringBuilder();
       final int W = words();
@@ -1301,7 +1252,7 @@ public class Chip                                                               
     public Bit  b(int i, int j)                                                 // Get a bit from a bit bus in the word bus
      {if (i < 1 || i > length) stop("Sub word out of range:", i, "in range", length);
       if (j < 1 || j > bits()) stop("Sub bit out of range:",  j, "in range", bits());
-      return collectBit(n(start-1+i, j, source.name()));
+      return bit(n(start-1+i, j, source.name()));
      }
     public String toString()                                                    // Print words
      {final StringBuilder b = new StringBuilder();
@@ -1328,10 +1279,6 @@ public class Chip                                                               
        }
      }
     return wb;
-   }
-
-  Words words(int bits, int[]values)                                            // Create an unnamed word bus set to specified numbers.
-   {return words(nextGateName(), bits, values);
    }
 
   Words inputWords(String name, int words, int bits)                            // Create an B<input> bus made of words.
@@ -1559,7 +1506,7 @@ public class Chip                                                               
 
 //D3 Monotone masks                                                             // A monotone up mask is any bit string whose bits can be sorted into ascending order (false, true) without being changed.  A monotone down mask is one where sorting with sort order (true, false) has no effect.
 
-  class UpMask implements Bits                                                  // Monotone up mask
+  class UpMask                                                                  // Monotone up mask
    {final Bits bits;                                                            // Source bits for monotone up mask
     UpMask(Bits Bits)         {bits = Bits;}                                    // Make a monotone up mask from bits
     public String name()      {return bits.name();}                             // Name of mask
@@ -1568,7 +1515,7 @@ public class Chip                                                               
     public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
-  class DownMask implements Bits                                                // Monotone down mask
+  class DownMask                                                                // Monotone down mask
    {final Bits bits;                                                            // Source bits for monotone down mask
     DownMask(Bits Bits)       {bits = Bits;}                                    // Make a monotone down mask from bits
     public String name()      {return bits.name();}                             // Name of mask
@@ -1579,7 +1526,7 @@ public class Chip                                                               
 
 //D3 Point masks                                                                // A point mask is the differential of a monotone mask: it has no more then one bit set to true, the rest are set to false.
 
-  class PointMask implements Bits                                               // Point mask
+  class PointMask                                                               // Point mask
    {final Bits bits;                                                            // Source bits for monotone mask
     PointMask(Bits Bits)      {bits = Bits;}                                    // Make a monotone mask from bits
     public String name()      {return bits.name();}                             // Name of mask
@@ -1626,12 +1573,12 @@ public class Chip                                                               
      {stop("Insert is", Insert.bits(), "bits, but the input words are",
             bits, "wide");
      }
-    if (words != Mask  .bits())
+    if (words != Mask.bits())
      {stop("Mask has", Mask.bits(), "bits to select", words, "words");
      }
 
-    final Bits  P = upMaskToPointMask(n(Output, "pm"), Mask);                   // Make a point mask from the input monotone mask
-    final Bits  N = notBits                (n(Output, "np"), Mask);             // Invert the monotone mask
+    final PointMask P = upMaskToPointMask(n(Output, "pm"), Mask);               // Make a point mask from the input monotone mask
+    final Bits  N = notBits                (n(Output, "np"), Mask.bits);        // Invert the monotone mask
 
     final Words u = new WordBus(n(Output, "upper"),  words-1, bits);            // Shifted words  to fill upper part
     final Words l = new WordBus(n(Output, "lower"),  words,   bits);            // Un-shifted words to fill lower part
@@ -1673,10 +1620,10 @@ public class Chip                                                               
      {stop("Mask has", Mask.bits(), "bits to select", words, "words");
      }
 
-    final Bits  P = upMaskToPointMask(n(Output, "pm"), Mask);                   // Make a point mask from the input monotone mask          0100
-    final Bits  p = notBits                (n(Output, "ip"), P);                // Invert the point mask                                   1011
-    final Bits  M = andBits                (n(Output, "sm"), Mask, p);          // This is the original monotone mask minus its first bit  1000
-    final Bits  N = notBits                (n(Output, "np"), Mask);             // Invert the monotone mask                                0011
+    final PointMask P = upMaskToPointMask(n(Output, "pm"), Mask);               // Make a point mask from the input monotone mask          0100
+    final Bits  p = notBits              (n(Output, "ip"), P.bits);             // Invert the point mask                                   1011
+    final Bits  M = andBits              (n(Output, "sm"), Mask.bits, p);       // This is the original monotone mask minus its first bit  1000
+    final Bits  N = notBits              (n(Output, "np"), Mask.bits);          // Invert the monotone mask                                0011
 
     final Words u = new WordBus(n(Output, "upper"),  words-1, bits);            // Shifted words   to fill upper part
     final Words l = new WordBus(n(Output, "lower"),  words,   bits);            // Un-shifted words to fill lower part
@@ -1687,11 +1634,10 @@ public class Chip                                                               
       for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
         And(u.b(w, b), Input.b(w+1, b), M.b(w+1));                              // Shifted upper bits
 
-    final Bit  nz = orBits(n(Output, "zm"), Mask);                              // True if the mask is not all zeros
+    final Bit  nz = orBits(n(Output, "zm"), Mask.bits);                         // True if the mask is not all zeros
     final Bits  U = chooseFromTwoWords(n(Output, "U"),                          // If the mask is zero we want the output to equal the input
                         Input.w(words), Insert, nz);
     connect(o.w(words), U);                                                     // Inserted word if non zero mask else no change on input
-//  connect(o.w(words), Insert);                                                // Word inserted into highest word of output
 
     for   (int w = 1; w <  words; ++w)                                          // Combine shifted upper and lower
       for (int b = 1; b <= bits;  ++b)                                          // Bits in each word
@@ -1722,6 +1668,7 @@ public class Chip                                                               
       monitors.put(name, this);
       B = new Boolean[bits.length];
      }
+
     void check()                                                                // Check load signals are viable
      {for (int i = 0; i < bits.length; i++)                                     // Capture each load signal state
        {final Bit  b = bits[i];
@@ -1744,90 +1691,14 @@ public class Chip                                                               
 
   Monitor monitor(String name, Bit...bits) {return new Monitor(name, bits);}    // Create a new monitor
 
-  record RegIn                                                                  // A Bits, bit pair representing one possible input to a register
-   (Bits input,                                                                 // Input bus from which the register is loaded
-    Pulse load                                                                  // Load pulse: when this pulse goes from high to low the register is loaded from the bits.
-   ) {}
+  class Register extends Bits                                                   // Description of a register
+   {final Bits    reg;                                                          // The bit bus produced by the register
 
-  RegIn regIn(Bits Input, Pulse Load) {return new RegIn(Input, Load);}          // Create a register input specification
-
-  class Register implements Bits                                                // Description of a register
-   {final String output;                                                        // The name of the register
-    final Bits    reg;                                                          // The bit bus produced by the register
-    final RegIn []  I;                                                          // Inputs: pairs of bits and pulses that can be individually loaded into the register in the falling edges of the pulses
-    final Bits  []  E;                                                          // Bits enables by their pulse. The pulse should be wide enough to give the data a chance to reach the input to the 'My' gates comprising the register.
-    final Bits      e;                                                          // Combined pulse so we see all falling edges
-    final Bit   []  Q;                                                          // Load signals
-    final Bit   []  P;                                                          // Buffer to ensure that the load signal is created as quickly as possible undelayed by fan out during which time, if the fan out were permitted to occur, the inputs might change leading to loading the wrong value  into the register.
-    final Bit    load;                                                          // Combined load - the register gets loaded after a short delay after this bit falls from 1 to 0.
-
-    Register(String Output, Bits Input, Pulse Load)                             // Create register from single input and pulse
-     {output      = Output;                                                     // Name of register
-      reg         = Chip.this.bits(output, Input.bits());                       // Bit bus created by register
-      I           = new RegIn[1]; I[0] = new RegIn(Input, Load);                // Record inputs
-      final int b = Input.bits();                                               // Number of bits in register
-      for (int i  = 1; i <= b; i++) My(n(i, output), Load, Input.b(i));         // Create the memory bits
-      e = null; E = null; load = Load; P = null; Q = null;
-     }
-
-    Register(String Output, Bits Input1, Pulse Load1, Bits Input2, Pulse Load2) // Create register from two driving inputs and their associated pulses.
-     {output = Output;                                                          // Name of register
-      reg    = Chip.this.bits(output, Input1.bits());                           // Bit bus created by register
-
-      Q      = new Bit[2]; Q[0] = Load1; Q[1] = Load2;                          // Protect the load edge from fan out
-      P      = new Bit[2];                                                      // Protect the load edge from fan out
-      P[0]   = Continue(n(1, output, "preload"), Load1);
-      P[1]   = Continue(n(2, output, "preload"), Load2);
-
-      I      = new RegIn[2];
-      I[0]   = new RegIn(Input1, Load1);
-      I[1]   = new RegIn(Input2, Load2);
-      Input1.sameSize(Input2);
-      E      = new Bits[2];
-      E[0]   = enableWord(n(output, "enable1"), Input1, P[0]);                  // Enable input 1 while preventing fan out from delaying the falling edge signaling that the register should be loaded
-      E[1]   = enableWord(n(output, "enable2"), Input2, P[1]);                  // Enable input 2 while preventing fan out from delaying the falling edge signaling that the register should be loaded
-      e      = orBitBuses(n(output, "enable"),  E);                             // Combined input
-      load   = Or        (n(output, "load"),    Load1, Load2);                  // Combined load bit
-
-      monitor(n(output, "monitor"), Q);                                         // Ensure that the load signals are always viable
-
-      final int N = Input1.bits();
-      for (int i = 1; i <= N; i++) My(b(i), load, e.b(i));                      // The load pulse should be wide enough to allow the data to reach the inputs of the 'My' gates.
-     }
-
-    Register(String Output, RegIn...in)                                         // Create a register loaded from multiple inputs
-     {output = Output;                                                          // Name of register
-      if (in.length == 0) stop("Need at least one register input specification");
-      final int N = in.length, B = in[0].input.bits();                          // Number of drivers. Number of bits in register
-
-      I = in;                                                                   // Save input specifications
-      for (int i = 1; i < N; i++) in[0].input.sameSize(in[i].input);            // Check sizes
-      Q = new Bit [N];                                                          // Load bits
-      P = new Bit [N];                                                          // Pre-load bits while pulse is high
-      E = new Bits[N];                                                          // Enabled inputs
-      final Bit[]L = new Bit[N];                                                // Or load bits
-
-      for (int i = 0; i < N; i++)                                               // Enable each bus
-       {final String n = n(i, output, "enable");                                // Generate a name for the enabled version of the input bus
-        final RegIn  R = I[i];                                                  // Register input specification
-        Q[i] = R.load;                                                          // Load bit
-        P[i] = Continue(n(i, output, "preload"), R.load);                       // Stabilize the load delay for this register at a cost of making it one step longer
-        E[i] = enableWord(n, R.input, P[i]);                                    // Enable input
-        L[i] = R.load;                                                          // Load with no delay after the falling edge occurs
-       }
-      monitor(n(output, "monitor"), Q);                                         // Ensure that the load signals are always viable
-      e    = orBitBuses(n(output, "e"), E);                                     // Combined input words
-      load = Or        (n(output, "l"), L);                                     // Combined load pulse
-      reg  = Chip.this.bits(output, B);                                         // Create register bit bus if necessary
-      for (int i = 1; i <= B; i++) My(n(i, output), load, e.b(i));              // The load pulse should be wide enough to allow the data to reach the inputs of the 'My' gates.
-     }
-    public String name()     {return reg.name();}
-    public int bits   ()     {return reg.bits();}
-    public Bit  b(int i)     {return reg.b(i);}
-    public String toString() {return reg.string();}
-    public void anneal()                                                        // Anneal the register
-     {final int N = reg.bits();
-      for (int i = 1; i <= N; i++) reg.b(i).anneal();
+    Register(String Output, Bits Input, Pulse Load)                             // Load register from input on falling edge of load signal.
+     {super(Output, Input.bits());
+      final int B = Input.bits();                                               // Number of bits in register
+      reg         = Chip.this.bits(Output, B);                                  // Bit bus created by register
+      for (int i  = 1; i <= B; i++) My(n(i, Output), Load, Input.b(i));         // Create the memory bits
      }
    }
 
@@ -1835,152 +1706,74 @@ public class Chip                                                               
    {return new Register(name, input, load);
    }
 
-  Register register(String name, Bits input1, Pulse load1, Bits input2, Pulse load2) // Create a register loaded from two sources
-   {return new Register(name, input1, load1, input2, load2);
-   }
+//D2 Pulses                                                                     // Timing signals. At one point I thought that it should be possible to have one pulse trigger ither pulses and to route pulses so that complex for loop and if structures could be realize. But this adds a lot of complexity and unreliability.  Eventually I concluded that it would be better to only allow external pulses at the gate layer making it possible for higher levels to perform more complex control sequences through software rather than hardware.
 
-  Register register(String name, RegIn...in)                                    // Create a register loaded from multiple sources
-   {return new Register(name, in);
-   }
-
-//D2 Pulses                                                                     // Periodic pulses that drive input buses.
-
-  class Pulse extends Gate                                                      // A periodic pulse that drives an input bit
-   {final int  period;                                                          // Length of pulse. A pulse of zero is considered to be a pulse of infinite period - i.e. it only happens once
+ class Pulse extends Gate                                                       // A periodic pulse that drives an input bit.
+   {final int  period;                                                          // Length of pulse. A pulse of zero is considered to be a pulse of infinite period - i.e. it only happens once. a pulse of lebgth 1 is not much use either as it will be always either on or off.
     final int      on;                                                          // How long the pulse is in the on state in each period in simulations steps
     final int   delay;                                                          // Offset of the on phase of the pulse in simulations steps
-    final int   start;                                                          // Number of cycles to wait before starting this pulse
+    final int   start;                                                          // Number of periods to wait before starting this pulse.
     Pulse(String Name, int Period, int On, int Delay, int Start)                // Pulse definition as an input gate. Start n means start after n periods.
      {super(Operator.Input, Name, null, null);                                  // Pulse name
-      period = Period; on = On; delay = Delay; start = Start;                   // Pulse timing details
       setSystemGate();                                                          // The input gate associated with this pulse. The gate will be driven by the simulator.
-      if (period > 0)                                                           // Zero length pulses are considered to be infinite in length and thus occur only once
+      period = Period; on = On; delay = Delay; start = Start;                   // Pulse timing details
+      if (period  > 0)                                                          // Zero length pulses are considered to be infinite in length and thus occur only once
        {if (on    > period) stop("On", on, "is greater than period", period);
         if (delay > period) stop("Delay", delay, "is greater than period", period);
         if (on + delay > period) stop("On + Delay", on, "+", delay, "is greater than period", period);
        }
+      else if (period == 1) stop("Use One or Zero instead");                    // Constant pulses are deprecated
+      if (on    < 1) stop("On",    "must be positive, not", on);                // Pulse must be on some of the time
+      if (delay < 0) stop("Delay", "cannot be negative:",   delay);             // Delay time must be positive
+      if (start < 0) stop("Start", "cannot be negative",    start);             // Start cycle must zero or more
       pulses.put(name, this);                                                   // Save pulse on input chain
      }
-    Pulse(Operator Op, String Name, Bit Input1, Bit Input2)                     // Pulse definition as an input gate. Start n means start after n periods.
-     {super(Op, Name, Input1, Input2);                                          // Pulse name
-      period = 0; on = 0; delay = 0; start = 0;                                 // No timing information
-     }
-    Pulse(Gate Gate)                                                            // Pulse definition from existing gate
-     {super(Gate);                                                              // Gate providing pulse
-      period = 0; on = 0; delay = 0; start = 0;                                 // No timing information
-     }
-    Pulse(Bit Bit)                                                              // Pulse definition from a bit that will eventually be backed by a gate
-     {this(Operator.Forward, Bit.name, null, null);                             // Gate that will be replaced
-     }
     void setState()                                                             // Set gate implementing pulse to current state.
-     {final int i = period > 0 ? (steps-1) % period : (steps - 1);
-      nextValue = steps-1 >= start*period ? i >= delay && i < on+delay : false; // Next value for pulse.  Set like this so that the falling edge will be seen and acted on
+     {final int s = steps - 1;                                                  // Steps taken
+      final int i = period > 0 ? s % period : s;                                // Position in period
+      nextValue = i >= start*period ? i >= delay && i < on+delay : false;       // Next value for pulse.  Set like this so that the falling edge will be seen and acted on
      }
    }
 
-  void loadPulses()                                                             // Load all the pulses for this chip
-   {for (Pulse p : pulses.values())
-     {p.setState();
-     }
-   }
-
-  Pulse pulse(String Name, int Period, int On, int Delay, int Start)            // Create a pulse
+  Pulse pulse(String Name, int Period, int On, int Delay, int Start)            // Create an external pulse
    {return new Pulse(Name, Period, On, Delay, Start);
    }
 
-  Pulse pulse(String Name, int Period, int On, int Delay)                       // Create a pulse
+  Pulse pulse(String Name, int Period, int On, int Delay)                       // Create an external pulse that starts immediately
    {return new Pulse(Name, Period, On, Delay, 0);
    }
 
-  Pulse pulse(String Name, int Period, int On)                                  // Create a pulse with no delay
+  Pulse pulse(String Name, int Period, int On)                                  // Create an external  pulse with no delay
    {return new Pulse(Name, Period, On, 0, 0);
    }
 
-  Pulse pulse(String Name, int Period)                                          // Create a single step pulse with no delay
+  Pulse pulse(String Name, int Period)                                          // Create an external  pulse with no delay
    {return new Pulse(Name, Period, 1, 0, 0);
    }
 
-  Pulse pulse(String Name, Pulse Pulse, int On, int Delay)                      // Create a pulse of specified width delayed after a pulse
-   {return new Pulse(Name, Pulse.period, On, Pulse.on+Pulse.delay - On + Delay, Pulse.start);
-   }
-
-  Pulse triggerPulse(String Output, int width, Pulse trigger)                   // Trigger a pulse of specified width started by the falling edge of a specified pulse. The pulse will start log two of the pulse width steps later than the falling edge as the signal takes time to fan in to the or gate used to implement the pulse
-   {final Bits  d = delayBits(n(Output, "delay"), width, trigger);              // Delay chain
-    final Bit   b = orBits   (  Output, d);                                     // Or of delay chain
-    final Gate  g = getGate(b);                                                 // Gate associated with "or" of delay chain
-    final Pulse p = new Pulse(g);                                               // Pulse from gate associated with "or" of delay chain
-    return p;
-   }
-
-  Pulse pulse(String Name) {return new Pulse(new Bit(Name));}                   // Forward declare a pulse by name
-
-  Pulse[]choosePulse(String Output, Words choices, Bits choose, Pulse trigger)  // Trigger the pulse in an array of pulses that corresponds to the word choosen.
-   {final int W = choices.words(), b = choose.bits(), B = choices.bits();
-    if (B != b) stop("Choices has:", B+", but choose has:", b, "bits");
-    final Pulse[]pulses = new Pulse[W];
-    for (int i = 1; i <= W; i++)
-     {final Bit eq = compareEq(n(i, Output, "equals"), choices.w(i), choose);   // Compare choose with word i
-      final Gate g = And(n(i, Output), eq, trigger);                            // And comparison with trigger so that it is high only during the pulse
-      pulses[i-1]  = new Pulse(g);                                              // Resulting pulse is triggered for chosen word if any
-     }
-    return pulses;
-   }
-
-  Pulse[]choosePulse(String Output, Bits choose, Pulse trigger, Bits...choices) // Trigger the pulse in an array of pulses that corresponds to the word choosen by mathcimng its index to "choose".
-   {final int C = choices.length;
-    if (C == 0) stop("Need one or more choices");
-    final Pulse[]pulses = new Pulse[C];
-    final int B = choose.bits();
-    for (int i = 0; i < choices.length; i++)
-     {final int b = choices[i].bits();
-      if (B != b) stop("Choose has:", B+"bits, but choices["+i+"] has", b, "bits"); // Check sizes
-      final Bit eq = compareEq(n(i, Output, "equals"), choices[i], choose);     // Compare choose with choice i
-      final Gate g = And(n(i, Output), eq, trigger);                            // And comparison with trigger so that it is high only during the pulse
-      pulses[i]  = new Pulse(g);                                                // Resulting pulse is triggered for chosen word if any
-     }
-    return pulses;
-   }
-
-//D3 Delay                                                                      // Send a pulse one way or another depending on a bit allowing us to execute one branch of an if statement or the other and receive a pulse notifying us when the execution of the different length paths are complete.
-
-  Pulse delay(String Output, Pulse input, int delay)                            // Create a delay chain so that one leading edge can trigger another later on as work is performed
-   {Pulse p = input;                                                            // Start of chain
-    for (int i = 1; i <= delay; i++)                                            // All along the delay line
-      p = new Pulse(Continue(i < delay ? n(i, Output) : Output, p));
-    return p;
-   }
-
-  Bits delayBits(String Output, int delay, Pulse input)                         // Create a bit bus where the delay bit propagates across each bit in turn. Viewed as an integer the bit bus takes successive powers of two after receiving the start bit
-   {final BitBus b = new BitBus(Output, delay);                                 // Create the bit bus
-    Bit p = input;                                                              // Start at the input gate
-    for (int i = 1; i <= delay; i++) p = Continue(b.b(i), p);                   // All along the delay line
-    return b;
-   }
-
-//D3 Select                                                                     // Send a pulse one way or another depending on a bit allowing us to execute one branch of an if statement or the other and receive a pulse notifying us when the execution of the different length paths are complete.
-
-  class Select                                                                  // Select a direction for a pulse from two possibilities depending on the setting of a bit. The pulse is transmitted along the selecetd path for as long as the control bit is true, thereafter both paths revert to false.
-   {final String name;                                                          // Name of decision. The output along the first path selected when the control bot is true has "_then" appended to it, the other "_else";
-    final Pulse Then;                                                           // The output along the then path
-    final Pulse Else;                                                           // The output along the else path
-    final Bit control;                                                          // The control bit
-    final Bit   pulse;                                                          // The pulse that determines when the selection is made.
-    Select(String Name, Bit Control, Bit Pulse)                                 // Define the selection
-     {name = Name; control = Control; pulse = Pulse;                            // Selection details
-      Bit c =                Continue(n(name, "control"),    control);          // Match the length of the else path
-      Then  = new Pulse(Operator.And, n(name, "pulse"),      c, pulse);         // Then path
-      Bit n =                     Not(n(name, "notControl"), control);          // Not of control
-      Else  = new Pulse(Operator.And, n(name, "notPulse"),   n, pulse);         // Else path
+  class PulseBuilder                                                            // Build a pulse specification
+   {String name;
+    int period = 0;                                                             // Default to one time only
+    int on     = 1;                                                             // On for one step
+    int delay  = 0;                                                             // No delay
+    int start  = 0;                                                             // Start on the first cycle
+    PulseBuilder name  (String Name) {name   = Name  ; return this;}
+    PulseBuilder period(int  Period) {period = Period; return this;}
+    PulseBuilder on    (int      On) {on     = On    ; return this;}
+    PulseBuilder delay (int   Delay) {delay  = Delay ; return this;}
+    PulseBuilder start (int   Start) {start  = Start ; return this;}
+    Pulse build()
+     {return new Pulse(name, period, on, delay, start);
      }
    }
 
-  Select select(String Name, Bit Control, Bit Pulse)                            // Create a select element
-   {return new Select(Name, Control, Pulse);                                    // Define the selection
+  PulseBuilder pulseBuilder(String name)                                        // Create a new pulse builder with default values
+   {return new PulseBuilder().name(name);
    }
 
 //D2 Arithmetic Base 1                                                          // Arithmetic in base 1
 
-  class Shift implements Bits                                                   // Shift bits one place up or down filling with a specified value
+  class Shift extends Bits                                                      // Shift bits one place up or down filling with a specified value
    {final String output;                                                        // Name of the shifted bits
     final Bits   source;                                                        // Source of the bits to shift
     final boolean    up;                                                        // Shift up if true else down
@@ -1988,7 +1781,8 @@ public class Chip                                                               
     final Gate fillGate;                                                        // The gate providing the fill value
 
     Shift(String Output, Bits Source, boolean Up,  boolean Fill)
-     {output   = Output; source = Source; up = Up; fill = Fill;
+     {super(Output, Source.bits());
+      output   = Output; source = Source; up = Up; fill = Fill;
       fillGate = fill ? One(n(output, "one")) : Zero(n(output, "zero"));        // The fill bit
      }
 
@@ -2000,7 +1794,7 @@ public class Chip                                                               
       return source.b(i + (up ? -1 : +1));
      }
 
-    public void  anneal() {outputBits(nextGateName(), this);}                   // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+    public void  anneal() {outputBits(n(name, "anneal"), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
   Bits shiftUp(String output, Bits input, boolean fill)                         // Shift an input bus up one place to add 1 in base 1 or multiply by two in base 2.
@@ -2226,7 +2020,7 @@ public class Chip                                                               
       this.Id     = Id;     this.B       = B;       this.K       = K; this.Leaf = Leaf;
       this.Enable = Enable; this.Find    = Find;    this.Keys    = Keys;
       this.Data   = Data;   this.Next    = Next;    this.Top     = Top;
-      this.KeysEnabled = KeysEnabled;
+      this.KeysEnabled = KeysEnabled.bits;
      }
 
     record Search                                                               // Results of generating gates to search a node
@@ -2271,7 +2065,7 @@ public class Chip                                                               
       final PointMask matchesValid = new PointMask(andBitBuses(mv, matches, KeysEnabled)); // Equal bit bus for each valid key
 
       final Bits selectedData = chooseWordUnderMask(df, Data, matchesValid);    // Choose data under equals mask
-      final Bit  keyWasFound  = orBits             (f2,       matchesValid);    // Show whether key was found
+      final Bit  keyWasFound  = orBits             (f2,       matchesValid.bits);    // Show whether key was found
       final Bits outData      = enableWord    (OutData, selectedData, enable);  // Enable data found
       final Bit  found        = And             (Found, keyWasFound,  enable);  // Enable found flag
 
@@ -2279,11 +2073,11 @@ public class Chip                                                               
       if (!Leaf)                                                                // Find next link with which to enable next layer
        {final Bits      Mm = bits                  (mm, K);                     // Monotone mask more for compare greater than on keys so we can find next link
         final UpMask    Nv = new UpMask(andBitBuses(nv, Mm, KeysEnabled));      // Monotone mask more for compare greater than on valid keys
-        final Bit       Nm = norBits               (nm, Nv);                    // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
+        final Bit       Nm = norBits               (nm, Nv.bits);               // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
         final PointMask Pm = upMaskToPointMask     (pm, Nv);                    // Convert monotone more mask to point mask
         final Bits      Mf = chooseWordUnderMask   (mf, Next, Pm);              // Choose next link using point mask from the more monotone mask created
         final Bits      N4 = chooseFromTwoWords    (n4, Mf,   Top, Nm);         // Choose top or next link
-        final Bit       Pt = norBits               (pt, Pm);                    // The top link is the next link
+        final Bit       Pt = norBits               (pt, Pm.bits);               // The top link is the next link
         final Bit       Nf = Not                   (nf, found);                 // Not found
         final Bits      N3 = enableWord            (n3, N4,   Nf);              // Disable next link if we found the key
         final Bit       Pn = And                   (pn, Pt,   Nf);              // Top is the next link, but only if the key was not found
@@ -2381,14 +2175,14 @@ public class Chip                                                               
       if (                N != data.length) stop("Wrong number of data, need", N, "got", data.length);
       if (next != null && N != next.length) stop("Wrong number of next, need", N, "got", next.length);
 
-      final Bits     e = c.bits (B, enable);
-      final Bits     f = c.bits (B, find);
-      final Words    k = c.words(B, keys);
-      final Bits    bK = c.bits (N, keysEnabled);
+      final Bits     e = c.bits (n(Output, "e"),  B, enable);
+      final Bits     f = c.bits (n(Output, "f"),  B, find);
+      final Words    k = c.words(n(Output, "k"),  B, keys);
+      final Bits    bK = c.bits (n(Output, "bK"), N, keysEnabled);
       final DownMask K = c.new DownMask(bK);
-      final Words    d = c.words(B, data);
-      final Words    n = next != null ? c.words(B, next) : null;
-      final Bits     t = next != null ? c.bits (B, top)  : null;
+      final Words    d = c.words(n(Output, "d"),  B, data);
+      final Words    n = next != null ? c.words(n(Output, "n"), B, next) : null;
+      final Bits     t = next != null ? c.bits (n(Output, "t"), B, top)  : null;
       final boolean leaf = next == null;
       return c.new BtreeNode(Output, Id, B, N, leaf, e, f, k, d, n, t, K);
      }
@@ -3475,7 +3269,7 @@ public class Chip                                                               
     boolean matchesLen = true, matches = true;
     if (le != lg)                                                               // Failed on length
      {matchesLen = false;
-      err(b, "Mismatched length, got", lg, "expected", le, "got:\n"+G);
+      err(b, "Mismatched length, expected", le, "got", lg, "for text:\n"+G);
      }
 
     int l = 1, c = 1;
@@ -3928,7 +3722,7 @@ public class Chip                                                               
       Chip c = new Chip("choose_from_two_words_"+b+"_"+i);
       Bits A = c.bits("a", b,  3);
       Bits B = c.bits("b", b, 12);
-      Bit  C = c.bit ("c", i);
+      Bit  C = i > 0 ?  c.One("c") : c.Zero("c");
       Bits o = c.chooseFromTwoWords("o", A, B, C);
       Bits O = c.outputBits("out",  o);
       c.simulate();
@@ -3942,7 +3736,7 @@ public class Chip                                                               
      {int  B = 4;
       Chip c = new Chip("enable_word_"+i);
       Bits a = c.bits("a", B,  3);
-      Bit  e = c.bit ("e", i);
+      Bit  e = i > 0 ?  c.One("e") : c.Zero("e");
       Bits o = c.enableWord("o", a, e);
       Bits O = c.outputBits("out",  o);
       c.simulate();
@@ -3984,16 +3778,15 @@ public class Chip                                                               
    }
 
   static void test_monotone_mask_to_point_mask()
-   {for    (int B = 2; B <= 4; ++B)
+   {for (int B = 2; B <= 4; ++B)
      {int N = powerTwo(B);
       for  (int i = 1; i <= N; i++)
        {Chip c = new Chip("monotone_mask_to_point_mask_"+B);
         Bits I = c.new BitBus("i", N);
-        for (int j = 1; j <= N; j++) c.bit(I.b(j), j < i ? 0 : 1);
-        Bits o = c.upMaskToPointMask("o", c.new UpMask(I));
-        Bits O = c.outputBits("O", o);
+        for (int j = 1; j <= N; j++) if (j < i) c.One(I.b(j)); else c.Zero(I.b(j));
+        Bits O = c.outputBits("O", I);
         c.simulate();
-        ok(O.Int(), powerTwo(i-1));
+        ok(O.Int(), powerTwo(i-1)-1);
        }
      }
    }
@@ -4276,9 +4069,7 @@ Step  1 2 3 a    4 m
     Register   r = c.register("reg",  I, pl);
     OutputUnit p = c.new OutputUnit("pReg", r, pr);
     Bits       o = c.outputBits("o", r);
-    //Bit     or = c.Output("or",    r.loaded);
 
-    //c.executionTrack("c  choose    l  register ld", "%s  %s  %s  %s  %s", pc, I, pl, r, r.loaded);
     c.executionTrace("c  choose    l  register ld", "%s  %s  %s  %s  %s", pc, I, pl, r, pr);
     c.simulationSteps(64);
     c.simulate();
@@ -4326,124 +4117,41 @@ Step  c  choose    l  register ld
 """);
    }
 
-  static void test_delay()
-   {Chip  c = new Chip();
-    Pulse p = c.pulse ("pulse", 8, 4);
-    Bit   d = c.delay ("load",  p, 3);
-    Bit   o = c.Output("out",   d);
-
-    c.executionTrack("p d", "%s %s", p, d);
-    c.simulationSteps(16);
-    c.simulate();
-    //c.printExecutionTrace(); stop();
-
-    c.ok("""
-Step  p d
-   1  1 .
-   2  1 .
-   3  1 .
-   4  1 1
-   5  0 1
-   6  0 1
-   7  0 1
-   8  0 0
-   9  1 0
-  10  1 0
-  11  1 0
-  12  1 1
-  13  0 1
-  14  0 1
-  15  0 1
-  16  0 0
-""");
-    ok(c.steps,  17);
-   }
-
   static void test_delay_bits()
-   {Chip  c = new Chip    ();
-    Pulse p = c.pulse     ("p",   8);
-    Bits  d = c.delayBits ("b",  16, p);
-    Bits  o = c.outputBits("o",      d);
+   {final int N = 16;
+    Chip      c = new Chip ();
+    Bits      p = c.bits("p", N);
+    for (int i  = 1; i <= N; i++)
+      c.pulseBuilder(p.b(i).name).period(N).delay(i-1).build();
 
-    c.executionTrack("p d", "%s %s", p, d);
+    c.executionTrack("p", "%s", p);
     c.simulationSteps(20);
     c.simulate();
     //c.printExecutionTrace(); stop();
 
     c.ok("""
-Step  p d
-   1  1 ................
-   2  0 ...............1
-   3  0 ..............10
-   4  0 .............100
-   5  0 ............1000
-   6  0 ...........10000
-   7  0 ..........100000
-   8  0 .........1000000
-   9  1 ........10000000
-  10  0 .......100000001
-  11  0 ......1000000010
-  12  0 .....10000000100
-  13  0 ....100000001000
-  14  0 ...1000000010000
-  15  0 ..10000000100000
-  16  0 .100000001000000
-  17  1 1000000010000000
-  18  0 0000000100000001
-  19  0 0000001000000010
-  20  0 0000010000000100
+Step  p
+   1  0000000000000001
+   2  0000000000000010
+   3  0000000000000100
+   4  0000000000001000
+   5  0000000000010000
+   6  0000000000100000
+   7  0000000001000000
+   8  0000000010000000
+   9  0000000100000000
+  10  0000001000000000
+  11  0000010000000000
+  12  0000100000000000
+  13  0001000000000000
+  14  0010000000000000
+  15  0100000000000000
+  16  1000000000000000
+  17  0000000000000001
+  18  0000000000000010
+  19  0000000000000100
+  20  0000000000001000
 """);
-   }
-
-  static void test_select()
-   {Chip   c = new Chip();
-    Pulse  C = c.pulse("choose", 4, 2);
-    Pulse  P = c.pulse("pulse",  5, 3);
-    Select S = c.select("choice", C, P);                                        // Divert the pulse train P through then or else depending on C
-    Bit    t = c.Output("ot", S.Then);
-    Bit    e = c.Output("oe", S.Else);
-
-    c.executionTrack("C P  t e", "%s %s   %s %s", C, P, t, e);
-    c.simulationSteps(32);
-    c.simulate();
-    //c.printExecutionTrace(); stop();
-
-    c.ok("""
-Step  C P  t e
-   1  1 1   . .
-   2  1 1   . .
-   3  0 1   . .
-   4  0 0   1 0
-   5  1 0   1 0
-   6  1 1   0 0
-   7  0 1   0 0
-   8  0 1   1 0
-   9  1 0   1 0
-  10  1 0   0 1
-  11  0 1   0 0
-  12  0 1   0 0
-  13  1 1   1 0
-  14  1 0   0 1
-  15  0 0   0 1
-  16  0 1   0 0
-  17  1 1   0 0
-  18  1 1   0 1
-  19  0 0   0 1
-  20  0 0   1 0
-  21  1 1   0 0
-  22  1 1   0 0
-  23  0 1   0 1
-  24  0 0   1 0
-  25  1 0   1 0
-  26  1 1   0 0
-  27  0 1   0 0
-  28  0 1   1 0
-  29  1 0   1 0
-  30  1 0   0 1
-  31  0 1   0 0
-  32  0 1   0 0
-""");
-    ok(c.steps, 33);
    }
 
   static void test_shift()
@@ -4476,134 +4184,6 @@ Step  C P  t e
          }
        }
      }
-   }
-
-  static void test_register_sources()
-   {int      N = 4;
-
-    Chip        c = new Chip();
-    Bits       o1 = c.bits ("o1",  N,  9);
-    Bits       o2 = c.bits ("o2",  N,  5);
-    Pulse      p1 = c.pulse("p1",  6, 2, 0);
-    Pulse      p2 = c.pulse("p2",  6, 2, 3);
-    Pulse      pp = c.pulse("pp",  3, 2, 0, 2);
-    Register    r = c.register("r",  o1, p1, o2, p2);
-    OutputUnit op = c.new OutputUnit("op", r, pp);
-    Bits        o = c.outputBits("o", r);
-    c.simulationSteps(32);
-    c.executionTrace("Reg_   1 2  l  e     e2    e2", "%s   %s %s  %s  %s  %s  %s  %s", r, p1, p2, r.load, r.e, r.E[0], r.E[1], pp);
-    c.simulate();
-    op.ok(5, 9, 5, 9, 5, 9, 5, 9);
-    c.ok("""
-Step  Reg_   1 2  l  e     e2    e2
-   1  ....   1 0  .  ....  ....  ....  0
-   2  ....   1 0  1  ....  .00.  0.0.  0
-   3  ....   0 0  1  ..0.  .00.  0.0.  0
-   4  ....   0 1  0  ..0.  1001  0000  0
-   5  1001   0 1  1  1001  1001  0000  0
-   6  1001   0 0  1  1001  0000  0000  0
-   7  1001   1 0  0  0000  0000  0101  1
-   8  0101   1 0  1  0101  0000  0101  1
-   9  0101   0 0  1  0101  0000  0000  0
-  10  0101   0 1  0  0000  1001  0000  1
-  11  1001   0 1  1  1001  1001  0000  1
-  12  1001   0 0  1  1001  0000  0000  0
-  13  1001   1 0  0  0000  0000  0101  1
-  14  0101   1 0  1  0101  0000  0101  1
-  15  0101   0 0  1  0101  0000  0000  0
-  16  0101   0 1  0  0000  1001  0000  1
-  17  1001   0 1  1  1001  1001  0000  1
-  18  1001   0 0  1  1001  0000  0000  0
-  19  1001   1 0  0  0000  0000  0101  1
-  20  0101   1 0  1  0101  0000  0101  1
-  21  0101   0 0  1  0101  0000  0000  0
-  22  0101   0 1  0  0000  1001  0000  1
-  23  1001   0 1  1  1001  1001  0000  1
-  24  1001   0 0  1  1001  0000  0000  0
-  25  1001   1 0  0  0000  0000  0101  1
-  26  0101   1 0  1  0101  0000  0101  1
-  27  0101   0 0  1  0101  0000  0000  0
-  28  0101   0 1  0  0000  1001  0000  1
-  29  1001   0 1  1  1001  1001  0000  1
-  30  1001   0 0  1  1001  0000  0000  0
-  31  1001   1 0  0  0000  0000  0101  1
-  32  0101   1 0  1  0101  0000  0101  1
-""");
-   }
-
-  static void test_register_sources_2()
-   {int N = 4;
-
-    Chip   C = new Chip();
-    Bits  o1 = C.bits ("o1",  N,  9);
-    Bits  o2 = C.bits ("o2",  N,  5);
-    Pulse p1 = C.pulse("p1",  16, 3, 0);
-    Pulse p2 = C.pulse("p2",  16, 4, 4);
-
-    Register r = C.register("r",  new RegIn(o1, p1), new RegIn(o2, p2));
-    Bits     o = C.outputBits("o", r);
-    C.simulationSteps(20);
-    C.executionTrace("Reg_  1 2  l  e     e2    e2", "%s  %s %s  %s  %s  %s  %s", r, p1, p2, r.load, r.e, r.E[0], r.E[1]);
-    C.simulate();
-    //C.printExecutionTrace(); stop();
-    C.ok("""
-Step  Reg_ ld   1 2  l  e     e2    e2
-   1  ....  .   1 0  .  ....  ....  ....
-   2  ....  .   1 0  .  ....  .00.  0.0.
-   3  ....  .   1 0  1  ..0.  1001  0000
-   4  ....  .   0 0  1  1001  1001  0000
-   5  ....  .   0 1  1  1001  1001  0000
-   6  ....  1   0 1  0  1001  0000  0000
-   7  ....  1   0 1  1  0000  0000  0101
-   8  1001  1   0 1  1  0101  0000  0101
-   9  1001  0   0 0  1  0101  0000  0101
-  10  1001  1   0 0  1  0101  0000  0101
-  11  1001  1   0 0  0  0101  0000  0000
-  12  1001  1   0 0  0  0000  0000  0000
-  13  0101  1   0 0  0  0000  0000  0000
-  14  0101  0   0 0  0  0000  0000  0000
-  17  0101  0   1 0  0  0000  0000  0000
-  19  0101  0   1 0  1  0000  1001  0000
-  20  0101  0   0 0  1  1001  1001  0000
-""");
-   }
-
-  static void test_register_sources_Xxx()
-   {int N = 4;
-
-    Chip   C = new Chip();
-    Bits  o1 = C.bits ("o1",  N,  9);
-    Bits  o2 = C.bits ("o2",  N,  null);
-    Pulse p1 = C.pulse("p1", 10, 3, 0);
-    Pulse p2 = C.pulse("p2", 10, 4, 4);
-
-    Register r = C.register("r",  new RegIn(o1, p1), new RegIn(o2, p2));
-    Bits     o = C.outputBits("o", r);
-    C.simulationSteps(18);
-    C.executionTrack("Reg_  1 2  l  e     e2    e2", "%s  %s %s  %s  %s  %s  %s", r, p1, p2, r.load, r.e, r.E[0], r.E[1]);
-    C.simulate();
-    //C.printExecutionTrace(); stop();
-    C.ok("""
-Step  Reg_  1 2  l  e     e2    e2
-   1  ....  1 0  .  ....  ....  ....
-   2  ....  1 0  1  ....  .00.  ....
-   3  ....  1 0  1  ....  .00.  ....
-   4  ....  0 0  1  ....  1001  0000
-   5  ....  0 1  0  1001  1001  0000
-   6  1001  0 1  1  1001  1001  0000
-   7  1001  0 1  1  1001  0000  0000
-   8  1001  0 1  1  0000  0000  ....
-   9  1001  0 0  1  ....  0000  ....
-  10  1001  0 0  0  ....  0000  ....
-  11  ....  1 0  0  ....  0000  ....
-  12  ....  1 0  1  ....  0000  0000
-  13  ....  1 0  1  0000  0000  0000
-  14  ....  0 0  1  0000  1001  0000
-  15  ....  0 1  0  1001  1001  0000
-  16  1001  0 1  1  1001  1001  0000
-  17  1001  0 1  1  1001  0000  0000
-  18  1001  0 1  1  0000  0000  ....
-""");
    }
 
   static void test_connect_buses()
@@ -4641,19 +4221,16 @@ Step  i     o     O
    }
 
 // 2 3 5 8 13 21 34 55 89 144 233
-
+/*
   static void test_fibonacci()                                                  // First few fibonacci numbers
-   {int N = 4;
+   {final int N = 4, delay = 20;                                                // Number if bits in number, wait time to allow latest number to be computed from prior two
     Chip        C = new Chip();                                                 // Create a new chip
     Bits     zero = C.bits("zero", N,   0);                                     // Zero - the first element of the sequence
     Bits      one = C.bits("one",  N,   1);                                     // One - the second element of the sequence
-    Pulse      in = C.pulse("ia",  0,  16);                                     // Initialize the registers to their starting values
+    Pulse      in = C.pulse("ia",  0,  delay);                                  // Initialize the registers to their starting values
     Pulse      la = C.pulse("la", 96,  20, 32, 1);                              // Each pair sum is calculated on a rotating basis
-    Pulse      ma = C.pulse("ma", la,  10, 10);
     Pulse      lb = C.pulse("lb", 96,  20, 64, 1);
-    Pulse      mb = C.pulse("mb", lb,  10, 10);
     Pulse      lc = C.pulse("lc", 96,  20,  0, 1);
-    Pulse      mc = C.pulse("mc", lc,  10, 10);
     Pulse      ed = C.pulse("ed",  0, 202);                                     // Enable the output register once it has had a chance to stabilize
     Pulse      pd = C.pulse("pl", 32,   1, 1, 3);                               // Shows when the latest fibonacci number has been produced
 
@@ -4666,8 +4243,8 @@ Step  i     o     O
     Register    c = C.register("c", zero, in, ab, lc);
 
     Register    d = C.register("d",                                             // Load the output register with the latest fibonacci number and show it is present with a falling edge
-      new RegIn(zero, in), new RegIn(a, ma),                                    // Initially the output register is zero, subsequently it is to the appropriate pair sum
-      new RegIn(b,    mb), new RegIn(c, mc));
+      new RegIn(zero, in), new RegIn(a, la),                                    // Initially the output register is zero, subsequently it is to the appropriate pair sum
+      new RegIn(b,    lb), new RegIn(c, lc));
 
     OutputUnit  f = C.new OutputUnit("f", d, pd);                               // Log latest number
 
@@ -4677,7 +4254,7 @@ Step  i     o     O
     sab.carry.anneal(); sac.carry.anneal(); sbc.carry.anneal();                 // Ignore the carry bits
     Bits       od = C.outputBits("od",   d);                                    // Output the latest fibonacci number
 
-    C.executionTrace("pl d      ld", "%s  %s    %s %s %s", pd, d, ma, mb, mc);
+    C.executionTrack("pl d      ld", "%s  %s    %s %s %s", pd, d, la, lb, lc);
     C.simulationSteps(320);
     C.simulate();
     f.ok(0, 1, 2, 3, 5, 8, 13);
@@ -4716,7 +4293,7 @@ Step  pl d      ld
  319  0  1101    0 0 0
 """);
    }
-
+*/
   static void test_insert_into_array()                                          // Insert a word in an array of words
    {int B = 4;
     int[]array = {2, 4, 6, 8};                                                  // Array to insert into
@@ -4791,7 +4368,7 @@ Step  pl d      ld
     Words K = c.outputWords("ok", i.keys);                                      // Modified keys
     Words D = c.outputWords("od", i.data);                                      // Modified data
     Words N = c.outputWords("on", i.next);                                      // Modified next
-    Bits  E = c.outputBits ("oe", i.enabledKeys);                               // Enabled keys
+    Bits  E = c.outputBits ("oe", i.enabledKeys.bits);                          // Enabled keys
     c.simulate();
     switch(position)
      {case 0b111 -> {K.ok(1,2,4); D.ok(2,3,5); N.ok(3,1,3); E.ok(0b111);}
@@ -4949,251 +4526,108 @@ Step  pl d      ld
    }
 
   static void test_binary_increment()                                           // Increment repetitively
-   {int      N = 4;
-    Chip     C = new Chip();                                                    // Create a new chip
-    Bits  zero = C.bits ("zero",   N,  0);                                      // Zero - the first element of the sequence
-    Bits   one = C.bits ("one",    N,  1);                                      // One - the amount to be added
-    Pulse   pz = C.pulse("pz",     0,  4);                                      // Initialize to zero
-    Pulse   pi = C.pulse("pi",    24,  2, 0, 1);                                // Add increment. Current implementation of binary add is alarmingly slow.
-    Bits     i = C.new BitBus("i", N);                                          // Variable
+   {final int  N = 4, wait = 24;                                                // Bit width of number to increment, wait time for addition to complete
+    Chip       C = new Chip();                                                  // Create a new chip
+    Bits    zero = C.bits ("zero",   N,  0);                                    // Zero - the first element of the sequence
+    Bits     one = C.bits ("one",    N,  1);                                    // One - the amount to be added
+    Pulse     pz = C.pulseBuilder("pz").on(wait).build();                       // Load zero at start or latest number later
+    Pulse     pi = C.pulseBuilder("pi").period(wait).on(N).delay(wait-N-1).build(); // Let the sum  hapoen then reload teh register with a short enough pulse to make the additions happen quickly and a short enough on time that the new number does not feedback
+    Bits       n = C.new BitBus("n", N);                                        // Variable
 
-    Register r = C.register  ("r", zero, pz, i, pi);                            // Register holding bits to increment
+    Register   r = C.register  ("r", n, pi);                                    // Register holding bits to increment
     OutputUnit o = C.new OutputUnit("o", r, pi);                                // Log the value of the register just before it is changed by the incoming new result.
 
-    C.binaryAdd("i", r, one);                                                   // Increment
+    BinaryAdd  i = C.binaryAdd("i", r, one);                                    // Increment
+                   C.chooseFromTwoWords("n", i.sum, zero, pz);                  // Initially zero, later the latest sum
 
-    C.executionTrace("pz  pi  r    i", "%s   %s   %s %s", pz, pi, r, i);
+    C.executionTrace("pz  pi  r", "%s   %s   %s", pz, pi, r);
     C.simulationSteps(640);
     C.simulate();
 
-    o.ok(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
-    //C.printExecutionTrace(); say(o); stop();
-   }
-
-  static void test_trigger_pulse()                                              // Trigger a pulse
-   {int      N = 4;
-    Chip     c = new Chip();                                                    // Create a new chip
-    Pulse    p = c.pulse("p", 0, 1);                                            // Triggering pulse
-    Bit      t = c.triggerPulse("t", 4, p);                                     // The difficulty of replacing a gate as needed by Pulse which is forced to extend rather than implement Bits
-    Bit      o = c.Output("o", t);
-    c.executionTrack("p  t", "%s   %s", p, t);
-    c.simulationSteps(10);
-    c.simulate();
-    //c.printExecutionTrace(); stop();
-    c.ok("""
-Step  p  t
-   1  1   .
-   2  0   .
-   3  0   .
-   4  0   1
-   5  0   1
-   6  0   1
-   7  0   1
-   8  0   0
-   9  0   0
-  10  0   0
+    o.ok(null, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7, 8);
+    //C.printExecutionTrace(); say(o); //stop();
+    C.ok("""
+Step  pz  pi  r
+   1  1   0   ....
+  20  1   1   ....
+  24  1   0   ....
+  25  0   0   0000
+  44  0   1   0000
+  48  0   0   0000
+  49  0   0   0001
+  68  0   1   0001
+  72  0   0   0001
+  73  0   0   0010
+  92  0   1   0010
+  96  0   0   0010
+  97  0   0   0011
+ 116  0   1   0011
+ 120  0   0   0011
+ 121  0   0   0100
+ 140  0   1   0100
+ 144  0   0   0100
+ 145  0   0   0101
+ 164  0   1   0101
+ 168  0   0   0101
+ 169  0   0   0110
+ 188  0   1   0110
+ 192  0   0   0110
+ 193  0   0   0111
+ 212  0   1   0111
+ 216  0   0   0111
+ 217  0   0   1000
+ 236  0   1   1000
+ 240  0   0   1000
+ 241  0   0   1001
+ 260  0   1   1001
+ 264  0   0   1001
+ 265  0   0   1010
+ 284  0   1   1010
+ 288  0   0   1010
+ 289  0   0   1011
+ 308  0   1   1011
+ 312  0   0   1011
+ 313  0   0   1100
+ 332  0   1   1100
+ 336  0   0   1100
+ 337  0   0   1101
+ 356  0   1   1101
+ 360  0   0   1101
+ 361  0   0   1110
+ 380  0   1   1110
+ 384  0   0   1110
+ 385  0   0   1111
+ 404  0   1   1111
+ 408  0   0   1111
+ 409  0   0   0000
+ 428  0   1   0000
+ 432  0   0   0000
+ 433  0   0   0001
+ 452  0   1   0001
+ 456  0   0   0001
+ 457  0   0   0010
+ 476  0   1   0010
+ 480  0   0   0010
+ 481  0   0   0011
+ 500  0   1   0011
+ 504  0   0   0011
+ 505  0   0   0100
+ 524  0   1   0100
+ 528  0   0   0100
+ 529  0   0   0101
+ 548  0   1   0101
+ 552  0   0   0101
+ 553  0   0   0110
+ 572  0   1   0110
+ 576  0   0   0110
+ 577  0   0   0111
+ 596  0   1   0111
+ 600  0   0   0111
+ 601  0   0   1000
+ 620  0   1   1000
+ 624  0   0   1000
+ 625  0   0   1001
 """);
-   }
-
-  static void test_pulse_doubled()                                              // Double a pulse
-   {int      N = 4;
-    Chip     c = new Chip();                                                    // Create a new chip
-    Bit      b = c.collectBit("p");                                             // Forward declaration
-    Pulse    q = c.new Pulse(b);                                                // Triggering pulse
-    Bit      t = c.triggerPulse("t", 4, q);                                     // The difficulty of replacing a gate as needed by Pulse which is forced to extend rather than implement Bits
-    Bit      o = c.Output("o", t);
-    Pulse    p = c.pulse("p", 0, 1);                                            // Triggering pulse
-    c.executionTrack("p  t", "%s   %s", p, t);
-    c.simulationSteps(10);
-    c.simulate();
-    //c.printExecutionTrace(); stop();
-    c.ok("""
-Step  p  t
-   1  1   .
-   2  0   .
-   3  0   .
-   4  0   1
-   5  0   1
-   6  0   1
-   7  0   1
-   8  0   0
-   9  0   0
-  10  0   0
-""");
-   }
-
-  static void test_add_chain()                                                  // An add chain controlled by triggered pulses
-   {int         N = 4;
-    Chip        c = new Chip();                                                 // Create a new chip
-    Bits      one = c.bits        ("one", N,     1);
-    Bits      two = c.bits        ("two", N,     2);
-
-    Pulse      s1 = c.pulse       ("s1",  0,     1);                            // Start the addition process
-    Register   r1 = c.register    ("r1",  one,   s1);                           // Load 1
-    BinaryAdd  a1 = c.binaryAdd   ("a1",  r1,   two);                           // Add
-
-    Pulse      s2 = c.triggerPulse("s2",   8,      s1);
-    Register   r2 = c.register    ("r2",  a1.sum,  s2);                         // Load 2
-    BinaryAdd  a2 = c.binaryAdd   ("a2",  r2,     two);                         // Add
-
-    Pulse      s3 = c.triggerPulse("s3",   9,      s2);
-    Register   r3 = c.register    ("r3",  a2.sum,  s3);                         // Load 3
-    Bits       a3 = c.outputBits  ("a3",           r3);
-    c.executionTrack(
-      "s1   r1   a1    s2  r2   a2   s3 r3",
-      " %s   %s %s   %s  %s %s  %s %s",
-       s1, r1, a1.sum,  s2, r2, a2.sum,  s3, r3);
-    c.simulationSteps(32);
-    c.simulate();
-
-    //c.printExecutionTrace(); stop();
-    c.ok("""
-Step  s1   r1   a1    s2  r2   a2   s3 r3
-   1   1   .... ....   .  .... ....  . ....
-   2   0   .... ....   .  .... ....  . ....
-   3   0   .... ....   .  .... ....  . ....
-   4   0   0001 ....   .  .... ....  . ....
-   5   0   0001 ....   .  .... ....  . ....
-   6   0   0001 ...1   .  .... ....  . ....
-   7   0   0001 ...1   1  .... ....  . ....
-   8   0   0001 ...1   1  .... ....  . ....
-   9   0   0001 ...1   1  .... ....  . ....
-  10   0   0001 ...1   1  .... ....  . ....
-  11   0   0001 ..11   1  .... ....  . ....
-  12   0   0001 ..11   1  .... ....  . ....
-  13   0   0001 ..11   1  .... ....  . ....
-  14   0   0001 ..11   1  .... ....  1 ....
-  15   0   0001 .011   0  .... ....  1 ....
-  16   0   0001 0011   0  .... ....  1 ....
-  17   0   0001 0011   0  0011 ....  1 ....
-  18   0   0001 0011   0  0011 ....  1 ....
-  19   0   0001 0011   0  0011 ...1  1 ....
-  20   0   0001 0011   0  0011 ...1  1 ....
-  21   0   0001 0011   0  0011 ...1  1 ....
-  22   0   0001 0011   0  0011 ...1  1 ....
-  23   0   0001 0011   0  0011 ...1  1 ....
-  24   0   0001 0011   0  0011 ..01  1 ....
-  25   0   0001 0011   0  0011 ..01  1 ....
-  26   0   0001 0011   0  0011 ..01  1 ....
-  27   0   0001 0011   0  0011 ..01  1 ....
-  28   0   0001 0011   0  0011 ..01  1 ....
-  29   0   0001 0011   0  0011 0101  0 ....
-  30   0   0001 0011   0  0011 0101  0 0101
-  31   0   0001 0011   0  0011 0101  0 0101
-  32   0   0001 0011   0  0011 0101  0 0101
-""");
-   }
-
-  static void test_choose_pulse()                                               // Choose a pulse
-   {int         N = 4;
-    Chip        c = new Chip();                                                 // Create a new chip
-    Bits      two = c.bits        ("two",   N,       2);
-    Words   words = c.words       ("words", N, 4, 3, 2, 1);
-
-    Pulse       p = c.pulse       ("s1",    0,       4);
-    Pulse[]     P = c.choosePulse ("P", words, two,  p);
-    Bit        P1 = c.Output      ("P1", P[0]);
-    Bit        P2 = c.Output      ("P2", P[1]);
-    Bit        P3 = c.Output      ("P3", P[2]);
-    Bit        P4 = c.Output      ("P4", P[3]);
-    c.executionTrack(
-      "p   4 3 2 1",
-      "%s   %s %s %s %s",
-       p, P[0], P[1], P[2], P[3]);
-    c.simulationSteps(8);
-    c.simulate();
-
-    //c.printExecutionTrace(); stop();
-    c.ok("""
-Step  p   4 3 2 1
-   1  1   . . . .
-   2  1   . . . .
-   3  1   . . . .
-   4  1   . . . .
-   5  0   . . . .
-   6  0   0 0 1 0
-   7  0   0 0 0 0
-   8  0   0 0 0 0
-""");
-   }
-
-  static void test_choose_pulse_route()                                         // Route a pulse along one of several possible paths
-   {int         N = 4;
-    for (int i = 0; i <= N; i++)
-     {Chip    c = new Chip();
-      Pulse   p = c.pulse       ("pp",  0, N);
-      Bits  two = c.bits        ("two", N, i);
-      Bits   b1 = c.bits        ("b1",  N, 1);
-      Bits   b2 = c.bits        ("b2",  N, 2);
-      Bits   b3 = c.bits        ("b3",  N, 3);
-      Bits   b4 = c.bits        ("b4",  N, 4);
-
-      Pulse[] P = c.choosePulse ("P", two, p, b1, b2, b3, b4);
-      Bit    P1 = c.Output      ("P1", P[0]);
-      Bit    P2 = c.Output      ("P2", P[1]);
-      Bit    P3 = c.Output      ("P3", P[2]);
-      Bit    P4 = c.Output      ("P4", P[3]);
-      c.executionTrack(
-        "p   1 2 3 4",
-        "%s   %s %s %s %s",
-         p, P[0], P[1], P[2], P[3]);
-      c.simulationSteps(7);
-      c.simulate();
-
-      //c.printExecutionTrace();
-      switch(i)
-       {case 0 -> c.ok("""
-Step  p   1 2 3 4
-   1  1   . . . .
-   2  1   . . . .
-   3  1   . . . .
-   4  1   . . . .
-   5  0   . . . .
-   6  0   0 0 0 0
-   7  0   0 0 0 0
-""");
-        case 1 -> c.ok("""
-Step  p   1 2 3 4
-   1  1   . . . .
-   2  1   . . . .
-   3  1   . . . .
-   4  1   . . . .
-   5  0   . . . .
-   6  0   1 0 0 0
-   7  0   0 0 0 0
-""");
-        case 2 -> c.ok("""
-Step  p   1 2 3 4
-   1  1   . . . .
-   2  1   . . . .
-   3  1   . . . .
-   4  1   . . . .
-   5  0   . . . .
-   6  0   0 1 0 0
-   7  0   0 0 0 0
-""");
-        case 3 -> c.ok("""
-Step  p   1 2 3 4
-   1  1   . . . .
-   2  1   . . . .
-   3  1   . . . .
-   4  1   . . . .
-   5  0   . . . .
-   6  0   0 0 1 0
-   7  0   0 0 0 0
-""");
-        case 4 -> c.ok("""
-Step  p   1 2 3 4
-   1  1   . . . .
-   2  1   . . . .
-   3  1   . . . .
-   4  1   . . . .
-   5  0   . . . .
-   6  0   0 0 0 1
-   7  0   0 0 0 0
-""");
-       }
-     }
    }
 
   static void test_input_peripheral()                                           // Input from a peripheral
@@ -5369,8 +4803,8 @@ Step  o     e
   static void test_bits_forward()
    {final int B = 4;
     Chip   c = new Chip();
-    Bit zero = c.bit("zero", 0);
-    Bit  one = c.bit("one",  1);
+    Bit zero = c.Zero("zero");
+    Bit  one = c.One  ("one");
     Bits   b = c.bits("b",   2);
     Bits  bb = c.bits("b",   2);
     Bit   b0 = c.Not(b.b(1), one);
@@ -5429,9 +4863,7 @@ Step  o     e
     test_enable_word_equal();
     test_monotone_mask_to_point_mask();
     test_choose_word_under_mask();
-    test_delay();
     test_delay_bits();
-    test_select();
     test_shift();
     test_binaryAdd();
     test_btree_node();
@@ -5439,9 +4871,7 @@ Step  o     e
     test_Btree();
     test_8p5i4();
     test_register();
-    test_register_sources();
-    test_register_sources_Xxx();
-    test_fibonacci();
+//  test_fibonacci();
     test_insert_into_array();
     test_remove_from_array();
     test_btree_insert();
@@ -5450,12 +4880,7 @@ Step  o     e
     test_find_words();
     test_btree_split_node();
     test_binary_increment();
-    test_trigger_pulse();
-    test_add_chain();
-    test_choose_pulse();
-    test_choose_pulse_route();
     test_input_peripheral();
-    test_pulse_doubled();
     test_enable_word_if_equal();
     test_twos_complement_arith();
     test_twos_complement_compare_lt();
@@ -5470,8 +4895,7 @@ Step  o     e
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_words_forward();
-    test_bits_forward();
+    test_monotone_mask_to_point_mask();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
@@ -5482,7 +4906,8 @@ Step  o     e
       testSummary();                                                            // Summarize test results
      }
     catch(Exception e)                                                          // Get a traceback in a format clickable in Geany
-     {System.err.println(traceBack(e));
+     {System.err.println(e);
+      System.err.println(traceBack(e));
      }
    }
  }
