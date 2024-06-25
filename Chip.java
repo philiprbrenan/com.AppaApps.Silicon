@@ -1817,8 +1817,8 @@ public class Chip                                                               
    (Bit carry,                                                                  // Carry out gate
     Bits  sum                                                                   // Sum
    )
-   {public Bit  binaryAddCarry() {return carry;}
-    public Bits binaryAddSum  () {return sum;}
+   {public Bit  carry() {return carry;}
+    public Bits sum  () {return sum;}
    }
 
   BinaryAdd binaryAdd(String output, Bits in1, Bits in2)                        // Add two bit buses of the same size to make a bit bus one bit wider
