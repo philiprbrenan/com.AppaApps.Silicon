@@ -321,7 +321,7 @@ public class RiscV extends Chip                                                 
         final int c = ((i & m_11_08) >>>  8) <<  0;
         final int d = ((i & m_07_07) >>>  7) << 10;
 
-        return (((a|b|c|d)<<20)>>20)>>1;                                        // The 2*immediate field encodes the offset in bytes, but we need the offset in blocks of 4 bytes because we do not use the 2 byte instructions in this implementations.
+        return (((a|b|c|d)<<20)>>20)<<1;                                        // The 2*immediate field encodes the offset in bytes, but we need the offset in blocks of 4 bytes because we do not use the 2 byte instructions in this implementations.
        }
 
       B(String Name)                                                            // Decode B format instruction immediate field
@@ -498,12 +498,12 @@ public class RiscV extends Chip                                                 
 
       case Decode.opBranch ->                                                   // Branch
        {switch(d.funct3)
-         {case Decode. f3_beq: return d.new B("beq")    {public void action() {if (x[d.rs1].value == x[d.rs2].value) pc += d.immediate; else pc++;}};
-          case Decode. f3_bne: return d.new B("bne")    {public void action() {if (x[d.rs1].value != x[d.rs2].value) pc += d.immediate; else pc++;}};
-          case Decode. f3_blt: return d.new B("blt")    {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate; else pc++;}};
-          case Decode. f3_bge: return d.new B("bge")    {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate; else pc++;}};
-          case Decode.f3_bltu: return d.new B("bltu")   {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate; else pc++;}};
-          case Decode.f3_bgeu: return d.new B("bgeu")   {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate; else pc++;}};
+         {case Decode. f3_beq: return d.new B("beq")    {public void action() {if (x[d.rs1].value == x[d.rs2].value) pc += d.immediate>>2; else pc++;}};
+          case Decode. f3_bne: return d.new B("bne")    {public void action() {if (x[d.rs1].value != x[d.rs2].value) pc += d.immediate>>2; else pc++;}};
+          case Decode. f3_blt: return d.new B("blt")    {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate>>2; else pc++;}};
+          case Decode. f3_bge: return d.new B("bge")    {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate>>2; else pc++;}};
+          case Decode.f3_bltu: return d.new B("bltu")   {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate>>2; else pc++;}};
+          case Decode.f3_bgeu: return d.new B("bgeu")   {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate>>2; else pc++;}};
           default:             return null;
          }
        }
@@ -886,15 +886,22 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
   static void test_immediate_b()                                                // Immediate b
    {final int N = powerTwo(10);
+    if(true)
+     {final int i = 3;
+      final int e = encodeBImmediate(+i*2);
+      final int d = Decode.B.immediate(e);
+      ok(d, +i*2);
+     }
+
     for (int i = 0; i < N; i++)
      {final int e = encodeBImmediate(+i*2);
       final int d = Decode.B.immediate(e);
-      ok(d, +i);
+      ok(d, +i*2);
      }
     for (int i = 0; i < N; i++)
      {final int e = encodeBImmediate(-i*2);
       final int d = Decode.B.immediate(e);
-      ok(d, -i);
+      ok(d, -i*2);
      }
     ok(encodeBImmediate(-2), Decode.B.m_31_31|Decode.B.m_30_25|Decode.B.m_11_08|Decode.B.m_07_07);
    }
@@ -1014,7 +1021,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
 0006       add    33   2  3  0   0   0  0  0  0 0          0    18133
 0007       add    33   3  4  0   0   0  0  0  0 0          0    201b3
 0008      addi    13   5  5  1   0   0  0  0  0 0          1   128293
-0009       blt    63   d  5  1   4   4 1f 7f  0 0   fffffffb fe12c6e3
+0009       blt    63   d  5  1   4   4 1f 7f  0 0   ffffffec fe12c6e3
 """);
    }
 
@@ -1028,8 +1035,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_slt();
+   {oldTests();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
