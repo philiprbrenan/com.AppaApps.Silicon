@@ -5,14 +5,11 @@
 // updateEdge() should use stack of memory cells so we do not have to iterate over all gates
 // Add fell to gate Chip.toString() and update pin information
 // Check gate names match variable names
-// SubBitBus - merge constructors
-// Each test should print the chip to make sure that all collected bits have been defined.  See CompareLT for an example of why this is important.
-// Words words( should accept null values
+// Words words( should accept null values and be a class not an interface
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
 
 import java.io.*;
 import java.util.*;
-import java.util.stream.*;
 
 //D1 Construct                                                                  // Construct a L<silicon> L<chip> using standard L<lgs>, components and sub chips combined via buses.
 
@@ -677,8 +674,6 @@ public class Chip                                                               
         else stop("Input gate \""+g.name+"\" has no initial value");
        }
      }
-    for (InputUnit  i : this.inputs.values()) i.start();                        // Each input  peripheral on chip
-    for (OutputUnit o :     outputs.values()) o.start();                        // Each output peripheral on chip
    }
 
   void loadClock()                                                              // Load the value of the clock into the clock input bus
@@ -764,19 +759,22 @@ public class Chip                                                               
 
   Diagram simulate() {return simulate(null);}                                   // Simulate the operation of a chip with no input pins. If the chip has in fact got input pins an error will be reported.
 
-  Diagram simulate(Inputs inputs)                                               // Simulate the operation of a chip
+  Diagram simulate(Inputs Inputs)                                               // Simulate the operation of a chip
    {compileChip();                                                              // Check that the inputs to each gate are defined
-    initializeGates(inputs);                                                    // Set the value of each input gate
+    initializeGates(Inputs);                                                    // Set the value of each input gate
+
+    for (InputUnit  i : inputs .values()) i.start();                            // Each input  peripheral on chip
+    for (OutputUnit o : outputs.values()) o.start();                            // Each output peripheral on chip
 
     final int actualMaxSimulationSteps =                                        // Actual limit on number of steps
       maxSimulationSteps != null ? maxSimulationSteps : defaultMaxSimulationSteps;
     final boolean miss = minSimulationSteps != null;                            // Minimum simulation steps set
 
-    final Gate      []G = this.gates   .values().toArray(new Gate      [0]);    // Gates on chip
-    final Pulse     []P = this.pulses  .values().toArray(new Pulse     [0]);    // Pulses
-    final InputUnit []I = this.inputs  .values().toArray(new InputUnit [0]);    // Input peripherals
-    final OutputUnit[]O = this.outputs .values().toArray(new OutputUnit[0]);    // Output peripherals
-    final Monitor   []M = this.monitors.values().toArray(new Monitor   [0]);    // Check register load signals remain viable during execution
+    final Gate      []G = gates   .values().toArray(new Gate      [0]);         // Gates on chip
+    final Pulse     []P = pulses  .values().toArray(new Pulse     [0]);         // Pulses
+    final InputUnit []I = inputs  .values().toArray(new InputUnit [0]);         // Input peripherals
+    final OutputUnit[]O = outputs .values().toArray(new OutputUnit[0]);         // Output peripherals
+    final Monitor   []M = monitors.values().toArray(new Monitor   [0]);         // Check register load signals remain viable during execution
 
     for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
      {loadClock();                                                              // Load the value of the clock into the clock input bus
@@ -2363,37 +2361,50 @@ public class Chip                                                               
    }
 
   class OutputUnit                                                              // An output peripheral
-   {final String name;                                                          // Name of peripheral
-    final Stack<Integer> log = new Stack<>();                                   // Output from this peripheral
-    final Bits driver;                                                          // These bits drive the peripheral
-    final Bit    edge;
+   {final String  name;                                                         // Name of peripheral
+    final String logTo;                                                         // Name of log to write to
+    final static Map<String,Stack<Integer>> logs = new TreeMap<>();             // Output from all peripherals in log streams
+    Stack<Integer> log;                                                         // Output from this peripheral
+    final Bits  driver;                                                         // These bits drive the peripheral
+    final Bit   edge;                                                           // Falling edge of this pulse writes a new log entry capturing the date of the driving bits
     Gate gEdge;                                                                 // Gate whose falling edge drives the peripheral
-    OutputUnit(String Name, Bits Driver, Bit Edge)                              // Constrict the peripheral from some driving bits read on a falling edge
-     {name = Name; driver = Driver; edge = Edge;
+
+    OutputUnit(String Name, String LogTo, Bits Driver, Bit Edge)                // Record driver to specified log on falling edge
+     {name = Name; logTo = LogTo; driver = Driver; edge = Edge;
       outputs.put(name, this);                                                  // Save output peripheral
      }
-    public String name()  {return name;}                                        // Name of peripheral
-    public Bit    edge()  {return edge;}                                        // Bit whose falling edge triggers the peripheral
-    public Integer[]log() {return log.toArray(new Integer[0]);}                 // Log of activity on peripheral
-    public void start()                                                         // Action to be performed at start
-     {log.clear();                                                              // Allow for multiple simulation runs
+
+    OutputUnit(String Name, Bits Driver, Bit Edge)                              // Record driver to default log on falling edge
+     {this(Name, Name, Driver, Edge);
+     }
+
+    Integer[]log() {return log.toArray(new Integer[0]);}                        // Log of activity on peripheral
+
+    void start()                                                                // Action to be performed at start
+     {if (!logs.containsKey(logTo)) logs.put(logTo, new Stack<Integer>());      // Start log. Logs with the same name will be merged in entry order.
+      log = logs.get(logTo);                                                    // The log that this peripheral should write to.
+      log.clear();                                                              // Clear the log. This log might get cleared multiple times if there are multiple writers to it, but the clears all happen at the start so the subsequent ones have no effect.
       gEdge = getGate(edge);                                                    // Locate gate associated with falling edge bit
      }
-    public void action()                                                        // Action to be performed on a falling edge
+
+    void action()                                                               // Action to be performed on a falling edge
      {final Integer i = driver.Int();
       log.push(i);
      }
-    public boolean fell()                                                       // Check gate had a falling edge
+
+    boolean fell()                                                              // Check gate had a falling edge
      {final boolean f = gEdge.fell;
       return f;
      }
-    public String toString()                                                    // Action to be performed on a falling edge
+
+    public String toString()                                                    // Content of log.
      {final StringBuilder b = new StringBuilder();
       for (Integer i: log) b.append(", "+i);
       final String s = b.length() > 0 ? b.toString().substring(2) : "";
       return name+".ok("+s+");";
      }
-    public void ok(Integer ... expected)                                        // Confirm log is as expected
+
+    void ok(Integer ... expected)                                               // Confirm log is as expected
      {final Integer[]g = log.toArray(new Integer[0]);
       final Integer[]e = expected;
       Chip.ok(g, e);
@@ -3312,7 +3323,7 @@ public class Chip                                                               
       else if (e == null && g == null) {}
       else if (e != null && g == null) {b.append(String.format("Index %d expected %d, but got null\n", i, e   )); ++fails;}
       else if (e == null && g != null) {b.append(String.format("Index %d expected null, but got %d\n", i, g   )); ++fails;}
-      else if (e != g)                 {b.append(String.format("Index %d expected %d, but got %d\n",   i, e, g)); ++fails;}
+      else if (!e.equals(g))           {b.append(String.format("Index %d expected %d, but got %d\n",   i, e, g)); ++fails;}
       else ++passes;
      }
     if (fails > 0) err(b);
@@ -3978,7 +3989,7 @@ public class Chip                                                               
     test_Btree(b, i, 37, 73);
 
     int[]skip = {10, 20, 30,  2,4,6,  13,15,17, 22,24,26, 33,35,37};
-    for (int F : IntStream.rangeClosed(0, 100).toArray())
+    for (int F : java.util.stream.IntStream.rangeClosed(0, 100).toArray())
      {if (Arrays.stream(skip).noneMatch(x -> x == F)) test_Btree(b, i, F);
      }
    }
@@ -4221,79 +4232,87 @@ Step  i     o     O
    }
 
 // 2 3 5 8 13 21 34 55 89 144 233
-/*
+
   static void test_fibonacci()                                                  // First few fibonacci numbers
-   {final int N = 4, delay = 20;                                                // Number if bits in number, wait time to allow latest number to be computed from prior two
+   {final int N = 8, D = 22;                                                    // Number of bits in number, wait time to allow latest number to be computed from prior two
     Chip        C = new Chip();                                                 // Create a new chip
-    Bits     zero = C.bits("zero", N,   0);                                     // Zero - the first element of the sequence
-    Bits      one = C.bits("one",  N,   1);                                     // One - the second element of the sequence
-    Pulse      in = C.pulse("ia",  0,  delay);                                  // Initialize the registers to their starting values
-    Pulse      la = C.pulse("la", 96,  20, 32, 1);                              // Each pair sum is calculated on a rotating basis
-    Pulse      lb = C.pulse("lb", 96,  20, 64, 1);
-    Pulse      lc = C.pulse("lc", 96,  20,  0, 1);
-    Pulse      ed = C.pulse("ed",  0, 202);                                     // Enable the output register once it has had a chance to stabilize
-    Pulse      pd = C.pulse("pl", 32,   1, 1, 3);                               // Shows when the latest fibonacci number has been produced
+    Bits     zero = C.bits ("zero", N, 0);                                      // Zero - the first element of the sequence
+    Bits      one = C.bits ("one",  N, 1);                                      // One - the second element of the sequence
+    Pulse      ia = C.pulse("ia", 0,   D);                                      // Initialize the registers to their starting values
+    Pulse      ib = C.pulse("ib", 0, 2*D);
+    Pulse      la = C.pulse("la", 3*D, D, 0*D);                                 // Each pair sum is calculated on a rotating basis
+    Pulse      lb = C.pulse("lb", 3*D, D, 1*D);
+    Pulse      lc = C.pulse("lc", 3*D, D, 2*D);
 
-    Bits       ab = C.new BitBus("ab", N);                                      // Pre declare the output of the pair sums so that we can use these buses to drive the registers holding the latest fibonacci numbers
-    Bits       ac = C.new BitBus("ac", N);
-    Bits       bc = C.new BitBus("bc", N);
+    Bits       ab = C.bits("ab", N);                                            // Pre-declare the output of the pair sums so that we can use these buses to drive the registers holding the latest fibonacci numbers
+    Bits       ac = C.bits("ac", N);
+    Bits       bc = C.bits("bc", N);
 
-    Register    a = C.register("a", zero, in, bc, la);                          // Registers holding the latest fibonacci number
-    Register    b = C.register("b",  one, in, ac, lb);
-    Register    c = C.register("c", zero, in, ab, lc);
+    Register    a = C.register("a", bc, la);                                    // Registers holding the latest fibonacci number
+    Register    b = C.register("b", ac, lb);
+    Register    c = C.register("c", ab, lc);
 
-    Register    d = C.register("d",                                             // Load the output register with the latest fibonacci number and show it is present with a falling edge
-      new RegIn(zero, in), new RegIn(a, la),                                    // Initially the output register is zero, subsequently it is to the appropriate pair sum
-      new RegIn(b,    lb), new RegIn(c, lc));
+    OutputUnit fa = C.new OutputUnit("fa", "f", a, la);                         // Log latest number
+    OutputUnit fb = C.new OutputUnit("fb", "f", b, lb);
+    OutputUnit fc = C.new OutputUnit("fc", "f", c, lc);
 
-    OutputUnit  f = C.new OutputUnit("f", d, pd);                               // Log latest number
-
-    BinaryAdd sab = C.binaryAdd("ab", a, b);                                    // Add in pairs
-    BinaryAdd sac = C.binaryAdd("ac", a, c);
-    BinaryAdd sbc = C.binaryAdd("bc", b, c);
+    BinaryAdd sbc = C.binaryAdd("sbc", b, c);                                   // a
+    BinaryAdd sac = C.binaryAdd("sac", a, c);                                   // b
+    BinaryAdd sab = C.binaryAdd("sab", a, b);                                   // c
     sab.carry.anneal(); sac.carry.anneal(); sbc.carry.anneal();                 // Ignore the carry bits
-    Bits       od = C.outputBits("od",   d);                                    // Output the latest fibonacci number
 
-    C.executionTrack("pl d      ld", "%s  %s    %s %s %s", pd, d, la, lb, lc);
-    C.simulationSteps(320);
+    Bits       BC = C.chooseFromTwoWords("bc", sbc.sum, zero, ia);              // a
+    Bits       AC = C.chooseFromTwoWords("ac", sac.sum, one,  ib);              // b
+    Bits       AB = C.continueBits      ("ab", sab.sum);                        // c
+
+    C.executionTrace(
+      "ia la ib lb lc   a         b         c",
+      "%s  %s  %s  %s  %s    %s  %s  %s",
+      ia, la, ib, lb, lc, a, b, c);
+    C.simulationSteps(380);
     C.simulate();
-    f.ok(0, 1, 2, 3, 5, 8, 13);
+    fa.ok(null, null, null, 0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233);
     //C.printExecutionTrace(); stop();
     C.ok("""
-Step  pl d      ld
-   1  0  ....    0 0 0
-  22  0  0000    0 0 0
-  98  1  0000    0 0 0
-  99  0  0000    0 0 0
- 117  0  0000    0 0 1
- 127  0  0000    0 0 0
- 130  1  0001    0 0 0
- 131  0  0001    0 0 0
- 149  0  0001    1 0 0
- 159  0  0001    0 0 0
- 162  1  0010    0 0 0
- 163  0  0010    0 0 0
- 181  0  0010    0 1 0
- 191  0  0010    0 0 0
- 194  1  0011    0 0 0
- 195  0  0011    0 0 0
- 213  0  0011    0 0 1
- 223  0  0011    0 0 0
- 226  1  0101    0 0 0
- 227  0  0101    0 0 0
- 245  0  0101    1 0 0
- 255  0  0101    0 0 0
- 258  1  1000    0 0 0
- 259  0  1000    0 0 0
- 277  0  1000    0 1 0
- 287  0  1000    0 0 0
- 290  1  1101    0 0 0
- 291  0  1101    0 0 0
- 309  0  1101    0 0 1
- 319  0  1101    0 0 0
+Step  ia la ib lb lc   a         b         c
+   1  1  1  1  0  0    ........  ........  ........
+  23  0  0  1  1  0    ........  ........  ........
+  25  0  0  1  1  0    00000000  ........  ........
+  45  0  0  0  0  1    00000000  ........  ........
+  47  0  0  0  0  1    00000000  00000001  ........
+  67  0  1  0  0  0    00000000  00000001  ........
+  69  0  1  0  0  0    00000000  00000001  00000001
+  89  0  0  0  1  0    00000000  00000001  00000001
+  91  0  0  0  1  0    00000010  00000001  00000001
+ 111  0  0  0  0  1    00000010  00000001  00000001
+ 113  0  0  0  0  1    00000010  00000011  00000001
+ 133  0  1  0  0  0    00000010  00000011  00000001
+ 135  0  1  0  0  0    00000010  00000011  00000101
+ 155  0  0  0  1  0    00000010  00000011  00000101
+ 157  0  0  0  1  0    00001000  00000011  00000101
+ 177  0  0  0  0  1    00001000  00000011  00000101
+ 179  0  0  0  0  1    00001000  00001101  00000101
+ 199  0  1  0  0  0    00001000  00001101  00000101
+ 201  0  1  0  0  0    00001000  00001101  00010101
+ 221  0  0  0  1  0    00001000  00001101  00010101
+ 223  0  0  0  1  0    00100010  00001101  00010101
+ 243  0  0  0  0  1    00100010  00001101  00010101
+ 245  0  0  0  0  1    00100010  00110111  00010101
+ 265  0  1  0  0  0    00100010  00110111  00010101
+ 267  0  1  0  0  0    00100010  00110111  01011001
+ 287  0  0  0  1  0    00100010  00110111  01011001
+ 289  0  0  0  1  0    10010000  00110111  01011001
+ 309  0  0  0  0  1    10010000  00110111  01011001
+ 311  0  0  0  0  1    10010000  11101001  01011001
+ 331  0  1  0  0  0    10010000  11101001  01011001
+ 333  0  1  0  0  0    10010000  11101001  11111001
+ 353  0  0  0  1  0    10010000  11101001  11111001
+ 355  0  0  0  1  0    11100010  11101001  11111001
+ 375  0  0  0  0  1    11100010  11101001  11111001
+ 377  0  0  0  0  1    11100010  11011011  11111001
 """);
    }
-*/
+
   static void test_insert_into_array()                                          // Insert a word in an array of words
    {int B = 4;
     int[]array = {2, 4, 6, 8};                                                  // Array to insert into
@@ -4671,7 +4690,7 @@ Step  o     e
      five.ok(5);
    }
 
-// iiii iii jjjj jjj I J C O
+// Iiii iii Jjjj jjj I J C O Result
 // 1110 110 1110 110 1 1 0 1 false
 // 1110 110 1111 111 1 1 1 0 true
 // 1110 110 0000 000 1   0 0 true
@@ -4697,8 +4716,6 @@ Step  o     e
 // 0010 010 0000 000     0 0 false
 // 0010 010 0001 001     0 0 false
 // 0010 010 0010 010     0 0 false
-
-// 6   1 0 1   1
 
   static void test_twos_complement_compare_lt()
    {int        N = 4;
@@ -4871,7 +4888,7 @@ Step  o     e
     test_Btree();
     test_8p5i4();
     test_register();
-//  test_fibonacci();
+    test_fibonacci();
     test_insert_into_array();
     test_remove_from_array();
     test_btree_insert();
@@ -4895,7 +4912,6 @@ Step  o     e
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_monotone_mask_to_point_mask();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
