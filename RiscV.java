@@ -62,18 +62,27 @@ public class RiscV extends Chip                                                 
     b.append("RiscV      : " + name  + "\n");
     b.append("Step       : " + steps + "\n");
     b.append("Instruction: " + pc    + "\n");
-    b.append("Registers  : ");
-    for (int i = 0; i < x.length; i++)                                          // Print non zero registers
-     {final int v = x[i].value;
-      if (v != 0) b.append(" x"+i+"="+v);
+    int m = 0, r = 0;                                                           // Number of memory bytes and registers that are not zero
+    for (int i = 0; i < x.length;      i++) if (x[i].value != 0) ++r;           // Print non zero registers
+    for (int i = 0; i < memory.length; i++) if (memory[i]  != 0) ++m;           // Print non zero memory
+
+    if (r > 0)                                                                  // Print non zero registers
+     {b.append("Registers  : ");
+      for (int i = 0; i < x.length; i++)
+       {final int v = x[i].value;
+        if (v != 0) b.append(" x"+i+"="+v);
+       }
+      b.append("\n");
      }
-    b.append("\n");
-    b.append("Memory     : ");
-    for (int i = 0; i < memory.length; i++)                                     // Print non zero memory
-     {final int v = memory[i];
-      if (v != 0) b.append(" "+i+"="+v);
+    if (m > 0)                                                                  // Print non zero memory
+     {b.append("Memory     : ");
+      for (int i = 0; i < memory.length; i++)
+       {final int v = memory[i];
+        if (v != 0) b.append(" "+i+"="+v);
+       }
+      b.append("\n");
      }
-    b.append("\n");
+
     return b.toString();                                                        // String describing chip
    }
 
@@ -85,6 +94,10 @@ public class RiscV extends Chip                                                 
     for (int i = 0; i < N; i++)                                                 // Print each instruction
       b.append(String.format("%04x  %s", i, code.elementAt(i).toString()));
     return b.toString();                                                        // String describing chip
+   }
+
+  public void ok(String expected)                                               // Confirm the current state of the Risc V chip
+   {ok(toString(), expected);
    }
 
   class Register                                                                // Description of a register
@@ -144,7 +157,6 @@ public class RiscV extends Chip                                                 
       subType &= Decode.m_subType;
       rl      &= Decode.m_rl;
       aq      &= Decode.m_aq;
-
       instruction = opCode | immediate                                          // Overlay the fields - zero fields will have no effect so this safe.
                   | (rd  != null ? rd.x  <<  7 : 0)
                   | (rs1 != null ? rs1.x << 15 : 0)
@@ -179,7 +191,12 @@ public class RiscV extends Chip                                                 
      {if (label == null) return;                                                // No label
       final Decode d = decode(this).details();                                  // Decode this instruction so we can reassemble it with the current immediate value
       final int    o = label.offset - offset;                                   // Offset to target instruction from current instruction in blocks of 4 bytes
-      final int    i = encodeBImmediate(o << 2);                                // Offset to target instruction from current instruction in bytes
+      final int    i = switch(d.format)                                         // Choose encoding format for immediate operand
+       {case "B" -> encodeBImmediate(o << 1);                                   // Offset to target instruction from current instruction in signed blocks of 2 bytes
+        case "I" -> encodeIImmediate(o << 1);                                   // Offset to target instruction from current instruction in signed blocks of 2 bytes
+        case "J" -> encodeJImmediate(o << 1);                                   // Offset to target instruction from current instruction in signed blocks of 2 bytes
+        default  -> {stop("Cannot use format", d.format, "in a jump"); yield 0;}
+       };
       final Encode e = new Encode(d.opCode, x[d.rd], x[d.rs1], x[d.rs2],        // Encode an instruction without aq or rl or a label
         d.funct3, d.funct5, d.funct7, d.subType, i);
       code.pop();                                                               // Remove unwanted instruction just added as part of re-encoding.  This is safe to do as we have updated the existing instruction that we want to keep.
@@ -197,10 +214,11 @@ public class RiscV extends Chip                                                 
 
   static class Decode                                                           // Decode an instruction
    {final Encode instruction;                                                   // Instruction to be decoded
-    String name = null;                                                         // Name of instruction
+    String format = null;                                                       // Format of instruction
+    String   name = null;                                                       // Name of instruction
     int immediate = 0;                                                          // Immediate value
-    boolean rl = false;                                                         // rl
-    boolean aq = false;                                                         // aq
+    boolean    rl = false;                                                      // rl
+    boolean    aq = false;                                                      // aq
 
     final int rd;                                                               // Destination register
     final int opCode;                                                           // Operation code
@@ -325,7 +343,7 @@ public class RiscV extends Chip                                                 
        }
 
       B(String Name)                                                            // Decode B format instruction immediate field
-       {name = Name; immediate = immediate(instruction.instruction);
+       {format = "B"; name = Name; immediate = immediate(instruction.instruction);
        }
       public Decode details() {return Decode.this;}                             // Decoded instruction details
 
@@ -339,7 +357,7 @@ public class RiscV extends Chip                                                 
      {final static int p_immediate = 20, l_immediate = 12;                      // Position of immediate value
 
       I(String Name)                                                            // Decode instruction
-       {name = Name;
+       {format = "I"; name = Name;
         immediate = instruction.instruction >> p_immediate;                     // Immediate value
        }
 
@@ -367,7 +385,7 @@ public class RiscV extends Chip                                                 
        }
 
       J(String Name)                                                            // Decode a J format instruction
-       {name = Name;
+       {format = "J"; name = Name;
         immediate = immediate(instruction.instruction);                         // Immediate value
        }
 
@@ -380,7 +398,7 @@ public class RiscV extends Chip                                                 
 
 
     class R implements Executable                                               // Decode a R format instruction
-     {R(String Name) {name = Name;}                                             // Decode instruction
+     {R(String Name) {name = Name; format = "R"; }                              // Decode instruction
       public Decode details() {return Decode.this;}                             // Decoded instruction details
 
       public String toString()                                                  // Print instruction
@@ -393,7 +411,7 @@ public class RiscV extends Chip                                                 
 
     class Ra implements Executable                                              // Decode a R atomic format instruction
      {Ra(String Name)                                                           // Decode instruction
-       {name = Name;
+       {name = Name; format = "Ra";
         final int i = instruction.instruction;
         rl          = ((i >>> 25) & 0b1) == 0b1;                                // rl
         aq          = ((i >>> 26) & 0b1) == 0b1;                                // aq
@@ -419,7 +437,7 @@ public class RiscV extends Chip                                                 
        }
 
       S(String Name)                                                            // Decode instruction
-       {name = Name;
+       {format = "S"; name = Name;
         immediate = immediate(instruction.instruction);
        }
 
@@ -437,7 +455,7 @@ public class RiscV extends Chip                                                 
      {final static int p_immediate = 12, l_immediate = 20;                      // Position of immediate value
 
       U(String Name)                                                            // Decode instruction
-       {name = Name;
+       {format = "U"; name = Name;
         immediate = instruction.instruction >>> p_immediate;                    // Immediate value
        }
 
@@ -498,12 +516,12 @@ public class RiscV extends Chip                                                 
 
       case Decode.opBranch ->                                                   // Branch
        {switch(d.funct3)
-         {case Decode. f3_beq: return d.new B("beq")    {public void action() {if (x[d.rs1].value == x[d.rs2].value) pc += d.immediate>>2; else pc++;}};
-          case Decode. f3_bne: return d.new B("bne")    {public void action() {if (x[d.rs1].value != x[d.rs2].value) pc += d.immediate>>2; else pc++;}};
-          case Decode. f3_blt: return d.new B("blt")    {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate>>2; else pc++;}};
-          case Decode. f3_bge: return d.new B("bge")    {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate>>2; else pc++;}};
-          case Decode.f3_bltu: return d.new B("bltu")   {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate>>2; else pc++;}};
-          case Decode.f3_bgeu: return d.new B("bgeu")   {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate>>2; else pc++;}};
+         {case Decode. f3_beq: return d.new B("beq")    {public void action() {if (x[d.rs1].value == x[d.rs2].value) pc += d.immediate>>1; else pc++;}};
+          case Decode. f3_bne: return d.new B("bne")    {public void action() {if (x[d.rs1].value != x[d.rs2].value) pc += d.immediate>>1; else pc++;}};
+          case Decode. f3_blt: return d.new B("blt")    {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate>>1; else pc++;}};
+          case Decode. f3_bge: return d.new B("bge")    {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate>>1; else pc++;}};
+          case Decode.f3_bltu: return d.new B("bltu")   {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate>>1; else pc++;}};
+          case Decode.f3_bgeu: return d.new B("bgeu")   {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate>>1; else pc++;}};
           default:             return null;
          }
        }
@@ -579,7 +597,7 @@ public class RiscV extends Chip                                                 
 
       case Decode.opJal -> {return d.new J("jal")                               // Jump and Link
        {public void action()
-         {if (d.rd > 0) x[d.rd].value++;
+         {if (d.rd > 0) x[d.rd].value = (pc+1)<<1;                              // PC in 2 byte blocks
           pc += d.immediate;
          }
        };}
@@ -608,7 +626,8 @@ public class RiscV extends Chip                                                 
       case Decode.opAuiPc ->                                                    // Add upper immediate to program counter
        {return d.new U("auipc")
          {public void action()
-           {x[d.rd].value = pc + d.immediate << 12;
+           {++pc;
+            x[d.rd].value = pc + d.immediate << 12;
            }
          };
        }
@@ -641,8 +660,13 @@ public class RiscV extends Chip                                                 
    }
 
   Encode encodeI(int opCode, Register rd, Register rs1, int funct3, int Immediate) // Encode an I format instruction
-   {final int i = Immediate << Decode.I.p_immediate;
+   {final int i = encodeIImmediate(Immediate);
     return new Encode(opCode, rd, rs1, null, funct3, 0, 0, 0, i);
+   }
+
+  static int encodeIImmediate(int Immediate)                                    // Encode the immediate field of a J format instruction
+   {final int i = Immediate;
+    return i << Decode.I.p_immediate;
    }
 
   Encode encodeI(int opCode, Register rd, Register rs1, int funct3, Label label)// Encode an I format instruction
@@ -655,7 +679,6 @@ public class RiscV extends Chip                                                 
     final int b =  (i >>>  0) << 21  & Decode.J.m_30_21;
     final int c = ((i >>> 10) << 20) & Decode.J.m_20_20;
     final int d = ((i >>>  0) <<  1) & Decode.J.m_19_12;
-
     return a|b|c|d;
    }
 
@@ -685,7 +708,8 @@ public class RiscV extends Chip                                                 
    }
 
   Encode encodeU(int opCode, Register rd, int Immediate)                        // Encode a U format instruction
-   {return new Encode(opCode, rd, null, null, 0, 0, 0, 0, Immediate);
+   {return new Encode(opCode, rd, null, null, 0, 0, 0, 0,
+      Immediate << Decode.U.p_immediate);
    }
 
 //D1 Instructions                                                               // Instructions
@@ -962,10 +986,9 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     r.emulate();                                                                // Run the program
     r.ok("""
 RiscV      : slt
-Step       : 4
-Instruction: 3
-Registers  :  x1=10 x2=201 x30=0 x31=1
-Memory     :
+Step       : 5
+Instruction: 4
+Registers  :  x1=10 x2=201 x31=1
 """);
    //stop(r.printCode());
    ok(r.printCode(), """
@@ -1021,7 +1044,83 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
 0006       add    33   2  3  0   0   0  0  0  0 0          0    18133
 0007       add    33   3  4  0   0   0  0  0  0 0          0    201b3
 0008      addi    13   5  5  1   0   0  0  0  0 0          1   128293
-0009       blt    63   d  5  1   4   4 1f 7f  0 0   ffffffec fe12c6e3
+0009       blt    63  17  5  1   4   4 1f 7f  0 0   fffffff6 fe12cbe3
+""");
+   }
+
+  static void test_lui()                                                        // Load upper immediate
+   {RiscV    r = new RiscV();
+    Register z = r.x0;
+    Register i = r.x1;
+    r.lui(i, 1);
+    r.sw (z, i, 0);
+    r.emulate();
+    r.ok("""
+RiscV      : lui
+Step       : 3
+Instruction: 2
+Registers  :  x1=4096
+Memory     :  1=16
+""");
+   //stop(r.printCode());
+   ok(r.printCode(), """
+RiscV Hex Code: lui
+Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
+0000       lui    37   1  0  0   1   1  0  0  0 0          1     10b7
+0001        sw    23   0  0  1   2   2  0  0  0 0          0   102023
+""");
+   }
+
+  static void test_auipc()                                                      // Load upper immediate plus PC
+   {RiscV    r = new RiscV();
+    Register z = r.x0;
+    Register i = r.x1;
+    r.add(z, z, z);
+    r.auipc(i, 1);
+    r.sw (z, i, 0);
+    r.emulate();
+    r.ok("""
+RiscV      : auipc
+Step       : 4
+Instruction: 3
+Registers  :  x1=12288
+Memory     :  1=48
+""");
+   //stop(r.printCode());
+   ok(r.printCode(), """
+RiscV Hex Code: auipc
+Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
+0000       add    33   0  0  0   0   0  0  0  0 0          0       33
+0001     auipc    17   1  0  0   1   1  0  0  0 0          1     1097
+0002        sw    23   0  0  1   2   2  0  0  0 0          0   102023
+""");
+   }
+
+  static void test_jal()                                                        // Jump and link
+   {RiscV    r = new RiscV();
+    Register z = r.x0;
+    Register i = r.x1;
+    Register j = r.x2;
+    Label jump = r.new Label("jump");
+
+    r.add(z, z, z);
+    r.jal (j, jump);
+    r.addi(i, z, 2);                                                            // i = 0
+    jump.set();
+    r.emulate();                                                                // Run the program
+    r.ok("""
+RiscV      : jal
+Step       : 3
+Instruction: 5
+Registers  :  x2=4
+""");
+   //stop(r.printCode());
+   ok(r.printCode(), """
+RiscV Hex Code: jal
+Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
+0000       add    33   0  0  0   0   0  0  0  0 0          0       33
+0001       jal    6f   2  0  8   0   0  0  0  0 0          4   80016f
+0002      addi    13   1  0  2   0   0  0  0  0 0          2   200093
 """);
    }
 
@@ -1031,11 +1130,15 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     if (github_actions) test_immediate_s();
     test_add();
     test_slt();
+    test_lui();
+    test_auipc();
+    test_jal();
     test_fibonacci();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
+    test_jal();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
