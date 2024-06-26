@@ -2,7 +2,6 @@
 // Execute Risc V machine code. Little endian RV32I.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
-// SetLabel - encode immediate value appropriate to the instruction
 package com.AppaApps.Silicon;                                                   // Design, emulate and layout digital a binary tree on a silicon chip.
 
 import java.io.*;
@@ -30,6 +29,8 @@ public class RiscV extends Chip                                                 
   final byte[]                 memory = new byte[100];                          // Memory
   int                              pc = 0;                                      // Program counter
   int                           steps = 0;                                      // Number of steps taken so far in executing the program
+
+  final Stack<String>           ecall = new Stack<>();                          // Ecall executed
 
   TreeMap<String, Label>       labels = new TreeMap<>();                        // Labels in assembler code
   TreeMap<String, Variable> variables = new TreeMap<>();                        // Variables in assembler code
@@ -636,7 +637,8 @@ public class RiscV extends Chip                                                 
       case Decode.opEcall ->                                                    // Transfer call to operating system
        {return d.new I("ecall")
          {public void action()
-           {stop("ecall");
+           {++pc;
+            ecall.push(RiscV.this.toString());
            }
          };
        }
@@ -1191,6 +1193,38 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
 """);
    }
 
+  static void test_ecall()                                                      // Supervisor call
+   {RiscV    r = new RiscV();
+    Register z = r.x0;
+    Register i = r.x1;
+
+    r.addi (i, z, 2);
+    r.ecall();
+    r.add  (i, i, i);
+    r.emulate();
+    r.ok("""
+RiscV      : ecall
+Step       : 4
+Instruction: 3
+Registers  :  x1=4
+""");
+   //stop(r.printCode());
+   ok(r.printCode(), """
+RiscV Hex Code: ecall
+Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
+0000      addi    13   1  0  2   0   0  0  0  0 0          2   200093
+0001     ecall    73   0  0  0   0   0  0  0  0 0          0       73
+0002       add    33   1  1  1   0   0  0  0  0 0          0   1080b3
+""");
+
+   ok(r.ecall.firstElement(), """
+RiscV      : ecall
+Step       : 2
+Instruction: 2
+Registers  :  x1=2
+""");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {if (github_actions) test_immediate_b();
     if (github_actions) test_immediate_j();
@@ -1202,6 +1236,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     test_jal();
     test_jalr();
     test_store_load();
+    test_ecall();
     test_fibonacci();
    }
 
