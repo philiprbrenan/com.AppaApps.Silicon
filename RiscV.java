@@ -1095,15 +1095,15 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
 RiscV      : auipc
 Step       : 4
 Instruction: 3
-Registers  :  x1=12288
-Memory     :  1=48
+Registers  :  x1=24576
+Memory     :  1=96
 """);
    //stop(r.printCode());
    ok(r.printCode(), """
 RiscV Hex Code: auipc
 Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
 0000       add    33   0  0  0   0   0  0  0  0 0          0       33
-0001     auipc    17   1  0  0   1   1  0  0  0 0          1     1097
+0001     auipc    17   1  0  0   4   4  0  0  0 0          4     4097
 0002        sw    23   0  0  1   2   2  0  0  0 0          0   102023
 """);
    }
@@ -1162,6 +1162,35 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
 """);
    }
 
+  static void test_store_load()                                                 // Store and then load
+   {RiscV    r = new RiscV();
+    Register z = r.x0;
+    Register i = r.x1;
+    Register j = r.x2;
+
+    r.addi (i, z, 2);
+    r.sb   (z, i, 0);
+    r.sb   (z, i, 1);
+    r.lh   (j, z, 0);
+    r.emulate();                                                                // Run the program
+    r.ok("""
+RiscV      : store_load
+Step       : 5
+Instruction: 4
+Registers  :  x1=2 x2=514
+Memory     :  0=2 1=2
+""");
+   //stop(r.printCode());
+   ok(r.printCode(), """
+RiscV Hex Code: store_load
+Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
+0000      addi    13   1  0  2   0   0  0  0  0 0          2   200093
+0001        sb    23   0  0  1   0   0  0  0  0 0          0   100023
+0002        sb    23   1  0  1   0   0  0  0  0 0          1   1000a3
+0003        lh     3   2  0  0   1   1  0  0  0 0          0     1103
+""");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {if (github_actions) test_immediate_b();
     if (github_actions) test_immediate_j();
@@ -1171,12 +1200,14 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     test_lui();
     test_auipc();
     test_jal();
+    test_jalr();
+    test_store_load();
     test_fibonacci();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_jalr();
+   {oldTests();
+    test_store_load();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
