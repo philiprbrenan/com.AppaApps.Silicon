@@ -195,6 +195,7 @@ public class RiscV extends Chip                                                 
        {case "B" -> encodeBImmediate(o << 1);                                   // Offset to target instruction from current instruction in signed blocks of 2 bytes
         case "I" -> encodeIImmediate(o << 1);                                   // Offset to target instruction from current instruction in signed blocks of 2 bytes
         case "J" -> encodeJImmediate(o << 1);                                   // Offset to target instruction from current instruction in signed blocks of 2 bytes
+        case "U" -> encodeUImmediate(o << 1);                                   // Offset to target instruction from current instruction in signed blocks of 2 bytes
         default  -> {stop("Cannot use format", d.format, "in a jump"); yield 0;}
        };
       final Encode e = new Encode(d.opCode, x[d.rd], x[d.rs1], x[d.rs2],        // Encode an instruction without aq or rl or a label
@@ -606,8 +607,8 @@ public class RiscV extends Chip                                                 
        {switch(d.funct3)
          {case Decode.f3_jalr: return d.new I("jalr")
            {public void action()
-             {if (d.rd > 0) x[d.rd].value++;
-              pc = x[d.rs1].value + d.immediate;
+             {if (d.rd > 0) x[d.rd].value = (pc+1)<<1;
+              pc = (d.rs1 > 0 ? x[d.rs1].value : 0) + d.immediate;
              }
            };
           default: return null;
@@ -665,8 +666,7 @@ public class RiscV extends Chip                                                 
    }
 
   static int encodeIImmediate(int Immediate)                                    // Encode the immediate field of a J format instruction
-   {final int i = Immediate;
-    return i << Decode.I.p_immediate;
+   {return Immediate << Decode.I.p_immediate;
    }
 
   Encode encodeI(int opCode, Register rd, Register rs1, int funct3, Label label)// Encode an I format instruction
@@ -710,6 +710,14 @@ public class RiscV extends Chip                                                 
   Encode encodeU(int opCode, Register rd, int Immediate)                        // Encode a U format instruction
    {return new Encode(opCode, rd, null, null, 0, 0, 0, 0,
       Immediate << Decode.U.p_immediate);
+   }
+
+  Encode encodeU(int opCode, Register rd, Label label)                          // Encode a U format instruction
+   {return new Encode(opCode, rd, null, null, 0, 0, 0, 0, 0, label);
+   }
+
+  static int encodeUImmediate(int Immediate)                                    // Encode the immediate field of a J format instruction
+   {return Immediate << Decode.U.p_immediate;
    }
 
 //D1 Instructions                                                               // Instructions
@@ -830,6 +838,7 @@ auipc  Add Upper Imm to PC     U 0010111                    rd = PC + (imm << 12
 */
 
   Encode auipc(Register rd, int immediate) {return encodeU(0b001_0111, rd, immediate & 0xfff);}
+  Encode auipc(Register rd, Label l)       {return encodeU(0b001_0111, rd, l);}
 
 /*
 Inst   Name                  FMT Opcode  funct3 funct7      Description (C) Note
@@ -1075,9 +1084,12 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
    {RiscV    r = new RiscV();
     Register z = r.x0;
     Register i = r.x1;
+    Label    j = r.new Label("jump");
+
     r.add(z, z, z);
-    r.auipc(i, 1);
+    r.auipc(i, j);
     r.sw (z, i, 0);
+    j.set();
     r.emulate();
     r.ok("""
 RiscV      : auipc
@@ -1105,7 +1117,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
 
     r.add(z, z, z);
     r.jal (j, jump);
-    r.addi(i, z, 2);                                                            // i = 0
+    r.addi(i, z, 2);                                                            // i = 2
     jump.set();
     r.emulate();                                                                // Run the program
     r.ok("""
@@ -1124,6 +1136,32 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
 """);
    }
 
+  static void test_jalr()                                                       // Jump and link register
+   {RiscV    r = new RiscV();
+    Register z = r.x0;
+    Register i = r.x1;
+    Register j = r.x2;
+    Label end  = r.new Label("end");
+
+    r.jalr (j, z, end);
+    r.addi (i, z, 2);
+    end.set();
+    r.emulate();                                                                // Run the program
+    r.ok("""
+RiscV      : jalr
+Step       : 2
+Instruction: 4
+Registers  :  x2=2
+""");
+   //stop(r.printCode());
+   ok(r.printCode(), """
+RiscV Hex Code: jalr
+Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
+0000      jalr    67   2  0  4   0   0  0  0  0 0          4   400167
+0001      addi    13   1  0  2   0   0  0  0  0 0          2   200093
+""");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {if (github_actions) test_immediate_b();
     if (github_actions) test_immediate_j();
@@ -1137,8 +1175,8 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
-    test_jal();
+   {//oldTests();
+    test_jalr();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
