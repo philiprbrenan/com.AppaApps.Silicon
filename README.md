@@ -8,7 +8,7 @@ Reasons why you might want to join this project:
 
 http://prb.appaapps.com/zesal/pitchdeck/pitchDeck.html
 
-Or you might want to design your own [RiscV machine](https://github.com/philiprbrenan/com.AppaApps.Silicon/blob/main/RiscV.j) and [operating system](https://en.wikipedia.org/wiki/Operating_system) to run on it.
+Or you might want to design your own [RiscV machine](https://github.com/philiprbrenan/com.AppaApps.Silicon/blob/main/RiscV.java) and [operating system](https://en.wikipedia.org/wiki/Operating_system) to run on it.
 
 # Examples
 
@@ -389,4 +389,4 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-Modified: 2024-06-26 at 03:49:43
+Modified: 2024-06-29 at 04:36:01
