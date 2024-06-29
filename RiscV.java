@@ -10,7 +10,8 @@ import java.util.*;
 //D1 Construct                                                                  // Construct a Risc V program and execute it
 
 public class RiscV extends Chip                                                 // Load and execute a program written in RiscV machine code
- {final static int XLEN               = 32;                                     // Size of instructions
+ {final static int               XLEN = 32;                                     // Size of instructions
+  final static int   instructionBytes =  4;                                     // Bytes per instruction - yes thre are some two byte instructions but we are not using them yet.
   final static boolean github_actions =                                         // Whether we are on a github or not
     "true".equals(System.getenv("GITHUB_ACTIONS"));
   final static boolean    makeSayStop = false;                                  // Turn say into stop if true which is occasionally useful for locating unlabeled say statements.
@@ -27,7 +28,7 @@ public class RiscV extends Chip                                                 
                  x10, x11, x12, x13, x14, x15, x16, x17, x18, x19,
                  x20, x21, x22, x23, x24, x25, x26, x27, x28, x29, x30, x31;
   final byte[]                 memory = new byte[100];                          // Memory
-  int                              pc = 0;                                      // Program counter
+  int                              pc = 0;                                      // Program counter expressed in bytes
   int                           steps = 0;                                      // Number of steps taken so far in executing the program
 
   final Stack<String>           ecall = new Stack<>();                          // Ecall executed
@@ -107,7 +108,7 @@ public class RiscV extends Chip                                                 
 
     Register(int register)                                                      // Describe a register
      {x = register;
-      if (x < 0 || x >=XLEN) stop("Register must be 0 to", XLEN, "not", x);
+      if (x < 0 || x >= XLEN) stop("Register must be 0 to", XLEN, "not", x);
      }
 
     public String toString() {return ""+value;}                                 // Print the value of a register
@@ -130,10 +131,10 @@ public class RiscV extends Chip                                                 
     setLabels();                                                                // Set branch instructions so they address their targets
 
     for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
-     {if (pc >= code.size()) return;                                            // Off the end of the code
-      final Encode e = code.elementAt(pc);
+     {if (pc >= instructionBytes * code.size()) return;                         // Off the end of the code
+      final Encode e = code.elementAt(pc / instructionBytes);
       final Decode.Executable d = decode(e);
-      if (d == null) stop("Need data for instruction", pc);
+      if (d == null) stop("Need data for instruction at byte:", pc);
       d.action();
      }
     if (maxSimulationSteps == null)                                             // Not enough steps available by default
@@ -214,7 +215,7 @@ public class RiscV extends Chip                                                 
      }
    }
 
-  static class Decode                                                           // Decode an instruction
+  static class Decode                                                           // Decode an instruction. The class is static to allow the constants to be easily accessed elsewhere
    {final Encode instruction;                                                   // Instruction to be decoded
     String format = null;                                                       // Format of instruction
     String   name = null;                                                       // Name of instruction
@@ -310,6 +311,9 @@ public class RiscV extends Chip                                                 
      }
 
     public void action() {}                                                     // Action required to implement an instruction
+
+    public int instructionSize() {return instructionBytes;}                     // Size of decoded instruction
+    public int advance(int pc)   {return pc + instructionSize();}               // Advance the program counter over this instruction
 
     public String toString()                                                    // Print instruction
      {return name
@@ -475,21 +479,21 @@ public class RiscV extends Chip                                                 
      {case Decode.opArith ->                                                    // Arithmetic
        {if (d.funct7 == 0)
          {switch(d.funct3)
-           {case Decode.f3_add : return d.new R("add")  {public void action() {x[d.rd].value = x[d.rs1].value +   x[d.rs2].value; pc++;}};
-            case Decode.f3_xor : return d.new R("xor")  {public void action() {x[d.rd].value = x[d.rs1].value ^   x[d.rs2].value; pc++;}};
-            case Decode.f3_or  : return d.new R("or")   {public void action() {x[d.rd].value = x[d.rs1].value |   x[d.rs2].value; pc++;}};
-            case Decode.f3_and : return d.new R("and")  {public void action() {x[d.rd].value = x[d.rs1].value &   x[d.rs2].value; pc++;}};
-            case Decode.f3_sll : return d.new R("sll")  {public void action() {x[d.rd].value = x[d.rs1].value <<  x[d.rs2].value; pc++;}};
-            case Decode.f3_srl : return d.new R("srl")  {public void action() {x[d.rd].value = x[d.rs1].value >>> x[d.rs2].value; pc++;}};
-            case Decode.f3_slt : return d.new R("slt")  {public void action() {x[d.rd].value = x[d.rs1].value <   x[d.rs2].value ? 1 : 0; pc++;}};
-            case Decode.f3_sltu: return d.new R("sltu") {public void action() {x[d.rd].value = x[d.rs1].value <   x[d.rs2].value ? 1 : 0; pc++;}};
+           {case Decode.f3_add : return d.new R("add")  {public void action() {x[d.rd].value = x[d.rs1].value +   x[d.rs2].value;         pc = d.advance(pc);}};
+            case Decode.f3_xor : return d.new R("xor")  {public void action() {x[d.rd].value = x[d.rs1].value ^   x[d.rs2].value;         pc = d.advance(pc);}};
+            case Decode.f3_or  : return d.new R("or")   {public void action() {x[d.rd].value = x[d.rs1].value |   x[d.rs2].value;         pc = d.advance(pc);}};
+            case Decode.f3_and : return d.new R("and")  {public void action() {x[d.rd].value = x[d.rs1].value &   x[d.rs2].value;         pc = d.advance(pc);}};
+            case Decode.f3_sll : return d.new R("sll")  {public void action() {x[d.rd].value = x[d.rs1].value <<  x[d.rs2].value;         pc = d.advance(pc);}};
+            case Decode.f3_srl : return d.new R("srl")  {public void action() {x[d.rd].value = x[d.rs1].value >>> x[d.rs2].value;         pc = d.advance(pc);}};
+            case Decode.f3_slt : return d.new R("slt")  {public void action() {x[d.rd].value = x[d.rs1].value <   x[d.rs2].value ? 1 : 0; pc = d.advance(pc);}};
+            case Decode.f3_sltu: return d.new R("sltu") {public void action() {x[d.rd].value = x[d.rs1].value <   x[d.rs2].value ? 1 : 0; pc = d.advance(pc);}};
             default            : return null;
            }
          }
         else if (d.funct7 == 2)
          {switch(d.funct3)
-           {case Decode.f3_add : return d.new I("sub")  {public void action() {x[d.rd].value = x[d.rs1].value -   d.immediate; pc++;}};
-            case Decode.f3_srl : return d.new I("sra")  {public void action() {x[d.rd].value = x[d.rs1].value >>  d.immediate; pc++;}};
+           {case Decode.f3_add : return d.new I("sub")  {public void action() {x[d.rd].value = x[d.rs1].value -   d.immediate; pc = d.advance(pc);}};
+            case Decode.f3_srl : return d.new I("sra")  {public void action() {x[d.rd].value = x[d.rs1].value >>  d.immediate; pc = d.advance(pc);}};
             default            : return null;
            }
          }
@@ -498,32 +502,32 @@ public class RiscV extends Chip                                                 
 
       case Decode.opArithImm ->                                                 // Arithmetic with immediate operands
        {switch(d.funct3)
-         {case Decode.f3_add:  return d.new I("addi")   {public void action() {x[d.rd].value = x[d.rs1].value +   d.immediate; pc++;}};
-          case Decode.f3_xor:  return d.new I("xori")   {public void action() {x[d.rd].value = x[d.rs1].value ^   d.immediate; pc++;}};
-          case Decode. f3_or:  return d.new I("ori")    {public void action() {x[d.rd].value = x[d.rs1].value |   d.immediate; pc++;}};
-          case Decode.f3_and:  return d.new I("andi")   {public void action() {x[d.rd].value = x[d.rs1].value &   d.immediate; pc++;}};
-          case Decode.f3_sll:  return d.new I("slli")   {public void action() {x[d.rd].value = x[d.rs1].value <<  d.immediate; pc++;}};
+         {case Decode.f3_add:  return d.new I("addi")   {public void action() {x[d.rd].value = x[d.rs1].value +   d.immediate; pc = d.advance(pc);}};
+          case Decode.f3_xor:  return d.new I("xori")   {public void action() {x[d.rd].value = x[d.rs1].value ^   d.immediate; pc = d.advance(pc);}};
+          case Decode. f3_or:  return d.new I("ori")    {public void action() {x[d.rd].value = x[d.rs1].value |   d.immediate; pc = d.advance(pc);}};
+          case Decode.f3_and:  return d.new I("andi")   {public void action() {x[d.rd].value = x[d.rs1].value &   d.immediate; pc = d.advance(pc);}};
+          case Decode.f3_sll:  return d.new I("slli")   {public void action() {x[d.rd].value = x[d.rs1].value <<  d.immediate; pc = d.advance(pc);}};
           case Decode.f3_srl:
             final Decode dI = d.new I(null).details();
             switch((dI.immediate >> 5) & 0b111_1111)
-             {case 0:  return d.new I("srli")   {public void action() {x[d.rd].value = x[d.rs1].value >>> d.immediate; pc++;}};
-              case 2:  return d.new I("srai")   {public void action() {x[d.rd].value = x[d.rs1].value >>  d.immediate; pc++;}};
+             {case 0:  return d.new I("srli")   {public void action() {x[d.rd].value = x[d.rs1].value >>> d.immediate;         pc = d.advance(pc);}};
+              case 2:  return d.new I("srai")   {public void action() {x[d.rd].value = x[d.rs1].value >>  d.immediate;         pc = d.advance(pc);}};
               default: return null;
              }
-          case Decode.f3_slt : return d.new I("slti" )  {public void action() {x[d.rd].value = x[d.rs1].value <   d.immediate ? 1 : 0; pc++;}};
-          case Decode.f3_sltu: return d.new I("sltiu")  {public void action() {x[d.rd].value = x[d.rs1].value <   d.immediate ? 1 : 0; pc++;}};
+          case Decode.f3_slt : return d.new I("slti" )  {public void action() {x[d.rd].value = x[d.rs1].value <   d.immediate ? 1 : 0; pc = d.advance(pc);}};
+          case Decode.f3_sltu: return d.new I("sltiu")  {public void action() {x[d.rd].value = x[d.rs1].value <   d.immediate ? 1 : 0; pc = d.advance(pc);}};
           default            : return null;
          }
        }
 
       case Decode.opBranch ->                                                   // Branch
        {switch(d.funct3)
-         {case Decode. f3_beq: return d.new B("beq")    {public void action() {if (x[d.rs1].value == x[d.rs2].value) pc += d.immediate>>1; else pc++;}};
-          case Decode. f3_bne: return d.new B("bne")    {public void action() {if (x[d.rs1].value != x[d.rs2].value) pc += d.immediate>>1; else pc++;}};
-          case Decode. f3_blt: return d.new B("blt")    {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate>>1; else pc++;}};
-          case Decode. f3_bge: return d.new B("bge")    {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate>>1; else pc++;}};
-          case Decode.f3_bltu: return d.new B("bltu")   {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate>>1; else pc++;}};
-          case Decode.f3_bgeu: return d.new B("bgeu")   {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate>>1; else pc++;}};
+         {case Decode. f3_beq: return d.new B("beq")    {public void action() {if (x[d.rs1].value == x[d.rs2].value) pc += d.immediate<<1; else pc = d.advance(pc);}};
+          case Decode. f3_bne: return d.new B("bne")    {public void action() {if (x[d.rs1].value != x[d.rs2].value) pc += d.immediate<<1; else pc = d.advance(pc);}};
+          case Decode. f3_blt: return d.new B("blt")    {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate<<1; else pc = d.advance(pc);}};
+          case Decode. f3_bge: return d.new B("bge")    {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate<<1; else pc = d.advance(pc);}};
+          case Decode.f3_bltu: return d.new B("bltu")   {public void action() {if (x[d.rs1].value <  x[d.rs2].value) pc += d.immediate<<1; else pc = d.advance(pc);}};
+          case Decode.f3_bgeu: return d.new B("bgeu")   {public void action() {if (x[d.rs1].value >= x[d.rs2].value) pc += d.immediate<<1; else pc = d.advance(pc);}};
           default:             return null;
          }
        }
@@ -532,20 +536,20 @@ public class RiscV extends Chip                                                 
        {switch(d.funct3)
          {case Decode.f3_sb:      return d.new S("sb")
            {public void action()
-             {pc++;
+             {pc = d.advance(pc);
               memory[x[d.rs1].value+d.immediate]   = (byte) (x[d.rs2].value>>>0  & 0xff);
              }
            };
           case Decode.f3_sh:      return d.new S("sh")
            {public void action()
-             {pc++;
+             {pc = d.advance(pc);
               memory[x[d.rs1].value+d.immediate]   = (byte) (x[d.rs2].value>>>0  & 0xff);
               memory[x[d.rs1].value+d.immediate+1] = (byte)((x[d.rs2].value>>>8) & 0xff);
              }
            };
           case Decode.f3_sw:      return d.new S("sw")
           {public void action()
-             {pc++;
+             {pc = d.advance(pc);
               memory[x[d.rs1].value+d.immediate+0] = (byte)((x[d.rs2].value>>> 0) & 0xff);
               memory[x[d.rs1].value+d.immediate+1] = (byte)((x[d.rs2].value>>> 8) & 0xff);
               memory[x[d.rs1].value+d.immediate+2] = (byte)((x[d.rs2].value>>>16) & 0xff);
@@ -560,33 +564,33 @@ public class RiscV extends Chip                                                 
        {switch(d.funct3)
          {case Decode.f3_lb:      return d.new I("lb")
            {public void action()
-             {pc++;
+             {pc = d.advance(pc);
               x[d.rd].value = memory[x[d.rs1].value+d.immediate];
              }
            };
           case Decode.f3_lbu:     return d.new I("lbu")
            {public void action()
-             {pc++;
+             {pc = d.advance(pc);
               x[d.rd].value = (memory[x[d.rs1].value+d.immediate]<<24)>>24;
              }
            };
           case Decode.f3_lh:      return d.new I("lh")
            {public void action()
-             {pc++;
+             {pc = d.advance(pc);
               x[d.rd].value = memory[x[d.rs1].value+d.immediate] |
                              (memory[x[d.rs1].value+d.immediate+1] << 8);
              }
            };
           case Decode.f3_lhu:     return d.new I("lhu")
            {public void action()
-             {pc++;
+             {pc = d.advance(pc);
               x[d.rd].value = (memory[x[d.rs1].value+d.immediate] |
                               (memory[x[d.rs1].value+d.immediate+1] << 8)<<16)>>16;
              }
            };
           case Decode.f3_lw:      return d.new I("lw")
           {public void action()
-             {pc++;
+             {pc = d.advance(pc);
               x[d.rd].value = memory[x[d.rs1].value+d.immediate+0]
                             | memory[x[d.rs1].value+d.immediate+1] <<  8
                             | memory[x[d.rs1].value+d.immediate+2] << 16
@@ -599,8 +603,8 @@ public class RiscV extends Chip                                                 
 
       case Decode.opJal -> {return d.new J("jal")                               // Jump and Link
        {public void action()
-         {if (d.rd > 0) x[d.rd].value = (pc+1)<<1;                              // PC in 2 byte blocks
-          pc += d.immediate;
+         {if (d.rd > 0) x[d.rd].value = pc + d.instructionSize();               // Byte address of return to next instruction
+          pc += d.immediate << 1;                                               // Jump to this address
          }
        };}
 
@@ -608,8 +612,8 @@ public class RiscV extends Chip                                                 
        {switch(d.funct3)
          {case Decode.f3_jalr: return d.new I("jalr")
            {public void action()
-             {if (d.rd > 0) x[d.rd].value = (pc+1)<<1;
-              pc = (d.rs1 > 0 ? x[d.rs1].value : 0) + d.immediate;
+             {if (d.rd > 0) x[d.rd].value = pc + d.instructionSize();           // Byte address of return to next instruction
+              pc = (d.rs1 > 0 ? x[d.rs1].value : 0) + d.immediate<<1;           // Jump to this address
              }
            };
           default: return null;
@@ -619,7 +623,7 @@ public class RiscV extends Chip                                                 
       case Decode.opLui ->                                                      // Load upper immediate
        {return d.new U("lui")
          {public void action()
-           {++pc;
+           {pc = d.advance(pc);
             if (d.rd > 0) x[d.rd].value = d.immediate << 12;
            }
          };
@@ -628,7 +632,7 @@ public class RiscV extends Chip                                                 
       case Decode.opAuiPc ->                                                    // Add upper immediate to program counter
        {return d.new U("auipc")
          {public void action()
-           {++pc;
+           {pc = d.advance(pc);
             x[d.rd].value = pc + d.immediate << 12;
            }
          };
@@ -637,7 +641,7 @@ public class RiscV extends Chip                                                 
       case Decode.opEcall ->                                                    // Transfer call to operating system
        {return d.new I("ecall")
          {public void action()
-           {++pc;
+           {pc = d.advance(pc);
             ecall.push(RiscV.this.toString());
            }
          };
@@ -998,7 +1002,7 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     r.ok("""
 RiscV      : slt
 Step       : 5
-Instruction: 4
+Instruction: 16
 Registers  :  x1=10 x2=201 x31=1
 """);
    //stop(r.printCode());
@@ -1038,7 +1042,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     r.ok("""
 RiscV      : fibonacci
 Step       : 65
-Instruction: 10
+Instruction: 40
 Registers  :  x1=10 x2=55 x3=89 x4=89 x5=10
 Memory     :  21=1 22=1 23=2 24=3 25=5 26=8 27=13 28=21 29=34
 """);
@@ -1069,7 +1073,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     r.ok("""
 RiscV      : lui
 Step       : 3
-Instruction: 2
+Instruction: 8
 Registers  :  x1=4096
 Memory     :  1=16
 """);
@@ -1096,9 +1100,9 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     r.ok("""
 RiscV      : auipc
 Step       : 4
-Instruction: 3
-Registers  :  x1=24576
-Memory     :  1=96
+Instruction: 12
+Registers  :  x1=49152
+Memory     :  1=-64
 """);
    //stop(r.printCode());
    ok(r.printCode(), """
@@ -1125,8 +1129,8 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     r.ok("""
 RiscV      : jal
 Step       : 3
-Instruction: 5
-Registers  :  x2=4
+Instruction: 12
+Registers  :  x2=8
 """);
    //stop(r.printCode());
    ok(r.printCode(), """
@@ -1136,7 +1140,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
 0001       jal    6f   2  0  8   0   0  0  0  0 0          4   80016f
 0002      addi    13   1  0  2   0   0  0  0  0 0          2   200093
 """);
-   }
+   }                                                                            // Immediate offset is 2 x 4 bytes instructions which is stored in the immediate field as 4 = 2 x 2 bytes, which is finally resolved as an offset of 8 bytes from the start of the jal instruction
 
   static void test_jalr()                                                       // Jump and link register
    {RiscV    r = new RiscV();
@@ -1152,8 +1156,8 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     r.ok("""
 RiscV      : jalr
 Step       : 2
-Instruction: 4
-Registers  :  x2=2
+Instruction: 8
+Registers  :  x2=4
 """);
    //stop(r.printCode());
    ok(r.printCode(), """
@@ -1175,10 +1179,11 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     r.sb   (z, i, 1);
     r.lh   (j, z, 0);
     r.emulate();                                                                // Run the program
+    //say(r);
     r.ok("""
 RiscV      : store_load
 Step       : 5
-Instruction: 4
+Instruction: 16
 Registers  :  x1=2 x2=514
 Memory     :  0=2 1=2
 """);
@@ -1205,7 +1210,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     r.ok("""
 RiscV      : ecall
 Step       : 4
-Instruction: 3
+Instruction: 12
 Registers  :  x1=4
 """);
    //stop(r.printCode());
@@ -1220,7 +1225,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
    ok(r.ecall.firstElement(), """
 RiscV      : ecall
 Step       : 2
-Instruction: 2
+Instruction: 8
 Registers  :  x1=2
 """);
    }
@@ -1242,7 +1247,6 @@ Registers  :  x1=2
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_store_load();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
