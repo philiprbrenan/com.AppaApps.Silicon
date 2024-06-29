@@ -2,6 +2,7 @@
 // Execute Risc V machine code. Little endian RV32I.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
+// Make it possible to automatically compare the results of RiscV with Ban.
 package com.AppaApps.Silicon;                                                   // Design, emulate and layout digital a binary tree on a silicon chip.
 
 import java.io.*;
@@ -1246,7 +1247,8 @@ Registers  :  x1=2
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
+    test_lui();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
