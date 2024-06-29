@@ -559,25 +559,29 @@ public class Chip                                                               
     return new Gate(Op, Name, f, e);
    }
 
-  Gate Input   (CharSequence n)               {return FanIn(Operator.Input,    n);}
-  Gate One     (CharSequence n)               {return FanIn(Operator.One,      n);}
-  Gate Zero    (CharSequence n)               {return FanIn(Operator.Zero,     n);}
-  Gate Output  (CharSequence n, Bit i)        {return FanIn(Operator.Output,   n, i);}
-  Gate Continue(CharSequence n, Bit i)        {return FanIn(Operator.Continue, n, i);}
-  Gate Not     (CharSequence n, Bit i)        {return FanIn(Operator.Not,      n, i);}
+  boolean neq(Bit i, Bit j)                                                     // Two bits are considered to be the same bit if they have the same name allowing some gates driven by identically named inputs to be simplified. Trying to use two bits in different places with the same name will led to "too many gates drive" messages.
+   {return !i.name.equals(j.name);
+   }
 
-  Gate Nxor    (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Nxor,     n, i, j);}
-  Gate Xor     (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Xor,      n, i, j);}
-  Gate Gt      (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Gt,       n, i, j);}
-  Gate Ngt     (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Ngt,      n, i, j);}
-  Gate Lt      (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Lt,       n, i, j);}
-  Gate Nlt     (CharSequence n, Bit i, Bit j) {return FanIn(Operator.Nlt,      n, i, j);}
-  Gate My      (CharSequence n, Bit i, Bit j) {return FanIn(Operator.My,       n, i, j);} // When pin 1 falls from 1 to 0 record the value of pin 2
+  Gate Input   (CharSequence n)               {return FanIn(Operator.Input,         n);}
+  Gate One     (CharSequence n)               {return FanIn(Operator.One,           n);}
+  Gate Zero    (CharSequence n)               {return FanIn(Operator.Zero,          n);}
+  Gate Output  (CharSequence n, Bit i)        {return FanIn(Operator.Output,        n, i);}
+  Gate Continue(CharSequence n, Bit i)        {return FanIn(Operator.Continue,      n, i);}
+  Gate Not     (CharSequence n, Bit i)        {return FanIn(Operator.Not,           n, i);}
 
-  Gate And     (CharSequence n, Bit...i)      {return FanIn(Operator.And,      n, i);}
-  Gate Nand    (CharSequence n, Bit...i)      {return FanIn(Operator.Nand,     n, i);}
-  Gate Or      (CharSequence n, Bit...i)      {return FanIn(Operator.Or,       n, i);}
-  Gate Nor     (CharSequence n, Bit...i)      {return FanIn(Operator.Nor,      n, i);}
+  Gate Nxor    (CharSequence n, Bit i, Bit j) {return neq(i, j) ? FanIn(Operator.Nxor, n, i, j) : One (n);}
+  Gate Xor     (CharSequence n, Bit i, Bit j) {return neq(i, j) ? FanIn(Operator.Xor,  n, i, j) : Zero(n);}
+  Gate Gt      (CharSequence n, Bit i, Bit j) {return neq(i, j) ? FanIn(Operator.Gt,   n, i, j) : Zero(n);}
+  Gate Ngt     (CharSequence n, Bit i, Bit j) {return neq(i, j) ? FanIn(Operator.Ngt,  n, i, j) : One (n);}
+  Gate Lt      (CharSequence n, Bit i, Bit j) {return neq(i, j) ? FanIn(Operator.Lt,   n, i, j) : Zero(n);}
+  Gate Nlt     (CharSequence n, Bit i, Bit j) {return neq(i, j) ? FanIn(Operator.Nlt,  n, i, j) : One (n);}
+  Gate My      (CharSequence n, Bit i, Bit j) {return FanIn(Operator.My,            n, i, j);} // When pin 1 falls from 1 to 0 record the value of pin 2
+
+  Gate And     (CharSequence n, Bit...i)      {return FanIn(Operator.And,           n, i);}
+  Gate Nand    (CharSequence n, Bit...i)      {return FanIn(Operator.Nand,          n, i);}
+  Gate Or      (CharSequence n, Bit...i)      {return FanIn(Operator.Or,            n, i);}
+  Gate Nor     (CharSequence n, Bit...i)      {return FanIn(Operator.Nor,           n, i);}
 
   void distanceToOutput()                                                       // Distance to the nearest output
    {outputGates.clear();
@@ -1498,6 +1502,42 @@ public class Chip                                                               
     final Bits e = new BitBus(n(output), B);                                    // Enabled word
     final Bit  q = compareEq(n(output, "eq"), a, b);                            // Compare
     return enableWord(output, result, q);                                       // Enable the result if a equals b
+   }
+
+//D2 Switch/Case                                                                // Create a switch statement with one or more cases and a default value.
+
+  record Eq                                                                     // A value to be chosen by a key.
+   (Bits eq,                                                                    // Switch on this key
+    Bits value                                                                  // Switch on the associated key to get this value
+   ) {}
+
+  Eq eq(Bits eq, Bits value)                                                    // A value to be chosen by a key
+   {return new Eq(eq, value);
+   }
+
+  Bits chooseEq(String Output, Bits Choose, Bits Default, Eq...Eq)              // Choose a word by its key or if no key matches choose the default
+   {final int W = Eq.length;
+    if (W == 0) stop("One or more words to choose from needed");
+    final int   K = Choose.bits(), V = Default.bits();                          // Size of keys and values
+    final Words q = new WordBus(n(Output, "equals"), W, V);                     // Resulting word is the same width as the values of the choices
+    final Bit[] E = new Bit[W];                                                 // Whether any case was selected
+    for (int j = 1; j <= W; j++)                                                // Each possible world
+     {final Eq  e = Eq[j-1];
+      final int v = e.value.bits(), k = e.eq.bits();
+      if (k != K) stop("Choose  has", K, "bits, but eq["+j+"].eq    has", k);
+      if (v != V) stop("Default has", V, "bits, but eq["+j+"].value has", v);
+      final Bit c = E[j-1] = compareEq(n(j, Output, "eqIndex"), Choose, e.eq);  // Compare with each key
+      enableWord(q.w(j).name(), e.value, c);                                    // Could it be this word
+     }
+    final Bit  s = Or     (n(Output, "selected"),     E);                       // Were any of the keys matched
+    final Bits o = orWords(n(Output, "choiceOrZero"), q);                       // Choice taken or zero
+    final Bits r = chooseFromTwoWords(Output, Default, o, s);                   // Choice or default
+    return r;
+   }
+
+  Bits chooseEq(String Output, Bits Choose, Eq...Eq)                            // Choose a word by its key or if no key matches choose the value zero
+   {final Bits Default = bits(n(Output, "zero"), Eq[0].value.bits(), 0);        // A zero of appropriate width
+    return chooseEq(Output, Choose, Default, Eq);                               // Choose with zero as the default if none choosen
    }
 
 //D2 Masks                                                                      // Point masks and monotone masks. A point mask has a single bit set to true, the rest are set to false.  The true bit indicates the point at which something is to happen.
@@ -3283,7 +3323,7 @@ public class Chip                                                               
       err(b, "Mismatched length, expected", le, "got", lg, "for text:\n"+G);
      }
 
-    int l = 1, c = 1;
+    int l = 1, c = 0;
     final int N = le < lg ? le : lg;
     for (int i = 0; i < N && matches; i++)                                      // Check each character
      {final int  e = E.charAt(i), g = G.charAt(i);
@@ -4847,6 +4887,60 @@ Step  o     e
     w2.ok(13);
    }
 
+  static void test_choose_equals()
+   {final int B = 2;
+    Chip   c = new Chip();
+    Bits  b1 = c.bits("b1", B, 1);
+    Bits  b2 = c.bits("b2", B, 2);
+    Bits  b3 = c.bits("b3", B, 3);
+    Bits  b4 = c.bits("b4", B, 2);
+    Bits   r = c.chooseEq("r", b1, b4, c.eq(b1, b3), c.eq(b2, b2), c.eq(b3, b1)); // b1 used twice leads to replacement of Nxor by One
+    r.anneal();
+    c.simulate();
+    r.ok(3);
+   }
+
+  static void test_choose_equals2()
+   {final int B = 4;
+    Chip   c = new Chip();
+    Bits  b0 = c.bits("b",  B, 0);
+    Bits  b1 = c.bits("b1", B, 1);
+    Bits  b2 = c.bits("b2", B, 2);
+    Bits  b3 = c.bits("b3", B, 3);
+    Bits  b4 = c.bits("b4", B, 4);
+    Bits  B1 = c.bits("B1", B, 1);
+    Bits  B2 = c.bits("B2", B, 2);
+    Bits  B3 = c.bits("B3", B, 3);
+    Bits  r1 = c.chooseEq("r1", b1, b4, c.eq(B1, b3), c.eq(B2, b2), c.eq(B3, b1));
+    Bits  r2 = c.chooseEq("r2", b2, b4, c.eq(B1, b3), c.eq(B2, b2), c.eq(B3, b1));
+    Bits  r3 = c.chooseEq("r3", b3, b4, c.eq(B1, b3), c.eq(B2, b2), c.eq(B3, b1));
+    Bits  r4 = c.chooseEq("r4", b0, b4, c.eq(B1, b3), c.eq(B2, b2), c.eq(B3, b1));
+    r1.anneal(); r2.anneal(); r3.anneal(); r4.anneal();
+    c.simulate();
+    r1.ok(3);
+    r2.ok(2);
+    r3.ok(1);
+    r4.ok(4);
+   }
+
+  static void test_choose_equals_zero()
+   {final int B = 4;
+    Chip   c = new Chip();
+    Bits  b0 = c.bits("b",  B, 0);
+    Bits  b1 = c.bits("b1", B, 1);
+    Bits  b2 = c.bits("b2", B, 2);
+    Bits  b3 = c.bits("b3", B, 3);
+    Bits  B1 = c.bits("B1", B, 1);
+    Bits  B2 = c.bits("B2", B, 2);
+    Bits  B3 = c.bits("B3", B, 3);
+    Bits  r1 = c.chooseEq("r1", b0, c.eq(B1, b3), c.eq(B2, b2), c.eq(B3, b1));
+    Bits  r2 = c.chooseEq("r2", b1, c.eq(B1, b3), c.eq(B2, b2), c.eq(B3, b1));
+    r1.anneal(); r2.anneal();
+    c.simulate();
+    r1.ok(0);
+    r2.ok(3);
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_max_min();
     test_source_file_name();
@@ -4908,6 +5002,9 @@ Step  o     e
     test_then_if_eq_else();
     test_bits_forward();
     test_words_forward();
+    test_choose_equals();
+    test_choose_equals2();
+    test_choose_equals_zero();
    }
 
   static void newTests()                                                        // Tests being worked on
