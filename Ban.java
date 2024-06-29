@@ -90,7 +90,7 @@ final public class Ban extends Chip                                             
 //  final Bits pc4Branch;                                                       // Advance normally or jump by branch instruction immediate amount
     final Eq    opBranch, opJal, opJalr;
 
-    final EnableWord eid13, eid33, eJal;                                        // Type of instruction
+    final EnableWord eid13, eid33, eJal, eJalr;                                 // Type of instruction
 
     final Bits    result;                                                       // Choose between immediate or dyadic operation
     final Bits[]ox = new Bits[XLEN];                                            // Output choice between existing register and new result
@@ -110,35 +110,35 @@ final public class Ban extends Chip                                             
      }
 
     RV32I(Chip C, String Out, Bits Decode, Bits pc, Bits[]x)                    // Decode the specified bits as a RV32I instruction and execute it
-     {   out = Out;                                                             // Name for this area of silicon and the prefix for the gates therein
-      decode = Decode;                                                          // Instruction to decode
-     this.pc = pc;                                                              // Program counter at start
-      this.x = x;                                                               // Registers at start
-//     start = C.pulse(q("start"),  0, 2);                                      // Start pulse has to be wide enough to load the registers
-//    update = C.pulse(q("update"), 0, 6, 38);                                  // Update registers pulse at end of decode/execute cycle.
-         one = C.bits (q("one"),    XLEN, 1);                                   // Constant one
-        zero = C.bits (q("zero"),   XLEN, 0);                                   // Constant zero
+     {out     = Out;                                                             // Name for this area of silicon and the prefix for the gates therein
+      decode  = Decode;                                                          // Instruction to decode
+      this.pc = pc;                                                              // Program counter at start
+      this.x  = x;                                                               // Registers at start
+//     start  = C.pulse(q("start"),  0, 2);                                      // Start pulse has to be wide enough to load the registers
+//    update  = C.pulse(q("update"), 0, 6, 38);                                  // Update registers pulse at end of decode/execute cycle.
+      one     = C.bits (q("one"),    XLEN, 1);                                   // Constant one
+      zero    = C.bits (q("zero"),   XLEN, 0);                                   // Constant zero
 
 //        x0 = C.bits    (q("X0"),  XLEN, 0);                                   // Define registers and zero them at the start
 //        PC = C.bits    (q("PC"),  XLEN);                                      // Next value for program counter forward declaration
 //        pc = C.register(q("pc"), C.regIn(x0, start), C.regIn(PC, update));    // Risc V registers
 
-//      for (int i = 1; i < XLEN; i++)                                            // Load registers. Initially from x0 later with instruction results
+//      for (int i = 1; i < XLEN; i++)                                          // Load registers. Initially from x0 later with instruction results
 //       {X[i] = C.bits    (q("X")+i, XLEN);
 //        x[i] = C.register(q("x")+i, C.regIn(x0, start), C.regIn(X[i], update));
 //       }
 
-      opCode = C.subBitBus(q("opCode"), decode, p_opCode,     l_opCode);        // Decode the instruction
-      funct3 = C.subBitBus(q("funct3"), decode, p_funct3,     l_funct3);
-      funct5 = C.subBitBus(q("funct5"), decode, p_funct5,     l_funct5);
-      funct7 = C.subBitBus(q("funct7"), decode, p_funct7,     l_funct7);
-          rd = C.subBitBus(q("rd"),     decode, p_rd,         l_rd);
-         rs1 = C.subBitBus(q("rs1"),    decode, p_rs1,        l_rs1);
-         rs2 = C.subBitBus(q("rs2"),    decode, p_rs2,        l_rs2);
+      opCode  = C.subBitBus(q("opCode"), decode, p_opCode,     l_opCode);       // Decode the instruction
+      funct3  = C.subBitBus(q("funct3"), decode, p_funct3,     l_funct3);
+      funct5  = C.subBitBus(q("funct5"), decode, p_funct5,     l_funct5);
+      funct7  = C.subBitBus(q("funct7"), decode, p_funct7,     l_funct7);
+      rd      = C.subBitBus(q("rd"),     decode, p_rd,         l_rd);
+      rs1     = C.subBitBus(q("rs1"),    decode, p_rs1,        l_rs1);
+      rs2     = C.subBitBus(q("rs2"),    decode, p_rs2,        l_rs2);
                                                                                 // Decode immediate field
-        immi = C.subBitBus(q("immi"),   decode, ip_immediate, il_immediate);    // Imipac: the weapon that defends itself.
-        immu = C.subBitBus(q("immu"),   decode, up_immediate, ul_immediate);    // Immediate from U format
-        immb = C.conCatBits(q("immb"),                                          // Immediate operand from B format
+      immi    = C.subBitBus(q("immi"),   decode, ip_immediate, il_immediate);   // Imipac: the weapon that defends itself.
+      immu    = C.subBitBus(q("immu"),   decode, up_immediate, ul_immediate);   // Immediate from U format
+      immb    = C.conCatBits(q("immb"),                                         // Immediate operand from B format
           zero.b(1),                                                            // First bit known to be 0.
           decode.b( 9), decode.b(10), decode.b(11), decode.b(12),               // Field offsets are one based: in riscv-spec-20191213.pdf they are zero based.
           decode.b(26), decode.b(27), decode.b(28), decode.b(29),
@@ -146,7 +146,7 @@ final public class Ban extends Chip                                             
           decode.b( 8),
           decode.b(32));
 
-        immj = C.conCatBits(q("immj"),                                          // Immediate operand from J format
+      immj    = C.conCatBits(q("immj"),                                         // Immediate operand from J format
           decode.b(22), decode.b(23), decode.b(24), decode.b(25), decode.b(26),
           decode.b(27), decode.b(28), decode.b(29), decode.b(30), decode.b(31),
           decode.b(21),
@@ -154,152 +154,154 @@ final public class Ban extends Chip                                             
           decode.b(18), decode.b(19), decode.b(20),
           decode.b(32));
 
-        imms = C.conCatBits(q("imms"),                                          // Immediate operand from S format
+      imms    = C.conCatBits(q("imms"),                                         // Immediate operand from S format
           decode.b( 8), decode.b( 9), decode.b(10), decode.b(11), decode.b(12),
           decode.b(26), decode.b(27), decode.b(28), decode.b(29), decode.b(30),
           decode.b(31), decode.b(32));
 
-        immB = C.binaryTCSignExtend(q("immB"),  immb, XLEN);                    // Sign extend the immediate field
-        immI = C.binaryTCSignExtend(q("immI"),  immi, XLEN);
-        immJ = C.binaryTCSignExtend(q("immJ"),  immj, XLEN);
-        immS = C.binaryTCSignExtend(q("immS"),  imms, XLEN);
-        immU = C.binaryTCSignExtend(q("immU"),  immu, XLEN);
-       immB2 = C.shiftUp           (q("immB2"), immB);                          // Multiply by two to get the branch offset in bytes
-       immI2 = C.shiftUp           (q("immI2"), immI);
-       immJ2 = C.shiftUp           (q("immJ2"), immJ);
+      immB    = C.binaryTCSignExtend(q("immB"),  immb, XLEN);                   // Sign extend the immediate field
+      immI    = C.binaryTCSignExtend(q("immI"),  immi, XLEN);
+      immJ    = C.binaryTCSignExtend(q("immJ"),  immj, XLEN);
+      immS    = C.binaryTCSignExtend(q("immS"),  imms, XLEN);
+      immU    = C.binaryTCSignExtend(q("immU"),  immu, XLEN);
+      immB2   = C.shiftUp           (q("immB2"), immB);                         // Multiply by two to get the branch offset in bytes
+      immI2   = C.shiftUp           (q("immI2"), immI);
+      immJ2   = C.shiftUp           (q("immJ2"), immJ);
 
-      sv = new EnableWord[XLEN];                                                // Get values of s1 and s2
-      Sv = new EnableWord[XLEN];
-      sv[0] = C.enableWord(zero, C.bits(q("xv0"), D.l_rs1, 0));                 // Get value of s1 register
-      Sv[0] = C.enableWord(zero, C.bits(q("Xv0"), D.l_rs2, 0));                 // Get value of s2 register
+      sv      = new EnableWord[XLEN];                                           // Get values of s1 and s2
+      Sv      = new EnableWord[XLEN];
+      sv[0]   = C.enableWord(zero, C.bits(q("xv0"), D.l_rs1, 0));               // Get value of s1 register
+      Sv[0]   = C.enableWord(zero, C.bits(q("Xv0"), D.l_rs2, 0));               // Get value of s2 register
+
       for (int i = 1; i < XLEN; i++)
        {sv[i] = C.enableWord(x[i], C.bits(q("xv")+i, D.l_rs1, i));              // Get value of s1 register
         Sv[i] = C.enableWord(x[i], C.bits(q("Xv")+i, D.l_rs2, i));              // Get value of s2 register
        }
 
-        rs1v = C.enableWord(q("rs1v"),  rs1,  sv);                              // The value of the selected s1 register
-        rs2v = C.enableWord(q("rs2v"),  rs2,  Sv);                              // The value of the selected s2 register
+      rs1v    = C.enableWord(q("rs1v"),  rs1,  sv);                             // The value of the selected s1 register
+      rs2v    = C.enableWord(q("rs2v"),  rs2,  Sv);                             // The value of the selected s2 register
 
-         f3_add = C.bits(q("f3_add"),  l_funct3, D.f3_add);                     // Funct3 op codes
-         f3_xor = C.bits(q("f3_xor"),  l_funct3, D.f3_xor);
-          f3_or = C.bits(q("f3_or"),   l_funct3, D.f3_or);
-         f3_and = C.bits(q("f3_and"),  l_funct3, D.f3_and);
-         f3_sll = C.bits(q("f3_sll"),  l_funct3, D.f3_sll);
-         f3_srl = C.bits(q("f3_srl"),  l_funct3, D.f3_srl);
-         f3_slt = C.bits(q("f3_slt"),  l_funct3, D.f3_slt);
-        f3_sltu = C.bits(q("f3_sltu"), l_funct3, D.f3_sltu);
-         f3_beq = C.bits(q("f3_beq"),  l_funct3, D.f3_beq);
-         f3_bne = C.bits(q("f3_bne"),  l_funct3, D.f3_bne);
-         f3_blt = C.bits(q("f3_blt"),  l_funct3, D.f3_blt);
-         f3_bge = C.bits(q("f3_bge"),  l_funct3, D.f3_bge);
-        f3_bltu = C.bits(q("f3_bltu"), l_funct3, D.f3_bltu);
-        f3_bgeu = C.bits(q("f3_bgeu"), l_funct3, D.f3_bgeu);
+      f3_add  = C.bits(q("f3_add"),  l_funct3, D.f3_add);                       // Funct3 op codes
+      f3_xor  = C.bits(q("f3_xor"),  l_funct3, D.f3_xor);
+      f3_or   = C.bits(q("f3_or"),   l_funct3, D.f3_or);
+      f3_and  = C.bits(q("f3_and"),  l_funct3, D.f3_and);
+      f3_sll  = C.bits(q("f3_sll"),  l_funct3, D.f3_sll);
+      f3_srl  = C.bits(q("f3_srl"),  l_funct3, D.f3_srl);
+      f3_slt  = C.bits(q("f3_slt"),  l_funct3, D.f3_slt);
+      f3_sltu = C.bits(q("f3_sltu"), l_funct3, D.f3_sltu);
+      f3_beq  = C.bits(q("f3_beq"),  l_funct3, D.f3_beq);
+      f3_bne  = C.bits(q("f3_bne"),  l_funct3, D.f3_bne);
+      f3_blt  = C.bits(q("f3_blt"),  l_funct3, D.f3_blt);
+      f3_bge  = C.bits(q("f3_bge"),  l_funct3, D.f3_bge);
+      f3_bltu = C.bits(q("f3_bltu"), l_funct3, D.f3_bltu);
+      f3_bgeu = C.bits(q("f3_bgeu"), l_funct3, D.f3_bgeu);
 
-           addI = C.binaryTCAdd         (q("addI"),  rs1v, immI);               // Immediate operation
-           subI = C.binaryTCSubtract    (q("subI"),  rs1v, immI);
-           xorI = C.xorBits             (q("xorI"),  rs1v, immI);
-            orI = C.orBits              (q("orI"),   rs1v, immI);
-           andI = C.andBits             (q("andI"),  rs1v, immI);
-           sllI = C.shiftLeftMultiple   (q("sllI"),  rs1v, immI);
-           srlI = C.shiftRightMultiple  (q("srlI"),  rs1v, immI);
-           sraI = C.shiftRightArithmetic(q("sraI"),  rs1v, immI);
-           cmpI = C.binaryTCCompareLt   (q("cmpI"),  rs1v, immI);
-          cmpuI = C.compareLt           (q("cmpuI"), rs1v, immI);
-           sltI = C.enableWord          (q("sltI"),  one,  cmpI);
-          sltuI = C.enableWord          (q("sltuI"), one,  cmpuI);
+      addI    = C.binaryTCAdd         (q("addI"),  rs1v, immI);                 // Immediate operation
+      subI    = C.binaryTCSubtract    (q("subI"),  rs1v, immI);
+      xorI    = C.xorBits             (q("xorI"),  rs1v, immI);
+      orI     = C.orBits              (q("orI"),   rs1v, immI);
+      andI    = C.andBits             (q("andI"),  rs1v, immI);
+      sllI    = C.shiftLeftMultiple   (q("sllI"),  rs1v, immI);
+      srlI    = C.shiftRightMultiple  (q("srlI"),  rs1v, immI);
+      sraI    = C.shiftRightArithmetic(q("sraI"),  rs1v, immI);
+      cmpI    = C.binaryTCCompareLt   (q("cmpI"),  rs1v, immI);
+      cmpuI   = C.compareLt           (q("cmpuI"), rs1v, immI);
+      sltI    = C.enableWord          (q("sltI"),  one,  cmpI);
+      sltuI   = C.enableWord          (q("sltuI"), one,  cmpuI);
 
-          rAddi = C.enableWordIfEq(q("rAddi"),   addI, funct3, f3_add);         // Enable result of immediate operation
-          rSubi = C.enableWordIfEq(q("rSubi"),   subI, funct3, f3_add);
-          rXori = C.enableWordIfEq(q("rXori"),   xorI, funct3, f3_xor);
-           rOri = C.enableWordIfEq(q("rOri"),     orI, funct3, f3_or);
-          rAndi = C.enableWordIfEq(q("rAndi"),   andI, funct3, f3_and);
-          rSlli = C.enableWordIfEq(q("rSlli"),   sllI, funct3, f3_sll);
-          rSrli = C.enableWordIfEq(q("rSrli"),   srlI, funct3, f3_srl);
-          rSrai = C.enableWordIfEq(q("rSrai"),   sraI, funct3, f3_srl);
-          rSlti = C.enableWordIfEq(q("rSlti"),   sltI, funct3, f3_slt);
-         rSltui = C.enableWordIfEq(q("rSltui"), sltuI, funct3, f3_sltu);
-            iR0 = C.orBits(q("iR0"), rAddi, rXori, rOri,  rAndi,
-                                  rSlli, rSrli, rSlti, rSltui);
-            iR2 = C.orBits(q("iR2"), rSubi, rSrai);
+      rAddi   = C.enableWordIfEq(q("rAddi"),   addI, funct3, f3_add);           // Enable result of immediate operation
+      rSubi   = C.enableWordIfEq(q("rSubi"),   subI, funct3, f3_add);
+      rXori   = C.enableWordIfEq(q("rXori"),   xorI, funct3, f3_xor);
+      rOri    = C.enableWordIfEq(q("rOri"),     orI, funct3, f3_or);
+      rAndi   = C.enableWordIfEq(q("rAndi"),   andI, funct3, f3_and);
+      rSlli   = C.enableWordIfEq(q("rSlli"),   sllI, funct3, f3_sll);
+      rSrli   = C.enableWordIfEq(q("rSrli"),   srlI, funct3, f3_srl);
+      rSrai   = C.enableWordIfEq(q("rSrai"),   sraI, funct3, f3_srl);
+      rSlti   = C.enableWordIfEq(q("rSlti"),   sltI, funct3, f3_slt);
+      rSltui  = C.enableWordIfEq(q("rSltui"), sltuI, funct3, f3_sltu);
+      iR0     = C.orBits(q("iR0"), rAddi, rXori, rOri,  rAndi,
+                                   rSlli, rSrli, rSlti, rSltui);
+      iR2     = C.orBits(q("iR2"), rSubi, rSrai);
 
-           eiR0 = new EnableWord(iR0, C.bits(q("if70"), l_funct7, 0));          // Decode funct7 for immediate opcode
-           eiR2 = new EnableWord(iR2, C.bits(q("if72"), l_funct7, 2));
+      eiR0    = new EnableWord(iR0, C.bits(q("if70"), l_funct7, 0));            // Decode funct7 for immediate opcode
+      eiR2    = new EnableWord(iR2, C.bits(q("if72"), l_funct7, 2));
 
-             iR = C.enableWord(q("iR"), funct7, eiR0, eiR2);                    // Choose the dyadic operation
+      iR      = C.enableWord(q("iR"), funct7, eiR0, eiR2);                      // Choose the dyadic operation
 
-           addD = C.binaryTCAdd         (q("addD"),  rs1v, rs2v);
-           subD = C.binaryTCSubtract    (q("subD"),  rs1v, rs2v);
-           xorD = C.xorBits             (q("xorD"),  rs1v, rs2v);
-            orD = C.orBits              (q("orD"),   rs1v, rs2v);
-           andD = C.andBits             (q("andD"),  rs1v, rs2v);
-           sllD = C.shiftLeftMultiple   (q("sllD"),  rs1v, rs2v);
-           srlD = C.shiftRightMultiple  (q("srlD"),  rs1v, rs2v);
-           sraD = C.shiftRightArithmetic(q("sraD"),  rs1v, rs2v);
-           cmpD = C.binaryTCCompareLt   (q("cmpD"),  rs1v, rs2v);
-          cmpuD = C.compareLt           (q("cmpuD"), rs1v, rs2v);
-           sltD = C.enableWord          (q("sltD"),  one,  cmpD);
-          sltuD = C.enableWord          (q("sltuD"), one,  cmpuD);
+      addD    = C.binaryTCAdd         (q("addD"),  rs1v, rs2v);
+      subD    = C.binaryTCSubtract    (q("subD"),  rs1v, rs2v);
+      xorD    = C.xorBits             (q("xorD"),  rs1v, rs2v);
+      orD     = C.orBits              (q("orD"),   rs1v, rs2v);
+      andD    = C.andBits             (q("andD"),  rs1v, rs2v);
+      sllD    = C.shiftLeftMultiple   (q("sllD"),  rs1v, rs2v);
+      srlD    = C.shiftRightMultiple  (q("srlD"),  rs1v, rs2v);
+      sraD    = C.shiftRightArithmetic(q("sraD"),  rs1v, rs2v);
+      cmpD    = C.binaryTCCompareLt   (q("cmpD"),  rs1v, rs2v);
+      cmpuD   = C.compareLt           (q("cmpuD"), rs1v, rs2v);
+      sltD    = C.enableWord          (q("sltD"),  one,  cmpD);
+      sltuD   = C.enableWord          (q("sltuD"), one,  cmpuD);
 
-          rAddd = C.enableWordIfEq(q("rAddd"),   addD, funct3, f3_add);         // Enable result of dyadic operation
-          rSubd = C.enableWordIfEq(q("rSubd"),   subD, funct3, f3_add);
-          rXord = C.enableWordIfEq(q("rXord"),   xorD, funct3, f3_xor);
-           rOrd = C.enableWordIfEq(q("rOrd"),     orD, funct3, f3_or);
-          rAndd = C.enableWordIfEq(q("rAndd"),   andD, funct3, f3_and);
-          rSlld = C.enableWordIfEq(q("rSlld"),   sllD, funct3, f3_sll);
-          rSrld = C.enableWordIfEq(q("rSrld"),   srlD, funct3, f3_srl);
-          rSrad = C.enableWordIfEq(q("rSrad"),   sraD, funct3, f3_srl);
-          rSltd = C.enableWordIfEq(q("rSltd"),   sltD, funct3, f3_slt);
-         rSltud = C.enableWordIfEq(q("rSltud"), sltuD, funct3, f3_sltu);
-            dR0 = C.orBits(q("dR0"), rAddd, rXord, rOrd,  rAndd,
-                                  rSlld, rSrld, rSltd, rSltud);
-            dR2 = C.orBits(q("dR2"), rSubd, rSrad);
+      rAddd   = C.enableWordIfEq(q("rAddd"),   addD, funct3, f3_add);           // Enable result of dyadic operation
+      rSubd   = C.enableWordIfEq(q("rSubd"),   subD, funct3, f3_add);
+      rXord   = C.enableWordIfEq(q("rXord"),   xorD, funct3, f3_xor);
+      rOrd    = C.enableWordIfEq(q("rOrd"),     orD, funct3, f3_or);
+      rAndd   = C.enableWordIfEq(q("rAndd"),   andD, funct3, f3_and);
+      rSlld   = C.enableWordIfEq(q("rSlld"),   sllD, funct3, f3_sll);
+      rSrld   = C.enableWordIfEq(q("rSrld"),   srlD, funct3, f3_srl);
+      rSrad   = C.enableWordIfEq(q("rSrad"),   sraD, funct3, f3_srl);
+      rSltd   = C.enableWordIfEq(q("rSltd"),   sltD, funct3, f3_slt);
+      rSltud  = C.enableWordIfEq(q("rSltud"), sltuD, funct3, f3_sltu);
+      dR0     = C.orBits(q("dR0"), rAddd, rXord, rOrd,  rAndd,
+                                   rSlld, rSrld, rSltd, rSltud);
+      dR2     = C.orBits(q("dR2"), rSubd, rSrad);
 
-           edR0 = C.enableWord(dR0, C.bits(q("df70"), l_funct7, 0));            // Decode funct7 for dyadic operation
-           edR2 = C.enableWord(dR2, C.bits(q("df72"), l_funct7, 2));
+      edR0    = C.enableWord(dR0, C.bits(q("df70"), l_funct7, 0));              // Decode funct7 for dyadic operation
+      edR2    = C.enableWord(dR2, C.bits(q("df72"), l_funct7, 2));
 
-             dR = C.enableWord(q("dR"), funct7, edR0, edR2);                    // Choose the dyadic operation
+      dR      = C.enableWord(q("dR"), funct7, edR0, edR2);                      // Choose the dyadic operation
 
-           eq12 = C.compareEq        (q("eq12"),  rs1v, rs2v);
-           lt12 = C.binaryTCCompareLt(q("lt12"),  rs1v, rs2v);
-          ltu12 = C.compareLt        (q("ltu12"), rs1v, rs2v);
-            pcb = C.binaryTCAdd(q("pcb"), pc, immB2);                           // Pc plus sign extended immediate
-            pci = C.binaryTCAdd(q("pci"), pc, immI2);                           //
-            pcj = C.binaryTCAdd(q("pcj"), pc, immJ2);                           //
-            pc4 = C.binaryTCAdd(q("pc4"), pc, RiscV.instructionBytes);          // Pc plus instruction width. Note should really determine if this is a 2 byte compressed instruction or not.
+      eq12    = C.compareEq        (q("eq12"),  rs1v, rs2v);
+      lt12    = C.binaryTCCompareLt(q("lt12"),  rs1v, rs2v);
+      ltu12   = C.compareLt        (q("ltu12"), rs1v, rs2v);
+      pcb     = C.binaryTCAdd(q("pcb"),   pc, immB2);                           // Pc plus sign extended immediate
+      pci     = C.binaryTCAdd(q("pci"), rs1v, immI2);                           // Jalr
+      pcj     = C.binaryTCAdd(q("pcj"),   pc, immJ2);                           // Jal
+      pc4     = C.binaryTCAdd(q("pc4"),   pc, RiscV.instructionBytes);          // Pc plus instruction width. Note should really determine if this is a 2 byte compressed instruction or not.
 
-           rBeq = C.chooseFromTwoWords(q("rBeq"),  pc4, pcb,  eq12);            // Jump targets
-           rBne = C.chooseFromTwoWords(q("rBne"),  pcb, pc4,  eq12);
-           rBlt = C.chooseFromTwoWords(q("rBlt"),  pc4, pcb,  lt12);
-           rBge = C.chooseFromTwoWords(q("rBge"),  pcb, pc4,  lt12);
-          rBltu = C.chooseFromTwoWords(q("rBltu"), pcb, pc4, ltu12);
-          rBgeu = C.chooseFromTwoWords(q("rBgeu"), pc4, pcb, ltu12);
+      rBeq    = C.chooseFromTwoWords(q("rBeq"),  pc4, pcb,  eq12);              // Jump targets
+      rBne    = C.chooseFromTwoWords(q("rBne"),  pcb, pc4,  eq12);
+      rBlt    = C.chooseFromTwoWords(q("rBlt"),  pc4, pcb,  lt12);
+      rBge    = C.chooseFromTwoWords(q("rBge"),  pcb, pc4,  lt12);
+      rBltu   = C.chooseFromTwoWords(q("rBltu"), pcb, pc4, ltu12);
+      rBgeu   = C.chooseFromTwoWords(q("rBgeu"), pc4, pcb, ltu12);
 
-           eBeq = C.enableWordIfEq(q("eBeq"),  rBeq,  funct3, f3_beq);          // Enable result of branch operation
-           eBne = C.enableWordIfEq(q("eBne"),  rBne,  funct3, f3_bne);
-           eBlt = C.enableWordIfEq(q("eBlt"),  rBlt,  funct3, f3_blt);
-           eBge = C.enableWordIfEq(q("eBge"),  rBge,  funct3, f3_bge);
-          eBltu = C.enableWordIfEq(q("eBltu"), rBltu, funct3, f3_bltu);
-          eBgeu = C.enableWordIfEq(q("eBgeu"), rBgeu, funct3, f3_bgeu);
-         branch = C.orBits(q("branch"), eBeq, eBne, eBlt, eBge, eBltu, eBgeu);  // Next instruction as a result of branching
+      eBeq    = C.enableWordIfEq(q("eBeq"),  rBeq,  funct3, f3_beq);            // Enable result of branch operation
+      eBne    = C.enableWordIfEq(q("eBne"),  rBne,  funct3, f3_bne);
+      eBlt    = C.enableWordIfEq(q("eBlt"),  rBlt,  funct3, f3_blt);
+      eBge    = C.enableWordIfEq(q("eBge"),  rBge,  funct3, f3_bge);
+      eBltu   = C.enableWordIfEq(q("eBltu"), rBltu, funct3, f3_bltu);
+      eBgeu   = C.enableWordIfEq(q("eBgeu"), rBgeu, funct3, f3_bgeu);
+      branch  = C.orBits(q("branch"), eBeq, eBne, eBlt, eBge, eBltu, eBgeu);    // Next instruction as a result of branching
 
-//    branchIns = C.compareEq(q("branchIns"), opCode, D.opBranch);              // True if we are on a branch instruction
-//    pc4Branch = C.chooseFromTwoWords(q("pc4Branch"), pc4, branch, branchIns); // Advance normally or jump by branch instruction immediate amount
+//   branchIns  = C.compareEq(q("branchIns"), opCode, D.opBranch);              // True if we are on a branch instruction
+//   pc4Branch  = C.chooseFromTwoWords(q("pc4Branch"), pc4, branch, branchIns); // Advance normally or jump by branch instruction immediate amount
 
-       opBranch = C.eq(C.bits(q("opBranch"), D.l_opCode, D.opBranch), branch);  // Branch
-       opJal    = C.eq(C.bits(q("opJal"),    D.l_opCode, D.opJal   ), pcj);     // jal
-       opJalr   = C.eq(C.bits(q("opJalr"),   D.l_opCode, D.opJalr  ), pci);     // jalr
+      opBranch= C.eq(C.bits(q("opBranch"), D.l_opCode, D.opBranch), branch);    // Branch
+      opJal   = C.eq(C.bits(q("opJal"),    D.l_opCode, D.opJal   ), pcj);       // jal
+      opJalr  = C.eq(C.bits(q("opJalr"),   D.l_opCode, D.opJalr  ), pci);       // jalr
 
-             PC = C.chooseEq(q("PC"), opCode, pc4, opBranch, opJal, opJalr);    // Advance normally by default, otherwise depending on a branch or as requested by a jump
+      PC      = C.chooseEq(q("PC"), opCode, pc4, opBranch, opJal, opJalr);      // Advance normally by default, otherwise depending on a branch or as requested by a jump
 
-          eid13 = C.enableWord(iR,  C.bits(q("opCode13"),  l_opCode, opArithImm));// Was it an arithmetic with immediate instruction?
-          eid33 = C.enableWord(dR,  C.bits(q("opCode33"),  l_opCode, opArith   ));// Was it an arithmetic with two source registers?
-           eJal = C.enableWord(pc4, C.bits(q("opCodeJal"), l_opCode, D.opJal   ));// Was it a jal instruction?
+      eid13   = C.enableWord(iR,  C.bits(q("opCode13"),  l_opCode, opArithImm));// Was it an arithmetic with immediate instruction?
+      eid33   = C.enableWord(dR,  C.bits(q("opCode33"),  l_opCode, opArith   ));// Was it an arithmetic with two source registers?
+      eJal    = C.enableWord(pc4, C.bits(q("opCodeJal"), l_opCode, D.opJal   ));// jal
+      eJalr   = C.enableWord(pc4, C.bits(q("opCodeJalr"),l_opCode, D.opJalr  ));// jalr
 
-         result = C.enableWord(q("result"), opCode, eid13, eid33, eJal);        // Choose between immediate or dyadic operation
+      result  = C.enableWord(q("result"), opCode, eid13, eid33, eJal, eJalr);   // Choose between immediate or dyadic operation
 
       X[0] = null;                                                              // X0
       for (int i = 1; i < XLEN; i++)                                            // Values to reload back into registers
-        X[i] = C.chooseThenElseIfEQ(q("X")+i, result, x[i], rd, i);             // Either the passed in register value or the newly computed one
+        X[i]  = C.chooseThenElseIfEQ(q("X")+i, result, x[i], rd, i);            // Either the passed in register value or the newly computed one
      }
    }
 //    for (int i = 1; i < XLEN; i++)                                            // Values to reload back into registers
@@ -378,7 +380,9 @@ final public class Ban extends Chip                                             
   static void test_decode_add2() {test_instruction(0x0201b3).ok("pc=8 x3=4");}
   static void test_decode_slt1() {test_instruction(0x20afb3).ok("pc=8 x31=1");}
   static void test_decode_slt2() {test_instruction(0x112f33).ok("pc=8 x30=0");}
-  static void test_decode_jal () {test_instruction(0x80016f).ok("pc=12 x2=8");} // x2 should be 8
+  static void test_decode_jal () {test_instruction(0x80016f).ok("pc=12 x2=8");}
+// At start pc=4, rs1=0=0, rs2=2=2. Instruction decode: rd=2 imm=4. Should result in pc=0+4<<1 = 8 and x2=8
+  static void test_decode_jalr() {test_instruction(0x400167).ok("pc=8 x2=8");}
 
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_decode_addi();
@@ -386,11 +390,12 @@ final public class Ban extends Chip                                             
     test_decode_slt1();
     test_decode_slt2();
     test_decode_jal();
+    test_decode_jalr();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    //test_decode_jal();
+    //test_decode_jalr();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
