@@ -53,7 +53,7 @@ final public class Ban extends Chip                                             
     final Bits      rd, rs1, rs2;                                               // Register numbers
 
     final Bits    immi, immu, immb, immj, imms;                                 // Imipac: the weapon that defends itself.
-    final Bits    immB, immI, immJ, immS, immU, immB2, immI2, immJ2;            // Sign extend the immediate field
+    final Bits    immB, immI, immJ, immS, immU, immB2, immI2, immJ2, immU2;     // Sign extend the immediate field
 
     final EnableWord[]sv, Sv;                                                   // Get value of s1, s2 registers
     final Bits      rs1v, rs2v;                                                 // The value of the selected s1, s2 registers
@@ -90,7 +90,7 @@ final public class Ban extends Chip                                             
 //  final Bits pc4Branch;                                                       // Advance normally or jump by branch instruction immediate amount
     final Eq    opBranch, opJal, opJalr;
 
-    final EnableWord eid13, eid33, eJal, eJalr;                                 // Type of instruction
+    final EnableWord eid13, eid33, eJal, eJalr, eLui;                           // Type of instruction
 
     final Bits    result;                                                       // Choose between immediate or dyadic operation
     final Bits[]ox = new Bits[XLEN];                                            // Output choice between existing register and new result
@@ -167,6 +167,7 @@ final public class Ban extends Chip                                             
       immB2   = C.shiftUp           (q("immB2"), immB);                         // Multiply by two to get the branch offset in bytes
       immI2   = C.shiftUp           (q("immI2"), immI);
       immJ2   = C.shiftUp           (q("immJ2"), immJ);
+      immU2   = C.shiftLeftConstant (q("immU2"), immu, D.U.p_immediate);        // Place the 20 bits provided in the immediate operand in the high bits of the target register
 
       sv      = new EnableWord[XLEN];                                           // Get values of s1 and s2
       Sv      = new EnableWord[XLEN];
@@ -296,8 +297,10 @@ final public class Ban extends Chip                                             
       eid33   = C.enableWord(dR,  C.bits(q("opCode33"),  l_opCode, opArith   ));// Was it an arithmetic with two source registers?
       eJal    = C.enableWord(pc4, C.bits(q("opCodeJal"), l_opCode, D.opJal   ));// jal
       eJalr   = C.enableWord(pc4, C.bits(q("opCodeJalr"),l_opCode, D.opJalr  ));// jalr
+      eLui    = C.enableWord(immU2, C.bits(q("opLui"),   l_opCode, D.opLui   ));// lui
 
-      result  = C.enableWord(q("result"), opCode, eid13, eid33, eJal, eJalr);   // Choose between immediate or dyadic operation
+      result  = C.enableWord(q("result"), opCode, eid13, eid33, eJal, eJalr,    // Choose operation
+        eLui);
 
       X[0] = null;                                                              // X0
       for (int i = 1; i < XLEN; i++)                                            // Values to reload back into registers
@@ -381,8 +384,9 @@ final public class Ban extends Chip                                             
   static void test_decode_slt1() {test_instruction(0x20afb3).ok("pc=8 x31=1");}
   static void test_decode_slt2() {test_instruction(0x112f33).ok("pc=8 x30=0");}
   static void test_decode_jal () {test_instruction(0x80016f).ok("pc=12 x2=8");}
-// At start pc=4, rs1=0=0, rs2=2=2. Instruction decode: rd=2 imm=4. Should result in pc=0+4<<1 = 8 and x2=8
+// At start pc=4, x0=0, x2=2. Instruction decode: rd=2 rs1=0 imm=4. Should result in x2=0+4<<1 = 8 and pc=4+4 = 8
   static void test_decode_jalr() {test_instruction(0x400167).ok("pc=8 x2=8");}
+  static void test_decode_lui () {test_instruction(0x10b7)  .ok("pc=8 x1=4096");}
 
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_decode_addi();
@@ -395,7 +399,7 @@ final public class Ban extends Chip                                             
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    //test_decode_jalr();
+    test_decode_lui();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
