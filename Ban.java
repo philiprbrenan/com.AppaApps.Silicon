@@ -10,8 +10,7 @@ import java.util.*;
 //D1 Construct                                                                  // Construct a Risc V program and execute it
 
 final public class Ban extends Chip                                             // Create a chip that contains a Risc V processor extended with Btree instructcions
- {final static int InstructionWidthBytes =  4;                                  // Instruction width in bytes
-  final static int XLEN                  = 32;                                  // Number of bits in a register
+ {final static int XLEN                  = RiscV.XLEN;                          // Number of bits in a register
   final static boolean github_actions    =                                      // Whether we are on a github or not
     "true".equals(System.getenv("GITHUB_ACTIONS"));
 
@@ -54,7 +53,7 @@ final public class Ban extends Chip                                             
     final Bits      rd, rs1, rs2;                                               // Register numbers
 
     final Bits    immi, immu, immb, immj, imms;                                 // Imipac: the weapon that defends itself.
-    final Bits    immB, immI, immJ, immS, immU;                                 // Sign extend the immediate field
+    final Bits    immB, immI, immJ, immS, immU, immB2, immI2, immJ2;            // Sign extend the immediate field
 
     final EnableWord[]sv, Sv;                                                   // Get value of s1, s2 registers
     final Bits      rs1v, rs2v;                                                 // The value of the selected s1, s2 registers
@@ -82,15 +81,16 @@ final public class Ban extends Chip                                             
     final EnableWord edR0, edR2;                                                // Decode funct7 for dyadic operation
 
     final Bit       eq12, lt12, ltu12;                                          // Comparison operation
-    final Bits       pci;                                                       // Pc plus sign extended immediate
+    final Bits       pcb, pci, pcj;                                             // Pc plus sign extended immediate
     final Bits       pc4;                                                       // Pc plus instruction width
     final Bits      rBeq, rBne, rBlt, rBge, rBltu, rBgeu;                       // Jump targets
     final Bits      eBeq, eBne, eBlt, eBge, eBltu, eBgeu;                       // Enable result of branch operation
     final Bits    branch;
-    final Bit  branchIns;                                                       // True if we are on a branch instruction
-//  final Bits  brOrStep;                                                       // Advance normally or jump by branch instruction immediate amount
+//  final Bit  branchIns;                                                       // True if we are on a branch instruction
+//  final Bits pc4Branch;                                                       // Advance normally or jump by branch instruction immediate amount
+    final Eq    opBranch, opJal, opJalr;
 
-    final EnableWord eid13, eid33;                                              // Decode funct7 for immediate or dyadic operation
+    final EnableWord eid13, eid33, eJal;                                        // Type of instruction
 
     final Bits    result;                                                       // Choose between immediate or dyadic operation
     final Bits[]ox = new Bits[XLEN];                                            // Output choice between existing register and new result
@@ -159,11 +159,14 @@ final public class Ban extends Chip                                             
           decode.b(26), decode.b(27), decode.b(28), decode.b(29), decode.b(30),
           decode.b(31), decode.b(32));
 
-        immB = C.binaryTCSignExtend(q("immB"), immb, XLEN);                     // Sign extend the immediate field
-        immI = C.binaryTCSignExtend(q("immI"), immi, XLEN);
-        immJ = C.binaryTCSignExtend(q("immJ"), immj, XLEN);
-        immS = C.binaryTCSignExtend(q("immS"), imms, XLEN);
-        immU = C.binaryTCSignExtend(q("immU"), immu, XLEN);
+        immB = C.binaryTCSignExtend(q("immB"),  immb, XLEN);                    // Sign extend the immediate field
+        immI = C.binaryTCSignExtend(q("immI"),  immi, XLEN);
+        immJ = C.binaryTCSignExtend(q("immJ"),  immj, XLEN);
+        immS = C.binaryTCSignExtend(q("immS"),  imms, XLEN);
+        immU = C.binaryTCSignExtend(q("immU"),  immu, XLEN);
+       immB2 = C.shiftUp           (q("immB2"), immB);                          // Multiply by two to get the branch offset in bytes
+       immI2 = C.shiftUp           (q("immI2"), immI);
+       immJ2 = C.shiftUp           (q("immJ2"), immJ);
 
       sv = new EnableWord[XLEN];                                                // Get values of s1 and s2
       Sv = new EnableWord[XLEN];
@@ -259,15 +262,17 @@ final public class Ban extends Chip                                             
            eq12 = C.compareEq        (q("eq12"),  rs1v, rs2v);
            lt12 = C.binaryTCCompareLt(q("lt12"),  rs1v, rs2v);
           ltu12 = C.compareLt        (q("ltu12"), rs1v, rs2v);
-            pci = C.binaryTCAdd(q("pci"), pc, immB);                            // Pc plus sign extended immediate
-            pc4 = C.binaryTCAdd(q("pc4"), pc, InstructionWidthBytes);           // Pc plus instruction width
+            pcb = C.binaryTCAdd(q("pcb"), pc, immB2);                           // Pc plus sign extended immediate
+            pci = C.binaryTCAdd(q("pci"), pc, immI2);                           //
+            pcj = C.binaryTCAdd(q("pcj"), pc, immJ2);                           //
+            pc4 = C.binaryTCAdd(q("pc4"), pc, RiscV.instructionBytes);          // Pc plus instruction width. Note should really determine if this is a 2 byte compressed instruction or not.
 
-           rBeq = C.chooseFromTwoWords(q("rBeq"),  pc4, pci,  eq12);            // Jump targets
-           rBne = C.chooseFromTwoWords(q("rBne"),  pci, pc4,  eq12);
-           rBlt = C.chooseFromTwoWords(q("rBlt"),  pc4, pci,  lt12);
-           rBge = C.chooseFromTwoWords(q("rBge"),  pci, pc4,  lt12);
-          rBltu = C.chooseFromTwoWords(q("rBltu"), pci, pc4, ltu12);
-          rBgeu = C.chooseFromTwoWords(q("rBgeu"), pc4, pci, ltu12);
+           rBeq = C.chooseFromTwoWords(q("rBeq"),  pc4, pcb,  eq12);            // Jump targets
+           rBne = C.chooseFromTwoWords(q("rBne"),  pcb, pc4,  eq12);
+           rBlt = C.chooseFromTwoWords(q("rBlt"),  pc4, pcb,  lt12);
+           rBge = C.chooseFromTwoWords(q("rBge"),  pcb, pc4,  lt12);
+          rBltu = C.chooseFromTwoWords(q("rBltu"), pcb, pc4, ltu12);
+          rBgeu = C.chooseFromTwoWords(q("rBgeu"), pc4, pcb, ltu12);
 
            eBeq = C.enableWordIfEq(q("eBeq"),  rBeq,  funct3, f3_beq);          // Enable result of branch operation
            eBne = C.enableWordIfEq(q("eBne"),  rBne,  funct3, f3_bne);
@@ -275,14 +280,22 @@ final public class Ban extends Chip                                             
            eBge = C.enableWordIfEq(q("eBge"),  rBge,  funct3, f3_bge);
           eBltu = C.enableWordIfEq(q("eBltu"), rBltu, funct3, f3_bltu);
           eBgeu = C.enableWordIfEq(q("eBgeu"), rBgeu, funct3, f3_bgeu);
-         branch = C.orBits(q("branch"), eBeq, eBne, eBlt, eBge, eBltu, eBgeu);
-      branchIns = C.compareEq(q("branchIns"), opCode, D.opBranch);              // True if we are on a branch instruction
-             PC = C.chooseFromTwoWords(q("PC"), pc4, branch, branchIns);        // Advance normally or jump by branch instruction immediate amount
+         branch = C.orBits(q("branch"), eBeq, eBne, eBlt, eBge, eBltu, eBgeu);  // Next instruction as a result of branching
 
-          eid13 = C.enableWord(iR, C.bits(q("opCode13"), l_opCode, opArithImm));// Decode funct7 for immediate operation
-          eid33 = C.enableWord(dR, C.bits(q("opCode33"), l_opCode, opArith   ));// Decode funct7 for dyadic operation
+//    branchIns = C.compareEq(q("branchIns"), opCode, D.opBranch);              // True if we are on a branch instruction
+//    pc4Branch = C.chooseFromTwoWords(q("pc4Branch"), pc4, branch, branchIns); // Advance normally or jump by branch instruction immediate amount
 
-         result = C.enableWord(q("result"), opCode, eid13, eid33);              // Choose between immediate or dyadic operation
+       opBranch = C.eq(C.bits(q("opBranch"), D.l_opCode, D.opBranch), branch);  // Branch
+       opJal    = C.eq(C.bits(q("opJal"),    D.l_opCode, D.opJal   ), pcj);     // jal
+       opJalr   = C.eq(C.bits(q("opJalr"),   D.l_opCode, D.opJalr  ), pci);     // jalr
+
+             PC = C.chooseEq(q("PC"), opCode, pc4, opBranch, opJal, opJalr);    // Advance normally by default, otherwise depending on a branch or as requested by a jump
+
+          eid13 = C.enableWord(iR,  C.bits(q("opCode13"),  l_opCode, opArithImm));// Was it an arithmetic with immediate instruction?
+          eid33 = C.enableWord(dR,  C.bits(q("opCode33"),  l_opCode, opArith   ));// Was it an arithmetic with two source registers?
+           eJal = C.enableWord(pc4, C.bits(q("opCodeJal"), l_opCode, D.opJal   ));// Was it a jal instruction?
+
+         result = C.enableWord(q("result"), opCode, eid13, eid33, eJal);        // Choose between immediate or dyadic operation
 
       X[0] = null;                                                              // X0
       for (int i = 1; i < XLEN; i++)                                            // Values to reload back into registers
@@ -320,13 +333,13 @@ final public class Ban extends Chip                                             
    {final RV32I     R = test_instruction(0xa00093);
 
 //  C.executionTrack(
-//    "pc    pci   pc4   PC    start update  e   l",
+//    "pc    pcb   pc4   PC    start update  e   l",
 //    "%s  %s  %s  %s  %s   %s     %s %s",
-//     pc, pci, pc4, PC, start, update, C.collectBits("pc_e", XLEN), C.getGate("pc_l"));
+//     pc, pcb, pc4, PC, start, update, C.collectBits("pc_e", XLEN), C.getGate("pc_l"));
 //  C.executionTrack(
-//    "S U pc                   pc4              pci",
+//    "S U pc                   pc4              pcb",
 //    "%s %s %s  %s  %s",
-//     start, update, pc, pc4, pci);
+//     start, update, pc, pc4, pcb);
 //  C.printExecutionTrace(); //stop();
 
     R.ok("pc=8 x1=10");
@@ -334,7 +347,7 @@ final public class Ban extends Chip                                             
     R.   funct3.ok(D.f3_add);
     R.       rd.ok(   1);
     R.      rs1.ok(   0);
-    R.branchIns.ok(false);
+//  R.branchIns.ok(false);
     R.     immB.ok(2048);
     R.     immI.ok(  10);
     R.     immJ.ok(   5);
@@ -342,7 +355,7 @@ final public class Ban extends Chip                                             
     R.     immU.ok(2560);
     R.       PC.ok(   8);
     R.       pc.ok(   4);
-    R.      pci.ok(2052);
+    R.      pcb.ok(4100);
     R.      pc4.ok(   8);
     R.     addI.ok(  10);
     R.      orI.ok(  10);
@@ -365,17 +378,19 @@ final public class Ban extends Chip                                             
   static void test_decode_add2() {test_instruction(0x0201b3).ok("pc=8 x3=4");}
   static void test_decode_slt1() {test_instruction(0x20afb3).ok("pc=8 x31=1");}
   static void test_decode_slt2() {test_instruction(0x112f33).ok("pc=8 x30=0");}
+  static void test_decode_jal () {test_instruction(0x80016f).ok("pc=12 x2=8");} // x2 should be 8
 
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_decode_addi();
     test_decode_add1();
     test_decode_slt1();
     test_decode_slt2();
+    test_decode_jal();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_decode_slt2();
+   {oldTests();
+    //test_decode_jal();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
