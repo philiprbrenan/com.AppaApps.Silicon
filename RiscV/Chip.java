@@ -978,7 +978,7 @@ public class Chip                                                               
       bitBuses.put(name, this);
      }
 
-    public Bit  b    (int i) {return bit(source[i-1]);}                         // Name of a bit in the bus
+    public Bit  b    (int i) {return source[i-1];}                              // Name of a bit in the bus
    }
 
   ConCatBits conCatBits(CharSequence Name, Bit...Source)                        // Concatenate bits
@@ -1965,6 +1965,16 @@ public class Chip                                                               
     final Bit r8 = And(n(output, "r7"), s1, s2, c);
     final Bit  o = Or(output, r2, r5, r6, r8);                                  // True if less than.
     return o;
+   }
+
+  Bits shiftLeftConstant(String output, Bits input, int shift)                  // Shift the input bits left by the constant number of positions specified in shift filling on the right with zeroes to make a field "shift" bits wider than the input field.
+   {final int B = input.bits();                                                 // Number of bits in input
+    if (shift < 1) stop("Shift of:", shift, "is less than the minimum of 1");   // Check shift is within range
+    if (shift > B) stop("Shift of:", shift, "is bigger than maximum of", B);    // Check shift is within range
+    final Bit[]s = new Bit[B+shift];                                            // Shifted bits
+    for (int i = 0; i < shift; i++) s[i] = Zero(n(i+1, output, "zero"));        // Right hand zeroes
+    for (int i = shift; i < B+shift; i++) s[i] = input.b(i-shift+1);            // Shifted bits
+    return conCatBits(output, s);                                               // Concatenate bits
    }
 
   Bits shiftLeftMultiple(String output, Bits input, Bits shift)                 // Shift the input bits left by the number of positions specified in shift filling in with zeroes.
@@ -4791,6 +4801,24 @@ Step  o     e
      }
    }
 
+  static void test_shiftLeftConstant()
+   {int      N = 4;
+    for (int i = 1; i <= N; i++)
+     {Chip   c = new Chip();
+      Bits one = c.bits("one", N, 3);
+      Bits   s = c.shiftLeftConstant("s", one, i);
+      s.anneal(); // one.anneal();
+      c.simulate();
+      s.ok(switch(i)
+       {case  0 -> 0b000011;
+        case  1 -> 0b000110;
+        case  2 -> 0b001100;
+        case  3 -> 0b011000;
+        default -> 0b110000;
+       });
+     }
+   }
+
   static void test_shiftRightMultiple()
    {int      N = 4;
     for (int i = 0; i <= N; i++)
@@ -4996,6 +5024,7 @@ Step  o     e
     test_twos_complement_arith();
     test_twos_complement_compare_lt();
     test_shiftLeftMultiple();
+    test_shiftLeftConstant();
     test_shiftRightMultiple();
     test_shiftRightArithmetic();
     test_signExtend();
@@ -5008,7 +5037,8 @@ Step  o     e
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
+    test_shiftLeftConstant();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
