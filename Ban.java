@@ -34,12 +34,9 @@ final public class Ban extends Chip                                             
 
   static class RV32I                                                            // Decode and execute an RV32I instruction
    {final String   out;                                                         // Name for this instruction processor
-//  final Pulse  start;                                                         // Start pulse has to be wide enough to load the registers
-//  final Pulse update;                                                         // Update registers pulse at end of decode/execute cycle.
     final Bits    zero;                                                         // Constant zero
     final Bits     one;                                                         // Constant one
 
-//  final Bits      x0;                                                         // Define registers and zero them at the start
     final Bits      PC;                                                         // Next value for program counter forward declaration
     final Bits      pc;                                                         // Risc V registers
 
@@ -60,7 +57,7 @@ final public class Ban extends Chip                                             
 
     final Bits  f3_add,  f3_xor,  f3_or,  f3_and, f3_sll, f3_srl,               // Funct3 op codes
                 f3_slt,  f3_sltu, f3_beq, f3_bne, f3_blt, f3_bge,
-               f3_bltu,  f3_bgeu;
+                f3_bltu, f3_bgeu;
 
     final Bits    addI, subI, xorI, orI, andI, sllI, srlI, sraI, sltI, sltuI;   // Immediate operation
     final Bit     cmpI, cmpuI;
@@ -83,17 +80,47 @@ final public class Ban extends Chip                                             
     final Bit       eq12, lt12, ltu12;                                          // Comparison operation
     final Bits       pcb, pci, pcj;                                             // Pc plus sign extended immediate
     final Bits       pc4;                                                       // Pc plus instruction width
+    final Bits       pcImmU2;                                                   // Pc plus U format immediate
     final Bits      rBeq, rBne, rBlt, rBge, rBltu, rBgeu;                       // Jump targets
     final Bits      eBeq, eBne, eBlt, eBge, eBltu, eBgeu;                       // Enable result of branch operation
     final Bits    branch;
-//  final Bit  branchIns;                                                       // True if we are on a branch instruction
-//  final Bits pc4Branch;                                                       // Advance normally or jump by branch instruction immediate amount
     final Eq    opBranch, opJal, opJalr;
 
-    final EnableWord eid13, eid33, eJal, eJalr, eLui;                           // Type of instruction
+    final EnableWord eid13, eid33, eJal, eJalr, eLui, eAuipc;                   // Type of instruction
+
+    final Bits mAL, mAS;                                                        // Memory load address, store address
+    final Eq   eqLoad, eqStore;                                                 // Load requested, store requested
 
     final Bits    result;                                                       // Choose between immediate or dyadic operation
     final Bits[]ox = new Bits[XLEN];                                            // Output choice between existing register and new result
+
+//D2 Memory                                                                     // Make a request to memory or receive data from memory.
+
+   class MemoryControl                                                          // Interface between CPU and memory
+     {Bit  loadRequested  = null;                                               // Load requested
+      Bit  storeRequested = null;                                               // Store requested
+      Bits type           = null;                                               // Type of load or store requested
+      Bits address        = null;                                               // Address to load from or load to
+      Bits register       = null;                                               // Register to be loaded or stored
+      void anneal()                                                             // Anneal memory to avoid error messages during testing
+       {loadRequested .anneal();                                                // Load requested
+        storeRequested.anneal();                                                // Store requested
+        type          .anneal();                                                // Type of load or store requested
+        address       .anneal();                                                // Address to load from or load to
+        register      .anneal();                                                // Register to be loaded or stored
+       }
+      public String toString()                                                  // Memory request represented as a string
+       {final StringBuilder b = new StringBuilder();
+        say(b, " loadRequested :", loadRequested);
+        say(b,  "storeRequested:", storeRequested);
+        say(b,  "          type:", type);
+        say(b,  "       address:", address);
+        say(b,  "      register:", register);
+        return b.toString();
+       }
+     }
+
+    final MemoryControl m = new MemoryControl();                                // Interface between cpu and memory
 
     String q(String n) {return Chip.n(out, n);}                                 // Prefix this block
 
@@ -105,28 +132,21 @@ final public class Ban extends Chip                                             
       return b.toString().substring(0, b.length()-1);
      }
 
-    void ok(String expected)                                                    // Compare expected with got string representation of instruction execution
+    void ok(String expected)                                                    // Compare expected cpu state with actual
      {Chip.ok(toString(), expected);
      }
 
+    void om(String expected)                                                    // Compare expected memory control request with actual
+     {Chip.ok(m.toString(), expected);
+     }
+
     RV32I(Chip C, String Out, Bits Decode, Bits pc, Bits[]x)                    // Decode the specified bits as a RV32I instruction and execute it
-     {out     = Out;                                                             // Name for this area of silicon and the prefix for the gates therein
-      decode  = Decode;                                                          // Instruction to decode
-      this.pc = pc;                                                              // Program counter at start
-      this.x  = x;                                                               // Registers at start
-//     start  = C.pulse(q("start"),  0, 2);                                      // Start pulse has to be wide enough to load the registers
-//    update  = C.pulse(q("update"), 0, 6, 38);                                  // Update registers pulse at end of decode/execute cycle.
-      one     = C.bits (q("one"),    XLEN, 1);                                   // Constant one
-      zero    = C.bits (q("zero"),   XLEN, 0);                                   // Constant zero
-
-//        x0 = C.bits    (q("X0"),  XLEN, 0);                                   // Define registers and zero them at the start
-//        PC = C.bits    (q("PC"),  XLEN);                                      // Next value for program counter forward declaration
-//        pc = C.register(q("pc"), C.regIn(x0, start), C.regIn(PC, update));    // Risc V registers
-
-//      for (int i = 1; i < XLEN; i++)                                          // Load registers. Initially from x0 later with instruction results
-//       {X[i] = C.bits    (q("X")+i, XLEN);
-//        x[i] = C.register(q("x")+i, C.regIn(x0, start), C.regIn(X[i], update));
-//       }
+     {out     = Out;                                                            // Name for this area of silicon and the prefix for the gates therein
+      decode  = Decode;                                                         // Instruction to decode
+      this.pc = pc;                                                             // Program counter at start
+      this.x  = x;                                                              // Registers at start
+      one     = C.bits (q("one"),    XLEN, 1);                                  // Constant one
+      zero    = C.bits (q("zero"),   XLEN, 0);                                  // Constant zero
 
       opCode  = C.subBitBus(q("opCode"), decode, p_opCode,     l_opCode);       // Decode the instruction
       funct3  = C.subBitBus(q("funct3"), decode, p_funct3,     l_funct3);
@@ -190,6 +210,7 @@ final public class Ban extends Chip                                             
       f3_srl  = C.bits(q("f3_srl"),  l_funct3, D.f3_srl);
       f3_slt  = C.bits(q("f3_slt"),  l_funct3, D.f3_slt);
       f3_sltu = C.bits(q("f3_sltu"), l_funct3, D.f3_sltu);
+
       f3_beq  = C.bits(q("f3_beq"),  l_funct3, D.f3_beq);
       f3_bne  = C.bits(q("f3_bne"),  l_funct3, D.f3_bne);
       f3_blt  = C.bits(q("f3_blt"),  l_funct3, D.f3_blt);
@@ -284,75 +305,70 @@ final public class Ban extends Chip                                             
       eBgeu   = C.enableWordIfEq(q("eBgeu"), rBgeu, funct3, f3_bgeu);
       branch  = C.orBits(q("branch"), eBeq, eBne, eBlt, eBge, eBltu, eBgeu);    // Next instruction as a result of branching
 
-//   branchIns  = C.compareEq(q("branchIns"), opCode, D.opBranch);              // True if we are on a branch instruction
-//   pc4Branch  = C.chooseFromTwoWords(q("pc4Branch"), pc4, branch, branchIns); // Advance normally or jump by branch instruction immediate amount
-
       opBranch= C.eq(C.bits(q("opBranch"), D.l_opCode, D.opBranch), branch);    // Branch
       opJal   = C.eq(C.bits(q("opJal"),    D.l_opCode, D.opJal   ), pcj);       // jal
       opJalr  = C.eq(C.bits(q("opJalr"),   D.l_opCode, D.opJalr  ), pci);       // jalr
 
       PC      = C.chooseEq(q("PC"), opCode, pc4, opBranch, opJal, opJalr);      // Advance normally by default, otherwise depending on a branch or as requested by a jump
+      pcImmU2 = C.binaryTCAdd(q("pcImmU2"), pc, immU2);                         // Auipc
 
-      eid13   = C.enableWord(iR,  C.bits(q("opCode13"),  l_opCode, opArithImm));// Was it an arithmetic with immediate instruction?
-      eid33   = C.enableWord(dR,  C.bits(q("opCode33"),  l_opCode, opArith   ));// Was it an arithmetic with two source registers?
-      eJal    = C.enableWord(pc4, C.bits(q("opCodeJal"), l_opCode, D.opJal   ));// jal
-      eJalr   = C.enableWord(pc4, C.bits(q("opCodeJalr"),l_opCode, D.opJalr  ));// jalr
-      eLui    = C.enableWord(immU2, C.bits(q("opLui"),   l_opCode, D.opLui   ));// lui
+      eid13   = C.enableWord(iR,      C.bits(q("opCode13"),   l_opCode, opArithImm));// Was it an arithmetic with immediate instruction?
+      eid33   = C.enableWord(dR,      C.bits(q("opCode33"),   l_opCode, opArith   ));// Was it an arithmetic with two source registers?
+      eJal    = C.enableWord(pc4,     C.bits(q("opCodeJal"),  l_opCode, D.opJal   ));// Jal
+      eJalr   = C.enableWord(pc4,     C.bits(q("opCodeJalr"), l_opCode, D.opJalr  ));// Jalr
+      eLui    = C.enableWord(immU2,   C.bits(q("opLui"),      l_opCode, D.opLui   ));// Lui
+      eAuipc  = C.enableWord(pcImmU2, C.bits(q("opAuipc"),    l_opCode, D.opAuiPc ));// Auipc
 
-      result  = C.enableWord(q("result"), opCode, eid13, eid33, eJal, eJalr,    // Choose operation
-        eLui);
+      result  = C.enableWord(q("result"), opCode, eid13, eid33, eJal, eJalr,    // Choose operation to load target register
+        eLui, eAuipc);
+
+      m.loadRequested  = C.compareEq(q("memLoad"),  opCode, D.opLoad);          // Load from memory requested
+      m.storeRequested = C.compareEq(q("memStore"), opCode, D.opStore);         // Store into memory requested
+      m.type           = funct3;
+
+      mAL              = C.binaryTCAdd(q("memAddressLoad"),  rs1v, immI);       // Load requested
+      mAS              = C.binaryTCAdd(q("memAddressStore"), rs1v, immS);       // Store requested
+
+      eqLoad           = C.eq(C.bits(q("opLoad"),  D.l_opCode, D.opLoad),  mAL);// Load address
+      eqStore          = C.eq(C.bits(q("opStore"), D.l_opCode, D.opStore), mAS);// Store address
+      m.address        = C.chooseEq(q("memAddress"), opCode, eqLoad, eqStore);  // Save address
+      m.register       = rd;                                                    // Register to load or store
 
       X[0] = null;                                                              // X0
       for (int i = 1; i < XLEN; i++)                                            // Values to reload back into registers
         X[i]  = C.chooseThenElseIfEQ(q("X")+i, result, x[i], rd, i);            // Either the passed in register value or the newly computed one
      }
    }
-//    for (int i = 1; i < XLEN; i++)                                            // Values to reload back into registers
-//     {ox[i] = C.chooseThenElseIfEQ(q("X")+i, result, x[i], rd, i);
-//      X [i] = C.register("X"+i, ox[i], update);
-//     }
 
-    static RV32I rv32i(Chip chip, String out, Bits decode, Bits pc, Bits[]x)    // Decode the specified bits as a RV32I instruction and execute it
-     {return new RV32I(chip, out, decode, pc, x);                               // Decode the specified bits as a RV32I instruction and execute it
-     }
+  static RV32I rv32i(Chip chip, String out, Bits decode, Bits pc, Bits[]x)      // Decode the specified bits as a RV32I instruction and execute it
+   {return new RV32I(chip, out, decode, pc, x);
+   }
 
 //D0
 
   static RV32I test_instruction(Integer instruction)                            // Test an instruction
-   {final Chip      C = new Chip();
-    final Bits     pc = C.bits("pc",  XLEN, 4);                                 // Initialize pc
-    final Bits []   x = new Bits[XLEN];
+   {final Chip          C = new Chip();
+    final Bits         pc = C.bits("pc",  XLEN, 4);                             // Initialize pc
+    final Bits []       x = new Bits[XLEN];
     for (int i = 1; i < XLEN; i++) x[i] = C.bits("x"+i, XLEN, i);               // Initialize registers
 
-    final Bits decode = C.bits("decode", XLEN, instruction);                    // Instruction to decode and execute
-    final RV32I     R = rv32i(C, "a", decode, pc, x);
+    final Bits     decode = C.bits("decode", XLEN, instruction);                // Instruction to decode and execute
+    final RV32I         R = rv32i(C, "a", decode, pc, x);                       // Decode and execute the instruction
     for (int i = 1; i < XLEN; i++) R.X[i].anneal();                             // Anneal the outputs
-    R.PC.anneal();
-//  C.simulationSteps(60);
+    R.PC.anneal(); R.m.anneal();
     C.maxSimulationSteps(300);
     C.simulate();
     return R;
    }
 
-  static void test_decode_addi()
-   {final RV32I     R = test_instruction(0xa00093);
-
-//  C.executionTrack(
-//    "pc    pcb   pc4   PC    start update  e   l",
-//    "%s  %s  %s  %s  %s   %s     %s %s",
-//     pc, pcb, pc4, PC, start, update, C.collectBits("pc_e", XLEN), C.getGate("pc_l"));
-//  C.executionTrack(
-//    "S U pc                   pc4              pcb",
-//    "%s %s %s  %s  %s",
-//     start, update, pc, pc4, pcb);
-//  C.printExecutionTrace(); //stop();
+  static void test_decode_addi()                                                // Addi
+   {final RV32I R = test_instruction(0xa00093);
 
     R.ok("pc=8 x1=10");
     R.   opCode.ok(D.opArithImm);
     R.   funct3.ok(D.f3_add);
     R.       rd.ok(   1);
     R.      rs1.ok(   0);
-//  R.branchIns.ok(false);
     R.     immB.ok(2048);
     R.     immI.ok(  10);
     R.     immJ.ok(   5);
@@ -376,17 +392,39 @@ final public class Ban extends Chip                                             
     R.     X[2].ok(   2);
     R.     X[3].ok(   3);
     R.   result.ok(  10);
-//  R.    ox[1].ok(  10);
    }
 
-  static void test_decode_add1() {test_instruction(0x310233).ok("pc=8 x4=5");}
-  static void test_decode_add2() {test_instruction(0x0201b3).ok("pc=8 x3=4");}
-  static void test_decode_slt1() {test_instruction(0x20afb3).ok("pc=8 x31=1");}
-  static void test_decode_slt2() {test_instruction(0x112f33).ok("pc=8 x30=0");}
-  static void test_decode_jal () {test_instruction(0x80016f).ok("pc=12 x2=8");}
+  static void test_decode_add1 () {test_instruction(0x310233).ok("pc=8 x4=5");}
+  static void test_decode_add2 () {test_instruction(0x0201b3).ok("pc=8 x3=4");}
+  static void test_decode_slt1 () {test_instruction(0x20afb3).ok("pc=8 x31=1");}
+  static void test_decode_slt2 () {test_instruction(0x112f33).ok("pc=8 x30=0");}
+  static void test_decode_jal  () {test_instruction(0x80016f).ok("pc=12 x2=8");}
 // At start pc=4, x0=0, x2=2. Instruction decode: rd=2 rs1=0 imm=4. Should result in x2=0+4<<1 = 8 and pc=4+4 = 8
-  static void test_decode_jalr() {test_instruction(0x400167).ok("pc=8 x2=8");}
-  static void test_decode_lui () {test_instruction(0x10b7)  .ok("pc=8 x1=4096");}
+  static void test_decode_jalr () {test_instruction(0x400167).ok("pc=8 x2=8");}
+  static void test_decode_lui  () {test_instruction(0x10b7)  .ok("pc=8 x1=4096");}
+  static void test_decode_auipc() {test_instruction(0x4097)  .ok("pc=8 x1=16388");}
+
+  static void test_decode_sb   ()
+   {RV32I r = test_instruction(0x1000a3);
+    r.om("""
+ loadRequested : 0
+ storeRequested: 1
+           type: 000
+        address: 00000000000000000000000000000001
+       register: 00001
+""");
+   }
+
+  static void test_decode_lh   ()
+   {RV32I r = test_instruction(0x1103);
+    r.om("""
+ loadRequested : 1
+ storeRequested: 0
+           type: 001
+        address: 00000000000000000000000000000000
+       register: 00010
+""");
+   }
 
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_decode_addi();
@@ -395,11 +433,14 @@ final public class Ban extends Chip                                             
     test_decode_slt2();
     test_decode_jal();
     test_decode_jalr();
+    test_decode_auipc();
+    test_decode_sb();
+    test_decode_lh();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_decode_lui();
+    //test_decode_lh();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
