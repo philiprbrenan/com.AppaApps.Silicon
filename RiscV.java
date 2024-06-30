@@ -1247,8 +1247,8 @@ Registers  :  x1=2
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_lui();
+   {oldTests();
+    //test_lui();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
