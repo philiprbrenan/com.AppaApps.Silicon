@@ -2,6 +2,15 @@
 // RiscV 32I and Btree on a silicon chip
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
+/*
+Io sono docile, - son rispettosa,
+sono ubbediente, - dolce, amorosa;
+mi lascio reggere, - mi fo guidar.
+Ma se mi toccano - dov'Ã¨ il mio debole,
+sarÃ² una vipera - e cento trappole
+prima di cedere - farÃ² giocar.
+*/
+
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
 
 import java.io.*;
@@ -52,8 +61,8 @@ final public class Ban extends Chip                                             
     final Bits    immi, immu, immb, immj, imms;                                 // Imipac: the weapon that defends itself.
     final Bits    immB, immI, immJ, immS, immU, immB2, immI2, immJ2, immU2;     // Sign extend the immediate field
 
-    final EnableWord[]sv, Sv;                                                   // Get value of s1, s2 registers
-    final Bits      rs1v, rs2v;                                                 // The value of the selected s1, s2 registers
+    final Eq[]  sv, Sv;                                                         // Get value of s1, s2 registers
+    final Bits    rs1v, rs2v;                                                   // The value of the selected s1, s2 registers
 
     final Bits  f3_add,  f3_xor,  f3_or,  f3_and, f3_sll, f3_srl,               // Funct3 op codes
                 f3_slt,  f3_sltu, f3_beq, f3_bne, f3_blt, f3_bge,
@@ -65,28 +74,28 @@ final public class Ban extends Chip                                             
     final Bits   rAddi, rSubi, rXori, rOri, rAndi, rSlli, rSrli, rSrai,         // Enable result of immediate operation
                  rSlti, rSltui;
 
-    final Bits        iR0,  iR2, iR;                                            // Choose the immediate operation
-    final EnableWord eiR0, eiR2;                                                // Decode funct7 for immediate opcode
+    final Bits     iR0, iR2, iR;                                                // Choose the immediate operation
+    final Eq      eiR0, eiR2;                                                   // Decode funct7 for immediate opcode
 
-    final Bits     addD, subD, xorD, orD, andD, sllD, srlD, sraD, sltD, sltuD;  // Dyadic operation
+    final Bits    addD, subD, xorD, orD, andD, sllD, srlD, sraD, sltD, sltuD;   // Dyadic operation
 
-    final Bit      cmpD, cmpuD;
-    final Bits    rAddd, rSubd, rXord, rOrd, rAndd, rSlld, rSrld, rSrad,        // Enable result of dyadic operation
-                  rSltd, rSltud;
+    final Bit     cmpD, cmpuD;
+    final Bits   rAddd, rSubd, rXord, rOrd, rAndd, rSlld, rSrld, rSrad,         // Enable result of dyadic operation
+                 rSltd, rSltud;
 
-    final Bits        dR0, dR2, dR;                                             // Choose the dyadic operation
-    final EnableWord edR0, edR2;                                                // Decode funct7 for dyadic operation
+    final Bits     dR0, dR2, dR;                                                // Choose the dyadic operation
+    final Eq      edR0, edR2;                                                   // Decode funct7 for dyadic operation
 
-    final Bit       eq12, lt12, ltu12;                                          // Comparison operation
-    final Bits       pcb, pci, pcj;                                             // Pc plus sign extended immediate
-    final Bits       pc4;                                                       // Pc plus instruction width
-    final Bits       pcImmU2;                                                   // Pc plus U format immediate
-    final Bits      rBeq, rBne, rBlt, rBge, rBltu, rBgeu;                       // Jump targets
-    final Bits      eBeq, eBne, eBlt, eBge, eBltu, eBgeu;                       // Enable result of branch operation
-    final Bits    branch;
-    final Eq    opBranch, opJal, opJalr;
+    final Bit     eq12, lt12, ltu12;                                            // Comparison operation
+    final Bits     pcb, pci, pcj;                                               // Pc plus sign extended immediate
+    final Bits     pc4;                                                         // Pc plus instruction width
+    final Bits pcImmU2;                                                         // Pc plus U format immediate
+    final Bits    rBeq, rBne, rBlt, rBge, rBltu, rBgeu;                         // Jump targets
+    final Bits    eBeq, eBne, eBlt, eBge, eBltu, eBgeu;                         // Enable result of branch operation
+    final Bits  branch;
+    final Eq  opBranch, opJal, opJalr;
 
-    final EnableWord eid13, eid33, eJal, eJalr, eLui, eAuipc;                   // Type of instruction
+    final Eq     eid13, eid33, eJal, eJalr, eLui, eAuipc;                       // Type of instruction
 
     final Bits mAL, mAS;                                                        // Memory load address, store address
     final Eq   eqLoad, eqStore;                                                 // Load requested, store requested
@@ -189,18 +198,18 @@ final public class Ban extends Chip                                             
       immJ2   = C.shiftUp           (q("immJ2"), immJ);
       immU2   = C.shiftLeftConstant (q("immU2"), immu, D.U.p_immediate);        // Place the 20 bits provided in the immediate operand in the high bits of the target register
 
-      sv      = new EnableWord[XLEN];                                           // Get values of s1 and s2
-      Sv      = new EnableWord[XLEN];
-      sv[0]   = C.enableWord(zero, C.bits(q("xv0"), D.l_rs1, 0));               // Get value of s1 register
-      Sv[0]   = C.enableWord(zero, C.bits(q("Xv0"), D.l_rs2, 0));               // Get value of s2 register
+      sv      = new Eq[XLEN];                                                   // Get values of s1 and s2
+      Sv      = new Eq[XLEN];
+      sv[0]   = C.eq(C.bits(q("xv0"), D.l_rs1, 0), zero);                       // Get value of s1 register
+      Sv[0]   = C.eq(C.bits(q("Xv0"), D.l_rs2, 0), zero);                       // Get value of s2 register
 
       for (int i = 1; i < XLEN; i++)
-       {sv[i] = C.enableWord(x[i], C.bits(q("xv")+i, D.l_rs1, i));              // Get value of s1 register
-        Sv[i] = C.enableWord(x[i], C.bits(q("Xv")+i, D.l_rs2, i));              // Get value of s2 register
+       {sv[i] = C.eq(C.bits(q("xv")+i, D.l_rs1, i), x[i]);                      // Get value of s1 register
+        Sv[i] = C.eq(C.bits(q("Xv")+i, D.l_rs2, i), x[i]);                      // Get value of s2 register
        }
 
-      rs1v    = C.enableWord(q("rs1v"),  rs1,  sv);                             // The value of the selected s1 register
-      rs2v    = C.enableWord(q("rs2v"),  rs2,  Sv);                             // The value of the selected s2 register
+      rs1v    = C.chooseEq(q("rs1v"),  rs1,  sv);                               // The value of the selected s1 register
+      rs2v    = C.chooseEq(q("rs2v"),  rs2,  Sv);                               // The value of the selected s2 register
 
       f3_add  = C.bits(q("f3_add"),  l_funct3, D.f3_add);                       // Funct3 op codes
       f3_xor  = C.bits(q("f3_xor"),  l_funct3, D.f3_xor);
@@ -245,10 +254,10 @@ final public class Ban extends Chip                                             
                                    rSlli, rSrli, rSlti, rSltui);
       iR2     = C.orBits(q("iR2"), rSubi, rSrai);
 
-      eiR0    = new EnableWord(iR0, C.bits(q("if70"), l_funct7, 0));            // Decode funct7 for immediate opcode
-      eiR2    = new EnableWord(iR2, C.bits(q("if72"), l_funct7, 2));
+      eiR0    = C.eq(C.bits(q("if70"), l_funct7, 0), iR0);                      // Decode funct7 for immediate opcode
+      eiR2    = C.eq(C.bits(q("if72"), l_funct7, 2), iR2);
 
-      iR      = C.enableWord(q("iR"), funct7, eiR0, eiR2);                      // Choose the dyadic operation
+      iR      = C.chooseEq(q("iR"), funct7, eiR0, eiR2);                        // Choose the dyadic operation
 
       addD    = C.binaryTCAdd         (q("addD"),  rs1v, rs2v);
       subD    = C.binaryTCSubtract    (q("subD"),  rs1v, rs2v);
@@ -277,10 +286,10 @@ final public class Ban extends Chip                                             
                                    rSlld, rSrld, rSltd, rSltud);
       dR2     = C.orBits(q("dR2"), rSubd, rSrad);
 
-      edR0    = C.enableWord(dR0, C.bits(q("df70"), l_funct7, 0));              // Decode funct7 for dyadic operation
-      edR2    = C.enableWord(dR2, C.bits(q("df72"), l_funct7, 2));
+      edR0    = C.eq(C.bits(q("df70"), l_funct7, 0), dR0);                      // Decode funct7 for dyadic operation
+      edR2    = C.eq(C.bits(q("df72"), l_funct7, 2), dR2);
 
-      dR      = C.enableWord(q("dR"), funct7, edR0, edR2);                      // Choose the dyadic operation
+      dR      = C.chooseEq (q("dR"), funct7, edR0, edR2);                       // Choose the dyadic operation
 
       eq12    = C.compareEq        (q("eq12"),  rs1v, rs2v);
       lt12    = C.binaryTCCompareLt(q("lt12"),  rs1v, rs2v);
@@ -312,14 +321,14 @@ final public class Ban extends Chip                                             
       PC      = C.chooseEq(q("PC"), opCode, pc4, opBranch, opJal, opJalr);      // Advance normally by default, otherwise depending on a branch or as requested by a jump
       pcImmU2 = C.binaryTCAdd(q("pcImmU2"), pc, immU2);                         // Auipc
 
-      eid13   = C.enableWord(iR,      C.bits(q("opCode13"),   l_opCode, opArithImm));// Was it an arithmetic with immediate instruction?
-      eid33   = C.enableWord(dR,      C.bits(q("opCode33"),   l_opCode, opArith   ));// Was it an arithmetic with two source registers?
-      eJal    = C.enableWord(pc4,     C.bits(q("opCodeJal"),  l_opCode, D.opJal   ));// Jal
-      eJalr   = C.enableWord(pc4,     C.bits(q("opCodeJalr"), l_opCode, D.opJalr  ));// Jalr
-      eLui    = C.enableWord(immU2,   C.bits(q("opLui"),      l_opCode, D.opLui   ));// Lui
-      eAuipc  = C.enableWord(pcImmU2, C.bits(q("opAuipc"),    l_opCode, D.opAuiPc ));// Auipc
+      eid13   = C.eq(C.bits(q("opCode13"),   l_opCode, opArithImm), iR     );   // Was it an arithmetic with immediate instruction?
+      eid33   = C.eq(C.bits(q("opCode33"),   l_opCode, opArith   ), dR     );   // Was it an arithmetic with two source registers?
+      eJal    = C.eq(C.bits(q("opCodeJal"),  l_opCode, D.opJal   ), pc4    );   // Jal
+      eJalr   = C.eq(C.bits(q("opCodeJalr"), l_opCode, D.opJalr  ), pc4    );   // Jalr
+      eLui    = C.eq(C.bits(q("opLui"),      l_opCode, D.opLui   ), immU2  );   // Lui
+      eAuipc  = C.eq(C.bits(q("opAuipc"),    l_opCode, D.opAuiPc ), pcImmU2);   // Auipc
 
-      result  = C.enableWord(q("result"), opCode, eid13, eid33, eJal, eJalr,    // Choose operation to load target register
+      result  = C.chooseEq(q("result"), opCode, eid13, eid33, eJal, eJalr,      // Choose operation to load target register
         eLui, eAuipc);
 
       m.loadRequested  = C.compareEq(q("memLoad"),  opCode, D.opLoad);          // Load from memory requested
