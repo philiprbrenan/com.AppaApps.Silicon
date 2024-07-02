@@ -806,12 +806,20 @@ public class Chip                                                               
 
 //D2 Bits                                                                       // Operations on bits
 
-  static boolean[]bitStack(int bits, long value)                                 // Create a stack of bits, padded with zeroes if necessary, representing an unsigned integer with the least significant bit lowest.
-   {final boolean[]b = new boolean[bits];
-    final int N = min(bits, Long.SIZE);
-    long s = 1;
-    for (int i = 0; i < bits; ++i) b[i] = false;
-    for (int i = 0; i < N;    ++i) b[i] = (value & (s << i)) != 0;
+//  static boolean[]bitStack(int bits, long value)                                 // Create a stack of bits, padded with zeroes if necessary, representing an unsigned integer with the least significant bit lowest.
+//   {final boolean[]b = new boolean[bits];
+//    final int N = min(bits, Long.SIZE);
+//    long s = 1;
+//    for (int i = 0; i < bits; ++i) b[i] = false;
+//    for (int i = 0; i < N;    ++i) b[i] = (value & (s << i)) != 0;
+//    return b;
+//   }
+
+  static boolean[]bitStack(int width, long...values)                            // Create a stack of bits
+   {if (width >= Long.SIZE) stop("Width must be less than", Long.SIZE, "not", width);
+    final int N = width*values.length;
+    final boolean[]b = new boolean[N];
+    for(int i = 0; i<N; ++i) b[i] = (values[i/width] & (1l<<(i % width))) != 0;
     return b;
    }
 
@@ -854,8 +862,10 @@ public class Chip                                                               
     final int bits;    int    bits() {return bits;}                             // Number of bits of bus - the width of the bus
     Bit       b(int i)               {return new Bit(n(i, name));}              // Name of a bit in the bus
     boolean implemented = false;                                                // When false this is a forward declaration, when true the forward declaration has been backed by real bits
-    void anneal()                                                               // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+
+    Bits anneal()                                                               // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
      {for (int i = 1; i <= bits; i++) b(i).anneal();
+      return this;
      }
 
     Bits(String Name, int Bits)                                                 // Declare the size of a named bit bus
@@ -933,10 +943,11 @@ public class Chip                                                               
     return new Bits(name.toString(), bits);                                     // Resulting bit bus
    }
 
-  Bits bits(String name, int bits, int value)                                   // Create a bus set to a specified number.
-   {final Bits B = bits(name, bits);
-    final boolean[]b = bitStack(bits, value);                                   // Number as a stack of bits padded to specified width
-    for(int i = 1; i <= bits; ++i) if (b[i-1]) One(B.b(i)); else Zero(B.b(i));  // Generate constant
+  Bits bits(String name, int bits, long...values)                               // Create a bit bus set to a specified value.
+   {final int  N = bits * values.length;
+    final Bits B = bits(name, N);
+    final boolean[]b = bitStack(bits, values);                                  // Number as a stack of bits padded to specified width
+    for(int i = 1; i <= N; ++i) if (b[i-1]) One(B.b(i)); else Zero(B.b(i));     // Generate constant
     return B;
    }
 
@@ -947,7 +958,7 @@ public class Chip                                                               
      }
 
     public Bit  b   (int i)  {return bit(n(i, name));}                          // Bit in the bus
-    public void  anneal()    {outputBits(n(name, "anneal"), this);}             // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+    public Bits anneal()     {outputBits(n(name, "anneal"), this); return this;}// Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
 
     void set(int value)                                                         // Set the value of bus
      {final boolean[]b = bitStack(bits, value);                                 // Bit value
@@ -1828,7 +1839,7 @@ public class Chip                                                               
       return source.b(i + (up ? -1 : +1));
      }
 
-    public void  anneal() {outputBits(n(name, "anneal"), this);}                // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+    public Bits anneal() {outputBits(n(name, "anneal"), this); return this;}    // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
   Bits shiftUp(String output, Bits input, boolean fill)                         // Shift an input bus up one place to add 1 in base 1 or multiply by two in base 2.
@@ -4966,17 +4977,16 @@ Step  o     e
    }
 
   static void test_read_memory()
-   {final int T = 21, B = 256, W = 8, N = B / W, lN = logTwo(N);
+   {final long[]T = {1,3,5,7,9,8,6,4,2,1,3,5,7,9,8,6};
+    final int W = 4, N = T.length;
     Chip  c = new Chip();
-    Bits  m = c.bits             ("m",     B/2, T);
-    Bits  n = c.shiftLeftConstant("n",  m, B/2);
+    Bits  m = c.bits("m", W, T);
     Bits[]r = new Bits[N];
     for (int i = 1; i <= N; i++)
-     {r[i-1] = c.readMemory(n(i, "r"), n, c.bits(n(i, "i"), lN, i-1), W);
-      r[i-1].anneal();
-     }
+      r[i-1] = c.readMemory(n(i, "r"), m, c.bits(n(i, "i"), W, i-1), W).anneal();
+
     c.simulate();
-    for (int i = 0; i < N; i++)r[i].ok(i == N/2 ? T : 0);
+    for (int i = 0; i < N; i++) r[i].ok((int)T[i]);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -5048,7 +5058,7 @@ Step  o     e
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
+   {oldTests();
     test_read_memory();
    }
 
