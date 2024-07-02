@@ -806,9 +806,12 @@ public class Chip                                                               
 
 //D2 Bits                                                                       // Operations on bits
 
-  static boolean[]bitStack(int bits, int value)                                 // Create a stack of bits, padded with zeroes if necessary, representing an unsigned integer with the least significant bit lowest.
+  static boolean[]bitStack(int bits, long value)                                 // Create a stack of bits, padded with zeroes if necessary, representing an unsigned integer with the least significant bit lowest.
    {final boolean[]b = new boolean[bits];
-    for (int i = 0; i < bits; ++i) b[i] = (value & (1 << i)) != 0;
+    final int N = min(bits, Long.SIZE);
+    long s = 1;
+    for (int i = 0; i < bits; ++i) b[i] = false;
+    for (int i = 0; i < N;    ++i) b[i] = (value & (s << i)) != 0;
     return b;
    }
 
@@ -1431,7 +1434,7 @@ public class Chip                                                               
 //D2 Enable                                                                     // Enable a word or set to zero
 
   Bits enableWord(String output, Bits a, Bit enable)                            // Output a word or zeros depending on a choice bit.  The word is chosen if the choice bit is B<1> otherwise all zeroes are chosen.
-   {final int A = a.bits();
+   {final int  A = a.bits();
     final Bits o = bits(output, A);                                             // Record bus size
     for (int i = 1; i <= A; i++) And(o.b(i), a.b(i), enable);                   // Choose each bit of input word
     return o;
@@ -1497,7 +1500,7 @@ public class Chip                                                               
     final int   K = Choose.bits(), V = Default.bits();                          // Size of keys and values
     final Words q = new WordBus(n(Output, "equals"), W, V);                     // Resulting word is the same width as the values of the choices
     final Bit[] E = new Bit[W];                                                 // Whether any case was selected
-    for (int j = 1; j <= W; j++)                                                // Each possible world
+    for (int j = 1; j <= W; j++)                                                // Each possible word
      {final Eq  e = Eq[j-1];
       final int v = e.value.bits(), k = e.eq.bits();
       if (k != K) stop("Choose  has", K, "bits, but eq["+j+"].eq    has", k);
@@ -1514,6 +1517,23 @@ public class Chip                                                               
   Bits chooseEq(String Output, Bits Choose, Eq...Eq)                            // Choose a word by its key or if no key matches choose the value zero
    {final Bits Default = bits(n(Output, "zero"), Eq[0].value.bits(), 0);        // A zero of appropriate width
     return chooseEq(Output, Choose, Default, Eq);                               // Choose with zero as the default if none choosen
+   }
+
+//D2 Read Memory                                                                // Read from memory
+
+  Bits readMemory(String Output, Bits memory, Bits index, int wordSize)         // Divide memory into blocks of size wordSize and extract the block at the specified 0 based index
+   {final int M = memory.bits(), I = index.bits(), N = M / wordSize;
+    if (M % wordSize > 0)
+      stop("Memory of size", M, "not divisible by wordSize:", wordSize);
+    if (N != powerTwo(I))
+      stop("Memory of size", N, "words cannot be addressed exactly by", I, "bits");
+    final Eq[]e = new Eq[N];
+    for (int i = 1; i <= N; i++)                                                // Each possible world
+     {final String n = n(i, Output, "sbb");
+      final Bits   b = subBitBus(n, memory, 1+(i-1)*wordSize, wordSize);
+      e[i-1] = eq(bits(n(i, Output, "eq"), I, i-1), b);
+     }
+    return chooseEq(Output, index, e);
    }
 
 //D2 Masks                                                                      // Point masks and monotone masks. A point mask has a single bit set to true, the rest are set to false.  The true bit indicates the point at which something is to happen.
@@ -2001,7 +2021,7 @@ public class Chip                                                               
    {final int B = input.bits(), W = width;                                      // Number of bits in input
     final String n = input.name();                                              // Name of input field
     if (B == width) return input;                                               // No need to extend
-    if (B >  width) return new SubBitBus(output, input, 1, width);              // Field already wider
+    if (B >  width) return subBitBus(output, input, 1, width);                  // Field already wider
     final Bit[]s = new Bit[width];                                              // Result
     for (int i = 1;   i <= B; i++) s[i-1] = input.b(i);                         // Existing bits
     for (int i = B+1; i <= W; i++) s[i-1] = input.b(B);                         // Sign bit
@@ -3199,14 +3219,14 @@ public class Chip                                                               
     return m;
    }
 
-  int nextPowerOfTwo(int n)                                                     // If this is a power of two return it, else return the next power of two greater than this number
+  static int nextPowerOfTwo(int n)                                              // If this is a power of two return it, else return the next power of two greater than this number
    {int p = 1;
     for (int i = 0; i < 32; ++i, p *= 2) if (p >= n) return p;
     stop("Cannot find next power of two for", n);
     return -1;
    }
 
-  int logTwo(int n)                                                             // Log 2 of containing power of 2
+  static int logTwo(int n)                                                      // Log 2 of containing power of 2
    {int p = 1;
     for (int i = 0; i < 32; ++i, p *= 2) if (p >= n) return i;
     stop("Cannot find log two for", n);
@@ -4534,7 +4554,7 @@ Step  ia la ib lb lc   a         b         c
    {int   N = 8;
     Chip  c = new Chip();
     Bits  b = c.bits("b", N, 5<<2);
-    Bits  B = c.new SubBitBus("B", b, 3, 4);
+    Bits  B = c.subBitBus("B", b, 3, 4);
     Bits ob = c.outputBits("ob", b);
     Bits oB = c.outputBits("oB", B);
      c.simulate();
@@ -4945,6 +4965,20 @@ Step  o     e
     r2.ok(3);
    }
 
+  static void test_read_memory()
+   {final int T = 21, B = 256, W = 8, N = B / W, lN = logTwo(N);
+    Chip  c = new Chip();
+    Bits  m = c.bits             ("m",     B/2, T);
+    Bits  n = c.shiftLeftConstant("n",  m, B/2);
+    Bits[]r = new Bits[N];
+    for (int i = 1; i <= N; i++)
+     {r[i-1] = c.readMemory(n(i, "r"), n, c.bits(n(i, "i"), lN, i-1), W);
+      r[i-1].anneal();
+     }
+    c.simulate();
+    for (int i = 0; i < N; i++)r[i].ok(i == N/2 ? T : 0);
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_max_min();
     test_source_file_name();
@@ -5010,12 +5044,12 @@ Step  o     e
     test_choose_equals();
     test_choose_equals2();
     test_choose_equals_zero();
+    test_read_memory();
    }
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    //test_shiftLeftConstant();
-    test_enable_word_equal();
+    test_read_memory();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
