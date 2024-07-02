@@ -858,39 +858,6 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
 //D1 Utility routines                                                           // Utility routines
 
-//D2 Numeric routines                                                           // Numeric routines
-
-  static double max(double n, double...rest)                                    // Maximum number from a list of one or more numbers
-   {double m = n;
-    for (int i = 0; i < rest.length; ++i) m = rest[i] > m ? rest[i] : m;
-    return m;
-   }
-
-  static double min(double n, double...rest)                                    // Minimum number from a list of one or more numbers
-   {double m = n;
-    for (int i = 0; i < rest.length; ++i) m = rest[i] < m ? rest[i] : m;
-    return m;
-   }
-
-  int nextPowerOfTwo(int n)                                                     // If this is a power of two return it, else return the next power of two greater than this number
-   {int p = 1;
-    for (int i = 0; i < 32; ++i, p *= 2) if (p >= n) return p;
-    stop("Cannot find next power of two for", n);
-    return -1;
-   }
-
-  int logTwo(int n)                                                             // Log 2 of containing power of 2
-   {int p = 1;
-    for (int i = 0; i < 32; ++i, p *= 2) if (p >= n) return i;
-    stop("Cannot find log two for", n);
-    return -1;
-   }
-
-  static int powerTwo(int n) {return 1 << n;}                                   // Power of 2
-  static int powerOf (int a, int b)                                             // Raise a to the power b
-   {int v = 1; for (int i = 0; i < b; ++i) v *= a; return v;
-   }
-
 //D1 Labels                                                                     // Labels are used to define locations in code
 
   class Label                                                                   // Label defining a location in code
