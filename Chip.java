@@ -1428,6 +1428,22 @@ public class Chip                                                               
     return m;
    }
 
+//D2 Enable                                                                     // Enable a word or set to zero
+
+  Bits enableWord(String output, Bits a, Bit enable)                            // Output a word or zeros depending on a choice bit.  The word is chosen if the choice bit is B<1> otherwise all zeroes are chosen.
+   {final int A = a.bits();
+    final Bits o = bits(output, A);                                             // Record bus size
+    for (int i = 1; i <= A; i++) And(o.b(i), a.b(i), enable);                   // Choose each bit of input word
+    return o;
+   }
+
+  Bits enableWordIfEq(String output, Bits result, Bits a, Bits b)               // Set the output to result if a == b else 0
+   {final int  B = result.bits();
+    final Bits e = new BitBus(n(output), B);                                    // Enabled word
+    final Bit  q = compareEq(n(output, "eq"), a, b);                            // Compare
+    return enableWord(output, result, q);                                       // Enable the result if a equals b
+   }
+
 //D2 Choices                                                                    // Choose one word or another
 
   Bits chooseFromTwoWords(String output, Bits a, Bits b, Bit choose)            // Choose one of two words depending on a choice bit.  The first word is chosen if the bit is B<0> otherwise the second word is chosen.
@@ -1462,46 +1478,6 @@ public class Chip                                                               
   Bits chooseThenElseIfEQ(String output, Bits Then, Bits Else, Bits A, int B)   // Choose "then" if bits a equal b else "else"
    {final Bits b = bits(n(output, "bAsBits"), A.bits(), B);                     // Convert argument b to bits
     return chooseThenElseIfEQ(output, Then, Else, A, b);
-   }
-
-  Bits enableWord(String output, Bits a, Bit enable)                            // Output a word or zeros depending on a choice bit.  The word is chosen if the choice bit is B<1> otherwise all zeroes are chosen.
-   {final int A = a.bits();
-    final Bits o = bits(output, A);                                             // Record bus size
-    for (int i = 1; i <= A; i++) And(o.b(i), a.b(i), enable);                   // Choose each bit of input word
-    return o;
-   }
-
-  record EnableWord                                                             // A value to be chosen by an index
-   (Bits value,
-    Bits index
-   ) {}
-
-  EnableWord enableWord(Bits value, Bits index)                                 // A value to be chosen by an index
-   {return new EnableWord(value, index);
-   }
-
-  Bits enableWord(String output, Bits choose, EnableWord...enableWords)         // Choose a word by its index
-   {final int W = enableWords.length;
-    if (W == 0) stop("One or more words to choose from needed");
-    final int I = choose.bits(), N = enableWords[0].value.bits();
-    final Words q = new WordBus(n(output, "equals"), W, N);                     // Resulting word is the same width as the values of the choices
-    for (int j = 1; j <= W; j++)                                                // Each possible world
-     {final EnableWord e = enableWords[j-1];
-      final int        b = e.value.bits();
-      final int        i = e.index.bits();
-      if (b != N) stop("Word[0] value has", N, "bits, but word["+j+"] value has", b);
-      if (i != I) stop("Word[0] index has", I, "bits, but word["+j+"] index has", i);
-      final Bit ie = compareEq(n(j, output, "eqIndex"), choose, e.index);       // Compare with each index
-      enableWord(q.w(j).name(), e.value, ie);                                   // Could it be this word
-     }
-    return orWords(output, q);                                                  // And together the enabled words
-   }
-
-  Bits enableWordIfEq(String output, Bits result, Bits a, Bits b)               // Set the output to result if a == b else 0
-   {final int  B = result.bits();
-    final Bits e = new BitBus(n(output), B);                                    // Enabled word
-    final Bit  q = compareEq(n(output, "eq"), a, b);                            // Compare
-    return enableWord(output, result, q);                                       // Enable the result if a equals b
    }
 
 //D2 Switch/Case                                                                // Create a switch statement with one or more cases and a default value.
@@ -3811,12 +3787,12 @@ public class Chip                                                               
     final int[]x = {0, 2, 4, 6, 8};
     for (int i = 0; i < x.length; i++)
      {Chip C = new Chip("enable_word_equal_"+i);
-      var e1 = new EnableWord(C.bits("a1", B, 2), C.bits("b1", B, 1));
-      var e2 = new EnableWord(C.bits("a2", B, 4), C.bits("b2", B, 2));
-      var e3 = new EnableWord(C.bits("a3", B, 6), C.bits("b3", B, 3));
-      var e4 = new EnableWord(C.bits("a4", B, 8), C.bits("b4", B, 4));
+      var e1 = new Eq(C.bits("b1", B, 1), C.bits("a1", B, 2));
+      var e2 = new Eq(C.bits("b2", B, 2), C.bits("a2", B, 4));
+      var e3 = new Eq(C.bits("b3", B, 3), C.bits("a3", B, 6));
+      var e4 = new Eq(C.bits("b4", B, 4), C.bits("a4", B, 8));
       Bits c = C.bits("c", B, i);
-      Bits q = C.enableWord("o", c, e1, e2, e3, e4);
+      Bits q = C.chooseEq("o", c, e1, e2, e3, e4);
       Bits O = C.outputBits("out",  q);
       C.simulate();
       O.ok(x[i]);
@@ -5037,8 +5013,9 @@ Step  o     e
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
-    test_shiftLeftConstant();
+   {//oldTests();
+    //test_shiftLeftConstant();
+    test_enable_word_equal();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
