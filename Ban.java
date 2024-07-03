@@ -18,7 +18,7 @@ import java.util.*;
 
 //D1 Construct                                                                  // Construct a Risc V program and execute it
 
-final public class Ban extends Chip                                             // Create a chip that contains a Risc V processor extended with Btree instructcions
+final public class Ban extends Chip                                             // Create a chip that contains a Risc V processor extended with Btree instructions
  {final static int XLEN                  = RiscV.XLEN;                          // Number of bits in a register
   final static boolean github_actions    =                                      // Whether we are on a github or not
     "true".equals(System.getenv("GITHUB_ACTIONS"));
