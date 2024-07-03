@@ -11,7 +11,7 @@ package com.AppaApps.Silicon;                                                   
 import java.io.*;
 import java.util.*;
 
-//D1 Construct                                                                  // Construct a L<silicon> L<chip> using standard L<lgs>, components and sub chips combined via buses.
+//D1 Construct                                                                  // Construct a silicon chip using standard logic gates combined via buses.
 
 public class Chip                                                               // Describe a chip and emulate its operation.
  {final static boolean github_actions =                                         // Whether we are on a github
@@ -48,7 +48,7 @@ public class Chip                                                               
   final Map<String, OutputUnit>                                                 // Output devices connected to the chip
                               outputs = new TreeMap<>();
   final Map<String, Pulse>     pulses = new TreeMap<>();                        // Bits that are externally driven by periodic pulses of a specified duty cycle
-  final Map<String, Monitor> monitors = new TreeMap<>();                        // Monitor pulses used to clock registers to ensure they remain viable during execution
+//final Map<String, Monitor> monitors = new TreeMap<>();                        // Monitor pulses used to clock registers to ensure they remain viable during execution
 
   final Bits                 clock0;                                            // Negative clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
   final Bits                 clock1;                                            // Positive clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
@@ -262,7 +262,7 @@ public class Chip                                                               
     final TreeSet<WhichPin>
                       drives = new TreeSet<>();                                 // The names of the gates that are driven by the output of this gate with a possible pin selection attached
     boolean           pulsed = false;                                           // Used by Pulse type gates to create a pulse in response to a falling edge.
-    boolean       systemGate = false;                                           // System gate if true. Supresses checking that this gate is driven by something as it is driven externally by the surrounding environment.
+    boolean       systemGate = false;                                           // System gate if true. Suppresses checking that this gate is driven by something as it is driven externally by the surrounding environment.
     boolean             fell = false;                                           // Gate fell from high to low during the latest step
     Integer distanceToOutput;                                                   // Distance to nearest output. Used during layout to position gate on silicon surface.
     Boolean            value;                                                   // Current output value of this gate
@@ -443,7 +443,7 @@ public class Chip                                                               
     void updateEdge()                                                           // Update a memory gate on a falling edge. The memory bit on pin 2 is loaded when the value on pin 1 goes from high to low because reasoning about trailing edges seems to be easier than reasoning about leading edges
      {if (op == Operator.My)                                                    // Memory updates are triggered by a falling edge on input pin 1
        {if (iGate1.value != null && iGate1.value && iGate1.nextValue != null && !iGate1.nextValue) // Falling edge on pin 1
-         {//if (iGate2.value != null)                                           // Unknown must also be propogated
+         {//if (iGate2.value != null)                                           // Unknown must also be propagated
            {//changed = iGate2.value != iGate2.nextValue; // Necessary?
             value   = iGate2.nextValue;
            }
@@ -462,7 +462,7 @@ public class Chip                                                               
     void step()                                                                 // One step in the simulation
      {final Boolean g = iGate1 != null ? iGate1.value : null,
                     G = iGate2 != null ? iGate2.value : null;
-      nextValue = switch(op)                                                    // Null means we do not know what the value is.  In some cases involving dyadic commutative gates we only need to know one input to be able to deduce the output.  However, if the gate ouput cannot be computed then its result must be null meaning "could be true or false".
+      nextValue = switch(op)                                                    // Null means we do not know what the value is.  In some cases involving dyadic commutative gates we only need to know one input to be able to deduce the output.  However, if the gate output cannot be computed then its result must be null meaning "could be true or false".
        {case And     ->{if (g != null && G != null)  yield   g &&  G;  else if ((g != null && !g) || (G != null && !G)) yield false; else yield null;}
         case Nand    ->{if (g != null && G != null)  yield !(g &&  G); else if ((g != null && !g) || (G != null && !G)) yield true;  else yield null;}
         case Or      ->{if (g != null && G != null)  yield   g ||  G;  else if ((g != null &&  g) || (G != null &&  G)) yield true;  else yield null;}
@@ -516,7 +516,7 @@ public class Chip                                                               
        {final Gate e = new Gate(Operator.FanOut, n(name, "f"));                 // Extend the path
         drives.add(new WhichPin(e));                                            // The old gate drives the extension gate
         e.drives.add(new WhichPin(f));                                          // The extension gate drives the new gate
-        f.fanOut();                                                             // Fanout the smaller sub stree
+        f.fanOut();                                                             // Fanout the smaller sub tree
        }
      }
    } // Gate
@@ -784,7 +784,7 @@ public class Chip                                                               
     final Pulse     []P = pulses  .values().toArray(new Pulse     [0]);         // Pulses
     final InputUnit []I = inputs  .values().toArray(new InputUnit [0]);         // Input peripherals
     final OutputUnit[]O = outputs .values().toArray(new OutputUnit[0]);         // Output peripherals
-    final Monitor   []M = monitors.values().toArray(new Monitor   [0]);         // Check register load signals remain viable during execution
+//  final Monitor   []M = monitors.values().toArray(new Monitor   [0]);         // Check register load signals remain viable during execution
 
     for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
      {loadClock();                                                              // Load the value of the clock into the clock input bus
@@ -795,7 +795,7 @@ public class Chip                                                               
       for (InputUnit  i : I) i.action();                                        // Action on each input peripheral affected by a falling edge
       for (OutputUnit o : O) if (o.fell()) o.action();                          // Action on each output peripheral affected by a falling edge
       if (executionTrace != null) executionTrace.trace();                       // Trace requested
-      for (Monitor    m : M) m.check();                                         // Check register load signals remain viable during execution
+//    for (Monitor    m : M) m.check();                                         // Check register load signals remain viable during execution
 
       if (!changes())                                                           // No changes occurred
        {if (!miss || steps >= minSimulationSteps) return layoutLTGates == null  // No changes occurred and we are beyond the minimum simulation time or no such time was set
@@ -869,7 +869,7 @@ public class Chip                                                               
     Bit       b(int i)               {return new Bit(n(i, name));}              // Name of a bit in the bus
     boolean implemented = false;                                                // When false this is a forward declaration, when true the forward declaration has been backed by real bits
 
-    Bits anneal()                                                               // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+    Bits anneal()                                                               // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
      {for (int i = 1; i <= bits; i++) b(i).anneal();
       return this;
      }
@@ -882,7 +882,7 @@ public class Chip                                                               
           stop("BitBus", name, "has already been defined with", b.bits,
             "versus", Bits, "requested");
        }
-      bitBuses.put(name, this);                                                 // This will be overwritten by teh sub class if we are being called from a sub class - but that is not a problem as we still have this information present
+      bitBuses.put(name, this);                                                 // This will be overwritten by the sub class if we are being called from a sub class - but that is not a problem as we still have this information present
      }
 
     public void sameSize(Bits b)                                                // Check two buses are the same size and stop if they are not
@@ -1326,7 +1326,7 @@ public class Chip                                                               
   Words notWords(String name, Words wb)                                         // Create a B<not> bus made of words.
    {final Words o = new WordBus(name, wb);                                      // Record bus width
     for   (int w = 1; w <= wb.words(); ++w)                                     // Each word on the bus
-     {for (int b = 1; b <= wb.bits ();  ++b) Not(o.b(w, b), wb.b(w, b));        // Each bit of eacvh word on the bus
+     {for (int b = 1; b <= wb.bits ();  ++b) Not(o.b(w, b), wb.b(w, b));        // Each bit of each word on the bus
      }
     return o;
    }
@@ -1537,12 +1537,12 @@ public class Chip                                                               
 
   Bits chooseEq(String Output, Bits Choose, Eq...Eq)                            // Choose a word by its key or if no key matches choose the value zero
    {final Bits Default = bits(n(Output, "zero"), Eq[0].value.bits(), 0);        // A zero of appropriate width
-    return chooseEq(Output, Choose, Default, Eq);                               // Choose with zero as the default if none choosen
+    return chooseEq(Output, Choose, Default, Eq);                               // Choose with zero as the default if none chosen
    }
 
 //D2 Read Memory                                                                // Read from memory
 
-  Bits readMemory(String Output, Bits memory, Bits index, int wordSize)         // Divide memory into blocks of size wordSize and extract the block at the specified 0 based index
+  Bits readMemory(String Output, Bits memory, Bits index, int wordSize)         // Divide memory into blocks of specified size and extract the block at the specified zero based index
    {final int M = memory.bits(), I = index.bits(), N = M / wordSize;
     if (M % wordSize > 0)
       stop("Memory of size", M, "not divisible by wordSize:", wordSize);
@@ -1567,7 +1567,7 @@ public class Chip                                                               
     public String name()      {return bits.name();}                             // Name of mask
     public int    bits()      {return bits.bits();}                             // Number of bits of bus - the width of the bus
     public Bit       b(int i) {return bits.b   (i);}                            // Number of bits of bus - the width of the bus
-    public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+    public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
   class DownMask                                                                // Monotone down mask
@@ -1576,7 +1576,7 @@ public class Chip                                                               
     public String name()      {return bits.name();}                             // Name of mask
     public int    bits()      {return bits.bits();}                             // Number of bits of bus - the width of the bus
     public Bit       b(int i) {return bits.b   (i);}                            // Number of bits of bus - the width of the bus
-    public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+    public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
 //D3 Point masks                                                                // A point mask is the differential of a monotone mask: it has no more then one bit set to true, the rest are set to false.
@@ -1587,7 +1587,7 @@ public class Chip                                                               
     public String name()      {return bits.name();}                             // Name of mask
     public int    bits()      {return bits.bits();}                             // Number of bits of bus - the width of the bus
     public Bit       b(int i) {return bits.b   (i);}                            // Number of bits of bus - the width of the bus
-    public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as drivign anythinmg.  Such gates hsould be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+    public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
   PointMask upMaskToPointMask(String output, UpMask input)                      // Convert a monotone mask B<i> to a point mask B<o> representing the location in the mask of the first bit set to B<1>. If the monotone mask is all B<0>s then point mask is too.
@@ -1712,7 +1712,7 @@ public class Chip                                                               
    }
 
 //D2 Registers                                                                  // Create registers
-
+/*
   class Monitor                                                                 // Monitor the load signals for a register to ensure that they remain viable at all times
    {final String name;                                                          // Name of Monitor
     final Bit [] bits;                                                          // Bits to monitor
@@ -1733,7 +1733,7 @@ public class Chip                                                               
       int h = 0, l = 0, n = 0;
       for (int i = 0; i < bits.length; i++)                                     // Signal statistics
         if (B[i] == null) ++n; else if (B[i]) ++h; else ++l;
-      if (h == 1) return;                                                       // Load signals are combined with 'or' so if one signal is high we have a definte result and no clash with any other load signal.
+      if (h == 1) return;                                                       // Load signals are combined with 'or' so if one signal is high we have a definite result and no clash with any other load signal.
       if (h == 0 && n == 0) return;                                             // All load signals are low so we have a definite result and no clashes
       final StringBuilder s = new StringBuilder();                              // Report signals in error
       for (int i = 0; i < bits.length; i++)
@@ -1745,7 +1745,7 @@ public class Chip                                                               
    }
 
   Monitor monitor(String name, Bit...bits) {return new Monitor(name, bits);}    // Create a new monitor
-
+*/
   class Register extends Bits                                                   // Description of a register
    {final Bits    reg;                                                          // The bit bus produced by the register
 
@@ -1761,10 +1761,10 @@ public class Chip                                                               
    {return new Register(name, input, load);
    }
 
-//D2 Pulses                                                                     // Timing signals. At one point I thought that it should be possible to have one pulse trigger ither pulses and to route pulses so that complex for loop and if structures could be realize. But this adds a lot of complexity and unreliability.  Eventually I concluded that it would be better to only allow external pulses at the gate layer making it possible for higher levels to perform more complex control sequences through software rather than hardware.
+//D2 Pulses                                                                     // Timing signals. At one point I thought that it should be possible to have one pulse trigger other pulses and to route pulses so that complex for loop and if structures could be realize. But this adds a lot of complexity and unreliability.  Eventually I concluded that it would be better to only allow external pulses at the gate layer making it possible for higher levels to perform more complex control sequences through software rather than hardware.
 
  class Pulse extends Gate                                                       // A periodic pulse that drives an input bit.
-   {final int  period;                                                          // Length of pulse. A pulse of zero is considered to be a pulse of infinite period - i.e. it only happens once. a pulse of lebgth 1 is not much use either as it will be always either on or off.
+   {final int  period;                                                          // Length of pulse. A pulse of zero is considered to be a pulse of infinite period - i.e. it only happens once. A pulse of length 1 is not much use either as it will be always either on or off.
     final int      on;                                                          // How long the pulse is in the on state in each period in simulations steps
     final int   delay;                                                          // Offset of the on phase of the pulse in simulations steps
     final int   start;                                                          // Number of periods to wait before starting this pulse.
@@ -2116,7 +2116,7 @@ public class Chip                                                               
       final String mv = n(Output, "matchesAndValid");                           // Matches and valid
       final String mf = n(Output, "moreFound");                                 // The next link for the first key greater than the search key if such a key is present int the node
       final String nf = n(Output, "notFound");                                  // True if we did not find the key
-      final String nv = n(Output, "nextValid");                                 // Bit bus showing which next links are valid. The valid links point to the node that contain keys less than the corresponding key. If the corresponding key is erqual then the key has been found and the actual next link will be computed as zero.
+      final String nv = n(Output, "nextValid");                                 // Bit bus showing which next links are valid. The valid links point to the node that contain keys less than the corresponding key. If the corresponding key is equal then the key has been found and the actual next link will be computed as zero.
       final String n2 = n(Output, "nextLink2");
       final String n3 = n(Output, "nextLink3");
       final String n4 = n(Output, "nextLink4");
@@ -2216,7 +2216,7 @@ public class Chip                                                               
 
       final BtreeNode np = new BtreeNode(n(Output, "splitP"), Id,      B, K,   Leaf, Enable, Find, i.keys, i.data, i.next, Top, i.enabledKeys); // Top of parent is unchanged because we always split downwards.
       final BtreeNode na = new BtreeNode(n(Output, "splitA"), lowerId, B, K, b.Leaf, Enable, Find, ak,     ad,     an,     b.Next.w(1+k),  av); // Top of lower child is next(1) of upper child
-      final BtreeNode nb = new BtreeNode(n(Output, "splitB"), b.Id,    B, K, b.Leaf, Enable, Find, bk,     bd,     bn,     b.Top,          bv); // Top of uypper child is unchanged
+      final BtreeNode nb = new BtreeNode(n(Output, "splitB"), b.Id,    B, K, b.Leaf, Enable, Find, bk,     bd,     bn,     b.Top,          bv); // Top of upper child is unchanged
       return new Split(np, na, nb, i, pgt, pnek, pnegt, gt);                    // Results of splitting the node
      }
 
@@ -2242,7 +2242,7 @@ public class Chip                                                               
       int[]      data,                                                          // Data in this node, an array of N B bit wide words.  Each data word corresponds to one key word.
       int[]      next,                                                          // Next links.  An array of N B bit wide words that represents the next links in non leaf nodes.
       int         top,                                                          // The top next link making N+1 next links in all.
-      int keysEnabled)                                                          // Keys that are currently valid: one bit per valid key withe first key in the first bit position
+      int keysEnabled)                                                          // Keys that are currently valid: one bit per valid key with the first key in the first bit position
      {if (                N != keys.length) stop("Wrong number of keys, need", N, "got", keys.length);
       if (                N != data.length) stop("Wrong number of data, need", N, "got", data.length);
       if (next != null && N != next.length) stop("Wrong number of next, need", N, "got", next.length);
@@ -4011,7 +4011,7 @@ public class Chip                                                               
   static void test_Btree(Btree b, Inputs i, int find, int found, boolean layout)
    {test_Btree(b, i, find, found);
 
-    //if (layout) b.chip().draw(6, 1);                                          // Layout chip - takes time so supressed during development
+    //if (layout) b.chip().draw(6, 1);                                          // Layout chip - takes time so suppressed during development
    }
 
   static void test_Btree()
@@ -4623,7 +4623,7 @@ Step  ia la ib lb lc   a         b         c
     Bits    zero = C.bits ("zero",   N,  0);                                    // Zero - the first element of the sequence
     Bits     one = C.bits ("one",    N,  1);                                    // One - the amount to be added
     Pulse     pz = C.pulseBuilder("pz").on(wait).b();                           // Load zero at start or latest number later
-    Pulse     pi = C.pulseBuilder("pi").period(wait).on(N).delay(wait-N-1).b(); // Let the sum  hapoen then reload teh register with a short enough pulse to make the additions happen quickly and a short enough on time that the new number does not feedback
+    Pulse     pi = C.pulseBuilder("pi").period(wait).on(N).delay(wait-N-1).b(); // Let the sum  happen then reload the register with a short enough pulse to make the additions happen quickly and a short enough on time that the new number does not feedback
     Bits       n = C.new BitBus("n", N);                                        // Variable
 
     Register   r = C.register  ("r", n, pi);                                    // Register holding bits to increment
