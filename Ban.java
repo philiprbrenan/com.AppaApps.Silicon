@@ -413,7 +413,7 @@ final public class Ban extends Chip                                             
   static void test_decode_lui  () {test_instruction(0x10b7)  .ok("pc=8 x1=4096");}
   static void test_decode_auipc() {test_instruction(0x4097)  .ok("pc=8 x1=16388");}
 
-  static void test_decode_sb   ()
+  static void test_decode_sb()
    {RV32I r = test_instruction(0x1000a3);
     r.om("""
  loadRequested : 0
@@ -424,7 +424,7 @@ final public class Ban extends Chip                                             
 """);
    }
 
-  static void test_decode_lh   ()
+  static void test_decode_lh()
    {RV32I r = test_instruction(0x1103);
     r.om("""
  loadRequested : 1
@@ -433,6 +433,24 @@ final public class Ban extends Chip                                             
         address: 00000000000000000000000000000000
        register: 00010
 """);
+   }
+
+  static void test_fibonacci()
+   {final Chip          c = new Chip();
+    final Pulse        pp = c.pulse("pc", 200);                                 // Initialize pc
+    final Register     pc = c.register("pc", XLEN, pp);                         // Initialize pc
+    final Register[]    x = new Register[XLEN];
+
+    for (int i = 1; i < XLEN; i++) x[i] = c.register("x"+i, XLEN, pp);          // Initialize registers
+
+    Bits code = c.bits("code", XLEN, 0xa00093, 0x293, 0x113, 0x100193, 0x228a23, 0x310233, 0x18133, 0x201b3, 0x128293, 0xfe12cbe3);
+
+//  final Bits     decode = C.bits("decode", XLEN, instruction);                // Instruction to decode and execute
+//  final RV32I         R = rv32i(C, "a", decode, pc, x);                       // Decode and execute the instruction
+//  for (int i = 1; i < XLEN; i++) R.X[i].anneal();                             // Anneal the outputs
+//  R.PC.anneal(); R.m.anneal();
+//  C.maxSimulationSteps(300);
+//  C.simulate();
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -445,6 +463,7 @@ final public class Ban extends Chip                                             
     test_decode_auipc();
     test_decode_sb();
     test_decode_lh();
+    test_fibonacci();
    }
 
   static void newTests()                                                        // Tests being worked on
