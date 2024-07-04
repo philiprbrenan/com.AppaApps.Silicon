@@ -1747,18 +1747,20 @@ public class Chip                                                               
   Monitor monitor(String name, Bit...bits) {return new Monitor(name, bits);}    // Create a new monitor
 */
   class Register extends Bits                                                   // Description of a register
-   {final Bits    reg;                                                          // The bit bus produced by the register
+   {final String load;                                                          // The bit bus from which the register will be loaded
+    final Bits reg;                                                             // The bit bus produced by the register
 
-    Register(String Output, Bits Input, Pulse Load)                             // Load register from input on falling edge of load signal.
-     {super(Output, Input.bits());
-      final int B = Input.bits();                                               // Number of bits in register
-      reg         = Chip.this.bits(Output, B);                                  // Bit bus created by register
-      for (int i  = 1; i <= B; i++) My(n(i, Output), Load, Input.b(i));         // Create the memory bits
+    Register(String Output, int Width, Pulse Load)                              // Load register from input on falling edge of load signal.
+     {super(Output, Width);                                                     // Load from these bits
+      load         = n(Output, "load");                                         // Load from these bits
+      final Bits l = bitBus(load, Width);                                         // Load from these bits
+      reg          = this;                                                      // Bit bus created by register
+      for (int i  = 1; i <= Width; i++) My(b(i), Load, l.b(i));                 // Create the memory bits
      }
    }
 
-  Register register(String name, Bits input, Pulse load)                        // Create a register loaded from one source
-   {return new Register(name, input, load);
+  Register register(String name, int width, Pulse load)                         // Create a register loaded from one source
+   {return new Register(name, width, load);
    }
 
 //D2 Pulses                                                                     // Timing signals. At one point I thought that it should be possible to have one pulse trigger other pulses and to route pulses so that complex for loop and if structures could be realize. But this adds a lot of complexity and unreliability.  Eventually I concluded that it would be better to only allow external pulses at the gate layer making it possible for higher levels to perform more complex control sequences through software rather than hardware.
@@ -1795,7 +1797,13 @@ public class Chip                                                               
     void setState()                                                             // Set gate implementing pulse to current state.
      {final int s = steps - 1;                                                  // Steps taken
       final int i = period > 0 ? s % period : s;                                // Position in period
-      nextValue = i >= start*period ? i >= delay && i < on+delay : false;       // Next value for pulse.  Set like this so that the falling edge will be seen and acted on
+      nextValue = s >= start*period ? i >= delay && i < on+delay : false;       // Next value for pulse.  Set like this so that the falling edge will be seen and acted on
+     }
+    public String string()                                                      // Print pulse
+     {final StringBuilder b = new StringBuilder();
+      b.append("pulse(\""+name +"\").period("+period+").on("+on+")"+
+              ".delay("  +delay+").start("   +start +")");
+      return b.toString();
      }
    }
 
@@ -1829,8 +1837,13 @@ public class Chip                                                               
     Pulse b()    {return new Pulse(name, period, on, delay, start);}
    }
 
-  PulseBuilder pulseBuilder(String name)                                        // Create a new pulse builder with default values
+  PulseBuilder pulse(String name)                                               // Create a new pulse builder with default values
    {return new PulseBuilder().name(name);
+   }
+
+  PulseBuilder pulse(String name, Pulse copy)                                   // Create a new pulse builder with default values
+   {return new PulseBuilder().name(name).period(copy.period)
+      .on(copy.on).delay(copy.delay).start(copy.start);
    }
 
 //D2 Arithmetic Base 1                                                          // Arithmetic in base 1
@@ -4143,14 +4156,15 @@ Step  1 2 3 a    4 m
    }
 
   static void test_register()
-   {Chip       c = chip();
-    Bits      i1 = c.bits("i1", 8, 9);
-    Bits      i2 = c.bits("i2", 8, 6);
+   {final int N = 8;
+    Chip       c = chip();
+    Bits      i1 = c.bits("i1", N, 9);
+    Bits      i2 = c.bits("i2", N, 6);
     Pulse     pc = c.pulse("choose", 32, 16, 16);
     Pulse     pl = c.pulse("load",    8,  1,  1);
     Pulse     pr = c.pulse("result", 16,  1, 12);
-    Bits       I = c.chooseFromTwoWords("I", i1, i2, pc);
-    Register   r = c.register("reg",  I, pl);
+    Register   r = c.register("reg",  N, pl);
+    Bits       I = c.chooseFromTwoWords(r.load, i1, i2, pc);
     OutputUnit p = c.new OutputUnit("pReg", r, pr);
     Bits       o = c.outputBits("o", r);
 
@@ -4206,7 +4220,7 @@ Step  c  choose    l  register ld
     Chip      c = chip ();
     Bits      p = c.bits("p", N);
     for (int i  = 1; i <= N; i++)
-      c.pulseBuilder(p.b(i).name).period(N).delay(i-1).b();
+      c.pulse(p.b(i).name).period(N).delay(i-1).b();
 
     c.executionTrack("p", "%s", p);
     c.simulationSteps(20);
@@ -4304,7 +4318,7 @@ Step  i     o     O
     ok(os.toString(), "11111111");                                              // toString unfortunately required
    }
 
-// 2 3 5 8 13 21 34 55 89 144 233
+// 0 1 1 2 3 5 8 13 21 34 55 89 144 233
 
   static void test_fibonacci()                                                  // First few fibonacci numbers
    {final int N = 8, D = 22;                                                    // Number of bits in number, wait time to allow latest number to be computed from prior two
@@ -4317,26 +4331,26 @@ Step  i     o     O
     Pulse      lb = C.pulse("lb", 3*D, D, 1*D);
     Pulse      lc = C.pulse("lc", 3*D, D, 2*D);
 
-    Bits       ab = C.bits("ab", N);                                            // Pre-declare the output of the pair sums so that we can use these buses to drive the registers holding the latest fibonacci numbers
-    Bits       ac = C.bits("ac", N);
-    Bits       bc = C.bits("bc", N);
+    Pulse      La = C.pulse("La", la).start(1).b();                                 // Delay for first value to be computed
+    Pulse      Lb = C.pulse("Lb", lb).start(1).b();
+    Pulse      Lc = C.pulse("Lc", lc).start(1).b();
 
-    Register    a = C.register("a", bc, la);                                    // Registers holding the latest fibonacci number
-    Register    b = C.register("b", ac, lb);
-    Register    c = C.register("c", ab, lc);
+    Register    a = C.register("a", N, la);                                     // Registers holding the latest fibonacci number
+    Register    b = C.register("b", N, lb);
+    Register    c = C.register("c", N, lc);
 
-    OutputUnit fa = C.new OutputUnit("fa", "f", a, la);                         // Log latest number
-    OutputUnit fb = C.new OutputUnit("fb", "f", b, lb);
-    OutputUnit fc = C.new OutputUnit("fc", "f", c, lc);
+    OutputUnit fa = C.new OutputUnit("fa", "f", a, La);                         // Log latest number
+    OutputUnit fb = C.new OutputUnit("fb", "f", b, Lb);
+    OutputUnit fc = C.new OutputUnit("fc", "f", c, Lc);
 
     BinaryAdd sbc = C.binaryAdd("sbc", b, c);                                   // a
     BinaryAdd sac = C.binaryAdd("sac", a, c);                                   // b
     BinaryAdd sab = C.binaryAdd("sab", a, b);                                   // c
     sab.carry.anneal(); sac.carry.anneal(); sbc.carry.anneal();                 // Ignore the carry bits
 
-    Bits       BC = C.chooseFromTwoWords("bc", sbc.sum, zero, ia);              // a
-    Bits       AC = C.chooseFromTwoWords("ac", sac.sum, one,  ib);              // b
-    Bits       AB = C.continueBits      ("ab", sab.sum);                        // c
+    Bits       BC = C.chooseFromTwoWords(a.load, sbc.sum, zero, ia);            // a
+    Bits       AC = C.chooseFromTwoWords(b.load, sac.sum, one,  ib);            // b
+    Bits       AB = C.continueBits      (c.load, sab.sum);                      // c
 
     C.executionTrace(
       "ia la ib lb lc   a         b         c",
@@ -4344,46 +4358,9 @@ Step  i     o     O
       ia, la, ib, lb, lc, a, b, c);
     C.simulationSteps(380);
     C.simulate();
-    fa.ok(null, null, null, 0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233);
+    //stop(fa);
+    fa.ok(0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233);
     //C.printExecutionTrace(); stop();
-    C.ok("""
-Step  ia la ib lb lc   a         b         c
-   1  1  1  1  0  0    ........  ........  ........
-  23  0  0  1  1  0    ........  ........  ........
-  25  0  0  1  1  0    00000000  ........  ........
-  45  0  0  0  0  1    00000000  ........  ........
-  47  0  0  0  0  1    00000000  00000001  ........
-  67  0  1  0  0  0    00000000  00000001  ........
-  69  0  1  0  0  0    00000000  00000001  00000001
-  89  0  0  0  1  0    00000000  00000001  00000001
-  91  0  0  0  1  0    00000010  00000001  00000001
- 111  0  0  0  0  1    00000010  00000001  00000001
- 113  0  0  0  0  1    00000010  00000011  00000001
- 133  0  1  0  0  0    00000010  00000011  00000001
- 135  0  1  0  0  0    00000010  00000011  00000101
- 155  0  0  0  1  0    00000010  00000011  00000101
- 157  0  0  0  1  0    00001000  00000011  00000101
- 177  0  0  0  0  1    00001000  00000011  00000101
- 179  0  0  0  0  1    00001000  00001101  00000101
- 199  0  1  0  0  0    00001000  00001101  00000101
- 201  0  1  0  0  0    00001000  00001101  00010101
- 221  0  0  0  1  0    00001000  00001101  00010101
- 223  0  0  0  1  0    00100010  00001101  00010101
- 243  0  0  0  0  1    00100010  00001101  00010101
- 245  0  0  0  0  1    00100010  00110111  00010101
- 265  0  1  0  0  0    00100010  00110111  00010101
- 267  0  1  0  0  0    00100010  00110111  01011001
- 287  0  0  0  1  0    00100010  00110111  01011001
- 289  0  0  0  1  0    10010000  00110111  01011001
- 309  0  0  0  0  1    10010000  00110111  01011001
- 311  0  0  0  0  1    10010000  11101001  01011001
- 331  0  1  0  0  0    10010000  11101001  01011001
- 333  0  1  0  0  0    10010000  11101001  11111001
- 353  0  0  0  1  0    10010000  11101001  11111001
- 355  0  0  0  1  0    11100010  11101001  11111001
- 375  0  0  0  0  1    11100010  11101001  11111001
- 377  0  0  0  0  1    11100010  11011011  11111001
-""");
    }
 
   static void test_insert_into_array()                                          // Insert a word in an array of words
@@ -4618,108 +4595,27 @@ Step  ia la ib lb lc   a         b         c
    }
 
   static void test_binary_increment()                                           // Increment repetitively
-   {final int  N = 4, wait = 24;                                                // Bit width of number to increment, wait time for addition to complete
+   {final int  N = 4, wait = 25;                                                // Bit width of number to increment, wait time for addition to complete
     Chip       C = chip();                                                      // Create a new chip
-    Bits    zero = C.bits ("zero",   N,  0);                                    // Zero - the first element of the sequence
-    Bits     one = C.bits ("one",    N,  1);                                    // One - the amount to be added
-    Pulse     pz = C.pulseBuilder("pz").on(wait).b();                           // Load zero at start or latest number later
-    Pulse     pi = C.pulseBuilder("pi").period(wait).on(N).delay(wait-N-1).b(); // Let the sum  happen then reload the register with a short enough pulse to make the additions happen quickly and a short enough on time that the new number does not feedback
-    Bits       n = C.new BitBus("n", N);                                        // Variable
-
-    Register   r = C.register  ("r", n, pi);                                    // Register holding bits to increment
-    OutputUnit o = C.new OutputUnit("o", r, pi);                                // Log the value of the register just before it is changed by the incoming new result.
+    Bits    zero = C.bits ("zero", N, 0);                                       // Zero - the first element of the sequence
+    Bits     one = C.bits ("one",  N, 1);                                       // One - the amount to be added
+    Pulse     pz = C.pulse("pz").on(wait).b();                                  // Load zero at start or latest number later
+    Pulse     pi = C.pulse("pi", pz).period(wait).on(N).delay(N).b();           // Let the sum  happen then reload the register with a short enough pulse to make the additions happen quickly and a short enough on time that the new number does not feedback
+    Pulse     pj = C.pulse("pj", pi).start(1).b();                              // Start printing after the calculation of the first value
+    Register   r = C.register      ("r", N, pi);                                // Register holding bits to increment
+    OutputUnit o = C.new OutputUnit("o", r, pj);                                // Log the value of the register just before it is changed by the incoming new result.
 
     BinaryAdd  i = C.binaryAdd("i", r, one);                                    // Increment
-                   C.chooseFromTwoWords("n", i.sum, zero, pz);                  // Initially zero, later the latest sum
+                   C.chooseFromTwoWords(r.load, i.sum, zero, pz);               // Initially zero, later the latest sum
 
-    C.executionTrace("pz  pi  r", "%s   %s   %s", pz, pi, r);
+    C.executionTrack("pz  pi  pj    r", "%s   %s   %s   %s", pz, pi, pj, r);
     C.simulationSteps(640);
     C.simulate();
 
-    o.ok(null, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7, 8);
+    //stop(o);
+    o.ok(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7, 8);
+
     //C.printExecutionTrace(); say(o); //stop();
-    C.ok("""
-Step  pz  pi  r
-   1  1   0   ....
-  20  1   1   ....
-  24  1   0   ....
-  25  0   0   0000
-  44  0   1   0000
-  48  0   0   0000
-  49  0   0   0001
-  68  0   1   0001
-  72  0   0   0001
-  73  0   0   0010
-  92  0   1   0010
-  96  0   0   0010
-  97  0   0   0011
- 116  0   1   0011
- 120  0   0   0011
- 121  0   0   0100
- 140  0   1   0100
- 144  0   0   0100
- 145  0   0   0101
- 164  0   1   0101
- 168  0   0   0101
- 169  0   0   0110
- 188  0   1   0110
- 192  0   0   0110
- 193  0   0   0111
- 212  0   1   0111
- 216  0   0   0111
- 217  0   0   1000
- 236  0   1   1000
- 240  0   0   1000
- 241  0   0   1001
- 260  0   1   1001
- 264  0   0   1001
- 265  0   0   1010
- 284  0   1   1010
- 288  0   0   1010
- 289  0   0   1011
- 308  0   1   1011
- 312  0   0   1011
- 313  0   0   1100
- 332  0   1   1100
- 336  0   0   1100
- 337  0   0   1101
- 356  0   1   1101
- 360  0   0   1101
- 361  0   0   1110
- 380  0   1   1110
- 384  0   0   1110
- 385  0   0   1111
- 404  0   1   1111
- 408  0   0   1111
- 409  0   0   0000
- 428  0   1   0000
- 432  0   0   0000
- 433  0   0   0001
- 452  0   1   0001
- 456  0   0   0001
- 457  0   0   0010
- 476  0   1   0010
- 480  0   0   0010
- 481  0   0   0011
- 500  0   1   0011
- 504  0   0   0011
- 505  0   0   0100
- 524  0   1   0100
- 528  0   0   0100
- 529  0   0   0101
- 548  0   1   0101
- 552  0   0   0101
- 553  0   0   0110
- 572  0   1   0110
- 576  0   0   0110
- 577  0   0   0111
- 596  0   1   0111
- 600  0   0   0111
- 601  0   0   1000
- 620  0   1   1000
- 624  0   0   1000
- 625  0   0   1001
-""");
    }
 
   static void test_input_peripheral()                                           // Input from a peripheral
@@ -5075,7 +4971,10 @@ Step  o     e
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_read_memory();
+    //test_read_memory();
+    //test_binary_increment();
+    //test_fibonacci();
+    //test_register();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
