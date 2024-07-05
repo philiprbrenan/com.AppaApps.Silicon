@@ -3,12 +3,12 @@
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 /*
-Io sono docile, - son rispettosa,
-sono ubbediente, - dolce, amorosa;
+Io sono docile,    - son rispettosa,
+sono ubbediente,   - dolce, amorosa;
 mi lascio reggere, - mi fo guidar.
-Ma se mi toccano - dov'Ã¨ il mio debole,
-sarÃ² una vipera - e cento trappole
-prima di cedere - farÃ² giocar.
+Ma se mi toccano   - dov'Ã¨ il mio debole,
+sarÃ² una vipera    - e cento trappole
+prima di cedere    - farÃ² giocar.
 */
 
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
@@ -436,21 +436,33 @@ final public class Ban extends Chip                                             
    }
 
   static void test_fibonacci()
-   {final Chip          c = new Chip();
-    final Pulse        pp = c.pulse("pc", 200);                                 // Initialize pc
-    final Register     pc = c.register("pc", XLEN, pp);                         // Initialize pc
-    final Register[]    x = new Register[XLEN];
+   {final int       N = 30;
+    final Chip      c = new Chip();
+    final Pulse    xi = c.pulse("xi").period(N).on(N/2).start(1).b();           // Execute an instruction
+    final Register pc = c.new Register("pc", XLEN, xi, 0);                      // Initialize pc
+    final Register[]x = new Register[XLEN];
 
-    for (int i = 1; i < XLEN; i++) x[i] = c.register("x"+i, XLEN, pp);          // Initialize registers
+    for (int i = 1; i < XLEN; i++) x[i] = c.new Register("x"+i, XLEN, xi, 0);   // Initialize registers
+    for (int i = 1; i < XLEN; i++) x[i].anneal();
 
-    Bits code = c.bits("code", XLEN, 0xa00093, 0x293, 0x113, 0x100193, 0x228a23, 0x310233, 0x18133, 0x201b3, 0x128293, 0xfe12cbe3);
+    long[]Code = {0xa00093, 0x293,   0x113,   0x100193, 0x228a23,               // Code for Fibonacci
+                  0x310233, 0x18133, 0x201b3, 0x128293, 0xfe12cbe3};
 
-//  final Bits     decode = C.bits("decode", XLEN, instruction);                // Instruction to decode and execute
-//  final RV32I         R = rv32i(C, "a", decode, pc, x);                       // Decode and execute the instruction
-//  for (int i = 1; i < XLEN; i++) R.X[i].anneal();                             // Anneal the outputs
-//  R.PC.anneal(); R.m.anneal();
-//  C.maxSimulationSteps(300);
-//  C.simulate();
+    Bits code = c.bits("code", XLEN, Code);
+
+    Bits  instruction = c.readMemory("instruction", code, pc, XLEN);            // Latest instruction
+    BinaryAdd     pc2 = c.binaryAdd ("pc2", pc, 1);                             // Next instruction
+                        c.continueBits(pc.load, pc2.sum());
+    OutputUnit oInstruction = c.new OutputUnit("oInstruction", instruction, xi);
+
+    c.simulationSteps(N*(Code.length+2));
+    c.executionTrace("pc   instruction",
+                     "%s  %s", pc, instruction);
+    instruction.anneal();
+    c.simulate();
+//  say(oInstruction);
+    oInstruction.ok(0xa00093, 0x293, 0x113, 0x100193, 0x228a23, 0x310233, 0x18133, 0x201b3, 0x128293, 0xfe12cbe3, 0x0);
+    c.printExecutionTrace();
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -467,8 +479,9 @@ final public class Ban extends Chip                                             
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
     //test_decode_lh();
+    test_fibonacci();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
