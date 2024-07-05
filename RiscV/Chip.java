@@ -893,7 +893,14 @@ public class Chip                                                               
 
     public String toString()                                                    // Convert the bits represented by an output bus to a string
      {final StringBuilder s = new StringBuilder();
-      for (int i = 1; i <= bits(); i++)
+      final int N = bits();
+      if (N > 8)                                                                // Print as hexadecimal
+       {final Integer i = Int();
+        if (i == null) return "null";
+        return "0x"+Integer.toHexString(i);
+       }
+
+      for (int i = 1; i <= N; i++)
        {final Bit  b = b(i);
         final Gate g = getGate(b);
         if (g != null) s.append(g.value == null ? '.' : g.value ? '1' : '0');
@@ -1546,8 +1553,8 @@ public class Chip                                                               
    {final int M = memory.bits(), I = index.bits(), N = M / wordSize;
     if (M % wordSize > 0)
       stop("Memory of size", M, "not divisible by wordSize:", wordSize);
-    if (N != powerTwo(I))
-      stop("Memory of size", N, "words cannot be addressed exactly by", I, "bits");
+//  if (N != powerTwo(I))
+//    stop("Memory of size", N, "words cannot be addressed exactly by", I, "bits");
     final Eq[]e = new Eq[N];
     for (int i = 1; i <= N; i++)                                                // Each possible world
      {final String n = n(i, Output, "sbb");
@@ -1749,13 +1756,31 @@ public class Chip                                                               
   class Register extends Bits                                                   // Description of a register
    {final String load;                                                          // The bit bus from which the register will be loaded
     final Bits reg;                                                             // The bit bus produced by the register
+    final Bits   l;                                                             // Load from these bits
+    final Bits   v;                                                             // Initial value
+    final Pulse  p;                                                             // Initialize or load
+    final Bits   L;                                                             // Initialize or load
+    final Bit    o;                                                             // Or of pulses
 
     Register(String Output, int Width, Pulse Load)                              // Load register from input on falling edge of load signal.
      {super(Output, Width);                                                     // Load from these bits
-      load         = n(Output, "load");                                         // Load from these bits
-      final Bits l = bitBus(load, Width);                                         // Load from these bits
-      reg          = this;                                                      // Bit bus created by register
+      p = null; v = L = null; o = null;
+      load = n(Output, "load");                                                 // Load bitbus name
+      l    = bitBus(load, Width);                                               // Load from these bits
+      reg  = this;                                                              // Bit bus created by register
       for (int i  = 1; i <= Width; i++) My(b(i), Load, l.b(i));                 // Create the memory bits
+     }
+
+    Register(String Output, int Width, Pulse Load, int Value)                   // Load register from input on falling edge of load signal. The register is initialized to a default value
+     {super(Output, Width);                                                     // Load from these bits
+      load = n(Output, "load");                                                 // Load name
+      l    = bitBus(load, Width);                                               // Load bitbus
+      v    = Chip.this.bits(n(Output, "initial"), Width, Value);                // Initial value
+      p    = pulse(n(Output, "loadPulse"), 0, Width/2);                         // Load pulse
+      L    = chooseFromTwoWords(n(Output, "initialize"), l, v, p);              // Initialize or load
+      o    = Or(n(Output, "orPulse"), p, Load);
+      reg  = this;                                                              // Bit bus created by register
+      for (int i = 1; i <= Width; i++) My(b(i), o, L.b(i));                     // Create the memory bits
      }
    }
 
@@ -1937,6 +1962,10 @@ public class Chip                                                               
      }
 
     return new BinaryAdd(c.b(b), o);                                            // Carry out of the highest bit, result
+   }
+
+  BinaryAdd binaryAdd(String output, Bits in1, int in2)                         // Add a constant to a bit bus
+   {return binaryAdd(output, in1, bits(n(output, "constant"), in1.bits(), in2));
    }
 
   Bits binaryTwosComplement(String output, Bits in)                             // Form the binary twos complement of a number
@@ -2486,7 +2515,7 @@ public class Chip                                                               
 
     public String toString()                                                    // Content of log.
      {final StringBuilder b = new StringBuilder();
-      for (Integer i: log) b.append(", "+i);
+      for (Integer i: log) b.append(i == null ? ", null" : ", 0x"+Integer.toHexString(i));
       final String s = b.length() > 0 ? b.toString().substring(2) : "";
       return name+".ok("+s+");";
      }
@@ -4215,6 +4244,28 @@ Step  c  choose    l  register ld
 """);
    }
 
+  static void test_register_initialization()
+   {final int N = 8;
+    Chip      c = chip();
+    Bits      i = c.bits        ("i", N, 85);
+    Pulse     p = c.pulse       ("p").period(16).delay(8).on(8).b();
+    Register  r = c.new Register("r", N, p, 1); r.anneal();
+                  c.continueBits(r.load, i);
+
+    c.executionTrace("p    r", "%s      %s", p, r);
+    c.simulationSteps(20);
+    c.simulate();
+    //c.printExecutionTrace(); stop();
+    c.ok("""
+Step  p    r
+   1  0      ........
+   9  1      ........
+  10  1      00000000
+  17  0      00000000
+  20  0      01010101
+""");
+   }
+
   static void test_delay_bits()
    {final int N = 16;
     Chip      c = chip ();
@@ -4229,26 +4280,26 @@ Step  c  choose    l  register ld
 
     c.ok("""
 Step  p
-   1  0000000000000001
-   2  0000000000000010
-   3  0000000000000100
-   4  0000000000001000
-   5  0000000000010000
-   6  0000000000100000
-   7  0000000001000000
-   8  0000000010000000
-   9  0000000100000000
-  10  0000001000000000
-  11  0000010000000000
-  12  0000100000000000
-  13  0001000000000000
-  14  0010000000000000
-  15  0100000000000000
-  16  1000000000000000
-  17  0000000000000001
-  18  0000000000000010
-  19  0000000000000100
-  20  0000000000001000
+   1  1
+   2  2
+   3  4
+   4  8
+   5  10
+   6  20
+   7  40
+   8  80
+   9  100
+  10  200
+  11  400
+  12  800
+  13  1000
+  14  2000
+  15  4000
+  16  8000
+  17  1
+  18  2
+  19  4
+  20  8
 """);
    }
 
@@ -4265,12 +4316,12 @@ Step  p
     od.ok(1);
    }
 
-  static void test_binaryAdd()
+  static void test_binary_add()
    {for (int B = 1; B <= (github_actions ? 4 : 3); B++)
      {int B2 = powerTwo(B);
       for      (int i = 0; i < B2; i++)
        {for    (int j = 0; j < B2; j++)
-         {Chip      c = chip("binary_add");
+         {Chip      c = chip();
           Bits      I = c.bits("i", B, i);
           Bits      J = c.bits("j", B, j);
           BinaryAdd a = c.binaryAdd ("ij",  I, J);
@@ -4281,6 +4332,18 @@ Step  p
           a.carry.ok((i+j) >= B2);
          }
        }
+     }
+   }
+
+  static void test_binary_add_constant()
+   {final int B = 4;
+    for (int i = 0; i < B; i++)
+     {Chip      c = chip();
+      Bits      p = c.bits     ("p", B, i);
+      BinaryAdd a = c.binaryAdd("a", p, i);
+      a.sum.anneal(); a.carry.anneal();
+                    c.simulate ();
+      a.sum.ok(2*i); a.carry.ok(false);
      }
    }
 
@@ -4331,7 +4394,7 @@ Step  i     o     O
     Pulse      lb = C.pulse("lb", 3*D, D, 1*D);
     Pulse      lc = C.pulse("lc", 3*D, D, 2*D);
 
-    Pulse      La = C.pulse("La", la).start(1).b();                                 // Delay for first value to be computed
+    Pulse      La = C.pulse("La", la).start(1).b();                             // Delay for first value to be computed
     Pulse      Lb = C.pulse("Lb", lb).start(1).b();
     Pulse      Lc = C.pulse("Lc", lc).start(1).b();
 
@@ -4936,12 +4999,14 @@ Step  o     e
     test_choose_word_under_mask();
     test_delay_bits();
     test_shift();
-    test_binaryAdd();
+    test_binary_add();
+    test_binary_add_constant();
     test_btree_node();
     test_btree_leaf_compare();
     test_Btree();
     test_8p5i4();
     test_register();
+    test_register_initialization();
     test_fibonacci();
     test_insert_into_array();
     test_remove_from_array();
@@ -4975,6 +5040,8 @@ Step  o     e
     //test_binary_increment();
     //test_fibonacci();
     //test_register();
+    //test_register_initialization();
+    //test_binary_add_constant();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
