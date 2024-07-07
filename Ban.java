@@ -39,7 +39,7 @@ final public class Ban extends Chip                                             
 
     opArithImm   = D.opArithImm,        opArith      = D.opArith;
 
-//D1 RV32I                                                                      // Decode and execute an RV32I instruction
+//D1 RV32I                                                                      // Risc V RV32I CPU.
 
   static class RV32I                                                            // Decode and execute an RV32I instruction
    {final String   out;                                                         // Name for this instruction processor
@@ -47,21 +47,21 @@ final public class Ban extends Chip                                             
     final Bits     one;                                                         // Constant one
 
     final Bits      PC;                                                         // Next value for program counter forward declaration
-    final Bits      pc;                                                         // Risc V registers
+    final Bits      pc;                                                         // Current program counter
 
-    final Bits       x[];                                                       // Registers
+    final Bits       x[];                                                       // Risc V registers
     final Bits       X[] = new Bits[XLEN];                                      // New value for registers
 
     final Bits  decode;                                                         // Instruction to decode and execute
 
-    final Bits  opCode;                                                         // Decode the instruction
+    final Bits  opCode;                                                         // Opcode from instruction
     final Bits  funct3, funct5, funct7;                                         // Function codes
     final Bits      rd, rs1, rs2;                                               // Register numbers
 
     final Bits    immi, immu, immb, immj, imms;                                 // Imipac: the weapon that defends itself.
     final Bits    immB, immI, immJ, immS, immU, immB2, immI2, immJ2, immU2;     // Sign extend the immediate field
 
-    final Eq[]  sv, Sv;                                                         // Get value of s1, s2 registers
+    final Eq[]      sv;                                                         // Get value of s1, s2 registers
     final Bits    rs1v, rs2v;                                                   // The value of the selected s1, s2 registers
 
     final Bits  f3_add,  f3_xor,  f3_or,  f3_and, f3_sll, f3_srl,               // Funct3 op codes
@@ -101,7 +101,6 @@ final public class Ban extends Chip                                             
     final Eq   eqLoad, eqStore;                                                 // Load requested, store requested
 
     final Bits    result;                                                       // Choose between immediate or dyadic operation
-    final Bits[]ox = new Bits[XLEN];                                            // Output choice between existing register and new result
 
 //D2 Memory                                                                     // Make a request to memory or receive data from memory.
 
@@ -157,7 +156,7 @@ final public class Ban extends Chip                                             
       one     = C.bits (q("one"),    XLEN, 1);                                  // Constant one
       zero    = C.bits (q("zero"),   XLEN, 0);                                  // Constant zero
 
-      opCode  = C.subBitBus(q("opCode"), decode, p_opCode,     l_opCode);       // Decode the instruction
+      opCode  = C.subBitBus(q("opCode"), decode, p_opCode,     l_opCode);       // Decode the instruction converting the offsets from zero based to one based
       funct3  = C.subBitBus(q("funct3"), decode, p_funct3,     l_funct3);
       funct5  = C.subBitBus(q("funct5"), decode, p_funct5,     l_funct5);
       funct7  = C.subBitBus(q("funct7"), decode, p_funct7,     l_funct7);
@@ -199,17 +198,14 @@ final public class Ban extends Chip                                             
       immU2   = C.shiftLeftConstant (q("immU2"), immu, D.U.p_immediate);        // Place the 20 bits provided in the immediate operand in the high bits of the target register
 
       sv      = new Eq[XLEN];                                                   // Get values of s1 and s2
-      Sv      = new Eq[XLEN];
       sv[0]   = C.eq(C.bits(q("xv0"), D.l_rs1, 0), zero);                       // Get value of s1 register
-      Sv[0]   = C.eq(C.bits(q("Xv0"), D.l_rs2, 0), zero);                       // Get value of s2 register
 
       for (int i = 1; i < XLEN; i++)
        {sv[i] = C.eq(C.bits(q("xv")+i, D.l_rs1, i), x[i]);                      // Get value of s1 register
-        Sv[i] = C.eq(C.bits(q("Xv")+i, D.l_rs2, i), x[i]);                      // Get value of s2 register
        }
 
       rs1v    = C.chooseEq(q("rs1v"),  rs1,  sv);                               // The value of the selected s1 register
-      rs2v    = C.chooseEq(q("rs2v"),  rs2,  Sv);                               // The value of the selected s2 register
+      rs2v    = C.chooseEq(q("rs2v"),  rs2,  sv);                               // The value of the selected s2 register
 
       f3_add  = C.bits(q("f3_add"),  l_funct3, D.f3_add);                       // Funct3 op codes
       f3_xor  = C.bits(q("f3_xor"),  l_funct3, D.f3_xor);
@@ -220,7 +216,7 @@ final public class Ban extends Chip                                             
       f3_slt  = C.bits(q("f3_slt"),  l_funct3, D.f3_slt);
       f3_sltu = C.bits(q("f3_sltu"), l_funct3, D.f3_sltu);
 
-      f3_beq  = C.bits(q("f3_beq"),  l_funct3, D.f3_beq);
+      f3_beq  = C.bits(q("f3_beq"),  l_funct3, D.f3_beq);                       // Decode a branch instruction
       f3_bne  = C.bits(q("f3_bne"),  l_funct3, D.f3_bne);
       f3_blt  = C.bits(q("f3_blt"),  l_funct3, D.f3_blt);
       f3_bge  = C.bits(q("f3_bge"),  l_funct3, D.f3_bge);
@@ -291,7 +287,7 @@ final public class Ban extends Chip                                             
 
       dR      = C.chooseEq (q("dR"), funct7, edR0, edR2);                       // Choose the dyadic operation
 
-      eq12    = C.compareEq        (q("eq12"),  rs1v, rs2v);
+      eq12    = C.compareEq        (q("eq12"),  rs1v, rs2v);                    // Compare source1 with immediate
       lt12    = C.binaryTCCompareLt(q("lt12"),  rs1v, rs2v);
       ltu12   = C.compareLt        (q("ltu12"), rs1v, rs2v);
       pcb     = C.binaryTCAdd(q("pcb"),   pc, immB2);                           // Pc plus sign extended immediate
@@ -435,34 +431,51 @@ final public class Ban extends Chip                                             
 """);
    }
 
-  static void test_fibonacci()
-   {final int       N = 30;
+  static void test_fibonacci()                                                  // Test Risc V cpu by producing some Fibonacci numbers
+   {final int       N = 200;
     final Chip      c = new Chip();
     final Pulse    xi = c.pulse("xi").period(N).on(N/2).start(1).b();           // Execute an instruction
     final Register pc = c.new Register("pc", XLEN, xi, 0);                      // Initialize pc
     final Register[]x = new Register[XLEN];
+    final Bits   []xb = new Bits[XLEN];
 
-    for (int i = 1; i < XLEN; i++) x[i] = c.new Register("x"+i, XLEN, xi, 0);   // Initialize registers
-    for (int i = 1; i < XLEN; i++) x[i].anneal();
+    for (int i = 1; i < XLEN; i++)  x[i] = c.new Register("x"+i, XLEN, xi, 0);  // Initialize registers
+    for (int i = 1; i < XLEN; i++) xb[i] = x[i].anneal();
 
-    long[]Code = {0xa00093, 0x293,   0x113,   0x100193, 0x228a23,               // Code for Fibonacci
+    long[]Code = {0xa00093, 0x293,   0x113,   0x100193, 0x228a23,               // Code for Fibonacci numbers in Risc V machine code
                   0x310233, 0x18133, 0x201b3, 0x128293, 0xfe12cbe3};
 
     Bits code = c.bits("code", XLEN, Code);
 
-    Bits  instruction = c.readMemory("instruction", code, pc, XLEN);            // Latest instruction
-    BinaryAdd     pc2 = c.binaryAdd ("pc2", pc, 1);                             // Next instruction
-                        c.continueBits(pc.load, pc2.sum());
-    OutputUnit oInstruction = c.new OutputUnit("oInstruction", instruction, xi);
+    Bits  pc4 = c.shiftRightArithmetic("pc4", pc, 2);                           // Address instruction in blocks of XLEN bits
+    Bits  instruction = c.readMemory("instruction", code, pc4, XLEN);           // Latest instruction
 
-    c.simulationSteps(N*(Code.length+2));
-    c.executionTrace("pc   instruction",
-                     "%s  %s", pc, instruction);
-    instruction.anneal();
+    RV32I cpu = rv32i(c, "cpu", instruction, pc, xb);                           // Execute instruction
+
+    for (int i = 1; i < XLEN; i++) x[i].load(cpu.X[i]);                         // Initialize registers
+
+    c.continueBits(pc.load, cpu.PC);                                            // Update
+//  OutputUnit oInstruction = c.new OutputUnit("oInstruction", instruction, xi);
+    OutputUnit aVariable    = c.new OutputUnit("aVariable",    cpu.X[2],    xi) // Extract Fibonacci numbers as they are formed. Paul Halmos: Naive Set Theory, page 45: the object defined has some irrelevant structure, which seems to get in the way (but is in fact harmless).
+     {void action()
+       {final Integer p = pc.Int(), f = cpu.X[2].Int();                         // Program counter and variable 'a'
+        if (p != null && p == 16) log.push(f);                                  // Extract latest fibonacci number and write it to the output channel
+       }
+     };
+
+    c.simulationSteps(70*N);                                                    // Simulation
+//  c.executionTrace("pc   instruction", "%8s   %8s   %8s", pc4, instruction, cpu.X[2]);
+
+    instruction.anneal(); cpu.m.anneal();
+    for (int i = 1; i < XLEN; i++) cpu.X[i].anneal();
+
     c.simulate();
+
+    say(aVariable.decimal());
+    aVariable.ok(0, 1, 1, 2, 3, 5, 8, 13, 21, 34);
 //  say(oInstruction);
-    oInstruction.ok(0xa00093, 0x293, 0x113, 0x100193, 0x228a23, 0x310233, 0x18133, 0x201b3, 0x128293, 0xfe12cbe3, 0x0);
-    c.printExecutionTrace();
+//  oInstruction.ok(0xa00093, 0x293, 0x113, 0x100193, 0x228a23, 0x310233, 0x18133, 0x201b3, 0x128293, 0xfe12cbe3, 0x0);
+//  c.printExecutionTrace();
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -480,7 +493,6 @@ final public class Ban extends Chip                                             
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    //test_decode_lh();
     test_fibonacci();
    }
 
