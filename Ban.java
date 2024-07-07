@@ -437,7 +437,7 @@ final public class Ban extends Chip                                             
     final Pulse    xi = c.pulse("xi").period(N).on(N/2).start(1).b();           // Execute an instruction
     final Register pc = c.new Register("pc", XLEN, xi, 0);                      // Initialize pc
     final Register[]x = new Register[XLEN];
-    final Bits   []xb = new Bits[XLEN];
+    final Bits   []xb = new Bits    [XLEN];
 
     for (int i = 1; i < XLEN; i++)  x[i] = c.new Register("x"+i, XLEN, xi, 0);  // Initialize registers
     for (int i = 1; i < XLEN; i++) xb[i] = x[i].anneal();
