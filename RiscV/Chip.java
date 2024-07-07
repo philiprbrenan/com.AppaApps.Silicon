@@ -721,9 +721,6 @@ public class Chip                                                               
 
   Inputs inputs() {return new Inputs();}                                        // Create a new set of inputs.
 
-  interface SimulationStep {void step();}                                       // Called each simulation step
-  SimulationStep simulationStep = null;                                         // Called each simulation step
-
   static class ExecutionTrace                                                   // Trace the values of named bits and bit buses as the execution proceeds
    {final Object[]objects;                                                      // Objects to trace
     final String title;                                                         // Title
@@ -822,8 +819,8 @@ public class Chip                                                               
 //   }
 
   static boolean[]bitStack(int width, long...values)                            // Create a stack of bits
-   {if (width >= Long.SIZE) stop("Width must be less than", Long.SIZE, "not", width);
-    final int N = width*values.length;
+   {final int N = width*values.length;
+    if (width >= Long.SIZE) stop("Width must be less than", Long.SIZE, "not", width);
     final boolean[]b = new boolean[N];
     for(int i = 0; i<N; ++i) b[i] = (values[i/width] & (1l<<(i % width))) != 0;
     return b;
@@ -914,7 +911,7 @@ public class Chip                                                               
       final int B = bits();
       for  (int i = 1; i <= B; i++)                                             // Each bit on bus
        {final Bit b = b(i);
-        final Gate g = getGate(b);                                              // We are in an interface and so static
+        final Gate g = gates.get(b.name);                                       // We are in an interface and so static
         if (g == null)
          {err("No such gate as:", name(), i);                                   // Generally occurs during testing where we might want to continue to see what other errors  occur
           return null;
@@ -1553,8 +1550,6 @@ public class Chip                                                               
    {final int M = memory.bits(), I = index.bits(), N = M / wordSize;
     if (M % wordSize > 0)
       stop("Memory of size", M, "not divisible by wordSize:", wordSize);
-//  if (N != powerTwo(I))
-//    stop("Memory of size", N, "words cannot be addressed exactly by", I, "bits");
     final Eq[]e = new Eq[N];
     for (int i = 1; i <= N; i++)                                                // Each possible world
      {final String n = n(i, Output, "sbb");
@@ -1719,42 +1714,10 @@ public class Chip                                                               
    }
 
 //D2 Registers                                                                  // Create registers
-/*
-  class Monitor                                                                 // Monitor the load signals for a register to ensure that they remain viable at all times
-   {final String name;                                                          // Name of Monitor
-    final Bit [] bits;                                                          // Bits to monitor
-    final Boolean[]B;                                                           // Snapshot of the current bit values
 
-    Monitor(String Name, Bit[]Bits)
-     {name = Name; bits = Bits;
-      monitors.put(name, this);
-      B = new Boolean[bits.length];
-     }
-
-    void check()                                                                // Check load signals are viable
-     {for (int i = 0; i < bits.length; i++)                                     // Capture each load signal state
-       {final Bit  b = bits[i];
-        final Gate g = getGate(b);
-        B[i] = g.value;
-       }
-      int h = 0, l = 0, n = 0;
-      for (int i = 0; i < bits.length; i++)                                     // Signal statistics
-        if (B[i] == null) ++n; else if (B[i]) ++h; else ++l;
-      if (h == 1) return;                                                       // Load signals are combined with 'or' so if one signal is high we have a definite result and no clash with any other load signal.
-      if (h == 0 && n == 0) return;                                             // All load signals are low so we have a definite result and no clashes
-      final StringBuilder s = new StringBuilder();                              // Report signals in error
-      for (int i = 0; i < bits.length; i++)
-       {if      (B[i] == null ) s.append(""+i+" => null");
-        else if (B[i])          s.append(""+i+" => 1");
-       }
-      say("Monitor", name, "has", h, "1 bits and", n, "null bits:", s);
-     }
-   }
-
-  Monitor monitor(String name, Bit...bits) {return new Monitor(name, bits);}    // Create a new monitor
-*/
   class Register extends Bits                                                   // Description of a register
-   {final String load;                                                          // The bit bus from which the register will be loaded
+   {final String output;                                                        // Gate names prefix
+    final String load;                                                          // The bit bus from which the register will be loaded
     final Bits reg;                                                             // The bit bus produced by the register
     final Bits   l;                                                             // Load from these bits
     final Bits   v;                                                             // Initial value
@@ -1764,28 +1727,36 @@ public class Chip                                                               
 
     Register(String Output, int Width, Pulse Load)                              // Load register from input on falling edge of load signal.
      {super(Output, Width);                                                     // Load from these bits
+      output = Output;
       p = null; v = L = null; o = null;
-      load = n(Output, "load");                                                 // Load bitbus name
-      l    = bitBus(load, Width);                                               // Load from these bits
-      reg  = this;                                                              // Bit bus created by register
+      load   = n(Output, "load");                                               // Load bitbus name
+      l      = bitBus(load, Width);                                             // Load from these bits
+      reg    = this;                                                            // Bit bus created by register
       for (int i  = 1; i <= Width; i++) My(b(i), Load, l.b(i));                 // Create the memory bits
      }
 
     Register(String Output, int Width, Pulse Load, int Value)                   // Load register from input on falling edge of load signal. The register is initialized to a default value
      {super(Output, Width);                                                     // Load from these bits
-      load = n(Output, "load");                                                 // Load name
-      l    = bitBus(load, Width);                                               // Load bitbus
-      v    = Chip.this.bits(n(Output, "initial"), Width, Value);                // Initial value
-      p    = pulse(n(Output, "loadPulse"), 0, Width/2);                         // Load pulse
-      L    = chooseFromTwoWords(n(Output, "initialize"), l, v, p);              // Initialize or load
-      o    = Or(n(Output, "orPulse"), p, Load);
-      reg  = this;                                                              // Bit bus created by register
+      output = Output;
+      load   = n(Output, "load");                                               // Load name
+      l      = bitBus(load, Width);                                             // Load bitbus
+      v      = Chip.this.bits(n(Output, "initial"), Width, Value);              // Initial value
+      p      = pulse(n(Output, "loadPulse"), 0, Width/2);                       // Load pulse
+      L      = chooseFromTwoWords(n(Output, "initialize"), l, v, p);            // Initialize or load
+      o      = Or(n(Output, "orPulse"), p, Load);
+      reg    = this;                                                            // Bit bus created by register
       for (int i = 1; i <= Width; i++) My(b(i), o, L.b(i));                     // Create the memory bits
      }
+
+    void load(Bits input) {continueBits(load, input);}                          // Load register from input on falling edge of load signal.
    }
 
   Register register(String name, int width, Pulse load)                         // Create a register loaded from one source
    {return new Register(name, width, load);
+   }
+
+  Register register(String name, int width, Pulse load, int value)                         // Create a register loaded from one source
+   {return new Register(name, width, load, value);
    }
 
 //D2 Pulses                                                                     // Timing signals. At one point I thought that it should be possible to have one pulse trigger other pulses and to route pulses so that complex for loop and if structures could be realize. But this adds a lot of complexity and unreliability.  Eventually I concluded that it would be better to only allow external pulses at the gate layer making it possible for higher levels to perform more complex control sequences through software rather than hardware.
@@ -2085,6 +2056,11 @@ public class Chip                                                               
       s[i] = enableWordIfEq(n(i, output, "enable"), t, shift, I);               // Enable shifted bits
      }
     return orBits(output, s);                                                   // Or together the shifts
+   }
+
+  Bits shiftRightArithmetic(String output, Bits input, int shift)               // Shift the input bits right by the specified fixed number number of positions
+   {final Bits b = bits(n(output, "shiftAmount"), input.bits(), shift);        // Shift amount
+    return shiftRightArithmetic(output, input, b);                              // Shift the input bits right by the number of positions specified in shift filling in the highest bit
    }
 
   Bits binaryTCSignExtend(String output, Bits input, int width)                 // Extend the sign of a twos complement integer to the specified width
@@ -2513,10 +2489,17 @@ public class Chip                                                               
       return f;
      }
 
-    public String toString()                                                    // Content of log.
+    public String toString()                                                    // Content of log in hexadecimal.
      {final StringBuilder b = new StringBuilder();
       for (Integer i: log) b.append(i == null ? ", null" : ", 0x"+Integer.toHexString(i));
-      final String s = b.length() > 0 ? b.toString().substring(2) : "";
+      final String s = b.length() > 1 ? b.toString().substring(2) : "";
+      return name+".ok("+s+");";
+     }
+
+    public String decimal()                                                     // Content of log in decimal.
+     {final StringBuilder b = new StringBuilder();
+      for (Integer i: log) b.append(i == null ? ", null" : ", "+i);
+      final String s = b.length() > 1 ? b.toString().substring(2) : "";
       return name+".ok("+s+");";
      }
 
@@ -4135,7 +4118,6 @@ public class Chip                                                               
    {Chip c = chip("clock", 8);
     c.minSimulationSteps(16);
     Stack<Boolean> s = new Stack<>();
-    c.simulationStep = ()->{s.push(c.getBit("a"));};
     Bit  and = c.And   ("a", c.clock0.b(1), c.clock0.b(2));
     Bit  out = c.Output("o", and);
     c.simulate();
@@ -4280,26 +4262,26 @@ Step  p    r
 
     c.ok("""
 Step  p
-   1  1
-   2  2
-   3  4
-   4  8
-   5  10
-   6  20
-   7  40
-   8  80
-   9  100
-  10  200
-  11  400
-  12  800
-  13  1000
-  14  2000
-  15  4000
-  16  8000
-  17  1
-  18  2
-  19  4
-  20  8
+   1  0x1
+   2  0x2
+   3  0x4
+   4  0x8
+   5  0x10
+   6  0x20
+   7  0x40
+   8  0x80
+   9  0x100
+  10  0x200
+  11  0x400
+  12  0x800
+  13  0x1000
+  14  0x2000
+  15  0x4000
+  16  0x8000
+  17  0x1
+  18  0x2
+  19  0x4
+  20  0x8
 """);
    }
 
@@ -4630,6 +4612,19 @@ Step  i     o     O
     oB.ok( 5);
    }
 
+  static void test_sub_bit_bus2()
+   {int   N = 32;
+    Chip  c = chip();
+    Bits  b = c.bits("b", N, 0x228a23).anneal();
+    Bits  i = c.subBitBus("i", b, 1,  7).anneal();
+    Bits  s = c.subBitBus("s", b, 1+15, 5).anneal();
+    Bits  S = c.subBitBus("S", b, 1+20, 5).anneal();
+          c.simulate();
+    i.ok(0x23);
+    s.ok(5);
+    S.ok(2);
+   }
+
   static void test_sub_word_bus()
    {int    N = 8;
     Chip   c = chip();
@@ -4820,7 +4815,7 @@ Step  o     e
      }
    }
 
-  static void test_shiftRightArithmetic()
+  static void test_shift_right_arithmetic()
    {int      N = 4;
     for (int i = 1; i <= N; i++)
      {Chip   c = chip();
@@ -4838,7 +4833,24 @@ Step  o     e
      }
    }
 
-  static void test_signExtend(int length, int result)
+  static void test_shift_right_arithmetic_constant()
+   {int      N = 4;
+    for (int i = 1; i <= N; i++)
+     {Chip   c = chip();
+      Bits one = c.bits("one", N, 0b1000);
+      Bits   s = c.shiftRightArithmetic("s", one, i);
+      s.anneal();
+      c.simulate();
+      s.ok(switch(i)
+       {case  0 -> 0b1000;
+        case  1 -> 0b1100;
+        case  2 -> 0b1110;
+        default -> 0b1111;
+       });
+     }
+   }
+
+  static void test_sign_extend(int length, int result)
    {Chip   c = chip();
     Bits   i = c.bits("i", 4, 0b1001);
     Bits   I = c.binaryTCSignExtend("I", i, length);
@@ -4847,10 +4859,10 @@ Step  o     e
     I.ok(result);
    }
 
-  static void test_signExtend()
-   {test_signExtend(2,        0b01);
-    test_signExtend(4,      0b1001);
-    test_signExtend(8, 0b1111_1001);
+  static void test_sign_extend()
+   {test_sign_extend(2,        0b01);
+    test_sign_extend(4,      0b1001);
+    test_sign_extend(8, 0b1111_1001);
    }
 
   static void test_then_if_eq_else()
@@ -4933,6 +4945,26 @@ Step  o     e
     r4.ok(4);
    }
 
+  static void test_choose_equals3()
+   {final int B = 32, M = 3;
+    for (int j = 0; j < B; j++)
+     {Chip        c = chip();
+      Register  []r = new Register[B];
+      Eq        []e = new       Eq[B];
+      Pulse       p = c.pulse("p").period(logTwo(B)).start(1).b();
+      for (int i = 0; i < B; i++) r[i] = c.register (n(i+1,  "r"), B, p, 0);
+      for (int i = 0; i < B; i++) r[i].load  (c.bits(n(i+1, "cb"), B, i*M));
+      for (int i = 0; i < B; i++) e[i] = c.eq(c.bits(n(i+1,  "e"), B, i), r[i]);
+      Bits R = c.chooseEq("R",                c.bits(n(j,  "Req"), B, j), e);
+      R.anneal();
+      c.simulationSteps(B+8);
+      c.simulate();
+      R.ok(j*M);
+      //say(c);
+      //stop();
+     }
+   }
+
   static void test_choose_equals_zero()
    {final int B = 4;
     Chip   c = chip();
@@ -5012,6 +5044,7 @@ Step  o     e
     test_remove_from_array();
     test_btree_insert();
     test_sub_bit_bus();
+    test_sub_bit_bus2();
     test_sub_word_bus();
     test_find_words();
     test_btree_split_node();
@@ -5023,25 +5056,31 @@ Step  o     e
     test_shiftLeftMultiple();
     test_shiftLeftConstant();
     test_shiftRightMultiple();
-    test_shiftRightArithmetic();
-    test_signExtend();
+    test_shift_right_arithmetic();
+    test_shift_right_arithmetic_constant();
+    test_sign_extend();
     test_then_if_eq_else();
     test_bits_forward();
     test_words_forward();
     test_choose_equals();
     test_choose_equals2();
+    test_choose_equals3();
     test_choose_equals_zero();
     test_read_memory();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
     //test_read_memory();
     //test_binary_increment();
     //test_fibonacci();
     //test_register();
     //test_register_initialization();
     //test_binary_add_constant();
+    //test_shift_right_arithmetic_constant();
+    //test_choose_equals3();
+    test_clock();
+
    }
 
   public static void main(String[] args)                                        // Test if called as a program
