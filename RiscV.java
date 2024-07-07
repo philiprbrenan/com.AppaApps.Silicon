@@ -233,7 +233,7 @@ public class RiscV extends Chip                                                 
     final int rs2;                                                              // Source 2 register
     final int subType;                                                          // Sub type
 
-    final static int   p_opCode =  0, l_opCode  =  7;                           // Encoded position of op code
+    final static int   p_opCode =  0, l_opCode  =  7;                           // Encoded position of op code - zero based
     final static int       p_rd =  7, l_rd      =  5;                           // Encoded position of destination register
     final static int   p_funct3 = 12, l_funct3  =  3;                           // Encoded position of sub function
     final static int  p_subType = 12, l_subType =  3;                           // Encoded position of sub type
@@ -1000,7 +1000,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     r.addi(a, z, 0);                                                            // a =  0
     r.addi(b, z, 1);                                                            // b =  1
     Label start = r.new Label("start");                                         // Start of for loop
-    r.sb (i, a, o.at());                                                        // Save latest result in memory
+    r.sb  (i, a, o.at());                                                       // Save latest result in memory
     r.add (c, a, b);                                                            // Latest Fibonacci number
     r.add (a, b, z);                                                            // Move b to a
     r.add (b, c, z);                                                            // Move c to b
