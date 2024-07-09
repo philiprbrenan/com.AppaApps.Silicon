@@ -60,4 +60,4 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
 """);
 ```
 
-Modified: 2024-07-09 at 17:30:21
+Modified: 2024-07-09 at 22:12:18
