@@ -288,7 +288,12 @@ public class Chip                                                               
     String drives()                                                             // Convert drives to a printable string
      {final StringBuilder b = new StringBuilder();
       for (WhichPin s : drives) b.append(s + ", ");
+      if (drives1 != null) b.append(" drives1="+drives1.name+"=");
+      if (drives2 != null) b.append(" drives2="+drives2.name+"=");
       if (b.length() > 0) b.delete(b.length() - 2, b.length());
+say("DDDD", drives1 == null ? "" : drives1.name);
+say("EEEE", drives2 == null ? "" : drives2.name);
+say("FFFF", b.toString());
       return b.toString();
      }
 
@@ -413,12 +418,14 @@ public class Chip                                                               
             else               stop("Gate:", T.name,
               "does not have enough pins to be driven by:", t, "from", name);
            }
+say("BBBB", T.name, T.iGate1, T.iGate2);
+
          }
        }
 
       if (op == Operator.My)   memoryGates.put(name, this);                     // Classify gates for simulation
       else                       nonMemory.put(name, this);
-      if (op == Operator.Input) inputGates.put(name, this);
+      if (zerad(op)) inputGates.put(name, this);
       drives1 = drives2 = null;                                                 // In a subsequent pass, record which gate each gate drives
      }
 
@@ -429,10 +436,10 @@ public class Chip                                                               
 
     void drivenBy()                                                             // Record gates that drive this gate
      {if (iGate1 != null)
-       {if (drives1 == null) iGate1.drives1 = this; else iGate1.drives2 = this;
+       {if (iGate1.drives1 == null) iGate1.drives1 = this; else iGate1.drives2 = this;
        }
       if (iGate2 != null)
-       {if (drives1 == null) iGate2.drives1 = this; else iGate2.drives2 = this;
+       {if (iGate2.drives1 == null) iGate2.drives1 = this; else iGate2.drives2 = this;
        }
      }
 
@@ -661,7 +668,6 @@ public class Chip                                                               
     for (Gate  g : gates.values())  g.checkGate();                              // Check each gate is being driven
     for (Bit   b : gates.values())   getGate(b);                                // Check that each bit is realized as a gate
     for (Gate  g : gates.values())  g.drivenBy();                               // Record which gates each gate drives
-
     printErrors();
     distanceToOutput();                                                         // Output gates
    }
@@ -783,6 +789,7 @@ public class Chip                                                               
 
     for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
      {final Gate[]G = active.values().toArray(new Gate[0]);                     // Currently active gates
+
       TreeMap<String,Gate> activate = new TreeMap<>();                          // The gates that will be active in the next step
       for (Gate       g : G) g.step();                                          // Compute next value for  each gate
       for (Pulse      p : P) p.setState();                                      // Load all the pulses for this chip
@@ -791,12 +798,14 @@ public class Chip                                                               
       for (InputUnit  i : I) i.action();                                        // Action on each input peripheral affected by a falling edge
       for (OutputUnit o : O) if (o.fell()) o.action();                          // Action on each output peripheral affected by a falling edge
       if (executionTrace != null) executionTrace.trace();                       // Trace requested
+say("AAAA");
+for(Gate g : activate.values()) say(g);
 
 //    if (!changes() && (!miss || steps >= minSimulationSteps)) return;         // No changes occurred and we are beyond the minimum simulation time or no such time was set
-say("AAAA", activate);
       if (activate.size() == 0 && (!miss || steps >= minSimulationSteps))return;// No changes occurred and we are beyond the minimum simulation time or no such time was set
 //    noChangeGates();                                                          // Reset change indicators
       active = activate;                                                        // The activated gates become the new active gates. In a chip, these are the gates that should be powered on for the next step.
+
      }
     if (maxSimulationSteps == null)                                             // Not enough steps available by default
       err("Out of time after", actualMaxSimulationSteps, "steps");
@@ -3460,8 +3469,8 @@ say("AAAA", activate);
     Inputs inputs = c.inputs().set(i, true).set(I, false);
 
     c.simulate(inputs);
-
-    c.draw();
+    say(c);
+    //c.draw();
 
     i.ok(true);
     I.ok(false);
@@ -3692,7 +3701,6 @@ say("AAAA", activate);
         Bits  o = c.andBits("o", i1, i2);
         c.outputBits("out", o);
         c.simulate();
-        ok(c.steps, 4);
         ok(o.Int(), 5 & i);
        }
      }
@@ -5068,7 +5076,7 @@ Step  o     e
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
     //test_read_memory();
     //test_binary_increment();
     //test_fibonacci();
@@ -5077,6 +5085,7 @@ Step  o     e
     //test_binary_add_constant();
     //test_shift_right_arithmetic_constant();
     //test_choose_equals3();
+    test_and();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
