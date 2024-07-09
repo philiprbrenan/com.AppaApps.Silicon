@@ -19,7 +19,6 @@ public class Chip                                                               
   final static long             start = System.nanoTime();                      // Start time
 
   final String                   name;                                          // Name of chip
-  final int                clockWidth;                                          // Number of bits in system clock. Zero implies no clock.
 
   Integer               layoutLTGates = 100;                                    // Always draw the layout if it has less than this many gates in it or if there is no limit specified
   final int defaultMaxSimulationSteps = github_actions ? 1000 : 100;            // Default maximum simulation steps
@@ -48,10 +47,10 @@ public class Chip                                                               
   final Map<String, OutputUnit>                                                 // Output devices connected to the chip
                               outputs = new TreeMap<>();
   final Map<String, Pulse>     pulses = new TreeMap<>();                        // Bits that are externally driven by periodic pulses of a specified duty cycle
-//final Map<String, Monitor> monitors = new TreeMap<>();                        // Monitor pulses used to clock registers to ensure they remain viable during execution
 
-  final Bits                 clock0;                                            // Negative clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
-  final Bits                 clock1;                                            // Positive clock input bus name. Changes to this bus do not count to the change count for each step so if nothing else changes the simulation will be considered complete.
+  final Map<String, Gate> memoryGates = new TreeMap<>();                        // Memory gates
+  final Map<String, Gate>   nonMemory = new TreeMap<>();                        // Non memory gates
+  final Map<String, Gate>  inputGates = new TreeMap<>();                        // Input gates
 
   ExecutionTrace       executionTrace = null;                                   // Execution trace goes here
 
@@ -71,31 +70,12 @@ public class Chip                                                               
   Stack<Connection>       connections;                                          // Pairs of gates to be connected
   Diagram                     diagram;                                          // Diagram specifying the layout of the chip
 
-  Chip(String Name)                                                             // Create a new L<chip>.
-   {this(Name, 0);                                                              // Name of chip
-   }
+  Chip(String Name) {name = Name;}                                              // Create a new L<chip>.
 
-  Chip()                                                                        // Create a new chip while testing.
-   {this(currentTestName(), 0);                                                 // Name of chip is the name of the calling test
-   }
-
-  Chip(String Name, int ClockWidth)                                             // Create a new chip.
-   {name = Name;                                                                // Name of chip
-    clockWidth = ClockWidth;                                                    // Clock width
-    if (clockWidth > 0)                                                         // Create the system clock
-     {clock0 = inputBits("Clock0", clockWidth);
-      clock1 = inputBits("Clock1", clockWidth);
-     }
-    else
-     {clock0 = null;
-      clock1 = null;
-     }
-    for (Gate g : gates.values()) g.setSystemGate();                            // Mark all gates produced so far as system gates
-   }
+  Chip() {this(currentTestName());}                                             // Create a new chip while testing.
 
   static Chip chip()            {return new Chip();}                            // Create a new chip while testing.
   static Chip chip(String name) {return new Chip(name);}                        // Create a new chip while testing.
-  static Chip chip(String Name, int Width) {return new Chip(Name, Width);}      // Create a new chip.
 
   Integer      layoutLTGates(Integer      LayoutLTGates) {return          layoutLTGates =          LayoutLTGates;}  // Always draw the layout if it has less than this many gates in it
   int     maxSimulationSteps(int     MaxSimulationSteps) {return     maxSimulationSteps =     MaxSimulationSteps;}  // Maximum simulation steps
@@ -261,13 +241,14 @@ public class Chip                                                               
     Bit  soGate1, soGate2, tiGate1, tiGate2;                                    // Pin assignments on source and target gates used during layout but not during simulation
     final TreeSet<WhichPin>
                       drives = new TreeSet<>();                                 // The names of the gates that are driven by the output of this gate with a possible pin selection attached
+    Gate drives1, drives2;                                                      // Drives these gates during simulation
     boolean           pulsed = false;                                           // Used by Pulse type gates to create a pulse in response to a falling edge.
     boolean       systemGate = false;                                           // System gate if true. Suppresses checking that this gate is driven by something as it is driven externally by the surrounding environment.
     boolean             fell = false;                                           // Gate fell from high to low during the latest step
     Integer distanceToOutput;                                                   // Distance to nearest output. Used during layout to position gate on silicon surface.
     Boolean            value;                                                   // Current output value of this gate
     Boolean        nextValue;                                                   // Next value to be assumed by the gate at the end of the step.
-    boolean          changed;                                                   // Value if this gate changed during current simulation step
+//  boolean          changed;                                                   // Value if this gate changed during current simulation step
     int     firstStepChanged;                                                   // First step at which we changed - used to help position gate on silicon surface during layout.
     int      lastStepChanged;                                                   // Last step at which we changed - used to help position gate on silicon surface during layout.
     String     nearestOutput;                                                   // The name of the nearest output so we can sort each layer to position each gate vertically so that it is on approximately the same Y value as its nearest output.
@@ -352,7 +333,8 @@ public class Chip                                                               
         iGate2 == null ? ""  : iGate2.name,
         pin2   == null ? '.' : pin2  ? '1' : '2',
         iGate2 == null ? '.' : iGate2.value == null ? '.' : iGate2.value ? '1' : '0',
-        changed ? '1' : '0',
+//      changed ? '1' : '0',
+        ' ',
         firstStepChanged,
         lastStepChanged,
         distanceToOutput,
@@ -433,29 +415,49 @@ public class Chip                                                               
            }
          }
        }
+
+      if (op == Operator.My)   memoryGates.put(name, this);                     // Classify gates for simulation
+      else                       nonMemory.put(name, this);
+      if (op == Operator.Input) inputGates.put(name, this);
+      drives1 = drives2 = null;                                                 // In a subsequent pass, record which gate each gate drives
      }
 
-    void compile()                                                              // Check that the gate is being driven or is an input gate
+    void checkGate()                                                            // Check that the gate is being driven or is an input gate
      {if (iGate1 == null && iGate2 == null && !zerad(op))                       // All gates except input gates require at least one input
         stop("Gate name:", name, "type:", op, "is not being driven by any other gate");
      }
 
-    void updateEdge()                                                           // Update a memory gate on a falling edge. The memory bit on pin 2 is loaded when the value on pin 1 goes from high to low because reasoning about trailing edges seems to be easier than reasoning about leading edges
+    void drivenBy()                                                             // Record gates that drive this gate
+     {if (iGate1 != null)
+       {if (drives1 == null) iGate1.drives1 = this; else iGate1.drives2 = this;
+       }
+      if (iGate2 != null)
+       {if (drives1 == null) iGate2.drives1 = this; else iGate2.drives2 = this;
+       }
+     }
+
+    void activate(Map<String, Gate> activate)                                   // Activate the gates driven by this gate
+     {if (drives1 != null) activate.put(drives1.name, drives1);
+      if (drives2 != null) activate.put(drives2.name, drives2);
+     }
+
+    void updateEdge(Map<String, Gate> activate)                                 // Update a memory gate on a falling edge. The memory bit on pin 2 is loaded when the value on pin 1 goes from high to low because reasoning about trailing edges seems to be easier than reasoning about leading edges
      {if (op == Operator.My)                                                    // Memory updates are triggered by a falling edge on input pin 1
        {if (iGate1.value != null && iGate1.value && iGate1.nextValue != null && !iGate1.nextValue) // Falling edge on pin 1
-         {//if (iGate2.value != null)                                           // Unknown must also be propagated
-           {//changed = iGate2.value != iGate2.nextValue; // Necessary?
-            value   = iGate2.nextValue;
+         {if (value != iGate2.nextValue)
+           {value = iGate2.nextValue;
+            activate(activate);                                                 // Activate driven gates
            }
          }
        }
       fell = value != null && value && nextValue != null && !nextValue;         // Falling edge
      }
 
-    void updateValue()                                                          // Update the value of the gate
+    void updateValue(TreeMap<String, Gate> activate)                            // Update the value of the gate
      {if (op != Operator.My)
-       {changed = !systemGate && nextValue != value;                            // Suppress changes made by the system clock otherwise a chip with a clock will never stabilize
+       {final boolean changed = !systemGate && nextValue != value;              // Suppress changes made by the system clock otherwise a chip with a clock will never stabilize
         value   = nextValue;
+        if (changed) activate(activate);                                        // Activate driven gates
        }
      }
 
@@ -648,28 +650,33 @@ public class Chip                                                               
    }
 
   void compileChip()                                                            // Check that an input value has been provided for every input pin on the chip.
-   {final Gate[]G = gates.values().toArray(new Gate[0]);
+   {memoryGates.clear();                                                        // Classify gates for simulation
+      nonMemory.clear();
+     inputGates.clear();
+
+    final Gate[]G = gates.values().toArray(new Gate[0]);
     for (Gate  g : G) g.fanOut();                                               // Fan the output of each gate if necessary which might introduce more gates
-    for (Pulse p : pulses.values()) p.compile();                                // Compile the details of the pulse
+    for (Pulse p : pulses.values()) p.checkGate();                              // Compile the details of the pulse
     for (Gate  g : gates.values())  g.compileGate();                            // Each gate on chip
-    for (Gate  g : gates.values())  g.compile();                                // Check each gate is being driven
+    for (Gate  g : gates.values())  g.checkGate();                              // Check each gate is being driven
     for (Bit   b : gates.values())   getGate(b);                                // Check that each bit is realized as a gate
+    for (Gate  g : gates.values())  g.drivenBy();                               // Record which gates each gate drives
 
     printErrors();
     distanceToOutput();                                                         // Output gates
    }
 
   void noChangeGates()                                                          // Mark each gate as unchanged
-   {for (Gate g : gates.values()) g.changed = false;
+   {//for (Gate g : gates.values()) g.changed = false;
    }
 
-  boolean changes()                                                             // Check whether any changes were made
-   {for (Gate g : gates.values()) if (g.changed) return true;
-    return false;
-   }
+//  boolean changes()                                                             // Check whether any changes were made
+//   {for (Gate g : gates.values()) if (g.changed) return true;
+//    return false;
+//   }
 
   void initializeGates(Inputs inputs)                                           // Initialize each gate
-   {noChangeGates();
+   {//noChangeGates();
 
     for (Gate g : gates.values())                                               // Initialize each gate
      {g.value = null; g.lastStepChanged = 0;                                    // Make the value of the gate unknown.  An unknown value should not be used to compute a known value.
@@ -681,15 +688,6 @@ public class Chip                                                               
          }
         else stop("Input gate \""+g.name+"\" has no initial value");
        }
-     }
-   }
-
-  void loadClock()                                                              // Load the value of the clock into the clock input bus
-   {if (clockWidth == 0) return;                                                // No clock
-    final boolean[]b = bitStack(clockWidth, steps - 1);                         // Current step as bits. Start counting from zero so that we get a leading edge transition soonest.
-    for (int i = 1; i <= b.length; i++)                                         // Set clock bits
-     {getGate(clock0.b(i)).value =  b[i-1];
-      getGate(clock1.b(i)).value = !b[i-1];
      }
    }
 
@@ -764,9 +762,9 @@ public class Chip                                                               
     ok(executionTrace.toString(), expected);
    }
 
-  Diagram simulate() {return simulate(null);}                                   // Simulate the operation of a chip with no input pins. If the chip has in fact got input pins an error will be reported.
+  void simulate() {simulate(null);}                                             // Simulate the operation of a chip with no input pins. If the chip has in fact got input pins an error will be reported.
 
-  Diagram simulate(Inputs Inputs)                                               // Simulate the operation of a chip
+  void simulate(Inputs Inputs)                                                  // Simulate the operation of a chip
    {compileChip();                                                              // Check that the inputs to each gate are defined
     initializeGates(Inputs);                                                    // Set the value of each input gate
 
@@ -777,32 +775,31 @@ public class Chip                                                               
       maxSimulationSteps != null ? maxSimulationSteps : defaultMaxSimulationSteps;
     final boolean miss = minSimulationSteps != null;                            // Minimum simulation steps set
 
-    final Gate      []G = gates   .values().toArray(new Gate      [0]);         // Gates on chip
     final Pulse     []P = pulses  .values().toArray(new Pulse     [0]);         // Pulses
     final InputUnit []I = inputs  .values().toArray(new InputUnit [0]);         // Input peripherals
     final OutputUnit[]O = outputs .values().toArray(new OutputUnit[0]);         // Output peripherals
-//  final Monitor   []M = monitors.values().toArray(new Monitor   [0]);         // Check register load signals remain viable during execution
+
+    Map<String, Gate> active = inputGates;                                      // The gates currently active starting with the input gates
 
     for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
-     {loadClock();                                                              // Load the value of the clock into the clock input bus
+     {final Gate[]G = active.values().toArray(new Gate[0]);                     // Currently active gates
+      TreeMap<String,Gate> activate = new TreeMap<>();                          // The gates that will be active in the next step
       for (Gate       g : G) g.step();                                          // Compute next value for  each gate
       for (Pulse      p : P) p.setState();                                      // Load all the pulses for this chip
-      for (Gate       g : G) g.updateEdge();                                    // Update each gate triggered by a falling edge transition
-      for (Gate       g : G) g.updateValue();                                   // Update each gate not affected by a falling edge after the gates that are
+      for (Gate       g : G) g.updateEdge(activate);                            // Update each gate triggered by a falling edge transition
+      for (Gate       g : G) g.updateValue(activate);                           // Update each gate not affected by a falling edge after the gates that are
       for (InputUnit  i : I) i.action();                                        // Action on each input peripheral affected by a falling edge
       for (OutputUnit o : O) if (o.fell()) o.action();                          // Action on each output peripheral affected by a falling edge
       if (executionTrace != null) executionTrace.trace();                       // Trace requested
-//    for (Monitor    m : M) m.check();                                         // Check register load signals remain viable during execution
 
-      if (!changes())                                                           // No changes occurred
-       {if (!miss || steps >= minSimulationSteps) return layoutLTGates == null  // No changes occurred and we are beyond the minimum simulation time or no such time was set
-        || gates.size() <= layoutLTGates ? draw() : null;                       // Draw the layout if it has less than the specified maximum number of gates for being drawn automatically with out a specific request.
-       }
-      noChangeGates();                                                          // Reset change indicators
+//    if (!changes() && (!miss || steps >= minSimulationSteps)) return;         // No changes occurred and we are beyond the minimum simulation time or no such time was set
+say("AAAA", activate);
+      if (activate.size() == 0 && (!miss || steps >= minSimulationSteps))return;// No changes occurred and we are beyond the minimum simulation time or no such time was set
+//    noChangeGates();                                                          // Reset change indicators
+      active = activate;                                                        // The activated gates become the new active gates. In a chip, these are the gates that should be powered on for the next step.
      }
     if (maxSimulationSteps == null)                                             // Not enough steps available by default
       err("Out of time after", actualMaxSimulationSteps, "steps");
-    return null;
    }
 
 //D1 Circuits                                                                   // Some useful circuits
@@ -1790,11 +1787,13 @@ public class Chip                                                               
 
       pulses.put(name, this);                                                   // Save pulse on input chain
      }
+
     void setState()                                                             // Set gate implementing pulse to current state.
      {final int s = steps - 1;                                                  // Steps taken
       final int i = period > 0 ? s % period : s;                                // Position in period
       nextValue = s >= start*period ? i >= delay && i < on+delay : false;       // Next value for pulse.  Set like this so that the falling edge will be seen and acted on
      }
+
     public String string()                                                      // Print pulse
      {final StringBuilder b = new StringBuilder();
       b.append("pulse(\""+name +"\").period("+period+").on("+on+")"+
@@ -4114,16 +4113,16 @@ public class Chip                                                               
     ok(c.steps,    12);
    }
 
-  static void test_clock()
-   {Chip c = chip("clock", 8);
-    c.minSimulationSteps(16);
-    Stack<Boolean> s = new Stack<>();
-    Bit  and = c.And   ("a", c.clock0.b(1), c.clock0.b(2));
-    Bit  out = c.Output("o", and);
-    c.simulate();
-    ok(c.steps,  19);
-    for (int i = 0; i < s.size(); i++) ok(s.elementAt(i), (i+1) % 4 == 0);
-   }
+//  static void test_clock()
+//   {Chip c = chip("clock", 8);
+//    c.minSimulationSteps(16);
+//    Stack<Boolean> s = new Stack<>();
+//    Bit  and = c.And   ("a", c.clock0.b(1), c.clock0.b(2));
+//    Bit  out = c.Output("o", and);
+//    c.simulate();
+//    ok(c.steps,  19);
+//    for (int i = 0; i < s.size(); i++) ok(s.elementAt(i), (i+1) % 4 == 0);
+//   }
 
   static void test_pulse()
    {Chip   c = chip();
@@ -5008,7 +5007,6 @@ Step  o     e
     test_zero();
     test_one();
     test_andOr();
-    test_clock();
     test_delayed_definitions();
     test_simulation_step();
     test_connect_buses();
@@ -5070,7 +5068,7 @@ Step  o     e
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
+   {oldTests();
     //test_read_memory();
     //test_binary_increment();
     //test_fibonacci();
@@ -5079,8 +5077,6 @@ Step  o     e
     //test_binary_add_constant();
     //test_shift_right_arithmetic_constant();
     //test_choose_equals3();
-    test_clock();
-
    }
 
   public static void main(String[] args)                                        // Test if called as a program
@@ -5096,3 +5092,5 @@ Step  o     e
      }
    }
  }
+
+// PASSed ALL 3133 tests in 32.07 seconds.
