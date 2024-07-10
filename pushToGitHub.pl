@@ -34,14 +34,14 @@ if (0)                                                                          
  }
 
 if (1)                                                                          # Documentation from pod to markdown into read me with well known words expanded
- {my @pids;
-  push my @files, searchDirectoryTreesForMatchingFiles($home, qw(.java .md .pl .png));
+ {push my @files, searchDirectoryTreesForMatchingFiles($home, qw(.java .md .pl .png));
 
   for my $s(@files)                                                             # Upload each selected file
-   {next if $s =~ m(/backup/);
+   {
+say STDERR "AAAA ", dump($s);
+    next if $s =~ m(/backup/);
     next if $s =~ m(/images/);
     next if $s =~ m(/java/perl/);
-    #next if $s =~ m(/README);
     my $c = readBinaryFile $s;                                                  # Load file
 
     if ($s =~ m(/README))                                                       # Expand README
@@ -49,14 +49,10 @@ if (1)                                                                          
       $c =  expandWellKnownWordsAsUrlsInMdFormat $c;                            # Expand well known terms
      }
 
-    #if (my $pid = fork) {push @pids, $pid} else                                 # Upload files
-     {my $t = swapFilePrefix $s, $home;
-      my $w = writeFileUsingSavedToken($user, $repo, $t, $c);
-      lll "$w $s $t";
-      #exit;
-     }
+    my $t = swapFilePrefix $s, $home;
+    my $w = writeFileUsingSavedToken($user, $repo, $t, $c);
+    lll "$w $s $t";
    }
-  waitPids @pids;
  }
 
 if (1)
