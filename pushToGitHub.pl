@@ -37,11 +37,9 @@ if (1)                                                                          
  {push my @files, searchDirectoryTreesForMatchingFiles($home, qw(.java .md .pl .png));
 
   for my $s(@files)                                                             # Upload each selected file
-   {
-    next if $s =~ m(/backup/);
+   {next if $s =~ m(/backup/);
     next if $s =~ m(/images/);
     next if $s =~ m(/java/perl/);
-say STDERR "AAAA ", dump($s);
     my $c = readBinaryFile $s;                                                  # Load file
 
     if ($s =~ m(/README))                                                       # Expand README
