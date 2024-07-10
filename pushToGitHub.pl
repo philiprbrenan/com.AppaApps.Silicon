@@ -38,10 +38,10 @@ if (1)                                                                          
 
   for my $s(@files)                                                             # Upload each selected file
    {
-say STDERR "AAAA ", dump($s);
     next if $s =~ m(/backup/);
     next if $s =~ m(/images/);
     next if $s =~ m(/java/perl/);
+say STDERR "AAAA ", dump($s);
     my $c = readBinaryFile $s;                                                  # Load file
 
     if ($s =~ m(/README))                                                       # Expand README
