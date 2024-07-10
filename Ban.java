@@ -432,7 +432,7 @@ final public class Ban extends Chip                                             
    }
 
   static void test_fibonacci()                                                  // Test Risc V cpu by producing some Fibonacci numbers
-   {final int       N = 200;
+   {final int       N = 300;  // 200
     final Chip      c = new Chip();
     final Pulse    xi = c.pulse("xi").period(N).on(N/2).start(1).b();           // Execute an instruction
     final Register pc = c.new Register("pc", XLEN, xi, 0);                      // Initialize pc
@@ -463,11 +463,18 @@ final public class Ban extends Chip                                             
        }
      };
 
+//  c.simulationSteps(4000);                                                    // Simulation
     c.simulationSteps(70*N);                                                    // Simulation
 //  c.executionTrace("pc   instruction", "%8s   %8s   %8s", pc4, instruction, cpu.X[2]);
 
     instruction.anneal(); cpu.m.anneal();
     for (int i = 1; i < XLEN; i++) cpu.X[i].anneal();
+
+//  c.executionTrace = c.new Trace("p    r", true)
+//   {String trace()
+//     {return String.format("%s    %s", cpu.pc, cpu.X[2]);
+//     }
+//   };
 
     c.simulate();
 
@@ -475,7 +482,7 @@ final public class Ban extends Chip                                             
     aVariable.ok(0, 1, 1, 2, 3, 5, 8, 13, 21, 34);
 //  say(oInstruction);
 //  oInstruction.ok(0xa00093, 0x293, 0x113, 0x100193, 0x228a23, 0x310233, 0x18133, 0x201b3, 0x128293, 0xfe12cbe3, 0x0);
-//  c.printExecutionTrace();
+    c.printExecutionTrace();
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
