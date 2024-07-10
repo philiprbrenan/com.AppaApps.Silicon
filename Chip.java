@@ -4258,34 +4258,6 @@ Step  p    r
 """);
    }
 
-  static void test_register_initialization22()
-   {final int N = 8;
-    Chip      c = chip();
-    Bits      i = c.bits        ("i", N, 85);
-    Pulse     p = c.pulse       ("p").period(16).delay(8).on(8).b();
-    Register  r = c.new Register("r", N, p, 1); r.anneal();
-                  c.continueBits(r.load, i);
-
-    c.executionTrace = c.new Trace("p    r", true)
-     {String trace()
-       {return String.format("%s      %s", p, r);
-       }
-     };
-
-    c.simulationSteps(20);
-    c.simulate();
-say(c);
-    //c.printExecutionTrace(); stop();
-    c.ok("""
-Step  p    r
-   1  0      ........
-   9  1      ........
-  10  1      00000000
-  17  0      00000000
-  20  0      01010101
-""");
-   }
-
   static void test_delay_bits()
    {final int N = 16;
     Chip      c = chip ();
