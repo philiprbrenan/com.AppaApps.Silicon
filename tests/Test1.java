@@ -11,7 +11,7 @@ import java.util.*;
 
 final class Test1 extends Chip                                                  // Describe a chip and emulate its operation.
  {static void test_fibonacci()                                                  // First few fibonacci numbers
-   {final int N = 8, D = 22;                                                    // Number of bits in number, wait time to allow latest number to be computed from prior two
+   {final int N = 8, D = 24;                                                    // Number of bits in number, wait time to allow latest number to be computed from prior two
     Chip        C = chip();                                                     // Create a new chip
     Bits     zero = C.bits ("zero", N, 0);                                      // Zero - the first element of the sequence
     Bits      one = C.bits ("one",  N, 1);                                      // One - the second element of the sequence
@@ -42,13 +42,16 @@ final class Test1 extends Chip                                                  
     Bits       AC = C.chooseFromTwoWords(b.load, sac.sum(), one,  ib);          // b
     Bits       AB = C.continueBits      (c.load, sab.sum());                    // c
 
-    C.executionTrace(
-      "ia la ib lb lc   a         b         c",
-      "%s  %s  %s  %s  %s    %s  %s  %s",
-      ia, la, ib, lb, lc, a, b, c);
-    C.simulationSteps(380);
+    C.executionTrace = C.new Trace("ia la ib lb lc   a         b         c")
+     {String trace()
+       {return String.format("%s  %s  %s  %s  %s    %s  %s  %s",
+          ia, la, ib, lb, lc, a, b, c);
+       }
+     };
+
+    C.simulationSteps(420);
     C.simulate();
-    //stop(fa);
+    //stop(fa.decimal());
     fa.ok(0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233);
     //C.printExecutionTrace(); stop();
    }
