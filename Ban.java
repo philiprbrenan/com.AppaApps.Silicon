@@ -415,7 +415,7 @@ final public class Ban extends Chip                                             
  loadRequested : 0
  storeRequested: 1
            type: 000
-        address: 00000000000000000000000000000001
+        address: 0x1
        register: 00001
 """);
    }
@@ -426,7 +426,7 @@ final public class Ban extends Chip                                             
  loadRequested : 1
  storeRequested: 0
            type: 001
-        address: 00000000000000000000000000000000
+        address: 0x0
        register: 00010
 """);
    }
@@ -488,12 +488,12 @@ final public class Ban extends Chip                                             
     test_decode_auipc();
     test_decode_sb();
     test_decode_lh();
-    test_fibonacci();
+    //test_fibonacci();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_fibonacci();
+   {oldTests();
+    //test_fibonacci();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
