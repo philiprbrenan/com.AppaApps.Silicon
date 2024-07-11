@@ -27,7 +27,6 @@ public class Chip                                                               
   Integer          minSimulationSteps = null;                                   // Minimum simulation steps - we keep going at least this long even if there have been no changes to allow clocked circuits to evolve.
   int          singleLevelLayoutLimit =   16;                                   // Limit on gate scaling dimensions during layout.
 
-  final static boolean    makeSayStop = false;                                  // Turn say into stop if true which is occasionally useful for locating unlabeled say statements.
   final static int      pixelsPerCell =    4;                                   // Pixels per cell
   final static int     layersPerLevel =    4;                                   // There are 4 layers in each level: insulation, x cross bars, x-y connectors and insulation, y cross bars
   final static String      perlFolder = "perl", perlFile = "gds2.pl";           // Folder and file for Perl code to represent a layout in GDS2.
@@ -51,7 +50,8 @@ public class Chip                                                               
   final Map<String, Gate> memoryGates = new TreeMap<>();                        // Memory gates
   final Map<String, Gate>   nonMemory = new TreeMap<>();                        // Non memory gates
   final Map<String, Gate>  inputGates = new TreeMap<>();                        // Input gates
-
+  Map<String, Gate>            active = null;                                   // The gates to execute in this step of the simulation
+  Map<String, Gate>          activate = null;                                   // The gates to execute in the next step of the simulation
   Trace                executionTrace = null;                                   // Execution trace goes here
 
   int                         gateSeq =   0;                                    // Gate sequence number - this allows us to display the gates in the order they were defined to simplify the understanding of drawn layouts
@@ -72,7 +72,7 @@ public class Chip                                                               
 
   Chip(String Name) {name = Name;}                                              // Create a new L<chip>.
 
-  Chip() {this(currentTestName());}                                             // Create a new chip while testing.
+  Chip() {this(currentTestNameSuffix());}                                       // Create a new chip while testing.
 
   static Chip chip()            {return new Chip();}                            // Create a new chip while testing.
   static Chip chip(String name) {return new Chip(name);}                        // Create a new chip while testing.
@@ -248,7 +248,7 @@ public class Chip                                                               
     Integer distanceToOutput;                                                   // Distance to nearest output. Used during layout to position gate on silicon surface.
     Boolean            value;                                                   // Current output value of this gate
     Boolean        nextValue;                                                   // Next value to be assumed by the gate at the end of the step.
-    boolean          changed;                                                   // Value if this gate changed during current simulation step
+    boolean     valueChanged;                                                   // Value if this gate changed during current simulation step
     int     firstStepChanged;                                                   // First step at which we changed - used to help position gate on silicon surface during layout.
     int      lastStepChanged;                                                   // Last step at which we changed - used to help position gate on silicon surface during layout.
     String     nearestOutput;                                                   // The name of the nearest output so we can sort each layer to position each gate vertically so that it is on approximately the same Y value as its nearest output.
@@ -436,18 +436,22 @@ public class Chip                                                               
        }
      }
 
-    void activate(Map<String, Gate> activate)                                   // Activate the gates driven by this gate
-     {if (drives1 != null) activate.put(drives1.name, drives1);
-      if (drives2 != null) activate.put(drives2.name, drives2);
+    void setNextValue(Boolean newValue)                                         // Set the next value for a gate
+     {valueChanged = newValue != value;
+      if (valueChanged)
+       {if (drives1 != null) activate.put(drives1.name, drives1);
+        if (drives2 != null) activate.put(drives2.name, drives2);
+        value = newValue;
+        if (!active.containsKey(name)) stop("Gate changed in step:", steps,
+         "but this gate is not on the active list\n", this.print());
+       }
      }
-
     void updateEdge()                                                           // Update a memory gate on a falling edge. The memory bit on pin 2 is loaded when the value on pin 1 goes from high to low because reasoning about trailing edges seems to be easier than reasoning about leading edges
      {if (op == Operator.My)                                                    // Memory updates are triggered by a falling edge on input pin 1
        {if (iGate1.value != null && iGate1.value && iGate1.nextValue != null && !iGate1.nextValue) // Falling edge on pin 1
          {if (value != iGate2.nextValue)
-           {value = iGate2.nextValue;
-//          for (Gate g: gates.values()) activate.put(g.name, g);               // Enable all gates if we get a falling edge
-            changed = true;
+           {valueChanged = value != iGate2.nextValue;                           // Possibly the value of the output of the gate has been changed
+            setNextValue(iGate2.nextValue);
            }
          }
        }
@@ -456,13 +460,12 @@ public class Chip                                                               
 
     void updateValue()                                                          // Update the value of the gate
      {if (op != Operator.My)
-       {changed = nextValue != value;                                           // Suppress changes made by the system clock otherwise a chip with a clock will never stabilize
-//      if (steps <= 1 || changed) activate(activate);                          // Activate driven gates. Input gates area assumed ot have changed
-        value = nextValue;
+       {//if (steps <= 1 || changed) activate(activate);                        // Activate driven gates. Input gates area assumed ot have changed
+        setNextValue(nextValue);
        }
      }
 
-    void step()                                                                 // One step in the simulation
+    void nextValue()                                                            // Next value for each gate
      {final Boolean g = iGate1 != null ? iGate1.value : null,
                     G = iGate2 != null ? iGate2.value : null;
       nextValue = switch(op)                                                    // Null means we do not know what the value is.  In some cases involving dyadic commutative gates we only need to know one input to be able to deduce the output.  However, if the gate output cannot be computed then its result must be null meaning "could be true or false".
@@ -520,6 +523,14 @@ public class Chip                                                               
         drives.add(new WhichPin(e));                                            // The old gate drives the extension gate
         e.drives.add(new WhichPin(f));                                          // The extension gate drives the new gate
         f.fanOut();                                                             // Fanout the smaller sub tree
+       }
+     }
+
+    static void reverse(Gate[]G)                                                // Reverse an attay of gates
+     {for (int i = 0; i < G.length/2; i++)
+       {final Gate g = G[i];
+        G[i] = G[G.length-1-i];
+               G[G.length-1-i] = g;
        }
      }
    } // Gate
@@ -657,25 +668,26 @@ public class Chip                                                               
 
     final Gate[]G = gates.values().toArray(new Gate[0]);
     for (Gate  g : G) g.fanOut();                                               // Fan the output of each gate if necessary which might introduce more gates
-    for (Pulse p : pulses.values()) p.checkGate();                              // Compile the details of the pulse
-    for (Gate  g : gates.values())  g.compileGate();                            // Each gate on chip
+    //for (Pulse p : pulses.values()) p.checkGate();                              // Compile each pulse
+    for (Gate  g : gates.values())  g.compileGate();                            // Compile each gate on chip
     for (Gate  g : gates.values())  g.checkGate();                              // Check each gate is being driven
     for (Bit   b : gates.values())   getGate(b);                                // Check that each bit is realized as a gate
     for (Gate  g : gates.values())  g.drivenBy();                               // Record which gates each gate drives
+
     printErrors();
     distanceToOutput();                                                         // Output gates
    }
 
   void noChangeGates()                                                          // Mark each gate as unchanged
-   {for (Gate g : gates.values()) g.changed = false;
+   {for (Gate g : gates.values()) g.valueChanged = false;
    }
 
   boolean changes()                                                             // Check whether any changes were made
-   {for (Gate g : gates.values()) if (g.changed) return true;
+   {for (Gate g : gates.values()) if (g.valueChanged) return true;
     return false;
    }
 
-  void initializeGates(Inputs inputs)                                           // Initialize each gate
+  void initializeGates(Inputs inputs)                                           // Initialize input gates
    {noChangeGates();
 
     for (Gate g : gates.values())                                               // Initialize each gate
@@ -770,13 +782,13 @@ public class Chip                                                               
     final InputUnit []I = inputs  .values().toArray(new InputUnit [0]);         // Input peripherals
     final OutputUnit[]O = outputs .values().toArray(new OutputUnit[0]);         // Output peripherals
 
-    Map<String, Gate> active = inputGates;                                      // The gates currently active starting with the input gates
+    active   = gates;                                                           // Start with all gates active
+    activate = new TreeMap<>();                                                 // The gates that will be active in the next step
 
     for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
-     {//final Gate[]G = active.values().toArray(new Gate[0]);                     // Currently active gates
+     {//final Gate[]G = active.values().toArray(new Gate[0]);                   // Currently active gates
 
-      //final TreeMap<String,Gate> activate = new TreeMap<>();                    // The gates that will be active in the next step
-      for (Gate       g : G) g.step();                                          // Compute next value for  each gate
+      for (Gate       g : G) g.nextValue  ();                                   // Compute next value for  each gate
       for (Pulse      p : P) p.setState   ();                                   // Load all the pulses for this chip
       for (Gate       g : G) g.updateEdge ();                                   // Update each gate triggered by a falling edge transition
       for (Gate       g : G) g.updateValue();                                   // Update each gate not affected by a falling edge after the gates that are
@@ -787,8 +799,7 @@ public class Chip                                                               
       if (!changes() && (!miss || steps >= minSimulationSteps)) return;         // No changes occurred and we are beyond the minimum simulation time or no such time was set
 //    if (activate.size() == 0 && (!miss || steps >= minSimulationSteps))return;// No changes occurred and we are beyond the minimum simulation time or no such time was set
       noChangeGates();                                                          // Reset change indicators
-//    active = activate;                                                        // The activated gates become the new active gates. In a chip, these are the gates that should be powered on for the next step.
-
+      active = activate;                                                        // The activated gates become the new active gates. In a chip, these are the gates that should be powered on for the next step.
      }
     if (maxSimulationSteps == null)                                             // Not enough steps available by default
       err("Out of time after", actualMaxSimulationSteps, "steps");
@@ -1777,8 +1788,9 @@ public class Chip                                                               
     void setState()                                                             // Set gate implementing pulse to current state.
      {final int s = steps - 1;                                                  // Steps taken
       final int i = period > 0 ? s % period : s;                                // Position in period
-      nextValue = s >= start*period ? i >= delay && i < on+delay : false;       // Next value for pulse.  Set like this so that the falling edge will be seen and acted on
-      //activate.put(name, this);                                                 // Input gates can change due to outside factors
+      active.put(name, this);
+      setNextValue(s >= start*period ? i >= delay && i < on+delay : false);     // Next value for pulse.  Set like this so that the falling edge will be seen and acted on
+ddd("AAAA", name, value, nextValue);
      }
 
     public String string()                                                      // Print pulse
@@ -3282,16 +3294,19 @@ public class Chip                                                               
 //D2 Traceback                                                                  // Trace back so we know where we are
 
   static String traceBack(Exception e)                                          // Get a stack trace that we can use in Geany
-   {final StackTraceElement[]  t = e.getStackTrace();
+   {final int Skip = 2;
+    final StackTraceElement[]  t = e.getStackTrace();
     final StringBuilder        b = new StringBuilder();
     if (e.getMessage() != null)b.append(e.getMessage()+'\n');
 
+    int skipped = 0;
     for(StackTraceElement s : t)
      {final String f = s.getFileName();
       final String c = s.getClassName();
       final String m = s.getMethodName();
       final String l = String.format("%04d", s.getLineNumber());
       if (f.equals("Main.java") || f.equals("Method.java") || f.equals("DirectMethodHandleAccessor.java")) {}
+      else if (skipped < Skip) ++skipped;
       else b.append("  "+f+":"+l+":"+m+'\n');
      }
     return b.toString();
@@ -3299,13 +3314,44 @@ public class Chip                                                               
 
   static String traceBack() {return traceBack(new Exception());}                // Get a stack trace that we can use in Geany
 
+  static String traceDdd()                                                      // Locate line associated with a say statement
+   {final StackTraceElement[]  t = new Exception().getStackTrace();
+    for(int i = 0; i < t.length; ++i)
+     {if (t[i].getMethodName().equals("ddd"))
+       {final StackTraceElement s = t[i+1];
+        final String f = s.getFileName();
+        final String m = s.getMethodName();
+        final String l = String.format("%04d", s.getLineNumber());
+        return f+":"+l+":";
+       }
+     }
+    return "";
+   }
+
   static String currentTestName()                                               // Name of the current test
    {final StackTraceElement[] T = Thread.currentThread().getStackTrace();       // Current stack trace
     for (StackTraceElement t : T)                                               // Locate deepest method that starts with test
      {final String c = t.getMethodName();
-      if (c.matches("\\Atest_\\w+\\Z")) return c.substring(5);
+      if (c.matches("\\Atest_\\w+\\Z")) return c;
      }
     return null;                                                                // Not called in a test
+   }
+
+  static String currentTestNameSuffix()                                         // Name of the current test
+   {final String t = currentTestName();
+    if (t == null) return null;
+    final String[]s = t.split("_", 2);
+    if (s.length < 2) return null;
+    return s[1];
+   }
+
+  static String currentCallerName()                                             // Looks for the first method written in camel case
+   {final StackTraceElement[] T = Thread.currentThread().getStackTrace();       // Current stack trace
+    for (StackTraceElement t : T)                                               // Locate deepest method with a anme written in camel case
+     {final String c = t.getMethodName();
+      if (c.matches("\\A.*_.*\\Z")) return c;
+     }
+    return null;                                                                // No method written in camel case
    }
 
   static String sourceFileName()                                                // Name of source file containing this method
@@ -3313,16 +3359,27 @@ public class Chip                                                               
     return e.getFileName();
    }
 
+//D2 Timing                                                                     // Print log messages
+
+  static class Timer                                                            // Time a section of code
+   {final long start = System.nanoTime();
+    public String toString()
+     {return String.format("%6.2f %s", seconds(), currentCallerName());
+     }
+    double seconds()
+     {final long duration = System.nanoTime() - start;
+      return duration / 1e9;
+     }
+   }
+
+  static Timer timer() {return new Timer();}                                    // Create a new timer
+
 //D2 Printing                                                                   // Print log messages
 
   static void say(Object...O)                                                   // Say something
    {final StringBuilder b = new StringBuilder();
     for (Object o: O) {b.append(" "); b.append(o);}
     System.err.println((O.length > 0 ? b.substring(1) : ""));
-    if (makeSayStop)
-     {System.err.println(traceBack());
-      System.exit(1);
-     }
    }
 
   static StringBuilder say(StringBuilder b, Object...O)                         // Say something in a string builder
@@ -3332,6 +3389,36 @@ public class Chip                                                               
      }
     b.append('\n');
     return b;
+   }
+
+
+  static void ddd(Object...O)                                                   // Debug something
+   {final int W = 10;                                                           // Width of traceback
+    if (O.length == 0)
+     {System.err.println(traceDdd());                                           // Nothing to say
+      return;
+     }
+
+    final StringBuilder b = new StringBuilder();                                // Concatenate objects as strings
+    for (int i = 0; i < O.length; i++)
+     {final Object o = O[i];
+      if (i > 0) b.append(' ');
+      b.append(o);
+     }
+    while (b.length() > 0)                                                      // Remove trailing white space
+     {final int  l = b.length();
+      final char c = b.charAt(l-1);
+      if (!Character.isWhitespace(c)) break;
+      b.setLength(l - 1);
+     }
+
+    StringBuilder p = new StringBuilder(traceDdd());                            // Create traceback line prefix
+    p.append(" ".repeat(W - p.length() % W));
+    final int     w = p.length();
+    final String[]s = b.toString().split("\n");                                 // Print first line with line position and message in a format understood by Geany with a re of: ([a-zA-Z0-9./]):(\d+)
+    System.err.println(p.toString()+" "+s[0]);
+
+    for (int i=1; i < s.length; i++) System.err.println(" ".repeat(w)+" "+s[i]);// Any following lines are indented to match the first line
    }
 
   static void err(Object...O)                                                   // Say something and provide an error trace.
@@ -3349,12 +3436,18 @@ public class Chip                                                               
 
   static int testsPassed = 0, testsFailed = 0;                                  // Number of tests passed and failed
 
+  static void ok(boolean b)                                                     // Check test results match expected results.
+   {if (b) {++testsPassed; return;}
+    testsFailed++;
+    err(currentTestName(), "failed\n");
+   }
+
   static void ok(Object a, Object b)                                            // Check test results match expected results.
    {if (a.toString().equals(b.toString())) {++testsPassed; return;}
     final boolean n = b.toString().contains("\n");
     testsFailed++;
-    if (n) err("Test failed. Got:\n"+a+"\n");
-    else   err(a, "does not equal", b);
+    if (n) err(currentTestName(), "failed. Got:\n"+a+"\n");
+    else   err(a, "does not equal", b, "in", currentTestName());
    }
 
   static void ok(String got, String expected)                                   // Confirm two strings match
@@ -3365,7 +3458,8 @@ public class Chip                                                               
     boolean matchesLen = true, matches = true;
     if (le != lg)                                                               // Failed on length
      {matchesLen = false;
-      err(b, "Mismatched length, expected", le, "got", lg, "for text:\n"+G);
+      err(b, currentTestName(), "failed: Mismatched length, expected",
+       le, "got", lg, "for text:\n"+G);
      }
 
     int l = 1, c = 0;
@@ -3397,7 +3491,8 @@ public class Chip                                                               
     final int lg = G.length, le = E.length;
 
     if (le != lg)
-     {err("Mismatched length, got", lg, "expected", le, "got:\n"+G);
+     {err(currentTestName(), "failed:",
+       "Mismatched length, got", lg, "expected", le, "got:\n"+G);
       return;
      }
 
@@ -4423,7 +4518,10 @@ Step  i     o     O
      };
 
     C.simulationSteps(420);
+    Timer t = timer();
     C.simulate();
+    ok(t.seconds() < 2d);
+
     //stop(fa.decimal());
     fa.ok(0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233);
     //C.printExecutionTrace(); stop();
@@ -5028,6 +5126,13 @@ Step  o     e
     for (int i = 0; i < N; i++) r[i].ok((int)T[i]);
    }
 
+  static void test_ddd()
+   {ddd();
+    ddd("aaa");
+    ddd("aaa\nbbb");
+    stop();
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_max_min();
     test_source_file_name();
@@ -5101,8 +5206,9 @@ Step  o     e
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
-    //test_binary_increment();
+   {//oldTests();
+    //test_fibonacci();
+    test_pulse();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
@@ -5120,3 +5226,5 @@ Step  o     e
  }
 
 // PASSed ALL 3133 tests in 32.07 seconds.
+// ([^\(]+):(\d+)
+// ([a-zA-Z0-9./]):(\d+)
