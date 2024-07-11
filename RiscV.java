@@ -51,7 +51,7 @@ public class RiscV extends Chip                                                 
    }
 
   RiscV()                                                                       // Create a new program with the name of the test
-   {this(Chip.currentTestName());
+   {this(Chip.currentTestNameSuffix());
    }
 
   int maxSimulationSteps(int MaxSimulationSteps) {return maxSimulationSteps = MaxSimulationSteps;}  // Maximum simulation steps
