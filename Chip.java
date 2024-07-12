@@ -46,12 +46,7 @@ public class Chip                                                               
   final Map<String, OutputUnit>                                                 // Output devices connected to the chip
                               outputs = new TreeMap<>();
   final Map<String, Pulse>     pulses = new TreeMap<>();                        // Bits that are externally driven by periodic pulses of a specified duty cycle
-
-  final Map<String, Gate> memoryGates = new TreeMap<>();                        // Memory gates
-  final Map<String, Gate>   nonMemory = new TreeMap<>();                        // Non memory gates
-  final Map<String, Gate>  inputGates = new TreeMap<>();                        // Input gates
-  Map<String, Gate>            active = null;                                   // The gates to execute in this step of the simulation
-  Map<String, Gate>          activate = null;                                   // The gates to execute in the next step of the simulation
+  final Map<String, Gate>      active = new TreeMap<>();                        // The gates to execute in this step of the simulation
   Trace                executionTrace = null;                                   // Execution trace goes here
 
   int                         gateSeq =   0;                                    // Gate sequence number - this allows us to display the gates in the order they were defined to simplify the understanding of drawn layouts
@@ -242,9 +237,7 @@ public class Chip                                                               
     final TreeSet<WhichPin>
                       drives = new TreeSet<>();                                 // The names of the gates that are driven by the output of this gate with a possible pin selection attached
     Gate drives1, drives2;                                                      // Drives these gates during simulation
-    boolean           pulsed = false;                                           // Used by Pulse type gates to create a pulse in response to a falling edge.
     boolean       systemGate = false;                                           // System gate if true. Suppresses checking that this gate is driven by something as it is driven externally by the surrounding environment.
-    boolean             fell = false;                                           // Gate fell from high to low during the latest step
     Integer distanceToOutput;                                                   // Distance to nearest output. Used during layout to position gate on silicon surface.
     Boolean            value;                                                   // Current output value of this gate
     Boolean        nextValue;                                                   // Next value to be assumed by the gate at the end of the step.
@@ -416,9 +409,6 @@ public class Chip                                                               
          }
        }
 
-      if (op == Operator.My)   memoryGates.put(name, this);                     // Classify gates for simulation
-      else                       nonMemory.put(name, this);
-      if (zerad(op)) inputGates.put(name, this);
       drives1 = drives2 = null;                                                 // In a subsequent pass, record which gate each gate drives
      }
 
@@ -434,59 +424,6 @@ public class Chip                                                               
       if (iGate2 != null)
        {if (iGate2.drives1 == null) iGate2.drives1 = this; else if (iGate2.drives2 == null) iGate2.drives2 = this; else stop("Drives too many gates");
        }
-     }
-
-    void setNextValue(Boolean newValue)                                         // Set the next value for a gate
-     {valueChanged = newValue != value;
-      if (valueChanged)
-       {if (drives1 != null) activate.put(drives1.name, drives1);
-        if (drives2 != null) activate.put(drives2.name, drives2);
-        value = newValue;
-        if (!active.containsKey(name)) stop("Gate changed in step:", steps,
-         "but this gate is not on the active list\n", this.print());
-       }
-     }
-    void updateEdge()                                                           // Update a memory gate on a falling edge. The memory bit on pin 2 is loaded when the value on pin 1 goes from high to low because reasoning about trailing edges seems to be easier than reasoning about leading edges
-     {if (op == Operator.My)                                                    // Memory updates are triggered by a falling edge on input pin 1
-       {if (iGate1.value != null && iGate1.value && iGate1.nextValue != null && !iGate1.nextValue) // Falling edge on pin 1
-         {if (value != iGate2.nextValue)
-           {valueChanged = value != iGate2.nextValue;                           // Possibly the value of the output of the gate has been changed
-            setNextValue(iGate2.nextValue);
-           }
-         }
-       }
-      fell = value != null && value && nextValue != null && !nextValue;         // Falling edge
-     }
-
-    void updateValue()                                                          // Update the value of the gate
-     {if (op != Operator.My)
-       {//if (steps <= 1 || changed) activate(activate);                        // Activate driven gates. Input gates area assumed ot have changed
-        setNextValue(nextValue);
-       }
-     }
-
-    void nextValue()                                                            // Next value for each gate
-     {final Boolean g = iGate1 != null ? iGate1.value : null,
-                    G = iGate2 != null ? iGate2.value : null;
-      nextValue = switch(op)                                                    // Null means we do not know what the value is.  In some cases involving dyadic commutative gates we only need to know one input to be able to deduce the output.  However, if the gate output cannot be computed then its result must be null meaning "could be true or false".
-       {case And     ->{if (g != null && G != null)  yield   g &&  G;  else if ((g != null && !g) || (G != null && !G)) yield false; else yield null;}
-        case Nand    ->{if (g != null && G != null)  yield !(g &&  G); else if ((g != null && !g) || (G != null && !G)) yield true;  else yield null;}
-        case Or      ->{if (g != null && G != null)  yield   g ||  G;  else if ((g != null &&  g) || (G != null &&  G)) yield true;  else yield null;}
-        case Nor     ->{if (g != null && G != null)  yield !(g ||  G); else if ((g != null &&  g) || (G != null &&  G)) yield false; else yield null;}
-        case Gt      ->{if (g != null && G != null)  yield   g && !G;                                                                else yield null;}
-        case Lt      ->{if (g != null && G != null)  yield  !g &&  G;                                                                else yield null;}
-        case My      -> null;
-        case Ngt     ->{if (g != null && G != null)  yield  !g ||  G;                                                                else yield null;}
-        case Nlt     ->{if (g != null && G != null)  yield   g || !G;                                                                else yield null;}
-        case Not     ->{if (g != null)               yield  !g;                                                                      else yield null;}
-        case Nxor    ->{if (g != null && G != null)  yield !(g ^   G);                                                               else yield null;}
-        case Xor     ->{if (g != null && G != null)  yield   g ^   G;                                                                else yield null;}
-        case One     -> true;
-        case Zero    -> false;
-        case Input   -> value;
-        case Continue, FanOut, Output -> g;
-        default      -> {stop("Unexpected gate type", op); yield null;}
-       };
      }
 
     void fanOut()                                                               // Fan out when more than two gates are driven by this gate
@@ -531,6 +468,65 @@ public class Chip                                                               
        {final Gate g = G[i];
         G[i] = G[G.length-1-i];
                G[G.length-1-i] = g;
+       }
+     }
+
+    void nextValue()                                                            // Next value for each gate
+     {final Boolean g = iGate1 != null ? iGate1.value : null,
+                    G = iGate2 != null ? iGate2.value : null;
+      nextValue = switch(op)                                                    // Null means we do not know what the value is.  In some cases involving dyadic commutative gates we only need to know one input to be able to deduce the output.  However, if the gate output cannot be computed then its result must be null meaning "could be true or false".
+       {case And     ->{if (g != null && G != null)  yield   g &&  G;  else if ((g != null && !g) || (G != null && !G)) yield false; else yield null;}
+        case Nand    ->{if (g != null && G != null)  yield !(g &&  G); else if ((g != null && !g) || (G != null && !G)) yield true;  else yield null;}
+        case Or      ->{if (g != null && G != null)  yield   g ||  G;  else if ((g != null &&  g) || (G != null &&  G)) yield true;  else yield null;}
+        case Nor     ->{if (g != null && G != null)  yield !(g ||  G); else if ((g != null &&  g) || (G != null &&  G)) yield false; else yield null;}
+        case Gt      ->{if (g != null && G != null)  yield   g && !G;                                                                else yield null;}
+        case Lt      ->{if (g != null && G != null)  yield  !g &&  G;                                                                else yield null;}
+        case My      -> value;                                                  // Memory gates retain their current value
+        case Ngt     ->{if (g != null && G != null)  yield  !g ||  G;                                                                else yield null;}
+        case Nlt     ->{if (g != null && G != null)  yield   g || !G;                                                                else yield null;}
+        case Not     ->{if (g != null)               yield  !g;                                                                      else yield null;}
+        case Nxor    ->{if (g != null && G != null)  yield !(g ^   G);                                                               else yield null;}
+        case Xor     ->{if (g != null && G != null)  yield   g ^   G;                                                                else yield null;}
+        case One     -> true;
+        case Zero    -> false;
+        case Input   -> nextValue;                                              // Input gates are driven externally and so do not compute their next value
+        case Continue, FanOut, Output -> g;
+        default      -> {stop("Unexpected gate type", op); yield null;}
+       };
+     }
+
+    void propagateDrive()                                                       // Activate the gates driven by this gate
+     {final Gate[]G = {drives1, drives2};
+      for(Gate g : G) if (g != null) active.put(g.name, g);
+     }
+
+    void setValue()                                                             // Set value of gate from computed next value
+     {value = nextValue;
+     }
+
+    void updateEdge()                                                           // Update a memory gate on a falling edge. The memory bit on pin 2 is loaded when the value on pin 1 goes from high to low because reasoning about trailing edges seems to be easier than reasoning about leading edges
+     {if (!systemGate)                                                          // Pulses and InputUnits set their own falling edge
+       {if (value != null && value && nextValue != null && !nextValue)          // Falling edge
+         {final Gate[]M = {drives1, drives2};
+          for(Gate m : M)
+           {if (m != null && m.op == Operator.My && m.iGate1 == this)           // Falling edge on pin 1 of memory gate triggers gate
+             {m.nextValue = m.iGate2.value;
+              if (m.nextValue != m.value)                                       // Propagate to the gates affected by the memory gate if the gate changed value
+               {m.propagateDrive();
+                m.setValue();
+               }
+             }
+           }
+         }
+       }
+     }
+
+    void updateValue()                                                          // Update the value of the gate
+     {valueChanged = nextValue != value;
+ddd("AAAA", steps,name, value, nextValue);
+      if (valueChanged)
+       {propagateDrive();
+        setValue();
        }
      }
    } // Gate
@@ -662,11 +658,7 @@ public class Chip                                                               
    }
 
   void compileChip()                                                            // Check that an input value has been provided for every input pin on the chip.
-   {memoryGates.clear();                                                        // Classify gates for simulation
-      nonMemory.clear();
-     inputGates.clear();
-
-    final Gate[]G = gates.values().toArray(new Gate[0]);
+   {final Gate[]G = gates.values().toArray(new Gate[0]);
     for (Gate  g : G) g.fanOut();                                               // Fan the output of each gate if necessary which might introduce more gates
     //for (Pulse p : pulses.values()) p.checkGate();                              // Compile each pulse
     for (Gate  g : gates.values())  g.compileGate();                            // Compile each gate on chip
@@ -764,6 +756,13 @@ public class Chip                                                               
     ok(executionTrace.toString(), expected);
    }
 
+  void printActiveGates(Gate[]G)                                               // Print active gates
+   {ddd("GGGG Gates at step", steps);
+    for (Gate g : G)
+     {ddd("GGGG", g.name, g.value);
+     }
+   }
+
   void simulate() {simulate(null);}                                             // Simulate the operation of a chip with no input pins. If the chip has in fact got input pins an error will be reported.
 
   void simulate(Inputs Inputs)                                                  // Simulate the operation of a chip
@@ -782,24 +781,26 @@ public class Chip                                                               
     final InputUnit []I = inputs  .values().toArray(new InputUnit [0]);         // Input peripherals
     final OutputUnit[]O = outputs .values().toArray(new OutputUnit[0]);         // Output peripherals
 
-    active   = gates;                                                           // Start with all gates active
-    activate = new TreeMap<>();                                                 // The gates that will be active in the next step
+    active.clear(); active.putAll(gates);                                       // Start with all gates active
 
     for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
-     {//final Gate[]G = active.values().toArray(new Gate[0]);                   // Currently active gates
+     {for (Pulse      p : P)  p.setState   ();                                  // Load all the pulses
+      final Gate[]GG = active.values().toArray(new Gate[0]);                    // Currently active gates
+      active.clear();                                                           // Load gates modified by the currently active gates
 
-      for (Gate       g : G) g.nextValue  ();                                   // Compute next value for  each gate
-      for (Pulse      p : P) p.setState   ();                                   // Load all the pulses for this chip
-      for (Gate       g : G) g.updateEdge ();                                   // Update each gate triggered by a falling edge transition
-      for (Gate       g : G) g.updateValue();                                   // Update each gate not affected by a falling edge after the gates that are
+      for (Gate       g : GG) g.nextValue  ();                                  // Compute next value for  each gate
+      for (Gate       g : GG) g.updateEdge ();                                  // Update each gate triggered by a falling edge transition
+      for (Gate       g : GG) g.updateValue();                                  // Update each gate not affected by a falling edge after the gates that are
       for (InputUnit  i : I) i.action();                                        // Action on each input peripheral affected by a falling edge
       for (OutputUnit o : O) if (o.fell()) o.action();                          // Action on each output peripheral affected by a falling edge
       if (executionTrace != null) executionTrace.addTrace();                    // Trace requested
+if (!changes() && active.size() != 0)
+ {stop("BBBB", active);
+ }
 
       if (!changes() && (!miss || steps >= minSimulationSteps)) return;         // No changes occurred and we are beyond the minimum simulation time or no such time was set
-//    if (activate.size() == 0 && (!miss || steps >= minSimulationSteps))return;// No changes occurred and we are beyond the minimum simulation time or no such time was set
+//    if (active.size() == 0 && (!miss || steps >= minSimulationSteps)) return; // No changes occurred and we are beyond the minimum simulation time or no such time was set
       noChangeGates();                                                          // Reset change indicators
-      active = activate;                                                        // The activated gates become the new active gates. In a chip, these are the gates that should be powered on for the next step.
      }
     if (maxSimulationSteps == null)                                             // Not enough steps available by default
       err("Out of time after", actualMaxSimulationSteps, "steps");
@@ -1732,8 +1733,8 @@ public class Chip                                                               
 
       load      = n(Output, "load");                                            // Load bitbus name - use this name to load the register
       loadBus   = bitBus(load, Width);                                          // Load bitbus
-      initValue = Chip.this.bits    (n(Output, "initial"),    Width,     InitialValue);       // Initial value
-      initPulse = pulse             (n(Output, "loadPulse"),  0,         2+Width/2);          // Load pulse
+      initValue = Chip.this.bits(n(Output, "initial"),   Width, InitialValue);  // Initial value
+      initPulse = pulse         (n(Output, "initPulse"), 0,     2*Width);         // Initialization pulse
 
       choose    = chooseFromTwoWords(n(Output, "initialize"), loadBus, initValue, initPulse); // Initialize or load
       orPulse   = Or(n(Output, "orPulse"), initPulse, LoadPulse);
@@ -1788,9 +1789,9 @@ public class Chip                                                               
     void setState()                                                             // Set gate implementing pulse to current state.
      {final int s = steps - 1;                                                  // Steps taken
       final int i = period > 0 ? s % period : s;                                // Position in period
-      active.put(name, this);
-      setNextValue(s >= start*period ? i >= delay && i < on+delay : false);     // Next value for pulse.  Set like this so that the falling edge will be seen and acted on
-ddd("AAAA", name, value, nextValue);
+
+      nextValue = s >= start*period ? i >= delay && i < on+delay : false;       // Next value for pulse.  Set like this so that the falling edge will be seen and acted on
+      if (value != nextValue) active.put(name, this);
      }
 
     public String string()                                                      // Print pulse
@@ -2430,7 +2431,7 @@ ddd("AAAA", name, value, nextValue);
        {final In i = in[current];
         final Boolean prev = edge.value;
         edge.value = steps == nextStep-1;
-        edge.fell = prev != null && prev && !edge.value;                        // Show whether we had a falling edge to drive connected processes that relay on falling edges
+        //edge.fell = prev != null && prev && !edge.value;                        // Show whether we had a falling edge to drive connected processes that relay on falling edges
         bits.set(i.value);
         if (steps == nextStep)
          {nextStep += i.delay;
@@ -2439,7 +2440,7 @@ ddd("AAAA", name, value, nextValue);
        }
       else
        {nextStep   = 0;
-        edge.value = false;
+        //edge.value = edge.fell = false;
        }
      }
     public String toString()                                                    // Action to be performed on a falling edge
@@ -2483,8 +2484,9 @@ ddd("AAAA", name, value, nextValue);
      }
 
     boolean fell()                                                              // Check gate had a falling edge
-     {final boolean f = gEdge.fell;
-      return f;
+     {//final boolean f = gEdge.fell;
+      //return f;
+      return false;
      }
 
     public String toString()                                                    // Content of log in hexadecimal.
@@ -3383,9 +3385,9 @@ ddd("AAAA", name, value, nextValue);
    }
 
   static StringBuilder say(StringBuilder b, Object...O)                         // Say something in a string builder
-   {for (Object o: O)
-     {if (b.length() > 0) b.append(" ");
-      b.append(o);
+   {for (int i = 0; i < O.length; i++)
+     {if (i > 0) b.append(" ");
+      b.append(O[i]);
      }
     b.append('\n');
     return b;
@@ -3470,13 +3472,12 @@ ddd("AAAA", name, value, nextValue);
        {final String ee = e == '\n' ? "new-line" : ""+(char)e;
         final String gg = g == '\n' ? "new-line" : ""+(char)g;
 
-         say(b, "Differs at line: "+String.format("%04d", l),
-            "character "+c+", expected="+ee+"= got="+gg+"=");
-        say(b, "      0----+----1----+----2----+----3----+----4----+----5----+----6");
+         say(b, "Character "+c+", expected="+ee+"= got="+gg+"=");
+        say(b, "0----+----1----+----2----+----3----+----4----+----5----+----6");
         final String[]t = G.split("\\n");
         for(int k = 0; k < t.length; k++)                                       // Details of  mismatch
-         {say(b, String.format("%04d  ", k+1)+t[k]);
-          if (l == k+1) say(b, " ".repeat(6+c)+'^');
+         {say(b, t[k]);
+          if (l == k+1) say(b, " ".repeat(c)+'^');
          }
         matches = false;
        }
@@ -3770,10 +3771,10 @@ ddd("AAAA", name, value, nextValue);
        {Chip  c = chip();
         Bits i1 = c.bits   ("i1", N, 5);
         Bits i2 = c.bits   ("i2", N, i);
-        Bits  o = c.andBits("o", i1, i2);
-        c.outputBits("out", o);
+        Bits  a = c.andBits("a", i1, i2);
+        c.outputBits("out", a);
         c.simulate();
-        ok(o.Int(), 5 & i);
+        ok(a.Int(), 5 & i);
        }
      }
    }
@@ -4285,8 +4286,7 @@ Step  c  choose    l  register ld
    9  0  00001001  0  ........  0
   10  0  00001001  1  ........  0
   11  0  00001001  0  ........  0
-  12  0  00001001  0  00000000  0
-  13  0  00001001  0  00000000  1
+  13  0  00001001  0  ........  1
   14  0  00001001  0  00000000  0
   17  1  00001001  0  00000000  0
   18  1  00001001  1  00000000  0
@@ -4319,37 +4319,34 @@ Step  c  choose    l  register ld
    }
 
   static void test_register_initialization()
-   {final int N = 8, D = 16;
+   {final int N = 8, D = 2*N;
     Chip      c = chip();
     Bits      i = c.bits        ("i", N, 85);
-    Pulse     p = c.pulse       ("p").period(D).delay(D-N).on(N).start(1).b();
+    Pulse     p = c.pulse       ("p").period(D).delay(N).on(N).b();
     Register  r = c.new Register("r", N, p, 1); r.anneal();
                   c.continueBits(r.load, i);
 
-    c.executionTrace = c.new Trace("p    r", true)
+    c.executionTrace = c.new Trace("p  Reg", true)
      {String trace()
-       {return String.format("%s    %s", p, r);
+       {return String.format("%s  %s", p, r);
        }
      };
 
-    c.simulationSteps(99);
+    c.simulationSteps(8*N);
     c.simulate();
     //c.printExecutionTrace(); stop();
     c.ok("""
-Step  p    r
-   1  0    ........
-  12  0    00000000
-  25  1    00000000
-  33  0    00000000
-  36  0    01010101
-  41  1    01010101
-  49  0    01010101
-  57  1    01010101
-  65  0    01010101
-  73  1    01010101
-  81  0    01010101
-  89  1    01010101
-  97  0    01010101
+Step  p  Reg
+   1  0  ........
+   9  1  ........
+  17  0  ........
+  22  0  00000001
+  25  1  00000001
+  33  0  00000001
+  36  0  01010101
+  41  1  01010101
+  49  0  01010101
+  57  1  01010101
 """);
    }
 
@@ -5207,8 +5204,8 @@ Step  o     e
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    //test_fibonacci();
-    test_pulse();
+    //test_register_initialization();
+    test_and();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
