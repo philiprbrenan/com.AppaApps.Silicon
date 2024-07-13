@@ -77,7 +77,8 @@ jobs:
     permissions: write-all
     runs-on: ubuntu-latest
 
-    matrix:
+    strategy:
+      matrix:
         task: [Chip, RiscV, Ban]
 
     steps:
