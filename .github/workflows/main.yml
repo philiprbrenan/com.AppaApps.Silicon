@@ -1,4 +1,4 @@
-# Test 2024-07-13 at 23:29:28
+# Test 2024-07-14 at 00:34:43
 
 name: Test
 run-name: Silicon Chip
@@ -67,7 +67,32 @@ jobs:
     - name: Test silicon chips
       if: matrix.task == 'Chip'
       run: |
-        java -cp Classes com/AppaApps/Silicon/Chip
+        java -cp Classes com/AppaApps/Silicon/Chip a &
+        java -cp Classes com/AppaApps/Silicon/Chip b &
+        java -cp Classes com/AppaApps/Silicon/Chip c &
+        java -cp Classes com/AppaApps/Silicon/Chip d &
+        java -cp Classes com/AppaApps/Silicon/Chip e &
+        java -cp Classes com/AppaApps/Silicon/Chip f &
+        java -cp Classes com/AppaApps/Silicon/Chip g &
+        java -cp Classes com/AppaApps/Silicon/Chip h &
+        java -cp Classes com/AppaApps/Silicon/Chip i &
+        java -cp Classes com/AppaApps/Silicon/Chip j &
+        java -cp Classes com/AppaApps/Silicon/Chip k &
+        java -cp Classes com/AppaApps/Silicon/Chip l &
+        java -cp Classes com/AppaApps/Silicon/Chip m &
+        java -cp Classes com/AppaApps/Silicon/Chip n &
+        java -cp Classes com/AppaApps/Silicon/Chip o &
+        java -cp Classes com/AppaApps/Silicon/Chip p &
+        java -cp Classes com/AppaApps/Silicon/Chip q &
+        java -cp Classes com/AppaApps/Silicon/Chip r &
+        java -cp Classes com/AppaApps/Silicon/Chip s &
+        java -cp Classes com/AppaApps/Silicon/Chip t &
+        java -cp Classes com/AppaApps/Silicon/Chip u &
+        java -cp Classes com/AppaApps/Silicon/Chip v &
+        java -cp Classes com/AppaApps/Silicon/Chip w &
+        java -cp Classes com/AppaApps/Silicon/Chip x &
+        java -cp Classes com/AppaApps/Silicon/Chip y &
+        java -cp Classes com/AppaApps/Silicon/Chip z &
 
     - name: Files
       if: matrix.task == 'Chip'
