@@ -1,4 +1,4 @@
-# Test 2024-07-13 at 23:28:22
+# Test 2024-07-13 at 23:29:28
 
 name: Test
 run-name: Silicon Chip
@@ -18,7 +18,8 @@ jobs:
     permissions: write-all
     runs-on: ubuntu-latest
 
-    matrix:
+    strategy:
+      matrix:
         task: [Chip, RiscV, Ban]
 
     steps:
