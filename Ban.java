@@ -432,10 +432,10 @@ storeRequested: 0
    }
 
   static void test_fibonacci()                                                  // Test Risc V cpu by producing some Fibonacci numbers
-   {final int       N = 300;  // 200
+   {final int       N = 90;                                                     // 40 seconds
     final Chip      c = new Chip();
     final Pulse    xi = c.pulse("xi").period(  N).on(N/2).start(1).b();         // Execute an instruction
-    final Pulse    xf = c.pulse("xf").period(6*N).on(N/2).start(1).b();         // Extract a Fibonacci number
+    final Pulse    xf = c.pulse("xf").period(6*N).on(N/2).start(1).b();         // Extract a Fibonacci number once per loop
     final Register pc = c.new Register("pc", XLEN, xi, 0);                      // Initialize pc
     final Register[]x = new Register[XLEN];
     final Bits   []xb = new Bits    [XLEN];
@@ -456,33 +456,20 @@ storeRequested: 0
     for (int i = 1; i < XLEN; i++) x[i].load(cpu.X[i]);                         // Initialize registers
 
     c.continueBits(pc.load, cpu.PC);                                            // Update
-//  OutputUnit oInstruction = c.new OutputUnit("oInstruction", instruction, xf);
-    OutputUnit aVariable    = c.new OutputUnit("aVariable",    cpu.X[2],    xf) // Extract Fibonacci numbers as they are formed. Paul Halmos: Naive Set Theory, page 45: the object defined has some irrelevant structure, which seems to get in the way (but is in fact harmless).
-     {void action()
-       {final Integer p = pc.Int(), f = cpu.X[2].Int();                         // Program counter and variable 'a'
-        if (p != null && p == 16) log.push(f);                                  // Extract latest fibonacci number and write it to the output channel
-       }
+
+    OutputUnit aVariable = c.new OutputUnit("aVariable", cpu.X[2], xf)          // Extract Fibonacci numbers as they are formed. Paul Halmos: Naive Set Theory, page 45: the object defined has some irrelevant structure, which seems to get in the way (but is in fact harmless).
+     {void action() {log.push(cpu.X[2].Int());}                                 // Extract latest Fibonacci number and write it to the output channel
      };
 
-//  c.simulationSteps(4000);                                                    // Simulation
     c.simulationSteps(70*N);                                                    // Simulation
-//  c.executionTrace("pc   instruction", "%8s   %8s   %8s", pc4, instruction, cpu.X[2]);
 
     instruction.anneal(); cpu.m.anneal();
     for (int i = 1; i < XLEN; i++) cpu.X[i].anneal();
 
-//  c.executionTrace = c.new Trace("p    r", true)
-//   {String trace()
-//     {return String.format("%s    %s", cpu.pc, cpu.X[2]);
-//     }
-//   };
-
     c.simulate();
 
-    say(aVariable.decimal());
+    //say(aVariable.decimal());
     aVariable.ok(0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55);
-//  say(oInstruction);
-//  oInstruction.ok(0xa00093, 0x293, 0x113, 0x100193, 0x228a23, 0x310233, 0x18133, 0x201b3, 0x128293, 0xfe12cbe3, 0x0);
     c.printExecutionTrace();
    }
 
