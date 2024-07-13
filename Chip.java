@@ -44,8 +44,6 @@ public class Chip                                                               
   final Map<String, OutputUnit>                                                 // Output devices connected to the chip
                               outputs = new TreeMap<>();
   final Map<String, Pulse>     pulses = new TreeMap<>();                        // Bits that are externally driven by periodic pulses of a specified duty cycle
-  final Map<String, Gate>      active = new TreeMap<>();                        // The gates to execute in this step of the simulation
-  final Map<String, Gate>  modifiedMy = new TreeMap<>();                        // Memory modified in the current step
   Trace                executionTrace = null;                                   // Execution trace goes here
 
   int                         gateSeq =   0;                                    // Gate sequence number - this allows us to display the gates in the order they were defined to simplify the understanding of drawn layouts
@@ -501,12 +499,8 @@ public class Chip                                                               
     void setValue(Boolean nextValue)                                            // Propagate drive to next gates
      {if (value != nextValue)                                                   // Record change in value
        {changeStep = steps;
-        final Gate[]H = {drives1, drives2};
-        for(Gate h : H) if (h != null) active.put(h.name, h);
-
-        if (value != null && value && nextValue != null && !nextValue)            // Record falling edge
-         {fellStep = steps;
-         }
+        if (value != null && value && nextValue != null && !nextValue)          // Record falling edge
+          fellStep = steps;
        }
 
       value = nextValue;                                                        // Update value
@@ -776,20 +770,14 @@ public class Chip                                                               
     final InputUnit []I = inputs  .values().toArray(new InputUnit [0]);         // Input peripherals
     final OutputUnit[]O = outputs .values().toArray(new OutputUnit[0]);         // Output peripherals
 
-    active.clear(); active.putAll(gates);                                       // Start with all gates active
-
     for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
-     {for (Pulse p : P)  p.setState   ();                                       // Load all the pulses
-      //final Gate[]H = active.values().toArray(new Gate[0]);                     // Currently active gates
-      //active.clear();                                                           // Load gates modified by the currently active gates
-
+     {for (Pulse      p : P) p.setState ();                                     // Load all the pulses
       for (Gate       g : G) g.nextValue();                                     // Compute next value for  each gate
       for (InputUnit  i : I) i.inputUnitAction();                               // Action on each input peripheral affected by a falling edge
       for (OutputUnit o : O) o.outputUnitAction();                              // Action on each output peripheral affected by a falling edge
       if (executionTrace != null) executionTrace.addTrace();                    // Trace requested
 
       if (!changes() && (!miss || steps >= minSimulationSteps)) return;         // No changes occurred and we are beyond the minimum simulation time or no such time was set
-//    if (active.size() == 0 && (!miss || steps >= minSimulationSteps)) return; // No changes occurred and we are beyond the minimum simulation time or no such time was set
      }
     if (maxSimulationSteps == null)                                             // Not enough steps available by default
       err("Out of time after", actualMaxSimulationSteps, "steps");
