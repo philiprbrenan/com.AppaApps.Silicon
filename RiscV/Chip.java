@@ -63,7 +63,6 @@ public class Chip                                                               
   int                layoutX, layoutY;                                          // Dimensions of chip
   Stack<Connection>       connections;                                          // Pairs of gates to be connected
   Diagram                     diagram;                                          // Diagram specifying the layout of the chip
-  static String []          arguments;                                          // Run time arguments
 
   Chip(String Name) {name = Name;}                                              // Create a new L<chip>.
 
@@ -5108,81 +5107,76 @@ Step  o     e
     stop();
    }
 
-  static boolean a(String test)                                                 // Should a test be run
-   {for(String a: arguments) if (test.indexOf(a) >= 0) return true;             // Match by name
-    return arguments.length == 0;                                               // No arguments supplied so run every test
-   }
-
   static void oldTests()                                                        // Tests thought to be in good shape
-   {if (a("max_min"))                         test_max_min();
-    if (a("source_file_name"))                test_source_file_name();
-    if (a("and_two_bits"))                    test_and_two_bits();
-    if (a("and"))                             test_and();
-    if (a("and_grouping"))                    test_and_grouping();
-    if (a("or_grouping"))                     test_or_grouping();
-    if (a("or"))                              test_or();
-    if (a("not_gates"))                       test_not_gates();
-    if (a("zero"))                            test_zero();
-    if (a("one"))                             test_one();
-    if (a("andOr"))                           test_andOr();
-    if (a("delayed_definitions"))             test_delayed_definitions();
-    if (a("simulation_step"))                 test_simulation_step();
-    if (a("connect_buses"))                   test_connect_buses();
-    if (a("expand"))                          test_expand();
-    if (a("expand2"))                         test_expand2();
-    if (a("output_bits"))                     test_output_bits();
-    if (a("gt"))                              test_gt();
-    if (a("gt2"))                             test_gt2();
-    if (a("lt"))                              test_lt();
-    if (a("lt2"))                             test_lt2();
-    if (a("aix"))                             test_aix();
-    if (a("pulse"))                           test_pulse();
-    if (a("compare_eq"))                      test_compare_eq();
-    if (a("compare_gt"))                      test_compare_gt();
-    if (a("compare_lt"))                      test_compare_lt();
-    if (a("choose_from_two_words"))           test_choose_from_two_words();
-    if (a("enable_word"))                     test_enable_word();
-    if (a("enable_word_equal"))               test_enable_word_equal();
-    if (a("monotone_mask_to_point_mask"))     test_monotone_mask_to_point_mask();
-    if (a("choose_word_under_mask"))          test_choose_word_under_mask();
-    if (a("delay_bits"))                      test_delay_bits();
-    if (a("shift"))                           test_shift();
-    if (a("binary_add"))                      test_binary_add();
-    if (a("binary_add_constant"))             test_binary_add_constant();
-    if (a("btree_node"))                      test_btree_node();
-    if (a("btree_leaf_compare"))              test_btree_leaf_compare();
-    if (a("Btree"))                           test_Btree();
-    if (a("8p5i4"))                           test_8p5i4();
-    if (a("output_unit"))                     test_output_unit();
-    if (a("register"))                        test_register();
-    if (a("register_initialization"))         test_register_initialization();
-    if (a("fibonacci"))                       test_fibonacci();
-    if (a("insert_into_array"))               test_insert_into_array();
-    if (a("remove_from_array"))               test_remove_from_array();
-    if (a("btree_insert"))                    test_btree_insert();
-    if (a("sub_bit_bus"))                     test_sub_bit_bus();
-    if (a("sub_bit_bus2"))                    test_sub_bit_bus2();
-    if (a("sub_word_bus"))                    test_sub_word_bus();
-    if (a("find_words"))                      test_find_words();
-    if (a("btree_split_node"))                test_btree_split_node();
-    if (a("binary_increment"))                test_binary_increment();
-    if (a("input_peripheral"))                test_input_peripheral();
-    if (a("enable_word_if_equal"))            test_enable_word_if_equal();
-    if (a("twos_complement_arith"))           test_twos_complement_arith();
-    if (a("twos_complement_compare_lt"))      test_twos_complement_compare_lt();
-    if (a("shiftLeftMultiple"))               test_shiftLeftMultiple();
-    if (a("shiftLeftConstant"))               test_shiftLeftConstant();
-    if (a("shiftRightMultiple"))              test_shiftRightMultiple();
-    if (a("shift_right_arithmetic"))          test_shift_right_arithmetic();
-    if (a("shift_right_arithmetic_constant")) test_shift_right_arithmetic_constant();
-    if (a("sign_extend"))                     test_sign_extend();
-    if (a("then_if_eq_else"))                 test_then_if_eq_else();
-    if (a("bits_forward"))                    test_bits_forward();
-    if (a("words_forward"))                   test_words_forward();
-    if (a("choose_equals"))                   test_choose_equals();
-    if (a("choose_equals2"))                  test_choose_equals2();
-    if (a("choose_equals_zero"))              test_choose_equals_zero();
-    if (a("read_memory"))                     test_read_memory();
+   {test_max_min();
+    test_source_file_name();
+    test_and_two_bits();
+    test_and();
+    test_and_grouping();
+    test_or_grouping();
+    test_or();
+    test_not_gates();
+    test_zero();
+    test_one();
+    test_andOr();
+    test_delayed_definitions();
+    test_simulation_step();
+    test_connect_buses();
+    test_expand();
+    test_expand2();
+    test_output_bits();
+    test_gt();
+    test_gt2();
+    test_lt();
+    test_lt2();
+    test_aix();
+    test_pulse();
+    test_compare_eq();
+    test_compare_gt();
+    test_compare_lt();
+    test_choose_from_two_words();
+    test_enable_word();
+    test_enable_word_equal();
+    test_monotone_mask_to_point_mask();
+    test_choose_word_under_mask();
+    test_delay_bits();
+    test_shift();
+    test_binary_add();
+    test_binary_add_constant();
+    test_btree_node();
+    test_btree_leaf_compare();
+    test_Btree();
+    test_8p5i4();
+    test_output_unit();
+    test_register();
+    test_register_initialization();
+    test_fibonacci();
+    test_insert_into_array();
+    test_remove_from_array();
+    test_btree_insert();
+    test_sub_bit_bus();
+    test_sub_bit_bus2();
+    test_sub_word_bus();
+    test_find_words();
+    test_btree_split_node();
+    test_binary_increment();
+    test_input_peripheral();
+    test_enable_word_if_equal();
+    test_twos_complement_arith();
+    test_twos_complement_compare_lt();
+    test_shiftLeftMultiple();
+    test_shiftLeftConstant();
+    test_shiftRightMultiple();
+    test_shift_right_arithmetic();
+    test_shift_right_arithmetic_constant();
+    test_sign_extend();
+    test_then_if_eq_else();
+    test_bits_forward();
+    test_words_forward();
+    test_choose_equals();
+    test_choose_equals2();
+    test_choose_equals_zero();
+    test_read_memory();
    }
 
   static void newTests()                                                        // Tests being worked on
@@ -5191,7 +5185,6 @@ Step  o     e
 
   public static void main(String[] args)                                        // Test if called as a program
    {if (args.length > 0 && args[0].equals("compile")) System.exit(0);           // Do a syntax check
-    arguments = args;
     try                                                                         // Get a traceback in a format clickable in Geany if something goes wrong to speed up debugging.
      {if (github_actions) oldTests(); else newTests();                          // Tests to run
       gds2Finish();                                                             // Execute resulting Perl code to create GDS2 files
