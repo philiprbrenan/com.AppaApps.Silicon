@@ -1,4 +1,4 @@
-# Test 2024-07-14 at 00:34:43
+# Test 2024-07-14 at 00:38:34
 
 name: Test
 run-name: Silicon Chip
@@ -93,6 +93,7 @@ jobs:
         java -cp Classes com/AppaApps/Silicon/Chip x &
         java -cp Classes com/AppaApps/Silicon/Chip y &
         java -cp Classes com/AppaApps/Silicon/Chip z &
+        wait
 
     - name: Files
       if: matrix.task == 'Chip'
