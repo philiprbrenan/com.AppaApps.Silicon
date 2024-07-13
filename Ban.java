@@ -119,7 +119,7 @@ final public class Ban extends Chip                                             
        }
       public String toString()                                                  // Memory request represented as a string
        {final StringBuilder b = new StringBuilder();
-        say(b, " loadRequested :", loadRequested);
+        say(b,  "loadRequested :", loadRequested);
         say(b,  "storeRequested:", storeRequested);
         say(b,  "          type:", type);
         say(b,  "       address:", address);
@@ -412,29 +412,30 @@ final public class Ban extends Chip                                             
   static void test_decode_sb()
    {RV32I r = test_instruction(0x1000a3);
     r.om("""
- loadRequested : 0
- storeRequested: 1
-           type: 000
-        address: 0x1
-       register: 00001
+loadRequested : 0
+storeRequested: 1
+          type: 000
+       address: 0x1
+      register: 00001
 """);
    }
 
   static void test_decode_lh()
    {RV32I r = test_instruction(0x1103);
     r.om("""
- loadRequested : 1
- storeRequested: 0
-           type: 001
-        address: 0x0
-       register: 00010
+loadRequested : 1
+storeRequested: 0
+          type: 001
+       address: 0x0
+      register: 00010
 """);
    }
 
   static void test_fibonacci()                                                  // Test Risc V cpu by producing some Fibonacci numbers
    {final int       N = 300;  // 200
     final Chip      c = new Chip();
-    final Pulse    xi = c.pulse("xi").period(N).on(N/2).start(1).b();           // Execute an instruction
+    final Pulse    xi = c.pulse("xi").period(  N).on(N/2).start(1).b();         // Execute an instruction
+    final Pulse    xf = c.pulse("xf").period(6*N).on(N/2).start(1).b();         // Extract a Fibonacci number
     final Register pc = c.new Register("pc", XLEN, xi, 0);                      // Initialize pc
     final Register[]x = new Register[XLEN];
     final Bits   []xb = new Bits    [XLEN];
@@ -455,8 +456,8 @@ final public class Ban extends Chip                                             
     for (int i = 1; i < XLEN; i++) x[i].load(cpu.X[i]);                         // Initialize registers
 
     c.continueBits(pc.load, cpu.PC);                                            // Update
-//  OutputUnit oInstruction = c.new OutputUnit("oInstruction", instruction, xi);
-    OutputUnit aVariable    = c.new OutputUnit("aVariable",    cpu.X[2],    xi) // Extract Fibonacci numbers as they are formed. Paul Halmos: Naive Set Theory, page 45: the object defined has some irrelevant structure, which seems to get in the way (but is in fact harmless).
+//  OutputUnit oInstruction = c.new OutputUnit("oInstruction", instruction, xf);
+    OutputUnit aVariable    = c.new OutputUnit("aVariable",    cpu.X[2],    xf) // Extract Fibonacci numbers as they are formed. Paul Halmos: Naive Set Theory, page 45: the object defined has some irrelevant structure, which seems to get in the way (but is in fact harmless).
      {void action()
        {final Integer p = pc.Int(), f = cpu.X[2].Int();                         // Program counter and variable 'a'
         if (p != null && p == 16) log.push(f);                                  // Extract latest fibonacci number and write it to the output channel
@@ -479,7 +480,7 @@ final public class Ban extends Chip                                             
     c.simulate();
 
     say(aVariable.decimal());
-    aVariable.ok(0, 1, 1, 2, 3, 5, 8, 13, 21, 34);
+    aVariable.ok(0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55);
 //  say(oInstruction);
 //  oInstruction.ok(0xa00093, 0x293, 0x113, 0x100193, 0x228a23, 0x310233, 0x18133, 0x201b3, 0x128293, 0xfe12cbe3, 0x0);
     c.printExecutionTrace();
@@ -499,8 +500,8 @@ final public class Ban extends Chip                                             
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_fibonacci();
+   {oldTests();
+    //test_fibonacci();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
