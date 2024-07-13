@@ -126,7 +126,32 @@ jobs:
     - name: Test silicon chips
       if: matrix.task == 'Chip'
       run: |
-        java -cp Classes $c/Chip
+        java -cp Classes $c/Chip a &
+        java -cp Classes $c/Chip b &
+        java -cp Classes $c/Chip c &
+        java -cp Classes $c/Chip d &
+        java -cp Classes $c/Chip e &
+        java -cp Classes $c/Chip f &
+        java -cp Classes $c/Chip g &
+        java -cp Classes $c/Chip h &
+        java -cp Classes $c/Chip i &
+        java -cp Classes $c/Chip j &
+        java -cp Classes $c/Chip k &
+        java -cp Classes $c/Chip l &
+        java -cp Classes $c/Chip m &
+        java -cp Classes $c/Chip n &
+        java -cp Classes $c/Chip o &
+        java -cp Classes $c/Chip p &
+        java -cp Classes $c/Chip q &
+        java -cp Classes $c/Chip r &
+        java -cp Classes $c/Chip s &
+        java -cp Classes $c/Chip t &
+        java -cp Classes $c/Chip u &
+        java -cp Classes $c/Chip v &
+        java -cp Classes $c/Chip w &
+        java -cp Classes $c/Chip x &
+        java -cp Classes $c/Chip y &
+        java -cp Classes $c/Chip z &
 
     - name: Files
       if: matrix.task == 'Chip'
