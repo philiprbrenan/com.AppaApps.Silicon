@@ -77,6 +77,9 @@ jobs:
     permissions: write-all
     runs-on: ubuntu-latest
 
+    matrix:
+        task: [Chip, RiscV, Ban]
+
     steps:
     - uses: actions/checkout\@v3
       with:
@@ -106,30 +109,39 @@ jobs:
         javac -g -d Classes -cp Classes $c/Chip.java $c/RiscV.java $c/Ban.java $c/tests/Test1.java
 
     - name: Test Risc V
+      if: matrix.task == 'RiscV'
       run: |
         java -cp Classes $c/RiscV
 
     - name: Test Ban
+      if: matrix.task == 'Ban'
       run: |
         java -cp Classes $c/Ban
 
     - name: Cpan
+      if: matrix.task == 'Chip'
       run:  sudo cpan install -T Data::Dump Data::Table::Text GDS2 Digest::SHA1
 
     - name: Test silicon chips
+      if: matrix.task == 'Chip'
       run: |
         java -cp Classes $c/Chip
 
     - name: Files
+      if: matrix.task == 'Chip'
       run: |
         tree -h
 
-    - uses: actions/upload-artifact\@v4
+    - name: Upload artifact
+      uses: actions/upload-artifact\@v4
+      if: matrix.task == 'Chip'
       with:
         name: Chip
         path: .
 
-    - run: |
+    - name: Upload GDS2
+      if: matrix.task == 'Chip'
+      run: |
         rm -f gds.zip
         zip gds gds/*
         ls -lah gds.zip
