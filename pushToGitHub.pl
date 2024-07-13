@@ -152,6 +152,7 @@ jobs:
         java -cp Classes $c/Chip x &
         java -cp Classes $c/Chip y &
         java -cp Classes $c/Chip z &
+        wait
 
     - name: Files
       if: matrix.task == 'Chip'
