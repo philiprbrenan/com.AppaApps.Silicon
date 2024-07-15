@@ -361,8 +361,7 @@ final public class Ban extends Chip                                             
     final RV32I         R = rv32i(C, "a", decode, pc, x);                       // Decode and execute the instruction
     for (int i = 1; i < XLEN; i++) R.X[i].anneal();                             // Anneal the outputs
     R.PC.anneal(); R.m.anneal();
-    C.maxSimulationSteps(300);
-    C.simulate();
+    C.simulate();                                                               // 61 steps
     return R;
    }
 
@@ -488,7 +487,6 @@ storeRequested: 0
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    //test_fibonacci();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
