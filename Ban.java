@@ -13,7 +13,6 @@ prima di cedere    - farÃ² giocar.
 
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
 
-import java.io.*;
 import java.util.*;
 
 //D1 Construct                                                                  // Construct a Risc V program and execute it
