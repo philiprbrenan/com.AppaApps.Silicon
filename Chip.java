@@ -6,7 +6,6 @@
 // Words words( should accept null values and be a class not an interface
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
 
-import java.io.*;
 import java.util.*;
 
 //D1 Construct                                                                  // Construct a silicon chip using standard logic gates combined via buses.
@@ -3126,10 +3125,11 @@ public class Chip                                                               
     final StringBuilder b = new StringBuilder();
     for (String s : p) b.append(s+"\n");
 
-    new File(perlFolder).mkdirs();                                              // Create folder
+    new java.io.File(perlFolder).mkdirs();                                      // Create folder
 
-    final String pf = new File(perlFolder, perlFile).toString();                // Write Perl to represent the layout in GDS2
-    try (BufferedWriter w = new BufferedWriter(new FileWriter(pf)))
+    final String pf = new java.io.File(perlFolder, perlFile).toString();        // Write Perl to represent the layout in GDS2
+    try (java.io.BufferedWriter w =
+      new java.io.BufferedWriter(new java.io.FileWriter(pf)))
      {w.write(b.toString());
      }
     catch(Exception e)
@@ -4086,7 +4086,7 @@ public class Chip                                                               
   static void test_Btree(Btree b, Inputs i, int find, int found, boolean layout)
    {test_Btree(b, i, find, found);
 
-    //if (layout) b.chip().draw(6, 1);                                          // Layout chip - takes time so suppressed during development
+    if (layout) b.chip().draw(6, 1);                                            // Layout chip - takes time so suppressed during development
    }
 
   static void test_Btree()
