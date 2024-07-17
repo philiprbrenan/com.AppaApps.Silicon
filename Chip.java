@@ -11,7 +11,8 @@ import java.util.*;
 //D1 Construct                                                                  // Construct a silicon chip using standard logic gates combined via buses.
 
 public class Chip                                                               // Describe a chip and emulate its operation.
- {final static boolean github_actions =                                         // Whether we are on a github
+ {final static boolean    drawLayouts = false;                                  // Whether we should draw layouts at all
+  final static boolean github_actions =                                         // Whether we are on a github
     "true".equals(System.getenv("GITHUB_ACTIONS"));
   final static long             start = System.nanoTime();                      // Start time
 
@@ -3269,6 +3270,22 @@ public class Chip                                                               
 
 //D2 Traceback                                                                  // Trace back so we know where we are
 
+  static String fullTraceBack(Exception e)                                      // Get a full stack trace that we can use in Geany
+   {final int Skip = 2;
+    final StackTraceElement[]  t = e.getStackTrace();
+    final StringBuilder        b = new StringBuilder();
+    if (e.getMessage() != null)b.append(e.getMessage()+'\n');
+
+    for(StackTraceElement s : t)
+     {final String f = s.getFileName();
+      final String c = s.getClassName();
+      final String m = s.getMethodName();
+      final String l = String.format("%04d", s.getLineNumber());
+      b.append("  "+f+":"+l+":"+m+'\n');
+     }
+    return b.toString();
+   }
+
   static String traceBack(Exception e)                                          // Get a stack trace that we can use in Geany
    {final int Skip = 2;
     final StackTraceElement[]  t = e.getStackTrace();
@@ -3459,6 +3476,16 @@ public class Chip                                                               
      }
 
     if (matchesLen && matches) ++testsPassed; else {++testsFailed; err(b);}     // Show error location with a trace back so we know where the failure occurred
+   }
+
+  static void ok(Integer G, Integer E)                                          // Check that two integers are equal
+   {if (!G.equals(E)) {err(currentTestName(), G, "!=", E); ++testsFailed;}
+    else ++testsPassed;
+   }
+
+  static void ok(Long    G, Long    E)                                          // Check that two longs are equal
+   {if (!G.equals(E)) {err(currentTestName(), G, "!=", E); ++testsFailed;}
+    else ++testsPassed;
    }
 
   static void ok(Integer[]G, Integer[]E)                                        // Check that two integer arrays are are equal
@@ -4086,7 +4113,7 @@ public class Chip                                                               
   static void test_Btree(Btree b, Inputs i, int find, int found, boolean layout)
    {test_Btree(b, i, find, found);
 
-    if (layout) b.chip().draw(6, 1);                                            // Layout chip - takes time so suppressed during development
+    if (layout && drawLayouts) b.chip().draw(6, 1);                             // Layout chip - takes time so suppressed during development
    }
 
   static void test_Btree()
@@ -5180,7 +5207,7 @@ Step  o     e
      }
     catch(Exception e)                                                          // Get a traceback in a format clickable in Geany
      {System.err.println(e);
-      System.err.println(traceBack(e));
+      System.err.println(fullTraceBack(e));
      }
    }
  }
