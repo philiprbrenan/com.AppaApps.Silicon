@@ -283,66 +283,66 @@ class Mjaf<Type extends Comparable<Type>> extends Chip                          
 //D1 Insertion                                                                  // Insert keys and data into the Btree
 
   void put(Type keyName, Type dataValue)                                        // Insert a new key, data pair into the Btree
-   {loop: for (int z = 0; z < 9; z++)
-     {if (root == null)
-       {final Leaf l = new Leaf();
-        root = l;
-        l.putLeaf(keyName, dataValue);
+   {if (root == null)
+     {final Leaf l = new Leaf();
+      root = l;
+      l.putLeaf(keyName, dataValue);
+      return;
+     }
+
+    if (root instanceof Leaf)                                                   // Insert into root as a leaf
+     {final Leaf r = (Leaf)root;
+      if (!r.leafIsFull())
+       {r.putLeaf(keyName, dataValue);
         return;
        }
+      else                                                                      // Insert into root as a leaf which is full
+       {final Leaf   l = r.splitLeafInHalf();
+        final Branch b = branch(root);
+        final Type   k = l.splitKey();
+        b.putBranch(k, l);                                                      // Insert left hand node all of whose elements are less than the first element of what was the root
+        root = b;
+       }
+     }
 
-      if (root instanceof Leaf)                                                 // Insert into root as a leaf
-       {final Leaf r = (Leaf)root;
-        if (!r.leafIsFull())
-         {r.putLeaf(keyName, dataValue);
-          return;
+    else if (root instanceof Branch) ((Branch)root).splitRoot();                // Split full root which is a branch not a leaf
+
+    Branch p = (Branch)root; Node<Type> q = p;                                  // The root has already been split so the parent child relationship will be established
+
+    for(int i = 0; i < 999; ++i)                                                // Step down through tree to find the required leaf, splitting as we go
+     {if (q instanceof Branch)                                                  // Stepped to a branch
+       {final Branch qb = (Branch)q;
+        if (qb.branchIsFull())                                                  // Split the branch because it is full and we might need to insert below it requiring a slot in this node
+         {final Type   k = qb.splitKey();
+          final Branch l = qb.splitBranchInHalf();
+          p.putBranch(k, l);
+          ((Branch)root).splitRoot();                                           // Root might need to be split to re-establish the invariants at start of loop
+          q = p = (Branch)root;                                                 // Root might have changed after prior split
+          continue;
          }
-        else                                                                    // Insert into root as a leaf which is full
-         {final Leaf   l = r.splitLeafInHalf();
-          final Branch b = branch(root);
-          final Type   k = l.splitKey();
-          b.putBranch(k, l);                                                    // Insert left hand node all of whose elements are less than the first element of what was the root
-          root = b;
-         }
+        final int g = qb.findFirstGreaterOrEqual(keyName);
+
+        p = qb; q = g == 0 ? qb.topNode : qb.nextLevel.elementAt(g-1);
+        continue;                                                               // Continue to step down
        }
 
-      else if (root instanceof Branch) ((Branch)root).splitRoot();              // Split full root which is a branch not a leaf
-
-      Branch p = (Branch)root;
-      Node<Type> q = p;
-      for(int i = 0; i < 9; ++i)                                                // Step down through tree to find the required leaf, splitting as we go
-       {if (q instanceof Branch)                                                // Stepped to a branch
-         {final Branch qb = (Branch)q;
-          if (qb.branchIsFull())                                                // Split the branch because it is full and we might need to insert below it requiring a slot in this node
-           {final Type   k = qb.splitKey();
-            final Branch l = qb.splitBranchInHalf();
-            p.putBranch(k, l);
-            continue loop;
-           }
-          final int g = qb.findFirstGreaterOrEqual(keyName);
-
-          p = qb; q = g == 0 ? qb.topNode : qb.nextLevel.elementAt(g-1);
-          continue;                                                             // Continue to step down
-         }
-
-        final Leaf l = (Leaf)q;
-        final int  g = l.findIndexOfKey(keyName);
-        if (g != 0)                                                             // Key already present in leaf
-         {l.dataValues.set(g-1, dataValue);
-          return;                                                               // Data replaced at key
-         }
-
-        if (l.leafIsFull())                                                     // Split the node because it is full and we might need to insert below it requiring a slot in this node
-         {final Type k = l.splitKey();
-          final Leaf e = l.splitLeafInHalf();
-          p.putBranch(k, e);
-          if (p.lessThanOrEqual(keyName, k)) e.putLeaf(keyName, dataValue);     // Insert key in the appropriate split leaf
-          else                        l.putLeaf(keyName, dataValue);
-          return;
-         }
-        l.putLeaf(keyName, dataValue);                                          // On a leaf that is not full so we can insert directly
-        return;                                                                 // Key, data pair replaced
+      final Leaf l = (Leaf)q;
+      final int  g = l.findIndexOfKey(keyName);
+      if (g != 0)                                                               // Key already present in leaf
+       {l.dataValues.set(g-1, dataValue);
+        return;                                                                 // Data replaced at key
        }
+
+      if (l.leafIsFull())                                                       // Split the node because it is full and we might need to insert below it requiring a slot in this node
+       {final Type k = l.splitKey();
+        final Leaf e = l.splitLeafInHalf();
+        p.putBranch(k, e);
+        if (p.lessThanOrEqual(keyName, k)) e.putLeaf(keyName, dataValue);       // Insert key in the appropriate split leaf
+        else                               l.putLeaf(keyName, dataValue);
+        return;
+       }
+      l.putLeaf(keyName, dataValue);                                            // On a leaf that is not full so we can insert directly
+      return;                                                                   // Key, data pair replaced
      }
    }
 
