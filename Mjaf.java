@@ -3,20 +3,20 @@
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
-/*Shall I compare thee to a summerâs day?
-  Thou art more lovely and more temperate:
-  Rough winds do shake the darling buds of May,
-  And summerâs lease hath all too short a date;
+//                 Shall I compare thee to a summerâs day?
+//                 Thou art more lovely and more temperate:
+//                 Rough winds do shake the darling buds of May,
+//                 And summerâs lease hath all too short a date;
 
-  Sometime too hot the eye of heaven shines,
-  And often is his gold complexion dimm'd;
-  For every fair from fair sometime declines,
-  By chance or natureâs changing course untrimm'd;
+//                 Sometime too hot the eye of heaven shines,
+//                 And often is his gold complexion dimm'd;
+//                 For every fair from fair sometime declines,
+//                 By chance or natureâs changing course untrimm'd;
 
-  But now thou art for ever fairly made,
-  The eye of heaven lights thy face for me,
-  Nor shall death brag thou wanderâst in his shade,
-  When these lines being read give life to thee */
+//                 But now thou art for ever fairly made,
+//                 The eye of heaven lights thy face for me,
+//                 Nor shall death brag thou wanderâst in his shade,
+//                 When these lines being read give life to thee!
 import java.util.*;
 
 class Mjaf<Type extends Comparable<Type>> extends Chip                          // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys because data is not transferred to the parent on fission.
@@ -99,8 +99,7 @@ class Mjaf<Type extends Comparable<Type>> extends Chip                          
     void splitRoot()                                                            // Split the root
      {if (branchIsFull())
        {final Type   k = splitKey();
-        final Branch l = splitBranchInHalf();
-        final Branch b = branch(this);
+        final Branch l = splitBranchInHalf(), b = branch(this);
         b.putBranch(k, l);
         root = b;
        }
@@ -127,7 +126,8 @@ class Mjaf<Type extends Comparable<Type>> extends Chip                          
       if (J + K >= maxKeysPerLeaf) stop("Join of branch has too many keys",
         K, "+1+", J, "greater than", maxKeysPerLeaf);
       if (J == 0) stop("Branch being joined is empty");                         // Nothing to join
-      if (keyNames.elementAt(K-1).compareTo(Join.keyNames.elementAt(0)) >= 0) stop("First key of node being joined is less than or equal to last node of current leaf");
+      if (keyNames.elementAt(K-1).compareTo(Join.keyNames.elementAt(0)) >= 0)
+        stop("First key of node being joined is less than or equal to last node of current leaf");
 
       keyNames .push(joinKeyName);
       nextLevel.push(topNode); topNode = Join.topNode;
@@ -142,13 +142,17 @@ class Mjaf<Type extends Comparable<Type>> extends Chip                          
      {final StringBuilder s = new StringBuilder();
       s.append("Branch(");
       final int K = keyNames.size();
-      for (int i = 0; i < K; i++) s.append(""+keyNames.elementAt(i)+":"+nextLevel.elementAt(i).nodeNumber+", ");
+
+      for (int i = 0; i < K; i++)
+        s.append(""+keyNames.elementAt(i)+":"+
+          nextLevel.elementAt(i).nodeNumber+", ");
+
       s.append(""+topNode.nodeNumber+")");
       return s.toString();
      }
 
     void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print branch
-     {for (int i = 0; i < size(); i++)                                          // Nodes
+     {for (int i = 0; i < size(); i++)
        {final Node<Type> n = nextLevel.elementAt(i);
         n.printHorizontally(S, level+1, debug);
         padStrings(S, level);
@@ -367,6 +371,7 @@ class Mjaf<Type extends Comparable<Type>> extends Chip                          
       l.printHorizontally(S, 0, false);
       return S.toString();
      }
+
     final Branch b = (Branch)root;
     final int    N = b.size();
     for (int i = 0; i < N; i++)
