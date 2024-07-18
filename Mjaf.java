@@ -20,13 +20,9 @@ package com.AppaApps.Silicon;                                                   
 import java.util.*;
 
 class Mjaf<Type extends Comparable<Type>> extends Chip                          // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys because data is not transferred to the parent on fission.
- {final static boolean github_actions =                                         // Whether we are on a github
-    "true".equals(System.getenv("GITHUB_ACTIONS"));
-  final static long             start = System.nanoTime();                      // Start time
+ {final int maxKeysPerLeaf;                                                     // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
 
 //D1 Construction                                                               // Create a Btree from nodes which can be branches or leaves.  The data associated with the Btree is stored only in the leaves opposite the keys
-
-  final int maxKeysPerLeaf;                                                     // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
 
   Node<Type> root;                                                              // The root node of the Btree
   int keyDataStored;                                                            // The number of key, data values stored in the Btree
