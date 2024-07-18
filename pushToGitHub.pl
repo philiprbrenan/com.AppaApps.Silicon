@@ -141,7 +141,7 @@ jobs:
         path: .
 
     - name: Upload GDS2
-      if: matrix.task == 'Chip'
+      if: matrix.task == 'ChipSuppress'
       run: |
         rm -f gds.zip
         zip gds gds/*
