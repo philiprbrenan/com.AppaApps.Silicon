@@ -1,4 +1,4 @@
-# Test 2024-07-18 at 03:28:04
+# Test 2024-07-18 at 03:29:45
 
 name: Test
 run-name: Silicon Chip
@@ -82,7 +82,7 @@ jobs:
         path: .
 
     - name: Upload GDS2
-      if: matrix.task == 'Chip'
+      if: matrix.task == 'ChipSuppress'
       run: |
         rm -f gds.zip
         zip gds gds/*
