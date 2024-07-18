@@ -2,6 +2,7 @@
 // RiscV 32I and Btree on a silicon chip
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
+package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
 /*
 Io sono docile,    - son rispettosa,
 sono ubbediente,   - dolce, amorosa;
@@ -10,17 +11,12 @@ Ma se mi toccano   - dov'Ã¨ il mio debole,
 sarÃ² una vipera    - e cento trappole
 prima di cedere    - farÃ² giocar.
 */
-
-package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
-
 import java.util.*;
 
 //D1 Construct                                                                  // Construct a Risc V program and execute it
 
 final public class Ban extends Chip                                             // Create a chip that contains a Risc V processor extended with Btree instructions
  {final static int XLEN                  = RiscV.XLEN;                          // Number of bits in a register
-  final static boolean github_actions    =                                      // Whether we are on a github or not
-    "true".equals(System.getenv("GITHUB_ACTIONS"));
 
   final static class D extends RiscV.Decode {D(){super(null);}}                 // Easier access to static constants
 
