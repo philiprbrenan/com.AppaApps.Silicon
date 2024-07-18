@@ -5,6 +5,37 @@
 // Check gate names match variable names
 // Words words( should accept null values and be a class not an interface
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
+/*
+Essere o non essere, questo Ã¨ il problema:
+se sia piÃ¹ nobile dâanimo sopportare gli oltraggi,
+i sassi e i dardi dellâiniqua fortuna,
+o prender lâarmi contro un mare di triboli e combattendo disperderli.
+
+Morire, dormire, nulla di piÃ¹, e con un sonno dirsi che poniamo
+fine al cordoglio e alle infinite miserie naturale retaggio della carne,
+Ã¨ soluzione da accogliere a mani giunte.
+
+Morire, dormire, sognare forse: ma qui Ã© lâostacolo,
+quali sogni possano assalirci in quel sonno di morte
+quando siamo giÃ  sdipanati dal groviglio mortale, ci trattiene:
+Ã© la remora questa che di tanto prolunga la vita ai nostri tormenti.
+
+Chi vorrebbe, se no, sopportar le frustate e gli insulti del tempo,
+le angherie del tiranno, il disprezzo dellâuomo borioso,
+le angosce del respinto amore, gli indugi della legge,
+la tracotanza dei grandi, i calci in faccia che il merito paziente riceve dai mediocri,
+quando di mano propria potrebbe saldare il suo conto con due dita di pugnale?
+
+Chi vorrebbe caricarsi di grossi fardelli imprecando e sudando sotto il peso di tutta una vita stracca,
+se non fosse il timore di qualche cosa, dopo la morte,
+la terra inesplorata donde mai non tornÃ² alcun viaggiatore, a sgomentare la nostra volontÃ 
+e a persuaderci di sopportare i nostri mali piuttosto che correre in cerca dâaltri che non conosciamo?
+
+CosÃ¬ ci fa vigliacchi la coscienza;
+cosÃ¬ lâincarnato naturale della determinazione si scolora al cospetto del pallido pensiero.
+E cosÃ¬ imprese di grande importanza e rilievo sono distratte dal loro naturale corso:
+e dellâazione perdono anche il nome
+*/
 
 import java.util.*;
 
