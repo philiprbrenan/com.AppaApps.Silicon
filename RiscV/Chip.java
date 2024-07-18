@@ -3479,12 +3479,20 @@ public class Chip                                                               
    }
 
   static void ok(Integer G, Integer E)                                          // Check that two integers are equal
-   {if (!G.equals(E)) {err(currentTestName(), G, "!=", E); ++testsFailed;}
+   {if (false)                        {}
+    else if ( G == null && E == null) ++testsPassed;
+    else if ( G != null && E == null) {err(String.format("Expected null, got:", G)); ++testsFailed;}
+    else if ( G == null && E != null) {err(String.format("Got null, expected:", E)); ++testsFailed;}
+    else if (!G.equals(E))            {err(currentTestName(), G, "!=", E);           ++testsFailed;}
     else ++testsPassed;
    }
 
   static void ok(Long    G, Long    E)                                          // Check that two longs are equal
-   {if (!G.equals(E)) {err(currentTestName(), G, "!=", E); ++testsFailed;}
+   {if (false)                        {}
+    else if ( G == null && E == null) ++testsPassed;
+    else if ( G != null && E == null) {err(String.format("Expected null, got:", G)); ++testsFailed;}
+    else if ( G == null && E != null) {err(String.format("Got null, expected:", E)); ++testsFailed;}
+    else if (!G.equals(E))            {err(currentTestName(), G, "!=", E);           ++testsFailed;}
     else ++testsPassed;
    }
 
