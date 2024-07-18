@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Btree with data stored only in the leaves.
+// Btree with data stored only in the leaves to simplify deletion.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
