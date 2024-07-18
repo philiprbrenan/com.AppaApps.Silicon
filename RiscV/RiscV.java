@@ -22,8 +22,6 @@ import java.util.*;
 public class RiscV extends Chip                                                 // Load and execute a program written in RiscV machine code
  {final static int               XLEN = 32;                                     // Size of instructions
   final static int   instructionBytes =  4;                                     // Bytes per instruction - yes there are some two byte instructions but we are not using them yet.
-  final static boolean github_actions =                                         // Whether we are on a github or not
-    "true".equals(System.getenv("GITHUB_ACTIONS"));
   final static boolean    makeSayStop = false;                                  // Turn say into stop if true which is occasionally useful for locating unlabeled say statements.
 
   final String                   name;                                          // Name of program
