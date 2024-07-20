@@ -1,0 +1,130 @@
+//------------------------------------------------------------------------------
+// A fixed size stack of ordered keys controlled by a unary number
+// Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
+//------------------------------------------------------------------------------
+package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
+
+class Stuck<Type extends Comparable<Type>> extends Chip                         // Fixed size stack controlled by a unary number
+ {final Unary u;                                                                // The unary number that controls the stack
+  final Object[]s;                                                              // The stack
+
+//D1 Construction                                                               // Create a stuck
+
+  Stuck(int Max)                                                                // Create the stuck
+   {u = new Unary(Max);                                                         // Create the unary number that indicates the top of the stuck
+    s = new Object[Max];                                                        // The stuck stack
+   }
+
+  static Stuck<Integer> stuck(int max) {return new Stuck<Integer>(max);}        // Create a stuck
+
+  public Stuck<Type> clone()                                                    // Clone a stuck
+   {final int N = u.max();
+    final Stuck<Type> t = new Stuck<>(N);
+    for (int i = 0; i < N; i++) t.s[i] = s[i];                                  // Clone stuck
+    return t;
+   }
+
+  int size() {return u.get();}                                                  // The current size of the stuck
+
+  void ok(String expected) {ok(toString(), expected);}                          // Check the stuck
+
+//D1 Actions                                                                    // Place and remove data to/from stuck
+
+  void push(Type i)                                                             // Push an element onto the stuck
+   {if (!u.canInc()) stop("Stuck is full");
+    s[size()] = i;
+    u.inc();
+   }
+
+  @SuppressWarnings("unchecked")
+  Type pop()                                                                    // Pop an element onto the stuck
+   {if (!u.canDec()) stop("Stuck is empty");
+    u.dec();
+    return (Type)s[size()];
+   }
+
+  @SuppressWarnings("unchecked")
+  Type shift()                                                                  // Shift an element from the stuck
+   {if (!u.canDec()) stop("Stuck is empty");
+    Type r = (Type)s[0];
+    final int N = size();
+    for (int i = 0; i < N-1; i++) s[i] = s[i+1];
+    u.dec();
+    return r;
+   }
+
+  void unshift(Type i)                                                          // Unshift an element onto the stuck
+   {if (!u.canInc()) stop("Stuck is full");
+    final int N = size();
+    for (int j = N; j > 0; j--) s[j] = s[j-1];
+    s[0] = i;
+    u.inc();
+   }
+
+  @SuppressWarnings("unchecked")
+  Type removeElementAt(int i)                                                   // Remove the element at index i and shift the elements above down one space
+   {if (!u.canDec()) stop("Stuck is empty");
+    final int N = size();
+    if (i > N) stop("Too far up");
+    if (i < 0) stop("Too far down");
+    Type r = (Type)s[i];
+    for (int j = i; j < N; j++) s[j] = s[j+1];
+    u.dec();
+    return r;
+   }
+
+  void insertElementAt(Type e, int i)                                           // Insert an element at the indicated position after moving the elements above up one position
+   {if (!u.canInc()) stop("Stuck is full");
+    final int N = size();
+    if (i > N) stop("Too far up");
+    if (i < 0) stop("Too far down");
+    for (int j = N; j > i; j--) s[j] = s[j-1];
+    s[i] = e;
+    u.inc();
+   }
+
+//D1 Print                                                                      // Print a stuck
+
+  public String toString()                                                      // Print a stuck
+   {final StringBuilder b = new StringBuilder("Stuck(");
+    final int N = size();
+    for (int i = 0; i < N; i++) b.append(""+s[i].toString()+", ");
+    if (N > 0) b.setLength(b.length()-2);
+    b.append(")");
+    return b.toString();
+   }
+
+//D0 Tests                                                                      // Test unary numbers
+
+  static void test_action()
+   {var s = stuck(32);
+    s.push(1); s.push(2); s.push(3); s.ok("Stuck(1, 2, 3)");
+    var a = s.pop();                 s.ok("Stuck(1, 2)");       ok(a, 3);
+    s.unshift(3);                    s.ok("Stuck(3, 1, 2)");
+    var b = s.shift();               s.ok("Stuck(1, 2)");       ok(b, 3);
+    s.insertElementAt(3, 2);         s.ok("Stuck(1, 2, 3)");
+    s.insertElementAt(4, 2);         s.ok("Stuck(1, 2, 4, 3)");
+    var c = s.removeElementAt(2);    s.ok("Stuck(1, 2, 3)");    ok(c, 4);
+    var d = s.removeElementAt(2);    s.ok("Stuck(1, 2)");       ok(d, 3);
+   }
+
+  static void oldTests()                                                        // Tests thought to be in good shape
+   {test_action();
+   }
+
+  static void newTests()                                                        // Tests being worked on
+   {oldTests();
+   }
+
+  public static void main(String[] args)                                        // Test if called as a program
+   {if (args.length > 0 && args[0].equals("compile")) System.exit(0);           // Do a syntax check
+    try                                                                         // Get a traceback in a format clickable in Geany if something goes wrong to speed up debugging.
+     {if (github_actions) oldTests(); else newTests();                          // Tests to run
+      testSummary();                                                            // Summarize test results
+     }
+    catch(Exception e)                                                          // Get a traceback in a format clickable in Geany
+     {System.err.println(e);
+      System.err.println(fullTraceBack(e));
+     }
+   }
+ }
