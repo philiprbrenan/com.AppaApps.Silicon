@@ -10,11 +10,17 @@ class Unary extends Chip                                                        
 //D1 Construction                                                               // Create a unary number
 
   Unary(int Max)                                                                // Create a unary number
-   {u = new boolean[Max];                                                       // Create the unary number
+   {u = new boolean[Max+1];                                                     // Create the unary number
     for (int i = 0; i < Max; i++) u[i] = false;                                 // Zero the unary number
    }
 
   static Unary unary(int max) {return new Unary(max);}                          // Create a unary number
+
+  static Unary unary(int max, int value)                                        // Create a unary number set to a specified value
+   {final Unary u = new Unary(max);
+    u.set(value);
+    return u;
+   }
 
   public Unary clone()                                                          // Clone a unary number
    {final Unary u = new Unary(max());
@@ -22,14 +28,14 @@ class Unary extends Chip                                                        
     return u;
    }
 
-  int max() {return u.length;}                                                  // The maximum value of the unary number
+  int max() {return u.length-1;}                                                // The maximum value of the unary number
 
   void ok(int n) {ok(get(), n);}                                                // Check that a unary number has the expected value
 
 //D1 Set and get                                                                // Set and get a unary numnber
 
   void set(int n)                                                               // Set the unary number
-   {if (n < u.length)
+   {if (n <= u.length)
      {for (int i = 0; i < u.length; i++) u[i] = false;
       u[n] = true;
      }
@@ -43,7 +49,7 @@ class Unary extends Chip                                                        
 
 //D1 Arithmetic                                                                 // Arithmetic using unary numbers
 
-  boolean canInc() {return get() < max()-1;}                                    // Can we increment the unary number
+  boolean canInc() {return get() < max();}                                      // Can we increment the unary number
   boolean canDec() {return get() > 0;}                                          // Can we decrement the unary number
 
   void inc()                                                                    // Increment the unary number
@@ -64,23 +70,38 @@ class Unary extends Chip                                                        
 
 //D0 Tests                                                                      // Test unary numbers
 
-  static void test_inc()
+  static void test_unary()
    {var u = unary(32);
+               u.ok(0);
     u.inc();   u.ok(1);
     u.set(21); u.inc(); u.ok(22);
     u.set(23); u.dec(); u.ok(22);
-    u.set(30); ok( u.canInc());
-    u.set(31); ok(!u.canInc());
+    u.set(31); ok( u.canInc());
+    u.set(32);
+    ok(!u.canInc());
+
     u.set(1);  ok( u.canDec());
     u.set(0);  ok(!u.canDec());
    }
 
+  static void test_preset()
+   {var u = unary(4, 1);
+             u.ok(1);
+    u.dec(); u.ok(0); ok( u.canInc());
+    u.inc(); u.ok(1); ok( u.canInc());
+    u.inc(); u.ok(2); ok( u.canInc());
+    u.inc(); u.ok(3); ok( u.canInc());
+    u.inc(); u.ok(4); ok(!u.canInc());
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
-   {test_inc();
+   {test_unary();
+    test_preset();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
+    test_preset();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
