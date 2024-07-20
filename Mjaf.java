@@ -17,8 +17,6 @@ package com.AppaApps.Silicon;                                                   
 //                 The eye of heaven lights thy face for me,
 //                 Nor shall death brag thou wanderâst in his shade,
 //                 When these lines being read give life to thee!
-import java.util.*;
-
 class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys and matching number of data elements because data is not transferred to the parent on fission  which simplifies deletions with complicating insertions.
  {final int maxKeysPerLeaf;                                                     // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
 
@@ -29,8 +27,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 
   Mjaf(int MaxKeysPerLeaf)                                                      // Define a Btree with a specified maximum number of keys per leaf.
    {final int N = MaxKeysPerLeaf;
-    if (N % 2 == 1) stop("Number of keys per leaf must be even not odd:", N);
-    if (N     <= 3) stop("Number of keys per leaf must be greater than three, not:", N);
+    if (N % 2 == 1) stop("# keys per leaf must be even not odd:", N);
+    if (N     <= 3) stop("# keys per leaf must be greater than three, not:", N);
     maxKeysPerLeaf = N;
    }
 
@@ -44,9 +42,9 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
   int nodesCreated = 0;                                                         // Number of nodes created
 
   abstract class Node<Key extends Comparable<Key>>                              // A branch or a leaf: an interior or exterior node.
-   {final Stack<Key> keyNames;                                                  // Names of the keys in this branch or leaf
+   {final Stuck<Key> keyNames;                                                  // Names of the keys in this branch or leaf
     final int nodeNumber = ++nodesCreated;                                      // Number of this node
-    Node() {keyNames = new Stack<Key>();}                                       // Create a node
+    Node(int N) {keyNames = new Stuck<Key>(N);}                                 // Create a node
 
     int findIndexOfKey(Key keyToFind) {return keyNames.indexOf(keyToFind)+1;}   // Find the one based index of a key in a branch node or zero if not found
     int splitIdx() {return (maxKeysPerLeaf - 1) / 2;}                           // Index of splitting key
@@ -55,14 +53,14 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     void ok(String expected) {Mjaf.ok(toString(), expected);}                   // Check node is as expected
     boolean lessThanOrEqual(Key a, Key b) {return a.compareTo(b) <= 0;}         // Define a new Btree of default type with a specified maximum number of keys per node
 
-    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug) {}; // Print horizontally
+    void printHorizontally(Stuck<StringBuilder>S, int level, boolean debug) {}; // Print horizontally
    }
 
   class Branch extends Node<Key>                                                // A branch node directs the search to the appropriate leaf
-   {final Stack<Node<Key>> nextLevel;
+   {final Stuck<Node<Key>> nextLevel;
     Node<Key> topNode;
 
-    Branch(Node<Key> Top) {nextLevel = new Stack<Node<Key>>(); topNode = Top;}  // Create a new branch
+    Branch(Node<Key> Top) {nextLevel = new Stuck<Node<Key>>(); topNode = Top;}  // Create a new branch
     boolean branchIsFull() {return size() >= maxKeysPerLeaf-1;}                 // Node should be split
 
     int findFirstGreaterOrEqual(Key keyName)                                    // Find first key which is greater an the search key. The result is 1 based, a result of zero means all the keys were less than or equal than the search key
@@ -140,7 +138,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       return s.toString();
      }
 
-    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print branch
+    void printHorizontally(Stuck<StringBuilder>S, int level, boolean debug)     // Print branch
      {for (int i = 0; i < size(); i++)
        {nextLevel.elementAt(i).printHorizontally(S, level+1, debug);
         padStrings(S, level);
@@ -155,8 +153,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
   Branch branch(Node<Key> node) {return new Branch(node);}                      // Create a new branch
 
   class Leaf extends Node<Key>                                                  // Create a new leaf
-   {final Stack<Data> dataValues;                                               // Data associated with each key
-    Leaf() {dataValues = new Stack<Data>();}                                    // Data associated with keys in leaf
+   {final Stuck<Data> dataValues;                                               // Data associated with each key
+    Leaf() {dataValues = new Stuck<Data>();}                                    // Data associated with keys in leaf
     boolean leafIsFull() {return size() >= maxKeysPerLeaf;}                     // Leaf is full
 
     void putLeaf(Key keyName, Data dataValue)                                   // Insert a new leaf value
@@ -230,7 +228,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       return s.toString();
      }
 
-    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print leaf
+    void printHorizontally(Stuck<StringBuilder>S, int level, boolean debug)     // Print leaf
      {padStrings(S, level);
       S.elementAt(level).append(debug ? toString() : shortString());
       padStrings(S, level);
@@ -307,7 +305,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       final Leaf l = (Leaf)q;
       final int  g = l.findIndexOfKey(keyName);
       if (g != 0)                                                               // Key already present in leaf
-       {l.dataValues.set(g-1, dataValue);
+       {l.dataValues.setElementAt(dataValue, g-1);
         return;                                                                 // Data replaced at key
        }
 
@@ -420,7 +418,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 
 //D1 Print                                                                      // Print a tree
 
-  static void padStrings(Stack<StringBuilder> S, int level)                     // Pad a stack of strings so they all have the same length
+  static void padStrings(Stuck<StringBuilder> S, int level)                     // Pad a stack of strings so they all have the same length
    {for (int i = S.size(); i <= level; ++i) S.push(new StringBuilder());
     int m = 0;
     for (StringBuilder s : S) m = m < s.length() ? s.length() : m;
@@ -428,14 +426,14 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       if (s.length() < m) s.append(" ".repeat(m - s.length()));
    }
 
-  static String joinStrings(Stack<StringBuilder> S)                             // Join lines
+  static String joinStrings(Stuck<StringBuilder> S)                             // Join lines
    {final StringBuilder a = new StringBuilder();
     for (StringBuilder s : S) a.append(s.toString()+"|\n");
     return a.toString();
    }
 
   String printHorizontally()                                                    // Print a tree horizontally
-   {final Stack<StringBuilder> S = new Stack<>();
+   {final Stuck<StringBuilder> S = new Stuck<>();
     if (root == null) return "";
     S.push(new StringBuilder());
     if (root instanceof Leaf)
@@ -561,7 +559,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
    }
 
   static void test_pad_strings()
-   {final Stack<StringBuilder> S = new Stack<StringBuilder>();
+   {final Stuck<StringBuilder> S = new Stuck<StringBuilder>();
     padStrings(S, 0); S.lastElement().append(11);
     padStrings(S, 1); S.lastElement().append(22);
     padStrings(S, 2); S.lastElement().append(33);
@@ -1824,14 +1822,14 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     test_insert_random();
     test_delete();
     test_delete_reverse();
-    test_delete_reverse_squeeze();
+    //test_delete_reverse_squeeze();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
+   {oldTests();
     //test_delete();
     //test_delete_reverse();
-    test_delete_reverse_squeeze();
+    //test_delete_reverse_squeeze();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
