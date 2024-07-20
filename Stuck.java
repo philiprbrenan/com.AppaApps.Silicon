@@ -83,6 +83,14 @@ class Stuck<Type extends Comparable<Type>> extends Chip                         
     u.inc();
    }
 
+  @SuppressWarnings("unchecked")
+  Type elementAt(int i)                                                         // Get the element at a specified index
+   {final int N = size();
+    if (i >= N) stop("Too far up");
+    if (i <  0) stop("Too far down");
+    return (Type)s[i];
+   }
+
 //D1 Print                                                                      // Print a stuck stack
 
   public String toString()                                                      // Print a stuck stack
@@ -108,6 +116,8 @@ class Stuck<Type extends Comparable<Type>> extends Chip                         
     var d = s.removeElementAt(2);    s.ok("Stuck(1, 2)");       ok(d, 3);
     s.insertElementAt(3, 0);         s.ok("Stuck(3, 1, 2)");
     var e = s.removeElementAt(0);    s.ok("Stuck(1, 2)");       ok(e, 3);
+    var f = s.elementAt(0);          ok(f, 1);
+    var g = s.elementAt(1);          ok(g, 2);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
