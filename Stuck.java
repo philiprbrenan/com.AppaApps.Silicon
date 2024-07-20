@@ -4,47 +4,47 @@
 //------------------------------------------------------------------------------
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
 
-class Stuck<Type extends Comparable<Type>> extends Chip                         // Fixed size stack controlled by a unary number
- {final Unary u;                                                                // The unary number that controls the stack
-  final Object[]s;                                                              // The stack
+class Stuck<Type extends Comparable<Type>> extends Chip                         // Stuck: a fixed size stack controlled by a unary number
+ {final Unary u;                                                                // The unary number that controls the stuck stack
+  final Object[]s;                                                              // The stuck stack
 
-//D1 Construction                                                               // Create a stuck
+//D1 Construction                                                               // Create a stuck stack
 
-  Stuck(int Max)                                                                // Create the stuck
-   {u = new Unary(Max);                                                         // Create the unary number that indicates the top of the stuck
+  Stuck(int Max)                                                                // Create the stuck stack
+   {u = new Unary(Max);                                                         // Create the unary number that indicates the top of the stuck stack
     s = new Object[Max];                                                        // The stuck stack
    }
 
-  static Stuck<Integer> stuck(int max) {return new Stuck<Integer>(max);}        // Create a stuck
+  static Stuck<Integer> stuck(int max) {return new Stuck<Integer>(max);}        // Create a stuck stack
 
-  public Stuck<Type> clone()                                                    // Clone a stuck
+  public Stuck<Type> clone()                                                    // Clone a stuck stack
    {final int N = u.max();
     final Stuck<Type> t = new Stuck<>(N);
-    for (int i = 0; i < N; i++) t.s[i] = s[i];                                  // Clone stuck
+    for (int i = 0; i < N; i++) t.s[i] = s[i];                                  // Clone stuck stack
     return t;
    }
 
-  int size() {return u.get();}                                                  // The current size of the stuck
+  int size() {return u.get();}                                                  // The current size of the stuck stack
 
-  void ok(String expected) {ok(toString(), expected);}                          // Check the stuck
+  void ok(String expected) {ok(toString(), expected);}                          // Check the stuck stack
 
-//D1 Actions                                                                    // Place and remove data to/from stuck
+//D1 Actions                                                                    // Place and remove data to/from stuck stack
 
-  void push(Type i)                                                             // Push an element onto the stuck
+  void push(Type i)                                                             // Push an element onto the stuck stack
    {if (!u.canInc()) stop("Stuck is full");
     s[size()] = i;
     u.inc();
    }
 
   @SuppressWarnings("unchecked")
-  Type pop()                                                                    // Pop an element onto the stuck
+  Type pop()                                                                    // Pop an element from the stuck stack
    {if (!u.canDec()) stop("Stuck is empty");
     u.dec();
     return (Type)s[size()];
    }
 
   @SuppressWarnings("unchecked")
-  Type shift()                                                                  // Shift an element from the stuck
+  Type shift()                                                                  // Shift an element from the stuck stack
    {if (!u.canDec()) stop("Stuck is empty");
     Type r = (Type)s[0];
     final int N = size();
@@ -53,7 +53,7 @@ class Stuck<Type extends Comparable<Type>> extends Chip                         
     return r;
    }
 
-  void unshift(Type i)                                                          // Unshift an element onto the stuck
+  void unshift(Type i)                                                          // Unshift an element from the stuck stack
    {if (!u.canInc()) stop("Stuck is full");
     final int N = size();
     for (int j = N; j > 0; j--) s[j] = s[j-1];
@@ -62,7 +62,7 @@ class Stuck<Type extends Comparable<Type>> extends Chip                         
    }
 
   @SuppressWarnings("unchecked")
-  Type removeElementAt(int i)                                                   // Remove the element at index i and shift the elements above down one space
+  Type removeElementAt(int i)                                                   // Remove the element at index i and shift the elements above down one position
    {if (!u.canDec()) stop("Stuck is empty");
     final int N = size();
     if (i > N) stop("Too far up");
@@ -83,9 +83,9 @@ class Stuck<Type extends Comparable<Type>> extends Chip                         
     u.inc();
    }
 
-//D1 Print                                                                      // Print a stuck
+//D1 Print                                                                      // Print a stuck stack
 
-  public String toString()                                                      // Print a stuck
+  public String toString()                                                      // Print a stuck stack
    {final StringBuilder b = new StringBuilder("Stuck(");
     final int N = size();
     for (int i = 0; i < N; i++) b.append(""+s[i].toString()+", ");
@@ -94,7 +94,7 @@ class Stuck<Type extends Comparable<Type>> extends Chip                         
     return b.toString();
    }
 
-//D0 Tests                                                                      // Test unary numbers
+//D0 Tests                                                                      // Test stuck stack
 
   static void test_action()
    {var s = stuck(32);
@@ -106,6 +106,8 @@ class Stuck<Type extends Comparable<Type>> extends Chip                         
     s.insertElementAt(4, 2);         s.ok("Stuck(1, 2, 4, 3)");
     var c = s.removeElementAt(2);    s.ok("Stuck(1, 2, 3)");    ok(c, 4);
     var d = s.removeElementAt(2);    s.ok("Stuck(1, 2)");       ok(d, 3);
+    s.insertElementAt(3, 0);         s.ok("Stuck(3, 1, 2)");
+    var e = s.removeElementAt(0);    s.ok("Stuck(1, 2)");       ok(e, 3);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
