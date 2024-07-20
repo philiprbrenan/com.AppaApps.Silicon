@@ -91,7 +91,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 
     void splitRoot()                                                            // Split the root
      {if (branchIsFull())
-       {final Key   k = splitKey();
+       {final Key    k = splitKey();
         final Branch l = splitBranchInHalf(), b = branch(this);
         b.putBranch(k, l);
         root = b;
