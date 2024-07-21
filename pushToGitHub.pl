@@ -79,7 +79,7 @@ jobs:
 
     strategy:
       matrix:
-        task: [Chip, RiscV, Ban]
+        task: [Chip, RiscV, Ban, Mjaf, Unary, Stuck]
 
     steps:
     - uses: actions/checkout\@v3
@@ -107,7 +107,7 @@ jobs:
 
     - name: Compile
       run: |
-        javac -g -d Classes -cp Classes $c/Chip.java $c/RiscV.java $c/Ban.java $c/tests/Test1.java
+        javac -g -d Classes -cp Classes $c/*.java $c/tests/*.java
 
     - name: Test Risc V
       if: matrix.task == 'RiscV'
@@ -118,6 +118,21 @@ jobs:
       if: matrix.task == 'Ban'
       run: |
         java -cp Classes $c/Ban
+
+    - name: Test Unary
+      if: matrix.task == 'Unary'
+      run: |
+        java -cp Classes $c/Unary
+
+    - name: Test Stuck
+      if: matrix.task == 'Stuck'
+      run: |
+        java -cp Classes $c/Stuck
+
+    - name: Test Mjaf
+      if: matrix.task == 'Mjaf'
+      run: |
+        java -cp Classes $c/Mjaf
 
     - name: Cpan
       if: matrix.task == 'Chip'
