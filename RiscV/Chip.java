@@ -31,9 +31,9 @@ se non fosse il timore di qualche cosa, dopo la morte,
 la terra inesplorata donde mai non tornÃ² alcun viaggiatore, a sgomentare la nostra volontÃ 
 e a persuaderci di sopportare i nostri mali piuttosto che correre in cerca d'altri che non conosciamo?
 
-CosÃ¬ ci fa vigliacchi la coscienza;
-cosÃ¬ l'incarnato naturale della determinazione si scolora al cospetto del pallido pensiero.
-E cosÃ¬ imprese di grande importanza e rilievo sono distratte dal loro naturale corso:
+Cosi ci fa vigliacchi la coscienza;
+cosi l'incarnato naturale della determinazione si scolora al cospetto del pallido pensiero.
+E cosi imprese di grande importanza e rilievo sono distratte dal loro naturale corso:
 e dell'azione perdono anche il nome
 */
 
