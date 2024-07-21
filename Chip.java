@@ -1249,10 +1249,6 @@ public class Chip                                                               
      }
    } // WordBus
 
-  WordBus words(String Name, int Words, int Bits)                               // Forward declaration of a word bus
-   {return new WordBus(Name, Words, Bits);
-   }
-
   WordBus wordBus(String Name, int Words, int Bits)                             // Forward declaration of a word bus
    {return new WordBus(Name, Words, Bits);
    }
@@ -5074,8 +5070,8 @@ Step  o     e
     Chip   c = chip();
     Bits one = c.bits("one", B, 1);
     Bits two = c.bits("two", B, 2);
-    Words  w = c.words("w", W, B);
-    Words ww = c.words("w", W, B);
+    Words  w = c.wordBus("w", W, B);
+    Words ww = c.wordBus("w", W, B);
     Bits  w1 = c.notBits(w.w(1), one);
     Bits  w2 = c.notBits(w.w(2), two);
     w1.anneal(); w2.anneal();
