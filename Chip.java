@@ -17,7 +17,7 @@ e soluzione da accogliere a mani giunte.
 
 Morire, dormire, sognare forse: ma qui e l'ostacolo,
 quali sogni possano assalirci in quel sonno di morte
-quando siamo giÃ  sdipanati dal groviglio mortale, ci trattiene:
+quando siamo gia sdipanati dal groviglio mortale, ci trattiene:
 e la remora questa che di tanto prolunga la vita ai nostri tormenti.
 
 Chi vorrebbe, se no, sopportar le frustate e gli insulti del tempo,
@@ -28,7 +28,7 @@ quando di mano propria potrebbe saldare il suo conto con due dita di pugnale?
 
 Chi vorrebbe caricarsi di grossi fardelli imprecando e sudando sotto il peso di tutta una vita stracca,
 se non fosse il timore di qualche cosa, dopo la morte,
-la terra inesplorata donde mai non tornÃ² alcun viaggiatore, a sgomentare la nostra volontÃ 
+la terra inesplorata donde mai non tornÃ² alcun viaggiatore, a sgomentare la nostra volonta
 e a persuaderci di sopportare i nostri mali piuttosto che correre in cerca d'altri che non conosciamo?
 
 Cosi ci fa vigliacchi la coscienza;
