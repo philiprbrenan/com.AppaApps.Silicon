@@ -95,13 +95,13 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     void splitRoot()                                                            // Split the root
      {if (branchIsFull())
        {final Key    k = splitKey();
-        final Branch l = splitBranchInHalf(), b = branch(this);
+        final Branch l = splitBranch(), b = branch(this);
         b.putBranch(k, l);
         root = b;
        }
      }
 
-    Branch splitBranchInHalf()                                                  // Split a branch into two branches in the indicated key
+    Branch splitBranch()                                                        // Split a branch into two branches in the indicated key
      {final int K = keyNames.size(), f = splitIdx();                            // Number of keys currently in node
       if (f < K-1) {} else stop("Split", f, "too big for branch of size:", K);
       if (f <   1)         stop("First", f, "too small");
@@ -186,7 +186,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       ++keyDataStored;                                                          // Created a new entry in the leaf
      }
 
-    Leaf splitLeafInHalf()                                                     // Split the leaf into two leafs - the new leaf consists of the indicated first elements, the old leaf retains the rest
+    Leaf splitLeaf()                                                            // Split the leaf into two leafs - the new leaf consists of the indicated first elements, the old leaf retains the rest
      {final int K = size(), f = maxKeysPerLeaf/2;                               // Number of keys currently in node
       if (f < K) {} else stop("Split", f, "too big for leaf of size:", K);
       if (f < 1)         stop("First", f, "too small");
@@ -278,7 +278,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
         return;
        }
       else                                                                      // Insert into root as a leaf which is full
-       {final Leaf   l = r.splitLeafInHalf();                                   // New left hand side of root
+       {final Leaf   l = r.splitLeaf();                                         // New left hand side of root
         final Branch b = branch(root);                                          // New root with old root to right
         b.putBranch(l.splitKey(), l);                                           // Insert left hand node all of whose elements are less than the first element of what was the root
         root = b;
@@ -294,7 +294,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
        {final Branch  qb = (Branch)q;
         if (qb.branchIsFull())                                                  // Split the branch because it is full and we might need to insert below it requiring a slot in this node
          {final Key    k = qb.splitKey();
-          final Branch l = qb.splitBranchInHalf();
+          final Branch l = qb.splitBranch();
           p.putBranch(k, l);
           ((Branch)root).splitRoot();                                           // Root might need to be split to re-establish the invariants at start of loop
           q = p = (Branch)root;                                                 // Root might have changed after prior split
@@ -314,8 +314,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
        }
 
       if (l.leafIsFull())                                                       // Split the node because it is full and we might need to insert below it requiring a slot in this node
-       {final Key k = l.splitKey();
-        final Leaf e = l.splitLeafInHalf();
+       {final Key  k = l.splitKey();
+        final Leaf e = l.splitLeaf();
         p.putBranch(k, e);
         if (p.lessThanOrEqual(keyName, k)) e.putLeaf(keyName, dataValue);       // Insert key in the appropriate split leaf
         else                               l.putLeaf(keyName, dataValue);
@@ -499,7 +499,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     l.putLeaf(5,10);
     l.putLeaf(6,12);
     l.ok("Leaf(1:1, 2:4, 3:6, 4:8, 5:10, 6:12)");
-    var k = l.splitLeafInHalf();
+    var k = l.splitLeaf();
     k.ok("Leaf(1:1, 2:4, 3:6)");
     l.ok("Leaf(4:8, 5:10, 6:12)");
    }
@@ -543,7 +543,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     ok(B.splitKey(), 3);
     ok(B.branchIsFull(), true);
     ok(B.size(), 5);
-    Mjaf<Integer,Integer>.Branch C = B.splitBranchInHalf();
+    Mjaf<Integer,Integer>.Branch C = B.splitBranch();
     C.ok("Branch(1:1, 2:2, 3)");
     B.ok("Branch(4:4, 5:5, 6)");
    }
