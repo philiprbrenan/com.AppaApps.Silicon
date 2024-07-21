@@ -1253,6 +1253,14 @@ public class Chip                                                               
    {return new WordBus(Name, Words, Bits);
    }
 
+  WordBus wordBus(String Name, int Words, int Bits)                             // Forward declaration of a word bus
+   {return new WordBus(Name, Words, Bits);
+   }
+
+  WordBus wordBus(String Name, Words Words)                                     // Forward declaration of a word bus
+   {return new WordBus(Name, Words);
+   }
+
   class SubWordBus extends Words                                                // Select the specified range of words from a word bus
    {final Words source;                                                         // The underlying source bus
     final int start, length;                                                    // Selected words and bits
@@ -1634,12 +1642,12 @@ public class Chip                                                               
      }
 
     final PointMask P = upMaskToPointMask(n(Output, "pm"), Mask);               // Make a point mask from the input monotone mask
-    final Bits  N = notBits                (n(Output, "np"), Mask.bits);        // Invert the monotone mask
+    final Bits  N = notBits              (n(Output, "np"), Mask.bits);          // Invert the monotone mask
 
-    final Words u = new WordBus(n(Output, "upper"),  words-1, bits);            // Shifted words  to fill upper part
-    final Words l = new WordBus(n(Output, "lower"),  words,   bits);            // Un-shifted words to fill lower part
-    final Words o = new WordBus(  Output,            Input);                    // Resulting array of shifted words
-    final Words I = new WordBus(n(Output, "Insert"), Input);                    // The first word - insertion
+    final Words u = wordBus(n(Output, "upper"),  words-1, bits);                // Shifted words  to fill upper part
+    final Words l = wordBus(n(Output, "lower"),  words,   bits);                // Un-shifted words to fill lower part
+    final Words o = wordBus(  Output,            Input);                        // Resulting array of shifted words
+    final Words I = wordBus(n(Output, "Insert"), Input);                        // The first word - insertion
 
     for (int b = 1; b <= bits;  ++b)                                            // Bits in each word in shift area
      {And(l.b(1, b), Input.b(1, b), N.b(1));                                    // Select lower words
@@ -1681,10 +1689,10 @@ public class Chip                                                               
     final Bits  M = andBits              (n(Output, "sm"), Mask.bits, p);       // This is the original monotone mask minus its first bit  1000
     final Bits  N = notBits              (n(Output, "np"), Mask.bits);          // Invert the monotone mask                                0011
 
-    final Words u = new WordBus(n(Output, "upper"),  words-1, bits);            // Shifted words   to fill upper part
-    final Words l = new WordBus(n(Output, "lower"),  words,   bits);            // Un-shifted words to fill lower part
-    final Words o = new WordBus(  Output,            Input);                    // Resulting array of shifted words
-    final Words S = new WordBus(n(Output, "select"), Input);                    // Select the word to remove
+    final Words u = wordBus(n(Output, "upper"),  words-1, bits);                // Shifted words   to fill upper part
+    final Words l = wordBus(n(Output, "lower"),  words,   bits);                // Un-shifted words to fill lower part
+    final Words o = wordBus(  Output,            Input);                        // Resulting array of shifted words
+    final Words S = wordBus(n(Output, "select"), Input);                        // Select the word to remove
 
     for   (int w = 1; w <  words; ++w)                                          // Words in upper shifted area
       for (int b = 1; b <= bits;  ++b)                                          // Bits in each word in shift area
