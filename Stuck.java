@@ -109,7 +109,7 @@ class Stuck<Type> extends Chip implements Iterable<Type>                        
   Type firstElement() {return elementAt(0);}                                    // Get the value of the first element
   Type  lastElement() {return elementAt(size()-1);}                             // Get the value of the last element
 
-//D1 Search                                                                     // Search a stuck
+//D1 Search                                                                     // Search a stuck stack.
 
   public int indexOf(Type keyToFind)                                            // Return 0 based index of the indicated key else -1 if the key is not present in the stuck stack.
    {final int N = size();
@@ -119,15 +119,15 @@ class Stuck<Type> extends Chip implements Iterable<Type>                        
 
 //D1 Iterate                                                                    // Iterate a stuck stack
 
-  public Iterator<Type> iterator() {return new Iterate<Type>();}
+  public Iterator<Type> iterator() {return new Iterate<Type>();}                // Create an iterator for the stuck stack
 
   class Iterate<Type> implements Iterator<Type>
-   {int nextElement = 0;                                                              // Iterate the stuck stack
+   {int nextElement = 0;                                                        // Iterate the stuck stack
 
-    public boolean hasNext() {return nextElement < size();}
+    public boolean hasNext() {return nextElement < size();}                     // Another element to iterate
 
     @SuppressWarnings("unchecked")
-    public Type next()
+    public Type next()                                                          // Next element to iterate
      {if (!hasNext()) throw new NoSuchElementException();
       Type e = (Type)s[nextElement];
       nextElement = nextElement + 1;
