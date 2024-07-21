@@ -1,4 +1,4 @@
-# Test 2024-07-20 at 22:08:22
+# Test 2024-07-21 at 03:04:50
 
 name: Test
 run-name: Silicon Chip
@@ -20,7 +20,7 @@ jobs:
 
     strategy:
       matrix:
-        task: [Chip, RiscV, Ban]
+        task: [Chip, RiscV, Ban, Mjaf, Unary, Stuck]
 
     steps:
     - uses: actions/checkout@v3
@@ -48,7 +48,7 @@ jobs:
 
     - name: Compile
       run: |
-        javac -g -d Classes -cp Classes com/AppaApps/Silicon/Chip.java com/AppaApps/Silicon/RiscV.java com/AppaApps/Silicon/Ban.java com/AppaApps/Silicon/tests/Test1.java
+        javac -g -d Classes -cp Classes com/AppaApps/Silicon/*.java com/AppaApps/Silicon/tests/*.java
 
     - name: Test Risc V
       if: matrix.task == 'RiscV'
@@ -59,6 +59,21 @@ jobs:
       if: matrix.task == 'Ban'
       run: |
         java -cp Classes com/AppaApps/Silicon/Ban
+
+    - name: Test Unary
+      if: matrix.task == 'Unary'
+      run: |
+        java -cp Classes com/AppaApps/Silicon/Unary
+
+    - name: Test Stuck
+      if: matrix.task == 'Stuck'
+      run: |
+        java -cp Classes com/AppaApps/Silicon/Stuck
+
+    - name: Test Mjaf
+      if: matrix.task == 'Mjaf'
+      run: |
+        java -cp Classes com/AppaApps/Silicon/Mjaf
 
     - name: Cpan
       if: matrix.task == 'Chip'
