@@ -22,11 +22,7 @@ class Unary extends Chip                                                        
     return u;
    }
 
-  public Unary clone()                                                          // Clone a unary number
-   {final Unary u = new Unary(max());
-    u.set(get());
-    return u;
-   }
+  public Unary clone() {return unary(max(), get());}                            // Clone a unary number
 
   int max() {return u.length-1;}                                                // The maximum value of the unary number
 
