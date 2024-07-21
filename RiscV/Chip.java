@@ -911,7 +911,7 @@ public class Chip                                                               
       final int B = bits();
       for  (int i = 1; i <= B; i++)                                             // Each bit on bus
        {final Bit b = b(i);
-        final Gate g = gates.get(b.name);                                       // We are in an interface and so static
+        final Gate g = gates.get(b.name);                                       // Gate with the name of the bit
         if (g == null)
          {err("No such gate as:", name(), i);                                   // Generally occurs during testing where we might want to continue to see what other errors  occur
           return null;
@@ -940,17 +940,7 @@ public class Chip                                                               
    }
 
   Bits bits(CharSequence name, int bits)                                        // Forward declare a bit bus: get a predefined bit bus or define a new one if there is no predefined bit bus of the same name.  This allows us to create bit buses needed in advance of knowing the gates that will be attached to them - in effect - forward declaring the bit bus.
-   {final Bits b = bitBuses.get(name);
-
-    if (b != null)                                                              // Bus already exists
-     {if (b.bits() != bits)                                                     // Bus already exists and with different characteristics
-       {stop("A bit bus with name:", name, "and bits", b.bits(),
-             "has already been defined which differs from:", bits, "bits");
-       }
-      return b;                                                                 // Treat as reuse if a bus of the same name and size already exists
-     }
-
-    return new Bits(name.toString(), bits);                                     // Resulting bit bus
+   {return new Bits(name.toString(), bits);                                     // Resulting bit bus
    }
 
   Bits bits(String name, int bits, long...values)                               // Create a bit bus set to a specified value.
@@ -1194,46 +1184,20 @@ public class Chip                                                               
 
 //D3 Words                                                                      // An array of arrays of bits that can be manipulated via one name.
 
-  interface Words                                                               // Description of a word bus
-   {String  name();                                                             // Name of the word bus
-    int     bits();                                                             // Bits in each word of the bus
-    int    words();                                                             // Words in bus
+  abstract class Words                                                          // Description of a word bus
+   {final String  name;                                                         // Name of the word bus
+    final int     bits;                                                         // Bits in each word of the bus
+    final int    words;                                                         // Words in bus
 
-    default public Integer wordValue(int i)                                     // Get the value of a word in the word bus
-     {final Bits b = w(i);                                                      // Bits
-      return b.Int();
-     }
-
-    default public Integer[]Int()                                               // Convert the words on a word bus into integers
-     {final Integer[]r = new Integer[words()];                                  // Words on bus
-      for (int j = 1; j <= words(); j++) r[j-1] = wordValue(j);                 // Value of each word
-      return r;
-     }
-
-    public Bits w(int i);                                                       // Get a bit bus in the word bus
-    public Bit  b(int i, int j);                                                // Get a bit from a bit bus in the word bus
-
-    default public void ok(Integer...E) {Chip.ok(Int(), E);}                    // Confirm the expected values of the word bus. Write a message describing any unexpected values
-
-    default public void anneal()                                                // Anneal each word in the bus
-     {final int W = words();
-      for  (int w = 1; w <= W; ++w) w(w).anneal();
-     }
-   } // Words
-
-  class WordBus implements Words                                                // Description of a word bus
-   {final String name; public String name() {return name;}                      // Name of the word bus
-    final int    bits; public int    bits() {return bits;}                      // Bits in each word of the bus
-    final int   words; public int   words() {return words;}                     // Words in bus
-
-    WordBus(String Name, int Words, int Bits)                                   // Create bus
-     {name = Name; bits = Bits; words = Words;
+    Words(String Name, int Words, int Bits)                                     // Construct word bus
+     {name = Name; words = Words; bits = Bits;
       final Words w = wordBuses.get(name);                                      // Chip, bits bus name, words, bits per word, options
       if (w != null)
-        if (words == w.words() && bits == w.bits()) {}                          // Reuse existing definition if it has the same dimensions
+       {if (words == w.words() && bits == w.bits()) {}                          // Reuse existing definition if it has the same dimensions
         else stop("A word bus with name:", name, "with words", w.words(),
          "and bits", w.bits(), "has already been defined",
          "which differs from words", words, "and bits", bits);
+       }
       wordBuses.put(name, this);                                                // Index bus
       for (int b = 1; b <= words; ++b)                                          // Size of bit bus for each word in the word bus
        {final String s = n(b, name);
@@ -1242,7 +1206,38 @@ public class Chip                                                               
        }
      }
 
-    WordBus(String Name, Words Words) {this(Name, Words.words(), Words.bits());}// Create a word bus with the same dimensions as the specified word bus.
+    String name() {return name;}                                                // Name of the word bus
+    int  bits()   {return bits;}                                                // Bits in each word of the bus
+    int words()   {return words;}                                               // Words in bus
+
+    Integer wordValue(int i)                                                    // Get the value of a word in the word bus
+     {final Bits b = w(i);                                                      // Bits
+      return b.Int();
+     }
+
+    Integer[]Int()                                                              // Convert the words on a word bus into integers
+     {final Integer[]r = new Integer[words()];                                  // Words on bus
+      for (int j = 1; j <= words(); j++) r[j-1] = wordValue(j);                 // Value of each word
+      return r;
+     }
+
+    abstract Bits w(int i);                                                     // Get a bit bus in the word bus
+    abstract Bit  b(int i, int j);                                              // Get a bit from a bit bus in the word bus
+
+    void ok(Integer...E) {Chip.ok(Int(), E);}                                   // Confirm the expected values of the word bus. Write a message describing any unexpected values
+
+    void anneal()                                                               // Anneal each word in the bus
+     {final int W = words();
+      for  (int w = 1; w <= W; ++w) w(w).anneal();
+     }
+   } // Words
+
+  class WordBus extends Words                                                   // Description of a word bus
+   {WordBus(String Name, int Words, int Bits)                                   // Create bus
+     {super(Name, Words, Bits);
+     }
+
+    WordBus(String Name, Words Words) {super(Name, Words.words(), Words.bits());}// Create a word bus with the same dimensions as the specified word bus.
 
     public Bits w(int i)        {return bitBuses.get(n(i,    name));}           // Get a bit bus in the word bus
     public Bit  b(int i, int j) {return bit         (n(i, j, name));}           // Get a bit from a bit bus in the word bus
@@ -1258,21 +1253,15 @@ public class Chip                                                               
    {return new WordBus(Name, Words, Bits);
    }
 
-  class SubWordBus implements Words                                             // Select the specified range of words from a word bus
-   {final String name; public String name() {return name;}                      // Name of the word bus
-    final Words source;                                                         // The underlying source bus
+  class SubWordBus extends Words                                                // Select the specified range of words from a word bus
+   {final Words source;                                                         // The underlying source bus
     final int start, length;                                                    // Selected words and bits
     public int  bits() {return source.bits();}                                  // Bits in each word of the bus
     public int words() {return length;}                                         // Words in bus
 
     SubWordBus(String Name, Words Source, int Start, int Length)                // Create sub word bus
-     {name = Name; source = Source; start = Start; length = Length;
-
-      final Words w = wordBuses.get(name);                                      // Chip, bits bus name, words, bits per word, options
-
-      if (w != null)
-        stop("A word bus with name:", name, "has already been defined");
-      wordBuses.put(name, this);                                                // Index bus
+     {super(Name, Length, Source.bits());
+      source = Source; start = Start; length = Length;
      }
 
     public Bits w(int i)                                                        // Get a bit bus in the word bus
@@ -1291,6 +1280,10 @@ public class Chip                                                               
       return b.toString();
      }
    } // SubWordBus
+
+  SubWordBus subWordBus(String Name, Words Source, int Start, int Length)       // Create sub word bus
+   {return new SubWordBus(Name, Source, Start, Length);
+   }
 
   Words words(String name, int bits, int...values)                              // Create a word bus set to specified numbers.
    {final Words wb = new WordBus(name, values.length, bits);                    // Record bus width
@@ -1572,6 +1565,8 @@ public class Chip                                                               
     public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
+  UpMask upMask(Bits bits)    {return new UpMask(bits);}                        // Make a monotone up mask from bits
+
   class DownMask                                                                // Monotone down mask
    {final Bits bits;                                                            // Source bits for monotone down mask
     DownMask(Bits Bits)       {bits = Bits;}                                    // Make a monotone down mask from bits
@@ -1580,6 +1575,8 @@ public class Chip                                                               
     public Bit       b(int i) {return bits.b   (i);}                            // Number of bits of bus - the width of the bus
     public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
+
+  DownMask downMask(Bits bits) {return new DownMask(bits);}                     // Make a monotone down mask from bits
 
 //D3 Point masks                                                                // A point mask is the differential of a monotone mask: it has no more then one bit set to true, the rest are set to false.
 
@@ -1592,6 +1589,8 @@ public class Chip                                                               
     public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
+  PointMask pointMask(Bits bits) {return new PointMask(bits);}                  // Make a monotone mask from bits
+
   PointMask upMaskToPointMask(String output, UpMask input)                      // Convert a monotone mask B<i> to a point mask B<o> representing the location in the mask of the first bit set to B<1>. If the monotone mask is all B<0>s then point mask is too.
    {final int B = input.bits();                                                 // Number of bits in input monotone mask
 
@@ -1600,7 +1599,7 @@ public class Chip                                                               
       if (i > 1) Lt(o.b(i), input.b(i-1), input.b(i));                          // Look for a step from 0 to 1
       else Continue(o.b(i),               input.b(i));                          // First bit is 1 so point is in the first bit
 
-    return new PointMask(o);
+    return pointMask(o);
    }
 
   Bits chooseWordUnderMask(String output, Words input, PointMask mask)          // Choose one of a specified number of words B<w>, each of a specified width, using a point mask B<m> placing the selected word in B<o>.  If no word is selected then B<o> will be zero.
@@ -1724,16 +1723,6 @@ public class Chip                                                               
     final Pulse initPulse;                                                      // Initialize or load
     final Bits     choose;                                                      // Initialize or load
     final Bit     orPulse;                                                      // Or of pulses
-
-//    Register(String Output, int Width, Pulse Load)                            // Load register from input on falling edge of load signal.
-//     {super(Output, Width);                                                   // Load from these bits
-//      output = Output;
-//      p = null; v = L = null; o = null;
-//      load   = n(Output, "load");                                             // Load bitbus name
-//      l      = bitBus(load, Width);                                           // Load from these bits
-//      reg    = this;                                                          // Bit bus created by register
-//      for (int i  = 1; i <= Width; i++) My(b(i), Load, l.b(i));               // Create the memory bits
-//     }
 
     Register(String Output, int Width, Pulse LoadPulse, int InitialValue)       // Load register from input on falling edge of load signal. The register is initialized to a default value
      {super(Output, Width);                                                     // Load from these bits
@@ -2159,7 +2148,7 @@ public class Chip                                                               
        }
 
       final Bits      matches      = bits(me, K);                               // Equal bit bus for each key
-      final PointMask matchesValid = new PointMask(andBitBuses(mv, matches, KeysEnabled)); // Equal bit bus for each valid key
+      final PointMask matchesValid = pointMask(andBitBuses(mv, matches, KeysEnabled)); // Equal bit bus for each valid key
 
       final Bits selectedData = chooseWordUnderMask(df, Data, matchesValid);    // Choose data under equals mask
       final Bit  keyWasFound  = orBits             (f2,       matchesValid.bits);    // Show whether key was found
@@ -2169,7 +2158,7 @@ public class Chip                                                               
       final Bits      outNext;                                                  // Output name showing results of comparison - specifically a bit that is true if the key was found else false if it were not.
       if (!Leaf)                                                                // Find next link with which to enable next layer
        {final Bits      Mm = bits                  (mm, K);                     // Monotone mask more for compare greater than on keys so we can find next link
-        final UpMask    Nv = new UpMask(andBitBuses(nv, Mm, KeysEnabled));      // Monotone mask more for compare greater than on valid keys
+        final UpMask    Nv = upMask(andBitBuses(nv, Mm, KeysEnabled));          // Monotone mask more for compare greater than on valid keys
         final Bit       Nm = norBits               (nm, Nv.bits);               // True if the more monotone mask is all zero indicating that all of the keys in the node are less than or equal to the search key
         final PointMask Pm = upMaskToPointMask     (pm, Nv);                    // Convert monotone more mask to point mask
         final Bits      Mf = chooseWordUnderMask   (mf, Next, Pm);              // Choose next link using point mask from the more monotone mask created
@@ -2201,7 +2190,7 @@ public class Chip                                                               
      {final Words    k = insertIntoArray(n(Output, "outKeys"), Keys, position, iKey);
       final Words    d = insertIntoArray(n(Output, "outData"), Data, position, iData);
       final Bits    bv = shiftUpOne     (n(Output, "outKeysEnabled"), KeysEnabled);
-      final DownMask v = new DownMask(bv);
+      final DownMask v = downMask(bv);
       final Words    n = iNext == null ? null :
         insertIntoArray(n(Output, "outNext"), Next, position, iNext);
       return new Insert(k, d, n, v, iKey, iData, iNext);                        // Insertion results
@@ -2220,22 +2209,22 @@ public class Chip                                                               
 
     Split split(BtreeNode b, int lowerId)                                       // Split the specified child node of this parent node into two sibling nodes (lower, upper).  The upper node retains the id of the original child node  while the lower node takes the supplied id. Returns the new version of the parent, child and sibling.
      {final int k = K / 2;
-      final Words    ak = new SubWordBus(n(Output, "aKeys"),  b.Keys, 1,  k);
-      final Words    ad = new SubWordBus(n(Output, "aData"),  b.Data, 1,  k);
-      final Words    an = new SubWordBus(n(Output, "aNext"),  b.Next, 1,  k);
+      final Words    ak = subWordBus(n(Output, "aKeys"),  b.Keys, 1,  k);
+      final Words    ad = subWordBus(n(Output, "aData"),  b.Data, 1,  k);
+      final Words    an = subWordBus(n(Output, "aNext"),  b.Next, 1,  k);
       final Bits    bav = bits(n(Output, "aKeysEnabled"), K, (1<<k) - 1);       // Keys enabled in lower child
-      final DownMask av = new DownMask  (bav);
+      final DownMask av = downMask  (bav);
 
-      final Words    bk = new SubWordBus(n(Output, "bKeys"),  b.Keys, 2+k, k);
-      final Words    bd = new SubWordBus(n(Output, "bData"),  b.Data, 2+k, k);
-      final Words    bn = new SubWordBus(n(Output, "bNext"),  b.Next, 2+k, k);
+      final Words    bk = subWordBus(n(Output, "bKeys"),  b.Keys, 2+k, k);
+      final Words    bd = subWordBus(n(Output, "bData"),  b.Data, 2+k, k);
+      final Words    bn = subWordBus(n(Output, "bNext"),  b.Next, 2+k, k);
       final Bits    bbv = bits(n(Output, "bKeysEnabled"), K, (1<<k) - 1);       // Keys enabled in upper child
-      final DownMask bv = new DownMask  (bbv);
+      final DownMask bv = downMask  (bbv);
 
       final Bits    pgt = findGt(n(Output,  "pGreater"),  Keys, b.Keys.w(1 + k));// Find keys greater than the search key in the parent node
       final Bits   pnek = notBits(n(Output, "pNeKeys"),   KeysEnabled);         // Parent keys not enabled
       final Bits  pnegt =  orBits(n(Output, "pNeGt"),     pnek, pgt);           // Bits    of parent keys either greater or not enabled
-      final UpMask   gt = new UpMask(pnegt);                                    // Up mask of parent keys either greater or not enabled because the keys are contiguous, ordered and start in word one.
+      final UpMask   gt = upMask(pnegt);                                        // Up mask of parent keys either greater or not enabled because the keys are contiguous, ordered and start in word one.
       final Insert    i = Insert(n(Output, "inParent"), b.Keys.w(1+k),          // Insert splitting key, data, next in parent as indicated by greater than monotone mask
         b.Data.w(1+k), bits(n(Output, "lowerId"), B, lowerId), gt);
 
@@ -2276,7 +2265,7 @@ public class Chip                                                               
       final Bits     f = c.bits (n(Output, "f"),  B, find);
       final Words    k = c.words(n(Output, "k"),  B, keys);
       final Bits    bK = c.bits (n(Output, "bK"), N, keysEnabled);
-      final DownMask K = c.new DownMask(bK);
+      final DownMask K = c.downMask(bK);
       final Words    d = c.words(n(Output, "d"),  B, data);
       final Words    n = next != null ? c.words(n(Output, "n"), B, next) : null;
       final Bits     t = next != null ? c.bits (n(Output, "t"), B, top)  : null;
@@ -2340,7 +2329,7 @@ public class Chip                                                               
 
       Bits eI = null;                                                           // For the moment we always enable the root node of the tree
       final Bits    bke = bits(n(output, "keysEnabled"), keys, (1<<keys)-1);    // All keys enabled
-      final DownMask ke = new DownMask(bke);                                    // All keys enabled
+      final DownMask ke = downMask(bke);                                        // All keys enabled
 
       final Bit []pF = new Bit [levels];                                        // Consolidate the results over all levels
       final Bits[]pD = new Bits[levels];
@@ -4025,7 +4014,7 @@ public class Chip                                                               
     Chip  c = chip("choose_word_under_mask_"+B);
     Words I = c.words("i", B, Arrays.copyOfRange(numbers, 0, B2));
     Bits  m = c.bits ("m", B2, powerTwo(i));
-    Bits  o = c.chooseWordUnderMask("o", I, c.new PointMask(m));
+    Bits  o = c.chooseWordUnderMask("o", I, c.pointMask(m));
     Bits  O = c.outputBits("O", o);
     c.simulate();
     O.ok(numbers[i]);
@@ -4586,7 +4575,7 @@ Step  i     o     O
       Bits  m = c.bits("mask",   B, mm);                                        // Monotone mask insertion point
       Bits  i = c.bits("in",     B, I);                                         // Word to insert
 
-      Words W = c.insertIntoArray("o", w, c.new UpMask(m), i);                  // Insert
+      Words W = c.insertIntoArray("o", w, c.upMask(m), i);                      // Insert
       Words O = c.outputWords    ("O", W);
       c.simulate();
       switch(j)
@@ -4610,7 +4599,7 @@ Step  i     o     O
       Bits  m = c.bits("mask",   B, mm);                                        // Monotone mask removal point
       Bits  i = c.bits("in",     B, I);                                         // Word to remove
 
-      RemoveFromArray W = c.removeFromArray("o", w, c.new UpMask(m), i);        // Remove
+      RemoveFromArray W = c.removeFromArray("o", w, c.upMask(m), i);            // Remove
       Words O = c.outputWords    ("O", W.out);
       Bits  R = c.outputBits     ("R", W.removed);
       c.simulate();
@@ -4645,7 +4634,7 @@ Step  i     o     O
     Bits  d = c.bits("inData",   B, Data);                                      // New data
     Bits  n = c.bits("inNext",   B, Next);                                      // New links
     Bits  p = c.bits("insertAt", B, position);                                  // Insert position at first position in monotone mask to be true
-    BtreeNode.Insert i = b.Insert("out", k, d, n, c.new UpMask(p));             // Insert results
+    BtreeNode.Insert i = b.Insert("out", k, d, n, c.upMask(p));                 // Insert results
     Words K = c.outputWords("ok", i.keys);                                      // Modified keys
     Words D = c.outputWords("od", i.data);                                      // Modified data
     Words N = c.outputWords("on", i.next);                                      // Modified next
@@ -4796,7 +4785,7 @@ Step  i     o     O
    {int    N = 8;
     Chip   c = chip();
     Words  w = c.words("w", N, 3, 5, 7, 9, 11);
-    Words  W = c.new SubWordBus("W", w, 3, 2);
+    Words  W = c.subWordBus("W", w, 3, 2);
     Words ow = c.outputWords("ow", w);
     Words oW = c.outputWords("oW", W);
      c.simulate();
