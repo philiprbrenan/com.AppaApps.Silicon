@@ -52,7 +52,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 
     int findIndexOfKey     (Key keyToFind) {return keyNames.indexOf(keyToFind);}// Find the one based index of a key in a branch node or zero if not found
     boolean lessThanOrEqual(Key a, Key b)  {return a.compareTo(b) <= 0;}        // Define a new Btree of default type with a specified maximum number of keys per node
-    int splitIdx() {return (maxKeysPerLeaf - 1) / 2;}                           // Index of splitting key
+    int splitIdx() {return maxKeysPerBranch >> 1;}                              // Index of splitting key
     Key splitKey() {return keyNames.elementAt(splitIdx());}                     // Splitting key
     int size    () {return keyNames.size();}                                    // Number of elements in this leaf
     void ok(String expected) {Mjaf.ok(toString(), expected);}                   // Check node is as expected
