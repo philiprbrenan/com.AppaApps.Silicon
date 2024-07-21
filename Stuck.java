@@ -4,7 +4,9 @@
 //------------------------------------------------------------------------------
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
 
-class Stuck<Type extends Comparable<Type>> extends Chip                         // Stuck: a fixed size stack controlled by a unary number. The unary number zero indicates an empty stuck stack.
+import java.util.*;
+
+class Stuck<Type> extends Chip implements Iterable<Type>                        // Stuck: a fixed size stack controlled by a unary number. The unary number zero indicates an empty stuck stack.
  {final Unary u;                                                                // The unary number that controls the stuck stack
   final Object[]s;                                                              // The stuck stack
 
@@ -103,6 +105,36 @@ class Stuck<Type extends Comparable<Type>> extends Chip                         
     s[i] = e;
    }
 
+  @SuppressWarnings("unchecked")
+  Type firstElement() {return elementAt(0);}                                    // Get the value of the first element
+  Type  lastElement() {return elementAt(size()-1);}                             // Get the value of the last element
+
+//D1 Search                                                                     // Search a stuck
+
+  public int indexOf(Type keyToFind)                                            // Return 0 based index of the indicated key else -1 if the key is not present in the stuck stack.
+   {final int N = size();
+    for (int i = 0; i < N; i++) if (keyToFind.equals(s[i])) return i;
+    return -1;                                                                  // Not found
+   }
+
+//D1 Iterate                                                                    // Iterate a stuck stack
+
+  public Iterator<Type> iterator() {return new Iterate<Type>();}
+
+  class Iterate<Type> implements Iterator<Type>
+   {int nextElement = 0;                                                              // Iterate the stuck stack
+
+    public boolean hasNext() {return nextElement < size();}
+
+    @SuppressWarnings("unchecked")
+    public Type next()
+     {if (!hasNext()) throw new NoSuchElementException();
+      Type e = (Type)s[nextElement];
+      nextElement = nextElement + 1;
+      return e;
+     }
+   }
+
 //D1 Print                                                                      // Print a stuck stack
 
   public String toString()                                                      // Print a stuck stack
@@ -143,6 +175,8 @@ class Stuck<Type extends Comparable<Type>> extends Chip                         
     s.push(2);         s.ok("Stuck(1, 2)");       ok(s.size(), 2);
     s.push(3);         s.ok("Stuck(1, 2, 3)");    ok(s.size(), 3);
     s.push(4);         s.ok("Stuck(1, 2, 3, 4)"); ok(s.size(), 4);
+    var f = s.firstElement();                     ok(f, 1);
+    var l = s.lastElement();                      ok(l, 4);
     var a = s.shift(); s.ok("Stuck(2, 3, 4)");    ok(s.size(), 3); ok(a, 1);
     var b = s.shift(); s.ok("Stuck(3, 4)");       ok(s.size(), 2); ok(b, 2);
     var c = s.shift(); s.ok("Stuck(4)");          ok(s.size(), 1); ok(c, 3);
@@ -161,10 +195,42 @@ class Stuck<Type extends Comparable<Type>> extends Chip                         
     var d = s.removeElementAt(0); s.ok("Stuck()");           ok(s.size(), 0); ok(d, 4);
    }
 
+  static void test_search()
+   {final int N = 4;
+    var s = stuck(N);
+    for (int i = 1; i <= N; i++) s.push(i);
+    s.ok("Stuck(1, 2, 3, 4)");
+    ok(s.indexOf(0), -1);
+    for (int i = 1; i <= N; i++) ok(s.indexOf(i), i-1);
+   }
+
+  static void test_iterate_zero()
+   {final int N = 4;
+    var s = stuck(N);
+    final StringBuilder b = new StringBuilder();
+    for (Integer i : s) b.append(""+i+", ");
+    if (b.length() > 0) b.setLength(b.length()-2);
+    ok(b.toString().equals(""));
+   }
+
+  static void test_iterate()
+   {final int N = 4;
+    var s = stuck(N);
+    for (int i = 1; i <= N; i++) s.push(i);
+    s.ok("Stuck(1, 2, 3, 4)");
+    final StringBuilder b = new StringBuilder();
+    for (Integer i : s) b.append(""+i+", ");
+    if (b.length() > 0) b.setLength(b.length()-2);
+    ok(b.toString().equals("1, 2, 3, 4"));
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_action();
     test_push_shift();
     test_insert_remove();
+    test_search();
+    test_iterate_zero();
+    test_iterate();
    }
 
   static void newTests()                                                        // Tests being worked on
