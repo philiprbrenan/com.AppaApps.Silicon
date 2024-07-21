@@ -16,7 +16,7 @@ package com.AppaApps.Silicon;                                                   
 //                 But now thou art for ever fairly made,
 //                 The eye of heaven lights thy face for me,
 //                 Nor shall death brag thou wanderâst in his shade,
-//                 When these lines being read give life to thee!
+//                 When these lines being read bring life to thee!
 import java.util.Stack;
 
 class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys and matching number of data elements because data is not transferred to the parent on fission  which simplifies deletions with complicating insertions.
@@ -73,19 +73,16 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 
     int findFirstGreaterOrEqual(Key keyName)                                    // Find first key which is greater an the search key. The result is 1 based, a result of zero means all the keys were less than or equal than the search key
      {final int N = size();                                                     // Number of keys currently in node
-      for (int i = 0; i < N; i++)
-       {final Key kn = keyNames.elementAt(i);                                   // Key we are checking
-        if (lessThanOrEqual(keyName, kn)) return i + 1;                         // Current key is greater than or equal to the search key
-       }
+      for (int i = 0; i < N; i++)                                               // Check each key
+        if (lessThanOrEqual(keyName, keyNames.elementAt(i))) return i + 1;      // Current key is greater than or equal to the search key
       return 0;
      }
 
     void putBranch(Key keyName, Node<Key> putNode)                              // Insert a new node into a branch
      {final int N = nextLevel.size();                                           // Number of keys currently in node
       if (N >= maxKeysPerLeaf) stop("Too many keys in Branch");
-      for (int i = 0; i < N; i++)
-       {final Key kn = keyNames.elementAt(i);                                   // Key we are checking
-        if (lessThanOrEqual(keyName, kn))                                       // Insert new key in order
+      for (int i = 0; i < N; i++)                                               // Check each key
+       {if (lessThanOrEqual(keyName, keyNames.elementAt(i)))                    // Insert new key in order
          {keyNames .insertElementAt(keyName, i);
           nextLevel.insertElementAt(putNode, i);
           return;
@@ -104,21 +101,19 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
        }
      }
 
-    Branch splitBranch(int First)                                               // Split a branch into two branches in the indicated key
-     {final int K = keyNames.size(), f = First;                                 // Number of keys currently in node
+    Branch splitBranchInHalf()                                                  // Split a branch into two branches in the indicated key
+     {final int K = keyNames.size(), f = splitIdx();                            // Number of keys currently in node
       if (f < K-1) {} else stop("Split", f, "too big for branch of size:", K);
       if (f <   1)         stop("First", f, "too small");
       final Branch b = new Branch(nextLevel.elementAt(f));
-      for (int i = 0; i < f; i++)
+      for (int i = 0; i < f; i++)                                               // Remove first keys from old node to new node
        {b.keyNames .push(keyNames .removeElementAt(0));
         b.nextLevel.push(nextLevel.removeElementAt(0));
        }
-      keyNames .removeElementAt(0);
+      keyNames .removeElementAt(0);                                             // Remove central key which is no longer required
       nextLevel.removeElementAt(0);
       return b;
      }
-
-    Branch splitBranchInHalf() {return splitBranch(splitIdx());}                // Split a branch in half
 
     boolean joinableBranches(Branch a)                                          // Check that we can join two branches
      {return size() + a.size() + 1 <= maxKeysPerBranch;
@@ -129,10 +124,10 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       if (K + 1 + J > maxKeysPerBranch) stop("Join of branch has too many keys",
           K,"+1+",J, "greater than", maxKeysPerBranch);
 
-      keyNames .push(joinKeyName);
-      nextLevel.push(topNode); topNode = Join.topNode;
+      keyNames .push(joinKeyName);                                              // Key to separate two halves
+      nextLevel.push(topNode); topNode = Join.topNode;                          // Current top node becomes middle of new node
 
-      for (int i = 0; i < J; i++)
+      for (int i = 0; i < J; i++)                                               // Add right hand branch
        {keyNames .push(Join.keyNames .elementAt(i));
         nextLevel.push(Join.nextLevel.elementAt(i));
        }
@@ -142,7 +137,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
      {final StringBuilder s = new StringBuilder("Branch(");
       final int K = keyNames.size();
 
-      for (int i = 0; i < K; i++)
+      for (int i = 0; i < K; i++)                                               // Keys and next level indices
         s.append(""+keyNames.elementAt(i)+":"+
           nextLevel.elementAt(i).nodeNumber+", ");
 
@@ -150,7 +145,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       return s.toString();
      }
 
-    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print branch
+    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print branch horizontally
      {for (int i = 0; i < size(); i++)
        {nextLevel.elementAt(i).printHorizontally(S, level+1, debug);
         padStrings(S, level);
@@ -191,17 +186,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       ++keyDataStored;                                                          // Created a new entry in the leaf
      }
 
-    void removeLeafKeyData(int Index)                                           // Remove the indicated key data pair from a leaf
-     {final int K = size(), i = Index;                                          // Number of keys currently in node
-      if (i < K) {} else stop("Index", i, "too big for leaf of size:", K);
-      if (i < 0)         stop("Index", i, "too small");
-      keyNames  .removeElementAt(i);
-      dataValues.removeElementAt(i);
-      --keyDataStored;
-     }
-
-    Leaf splitLeaf(int First)                                                   // Split the leaf into two leafs - the new leaf consists of the indicated first elements, the old leaf retains the rest
-     {final int K = size(), f = First;                                          // Number of keys currently in node
+    Leaf splitLeafInHalf()                                                     // Split the leaf into two leafs - the new leaf consists of the indicated first elements, the old leaf retains the rest
+     {final int K = size(), f = maxKeysPerLeaf/2;                               // Number of keys currently in node
       if (f < K) {} else stop("Split", f, "too big for leaf of size:", K);
       if (f < 1)         stop("First", f, "too small");
       final Leaf l = leaf();
@@ -211,9 +197,6 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
        }
       return l;                                                                 // Split out leaf
      }
-
-    Leaf splitLeafInHalf() {return splitLeaf(maxKeysPerLeaf/2);}                // Split a leaf in half
-
 
     boolean joinableLeaves(Leaf a)                                              // Check that we can join two leaves
      {return size() + a.size() <= maxKeysPerLeaf;
@@ -249,12 +232,12 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       return s.toString();
      }
 
-    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print leaf
+    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print leaf  horizontally
      {padStrings(S, level);
       S.elementAt(level).append(debug ? toString() : shortString());
       padStrings(S, level);
      }
-   }
+   } // Leaf
 
   Leaf leaf() {return new Leaf();}                                              // Create an empty leaf
 
@@ -295,8 +278,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
         return;
        }
       else                                                                      // Insert into root as a leaf which is full
-       {final Leaf   l = r.splitLeafInHalf();
-        final Branch b = branch(root);
+       {final Leaf   l = r.splitLeafInHalf();                                   // New left hand side of root
+        final Branch b = branch(root);                                          // New root with old root to right
         b.putBranch(l.splitKey(), l);                                           // Insert left hand node all of whose elements are less than the first element of what was the root
         root = b;
        }
@@ -324,7 +307,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
        }
 
       final Leaf l = (Leaf)q;
-      final int  g = l.findIndexOfKey(keyName);
+      final int  g = l.findIndexOfKey(keyName);                                 // Locate index of key
       if (g != -1)                                                              // Key already present in leaf
        {l.dataValues.setElementAt(dataValue, g);
         return;                                                                 // Data replaced at key
@@ -341,7 +324,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       l.putLeaf(keyName, dataValue);                                            // On a leaf that is not full so we can insert directly
       return;                                                                   // Key, data pair replaced
      }
-   }
+   } // put
 
 //D1 Deletion                                                                   // Delete a key from a Btree
 
@@ -352,7 +335,11 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 
     if (root instanceof Leaf)                                                   // Delete from root as a leaf
      {final Leaf r = (Leaf)root;
-      r.removeLeafKeyData(r.findIndexOfKey(keyName));                           // Only one leaf and the key is known to be in the Btree so it must be in this leaf
+      final int  i = r.findIndexOfKey(keyName);                                 // Only one leaf and the key is known to be in the Btree so it must be in this leaf
+      r.keyNames  .removeElementAt(i);
+      r.dataValues.removeElementAt(i);
+      --keyDataStored;
+
       return foundData;
      }
 
@@ -436,7 +423,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
      }
     stop("Should not reach here");
     return null;
-   }
+   } // delete
 
 //D1 Print                                                                      // Print a tree
 
@@ -456,16 +443,17 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 
   String printHorizontally()                                                    // Print a tree horizontally
    {final Stack<StringBuilder> S = new Stack<>();
-    if (root == null) return "";
+    if (root == null) return "";                                                // Empty tree
     S.push(new StringBuilder());
-    if (root instanceof Leaf)
+
+    if (root instanceof Leaf)                                                   // Root is a leaf
      {((Leaf)root).printHorizontally(S, 0, false);
       return S.toString()+"\n";
      }
 
-    final Branch b = (Branch)root;
+    final Branch b = (Branch)root;                                              // Root is a branch
     final int    N = b.size();
-    for (int i = 0; i < N; i++)
+    for (int i = 0; i < N; i++)                                                 // Nodes below root
      {b.nextLevel.elementAt(i).printHorizontally(S, 1, false);
       S.firstElement().append(" "+b.keyNames.elementAt(i));
      }
@@ -488,12 +476,6 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     ok(l.findIndexOfKey(3), 2);
     ok(l.findIndexOfKey(9), -1);
     ok(m.keyDataStored, 5);
-
-    l.removeLeafKeyData(1); l.ok("Leaf(1:1, 3:6, 4:8, 5:10)"); ok(m.size(), 4);
-    l.removeLeafKeyData(1); l.ok("Leaf(1:1, 4:8, 5:10)");      ok(m.size(), 3);
-    l.removeLeafKeyData(1); l.ok("Leaf(1:1, 5:10)");           ok(m.size(), 2);
-    l.removeLeafKeyData(1); l.ok("Leaf(1:1)");                 ok(m.size(), 1);
-    l.removeLeafKeyData(0); l.ok("Leaf()");                    ok(m.size(), 0);
    }
 
   static void test_leaf_split()
@@ -505,12 +487,6 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     l.putLeaf(3,6);
     l.putLeaf(5,10);
     l.ok("Leaf(1:1, 2:4, 3:6, 4:8, 5:10)");
-    var k = l.splitLeaf(2);
-    k.ok("Leaf(1:1, 2:4)");
-    l.ok("Leaf(3:6, 4:8, 5:10)");
-    ok(l.findIndexOfKey(4), 1);
-    k.joinLeaf(l);
-    k.ok("Leaf(1:1, 2:4, 3:6, 4:8, 5:10)");
    }
 
   static void test_leaf_split_in_half()
@@ -547,12 +523,6 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     ok(B.findIndexOfKey(3), 2);
     ok(B.splitKey(), 3);
     ok(B.size(), 5);
-
-    Mjaf<Integer,Integer>.Branch A = B.splitBranch(3);
-    A.ok("Branch(1:1, 2:2, 3:3, 4)");
-    B.ok("Branch(5:5, 6)");
-    A.joinBranch(B, 4);
-    A.ok("Branch(1:1, 2:2, 3:3, 4:4, 5:5, 6)");
    }
 
   static void test_branch_full()
