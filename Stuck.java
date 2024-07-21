@@ -170,29 +170,29 @@ class Stuck<Type> extends Chip implements Iterable<Type>                        
    }
 
   static void test_push_shift()
-   {var s = stuck(4);                             ok(s.size(), 0); ok(s.isEmpty());
-    s.push(1);         s.ok("Stuck(1)");          ok(s.size(), 1);
-    s.push(2);         s.ok("Stuck(1, 2)");       ok(s.size(), 2);
-    s.push(3);         s.ok("Stuck(1, 2, 3)");    ok(s.size(), 3);
-    s.push(4);         s.ok("Stuck(1, 2, 3, 4)"); ok(s.size(), 4);
-    var f = s.firstElement();                     ok(f, 1);
-    var l = s.lastElement();                      ok(l, 4);
-    var a = s.shift(); s.ok("Stuck(2, 3, 4)");    ok(s.size(), 3); ok(a, 1);
-    var b = s.shift(); s.ok("Stuck(3, 4)");       ok(s.size(), 2); ok(b, 2);
-    var c = s.shift(); s.ok("Stuck(4)");          ok(s.size(), 1); ok(c, 3);
-    var d = s.shift(); s.ok("Stuck()");           ok(s.size(), 0); ok(d, 4);
+   {var s = stuck(4);                                           ok(s.size(), 0); ok(s.isEmpty());
+    s.push(1);                       s.ok("Stuck(1)");          ok(s.size(), 1);
+    s.push(2);                       s.ok("Stuck(1, 2)");       ok(s.size(), 2);
+    s.push(3);                       s.ok("Stuck(1, 2, 3)");    ok(s.size(), 3);
+    s.push(4);                       s.ok("Stuck(1, 2, 3, 4)"); ok(s.size(), 4);
+    var f = s.firstElement();                                   ok(f, 1);
+    var l = s.lastElement();                                    ok(l, 4);
+    var a = s.shift();               s.ok("Stuck(2, 3, 4)");    ok(s.size(), 3); ok(a, 1);
+    var b = s.shift();               s.ok("Stuck(3, 4)");       ok(s.size(), 2); ok(b, 2);
+    var c = s.shift();               s.ok("Stuck(4)");          ok(s.size(), 1); ok(c, 3);
+    var d = s.shift();               s.ok("Stuck()");           ok(s.size(), 0); ok(d, 4);
    }
 
   static void test_insert_remove()
-   {var s = stuck(4);             s.ok("Stuck()");           ok(s.size(), 0); ok(s.isEmpty());
-    s.insertElementAt(1, 0);      s.ok("Stuck(1)");          ok(s.size(), 1);
-    s.insertElementAt(2, 1);      s.ok("Stuck(1, 2)");       ok(s.size(), 2);
-    s.insertElementAt(3, 2);      s.ok("Stuck(1, 2, 3)");    ok(s.size(), 3);
-    s.insertElementAt(4, 3);      s.ok("Stuck(1, 2, 3, 4)"); ok(s.size(), 4); ok(s.isFull());
-    var a = s.removeElementAt(0); s.ok("Stuck(2, 3, 4)");    ok(s.size(), 3); ok(a, 1);
-    var b = s.removeElementAt(0); s.ok("Stuck(3, 4)");       ok(s.size(), 2); ok(b, 2);
-    var c = s.removeElementAt(0); s.ok("Stuck(4)");          ok(s.size(), 1); ok(c, 3);
-    var d = s.removeElementAt(0); s.ok("Stuck()");           ok(s.size(), 0); ok(d, 4);
+   {var s = stuck(4);                s.ok("Stuck()");           ok(s.size(), 0); ok(s.isEmpty());
+    s.insertElementAt(1, 0);         s.ok("Stuck(1)");          ok(s.size(), 1);
+    s.insertElementAt(2, 1);         s.ok("Stuck(1, 2)");       ok(s.size(), 2);
+    s.insertElementAt(3, 2);         s.ok("Stuck(1, 2, 3)");    ok(s.size(), 3);
+    s.insertElementAt(4, 3);         s.ok("Stuck(1, 2, 3, 4)"); ok(s.size(), 4); ok(s.isFull());
+    var a = s.removeElementAt(0);    s.ok("Stuck(2, 3, 4)");    ok(s.size(), 3); ok(a, 1);
+    var b = s.removeElementAt(0);    s.ok("Stuck(3, 4)");       ok(s.size(), 2); ok(b, 2);
+    var c = s.removeElementAt(0);    s.ok("Stuck(4)");          ok(s.size(), 1); ok(c, 3);
+    var d = s.removeElementAt(0);    s.ok("Stuck()");           ok(s.size(), 0); ok(d, 4);
    }
 
   static void test_search()
