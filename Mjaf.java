@@ -17,6 +17,8 @@ package com.AppaApps.Silicon;                                                   
 //                 The eye of heaven lights thy face for me,
 //                 Nor shall death brag thou wanderâst in his shade,
 //                 When these lines being read give life to thee!
+import java.util.Stack;
+
 class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys and matching number of data elements because data is not transferred to the parent on fission  which simplifies deletions with complicating insertions.
  {final int maxKeysPerLeaf;                                                     // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
 
@@ -53,15 +55,21 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     void ok(String expected) {Mjaf.ok(toString(), expected);}                   // Check node is as expected
     boolean lessThanOrEqual(Key a, Key b) {return a.compareTo(b) <= 0;}         // Define a new Btree of default type with a specified maximum number of keys per node
 
-    void printHorizontally(Stuck<StringBuilder>S, int level, boolean debug) {}; // Print horizontally
+    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug) {}; // Print horizontally
    }
+
+  int maxKeysPerBranch() {return maxKeysPerLeaf-1;}                             // The number of keys in a branch is one less than the number in a leaf
 
   class Branch extends Node<Key>                                                // A branch node directs the search to the appropriate leaf
    {final Stuck<Node<Key>> nextLevel;
     Node<Key> topNode;
 
-    Branch(Node<Key> Top) {nextLevel = new Stuck<Node<Key>>(); topNode = Top;}  // Create a new branch
-    boolean branchIsFull() {return size() >= maxKeysPerLeaf-1;}                 // Node should be split
+    Branch(Node<Key> Top)                                                       // Create a new branch
+     {super(maxKeysPerBranch());
+      nextLevel = new Stuck<Node<Key>>(maxKeysPerBranch());                     // The number of keys in a branch is one less than the number of keys in a leaf
+      topNode = Top;
+     }
+    boolean branchIsFull() {return nextLevel.isFull();}                         // Node should be split
 
     int findFirstGreaterOrEqual(Key keyName)                                    // Find first key which is greater an the search key. The result is 1 based, a result of zero means all the keys were less than or equal than the search key
      {final int N = size();                                                     // Number of keys currently in node
@@ -102,20 +110,24 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       if (f <   1)         stop("First", f, "too small");
       final Branch b = new Branch(nextLevel.elementAt(f));
       for (int i = 0; i < f; i++)
-       {b.keyNames .push(keyNames .remove(0));
-        b.nextLevel.push(nextLevel.remove(0));
+       {b.keyNames .push(keyNames .removeElementAt(0));
+        b.nextLevel.push(nextLevel.removeElementAt(0));
        }
-      keyNames .remove(0);
-      nextLevel.remove(0);
+      keyNames .removeElementAt(0);
+      nextLevel.removeElementAt(0);
       return b;
      }
 
     Branch splitBranchInHalf() {return splitBranch(splitIdx());}                // Split a branch in half
 
+    boolean joinableBranches(Branch a)                                          // Check that we can join two branches
+     {return size() + a.size() + 1 <= maxKeysPerBranch();
+     }
+
     void joinBranch(Branch Join, Key joinKeyName)                               // Append the second branch to the first one adding the specified key
      {final int K = size(), J = Join.size();                                    // Number of keys currently in node
-      if (J + K >= maxKeysPerLeaf) stop("Join of branch has too many keys",
-        K, "+1+", J, "greater than", maxKeysPerLeaf);
+      if (J + K + 1 > maxKeysPerBranch()) stop("Join of branch has too many keys",
+        K, "+1+", J, "greater than", maxKeysPerBranch());
 
       keyNames .push(joinKeyName);
       nextLevel.push(topNode); topNode = Join.topNode;
@@ -138,7 +150,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       return s.toString();
      }
 
-    void printHorizontally(Stuck<StringBuilder>S, int level, boolean debug)     // Print branch
+    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print branch
      {for (int i = 0; i < size(); i++)
        {nextLevel.elementAt(i).printHorizontally(S, level+1, debug);
         padStrings(S, level);
@@ -154,8 +166,12 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 
   class Leaf extends Node<Key>                                                  // Create a new leaf
    {final Stuck<Data> dataValues;                                               // Data associated with each key
-    Leaf() {dataValues = new Stuck<Data>();}                                    // Data associated with keys in leaf
-    boolean leafIsFull() {return size() >= maxKeysPerLeaf;}                     // Leaf is full
+    Leaf()                                                                      // Data associated with keys in leaf
+     {super(maxKeysPerLeaf);
+      dataValues = new Stuck<Data>(maxKeysPerLeaf);
+     }
+
+    boolean leafIsFull() {return dataValues.isFull();}                          // Leaf is full
 
     void putLeaf(Key keyName, Data dataValue)                                   // Insert a new leaf value
      {final int K = keyNames.size();                                            // Number of keys currently in node
@@ -190,17 +206,22 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       if (f < 1)         stop("First", f, "too small");
       final Leaf l = leaf();
       for (int i = 0; i < f; i++)                                               // Transfer keys and data
-       {l.keyNames  .push(keyNames  .remove(0));                                // Transfer keys
-        l.dataValues.push(dataValues.remove(0));                                // Transfer data
+       {l.keyNames  .push(keyNames  .removeElementAt(0));                       // Transfer keys
+        l.dataValues.push(dataValues.removeElementAt(0));                       // Transfer data
        }
       return l;                                                                 // Split out leaf
      }
 
     Leaf splitLeafInHalf() {return splitLeaf(maxKeysPerLeaf/2);}                // Split a leaf in half
 
+
+    boolean joinableLeaves(Leaf a)                                              // Check that we can join two leaves
+     {return size() + a.size() <= maxKeysPerLeaf;
+     }
+
     void joinLeaf(Leaf Join)                                                    // Join the specified leaf onto the end of this leaf
      {final int K = size(), J = Join.size();                                    // Number of keys currently in node
-      if (J + K > maxKeysPerLeaf) stop("Join of leaf has too many keys", K,
+      if (!joinableLeaves(Join)) stop("Join of leaf has too many keys", K,
         "+", J, "greater than", maxKeysPerLeaf);
 
       for (int i = 0; i < J; i++)
@@ -228,7 +249,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       return s.toString();
      }
 
-    void printHorizontally(Stuck<StringBuilder>S, int level, boolean debug)     // Print leaf
+    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print leaf
      {padStrings(S, level);
       S.elementAt(level).append(debug ? toString() : shortString());
       padStrings(S, level);
@@ -341,14 +362,14 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       final Node<Key> B = r.topNode;
       if (A instanceof Leaf)
        {final Leaf a = (Leaf)A, b = (Leaf)B;
-        if (a.size() + b.size() <= maxKeysPerLeaf)                              // Can we merge the two leaves
+        if (a.joinableLeaves(b))                                                // Can we merge the two leaves
          {a.joinLeaf(b);
           root = a;                                                             // New merged root
          }
        }
       else                                                                      // Merge two branches under root
        {final Branch a = (Branch)A, b = (Branch)B;
-        if (a.size() + b.size() < maxKeysPerLeaf)                               // Can we merge the two branches
+        if (a.joinableBranches(b))                                              // Can we merge the two branches
          {a.joinBranch(b, r.keyNames.firstElement());
           root = a;                                                             // New merged root
          }
@@ -360,22 +381,22 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     for    (int i = 0; i < 999; ++i)                                            // Step down through tree to find the required leaf, splitting as we go
      {if (P instanceof Branch)                                                  // Stepped to a branch
        {final Branch p = (Branch)P;
-        for(int j = 0; j < p.size()-1;   ++j)                                   // See if any pair under this node can be merged
+        for(int j = 0; j < p.size()-1; ++j)                                     // See if any pair under this node can be merged
          {final Node<Key> A = p.nextLevel.elementAt(j);
           final Node<Key> B = p.nextLevel.elementAt(j+1);
           if (A instanceof Leaf)
            {final Leaf a = (Leaf)A, b = (Leaf)B;
-            if (a.size() + b.size() <= maxKeysPerLeaf)                          // Can we merge the two leaves
+            if (a.joinableLeaves(b))                                            // Can we merge the two leaves
              {a.joinLeaf(b);
-              p.keyNames.remove(j);
-              p.nextLevel.remove(j+1);
+              p.keyNames.removeElementAt(j);
+              p.nextLevel.removeElementAt(j+1);
              }
            }
           else                                                                  // Merge two branches
            {final Branch a = (Branch)A, b = (Branch)B;
-            if (a.size() + b.size() < maxKeysPerLeaf)                           // Can we merge the two branches
-             {a.joinBranch(b, p.keyNames.remove(j));
-              p.nextLevel.remove(j+1);
+            if (a.joinableBranches(b))                                          // Can we merge the two branches
+             {a.joinBranch(b, p.keyNames.removeElementAt(j));
+              p.nextLevel.removeElementAt(j+1);
              }
            }
          }
@@ -385,7 +406,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
           final Node<Key> B = p.topNode;
           if (A instanceof Leaf)
            {final Leaf a = (Leaf)A, b = (Leaf)B;
-            if (a.size() + b.size() <= maxKeysPerLeaf)                          // Can we merge the two leaves
+            if (a.joinableLeaves(b))                                            // Can we merge the two leaves
              {a.joinLeaf(b);
               p.keyNames.pop();
               p.nextLevel.pop();
@@ -394,7 +415,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
            }
           else                                                                  // Merge two branches
            {final Branch a = (Branch)A, b = (Branch)B;
-            if (a.size() + b.size() < maxKeysPerLeaf)                           // Can we merge the last two branches
+            if (a.joinableBranches(b))                                          // Can we merge the last two branches
              {a.joinBranch(b, p.keyNames.pop());
               p.nextLevel.pop();
               p.topNode = a;
@@ -409,16 +430,17 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       --keyDataStored;                                                          // Remove one entry
       final Leaf l = (Leaf)P;                                                   // Reached a leaf
       final int  F = l.findIndexOfKey(keyName)-1;                               // Key is known to be present
-      l.keyNames  .remove(F);
-      l.dataValues.remove(F);
+      l.keyNames  .removeElementAt(F);
+      l.dataValues.removeElementAt(F);
       return foundData;
      }
+    stop("Should not reach here");
     return null;
    }
 
 //D1 Print                                                                      // Print a tree
 
-  static void padStrings(Stuck<StringBuilder> S, int level)                     // Pad a stack of strings so they all have the same length
+  static void padStrings(Stack<StringBuilder> S, int level)                     // Pad a stack of strings so they all have the same length
    {for (int i = S.size(); i <= level; ++i) S.push(new StringBuilder());
     int m = 0;
     for (StringBuilder s : S) m = m < s.length() ? s.length() : m;
@@ -426,14 +448,14 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       if (s.length() < m) s.append(" ".repeat(m - s.length()));
    }
 
-  static String joinStrings(Stuck<StringBuilder> S)                             // Join lines
+  static String joinStrings(Stack<StringBuilder> S)                             // Join lines
    {final StringBuilder a = new StringBuilder();
     for (StringBuilder s : S) a.append(s.toString()+"|\n");
     return a.toString();
    }
 
   String printHorizontally()                                                    // Print a tree horizontally
-   {final Stuck<StringBuilder> S = new Stuck<>();
+   {final Stack<StringBuilder> S = new Stack<>();
     if (root == null) return "";
     S.push(new StringBuilder());
     if (root instanceof Leaf)
@@ -541,25 +563,23 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     var d = m.leaf();
     var e = m.leaf();
     var f = m.leaf();
-    var g = m.leaf();
-    Mjaf<Integer,Integer>.Branch B = m.branch(g);
+    Mjaf<Integer,Integer>.Branch B = m.branch(f);
     B.putBranch(1, a);
     B.putBranch(2, b);
     B.putBranch(3, c);
     B.putBranch(4, d);
     B.putBranch(5, e);
-    B.putBranch(6, f);
-    B.ok("Branch(1:1, 2:2, 3:3, 4:4, 5:5, 6:6, 7)");
+    B.ok("Branch(1:1, 2:2, 3:3, 4:4, 5:5, 6)");
     ok(B.splitKey(), 3);
     ok(B.branchIsFull(), true);
-    ok(B.size(), 6);
+    ok(B.size(), 5);
     Mjaf<Integer,Integer>.Branch C = B.splitBranchInHalf();
     C.ok("Branch(1:1, 2:2, 3)");
-    B.ok("Branch(4:4, 5:5, 6:6, 7)");
+    B.ok("Branch(4:4, 5:5, 6)");
    }
 
   static void test_pad_strings()
-   {final Stuck<StringBuilder> S = new Stuck<StringBuilder>();
+   {final Stack<StringBuilder> S = new Stack<>();
     padStrings(S, 0); S.lastElement().append(11);
     padStrings(S, 1); S.lastElement().append(22);
     padStrings(S, 2); S.lastElement().append(33);
@@ -705,15 +725,16 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     var m = mjaf(4);
     for (int i = 0; i < r.length; ++i) m.put(r[i], (long)i);
     for (int i = 0; i < r.length; ++i)
-     {ok(m.delete(r[i]), (long)i);
+     {var a = m.delete(r[i]);
+      ok(a, (long)i);
       if (false)                                                                // Write case statement to check deletions
        {say("        case", i, "-> /*", r[i], "*/ ok(m.printHorizontally(), \"\"\"");
         say(m.printHorizontally());
         say("\"\"\");");
        }
       ok(m.size(), r.length - i - 1);
-      switch(i)
-       {case 0 -> /* 27 */ ok(m.printHorizontally(), """
+      switch(i) {
+        case 0 -> /* 27 */ ok(m.printHorizontally(), """
                                                                                                                                                                                                                                              511                                                                                                                                                                                                                     |
                                                                                                                               317                                                                                                                                                                                        658                                                                       858                                                               |
                                 103                                                     246                                                                               403                                   472                                                                    578                                                           704                                                                       912                                   |
@@ -721,448 +742,472 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298,317   338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
 """);
         case 1 -> /* 442 */ ok(m.printHorizontally(), """
-                                                                                                                               317                                                                                                                                                                                    658                                                                                                                                         |
-                                103                                                     246                                                                                403                                                           511                                       578                                                            704                                           858                         912                                   |
-    27     39        72                   135               186               234                 261           279                      344       358           391                 425           442       472               501                     545       560                         611           650                          686                         806           830                         903                             961       987       |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,437,438   447,472   480,490,494,501   503,511   516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
+                                                                                                                                                                                                                                         511                                                                                                                                                                                                                     |
+                                                                                                                              317                                                                                                                                                                                    658                                                                       858                                                               |
+                                103                                                     246                                                                               403                               472                                                                    578                                                           704                                                                       912                                   |
+    27     39        72                   135               186               234                 261           279                     344       358           391                 425           442                         501                      545       560                         611           650                         686                         806           830                         903                             961       987       |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298,317   338,344   354,358   376,377,391   401,403   422,425   436,437,438   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
 """);
         case 2 -> /* 545 */ ok(m.printHorizontally(), """
-                                                                                                                               317                                                                                                                                                                                658                                                                                                                                         |
-                                103                                                     246                                                                                403                                                           511                                   578                                                            704                                           858                         912                                   |
-    27     39        72                   135               186               234                 261           279                      344       358           391                 425           442       472               501                 545       560                         611           650                          686                         806           830                         903                             961       987       |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,437,438   447,472   480,490,494,501   503,511   516,526   554,560   564,576,577,578   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
+                                                                                                                                                                                                                                         511                                                                                                                                                                                                                 |
+                                                                                                                              317                                                                                                                                                                                                                                                          858                                                               |
+                                103                                                     246                                                                               403                               472                                                                578                               658                         704                                                                       912                                   |
+    27     39        72                   135               186               234                 261           279                     344       358           391                 425           442                         501                  545       560                         611           650                         686                         806           830                         903                             961       987       |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298,317   338,344   354,358   376,377,391   401,403   422,425   436,437,438   447,472   480,490,494,501   503,511    516,526   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
 """);
         case 3 -> /* 317 */ ok(m.printHorizontally(), """
-                                                                                                                           317                                                                                                                                                                                658                                                                                                                                         |
-                                103                                                     246                                                                            403                                                           511                                   578                                                            704                                           858                         912                                   |
-    27     39        72                   135               186               234                 261           279                  344       358           391                 425           442       472               501                 545       560                         611           650                          686                         806           830                         903                             961       987       |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344   354,358   376,377,391   401,403   422,425   436,437,438   447,472   480,490,494,501   503,511   516,526   554,560   564,576,577,578   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
+                                                                                                                           317                                                                                                        511                                                                                                                                                858                                                               |
+                                103                                                     246                                                                            403                               472                                                                578                               658                         704                                                                        912                                   |
+    27     39        72                   135               186               234                 261           279                  344       358           391                 425           442                         501                  545       560                         611           650                         686                         806           830                          903                             961       987       |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344   354,358   376,377,391   401,403   422,425   436,437,438   447,472   480,490,494,501   503,511    516,526   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858    882,884,903   906,907,912   922,937,946,961   976,987   989,993|
 """);
         case 4 -> /* 511 */ ok(m.printHorizontally(), """
-                                                                                                                           317                                                                                                                                                                            658                                                                                                                                         |
-                                103                                                     246                                                                            403                                                       511                                   578                                                            704                                           858                         912                                   |
-    27     39        72                   135               186               234                 261           279                  344       358           391                 425           442       472               501             545       560                         611           650                          686                         806           830                         903                             961       987       |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344   354,358   376,377,391   401,403   422,425   436,437,438   447,472   480,490,494,501   503   516,526   554,560   564,576,577,578   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
+                                                                                                                           317                                                                                                    511                                                                                                                                                858                                                               |
+                                103                                                     246                                                                            403                               472                                                            578                               658                         704                                                                        912                                   |
+    27     39        72                   135               186               234                 261           279                  344       358           391                 425           442                         501              545       560                         611           650                         686                         806           830                          903                             961       987       |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344   354,358   376,377,391   401,403   422,425   436,437,438   447,472   480,490,494,501   503    516,526   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858    882,884,903   906,907,912   922,937,946,961   976,987   989,993|
 """);
         case 5 -> /* 578 */ ok(m.printHorizontally(), """
-                                                                                                                           317                                                                                                                                                                      658                                                                                                                                         |
-                                103                                                     246                                                                            403                                                       511                             578                                                            704                                           858                         912                                   |
-    27     39        72                   135               186               234                 261           279                  344       358           391                 425           442       472               501                     560                     611           650                          686                         806           830                         903                             961       987       |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344   354,358   376,377,391   401,403   422,425   436,437,438   447,472   480,490,494,501   503   516,526,554,560   564,576,577   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
+                                                                                                                           317                                                                                                    511                                                                                                                                          858                                                               |
+                                103                                                     246                                                                            403                               472                                                      578                               658                         704                                                                        912                                   |
+    27     39        72                   135               186               234                 261           279                  344       358           391                 425           442                         501                      560                     611           650                         686                         806           830                          903                             961       987       |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344   354,358   376,377,391   401,403   422,425   436,437,438   447,472   480,490,494,501   503    516,526,554,560   564,576,577   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858    882,884,903   906,907,912   922,937,946,961   976,987   989,993|
 """);
         case 6 -> /* 391 */ ok(m.printHorizontally(), """
-                                                                                                                           317                                                                                                                                                                658                                                                                                                                         |
-                                103                                                     246                                                                      403                                                       511                                                                                            704                                           858                         912                                   |
-    27     39        72                   135               186               234                 261           279                          358       391                 425           442       472               501                     560           578       611           650                          686                         806           830                         903                             961       987       |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447,472   480,490,494,501   503   516,526,554,560   564,576,577   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
+                                                                                                                           317                                                                                              511                                                                                                                                          858                                                               |
+                                103                                                     246                                                                      403                               472                                                      578                               658                         704                                                                        912                                   |
+    27     39        72                   135               186               234                 261           279                          358       391                 425           442                         501                      560                     611           650                         686                         806           830                          903                             961       987       |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447,472   480,490,494,501   503    516,526,554,560   564,576,577   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858    882,884,903   906,907,912   922,937,946,961   976,987   989,993|
 """);
         case 7 -> /* 993 */ ok(m.printHorizontally(), """
-                                                                                                                           317                                                                                                                                                                658                                                                                                                                   |
-                                103                                                     246                                                                      403                                                       511                                                                                                                                          858                                                         |
-    27     39        72                   135               186               234                 261           279                          358       391                 425           442       472               501                     560           578       611           650                          686       704               806           830                         903           912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447,472   480,490,494,501   503   516,526,554,560   564,576,577   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987,989|
+                                                                                                                           317                                                                                              511                                                                                                                                          858                                                         |
+                                103                                                     246                                                                      403                               472                                                      578                               658                         704                                                                        912                             |
+    27     39        72                   135               186               234                 261           279                          358       391                 425           442                         501                      560                     611           650                         686                         806           830                          903                             961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447,472   480,490,494,501   503    516,526,554,560   564,576,577   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858    882,884,903   906,907,912   922,937,946,961   976,987,989|
 """);
         case 8 -> /* 858 */ ok(m.printHorizontally(), """
-                                                                                                                           317                                                                                                                                                                                                                                                                                                 |
-                                103                                                     246                                                                      403                                                       511                                                               658                                                                   858                                                         |
-    27     39        72                   135               186               234                 261           279                          358       391                 425           442       472               501                     560           578       611           650                         686       704               806           830                     903           912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447,472   480,490,494,501   503   516,526,554,560   564,576,577   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854   882,884,903   906,907,912   922,937,946,961   976,987,989|
+                                                                                                                           317                                                                                              511                                                                                                                                      858                                                         |
+                                103                                                     246                                                                      403                               472                                                      578                               658                         704                                                                    912                             |
+    27     39        72                   135               186               234                 261           279                          358       391                 425           442                         501                      560                     611           650                         686                         806           830                      903                             961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447,472   480,490,494,501   503    516,526,554,560   564,576,577   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854    882,884,903   906,907,912   922,937,946,961   976,987,989|
 """);
         case 9 -> /* 586 */ ok(m.printHorizontally(), """
-                                                                                                                           317                                                                                                                                                                                                                                                                                             |
-                                103                                                     246                                                                      403                                                       511                                                           658                                                                   858                                                         |
-    27     39        72                   135               186               234                 261           279                          358       391                 425           442       472               501                     560           578   611           650                         686       704               806           830                     903           912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447,472   480,490,494,501   503   516,526,554,560   564,576,577   611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854   882,884,903   906,907,912   922,937,946,961   976,987,989|
+                                                                                                                           317                                                                                              511                                                                                                                                  858                                                         |
+                                103                                                     246                                                                      403                               472                                                      578                           658                         704                                                                    912                             |
+    27     39        72                   135               186               234                 261           279                          358       391                 425           442                         501                      560                 611           650                         686                         806           830                      903                             961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447,472   480,490,494,501   503    516,526,554,560   564,576,577   611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854    882,884,903   906,907,912   922,937,946,961   976,987,989|
 """);
         case 10 -> /* 472 */ ok(m.printHorizontally(), """
-                                                                                                                           317                                                                                                                                                                                                                                                                                         |
-                                103                                                     246                                                                      403                                                   511                                                           658                                                                   858                                                         |
-    27     39        72                   135               186               234                 261           279                          358       391                 425           442   472               501                     560           578   611           650                         686       704               806           830                     903           912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447   480,490,494,501   503   516,526,554,560   564,576,577   611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854   882,884,903   906,907,912   922,937,946,961   976,987,989|
+                                                                                                                           317                                                                                          511                                                                                                                                  858                                                         |
+                                103                                                     246                                                                      403                           472                                                      578                           658                         704                                                                    912                             |
+    27     39        72                   135               186               234                 261           279                          358       391                 425           442                     501                      560                 611           650                         686                         806           830                      903                             961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447   480,490,494,501   503    516,526,554,560   564,576,577   611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854    882,884,903   906,907,912   922,937,946,961   976,987,989|
 """);
         case 11 -> /* 906 */ ok(m.printHorizontally(), """
-                                                                                                                           317                                                                                                                                                                                                                                                                                     |
-                                103                                                     246                                                                      403                                                   511                                                           658                                                                   858                                                     |
-    27     39        72                   135               186               234                 261           279                          358       391                 425           442   472               501                     560           578   611           650                         686       704               806           830                     903       912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447   480,490,494,501   503   516,526,554,560   564,576,577   611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854   882,884,903   907,912   922,937,946,961   976,987,989|
+                                                                                                                           317                                                                                          511                                                                                                                                  858                                                     |
+                                103                                                     246                                                                      403                           472                                                      578                           658                         704                                                                                                |
+    27     39        72                   135               186               234                 261           279                          358       391                 425           442                     501                      560                 611           650                         686                         806           830                      903       912               961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447   480,490,494,501   503    516,526,554,560   564,576,577   611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854    882,884,903   907,912   922,937,946,961   976,987,989|
 """);
         case 12 -> /* 658 */ ok(m.printHorizontally(), """
-                                                                                                                           317                                                                                                                                                                                                                                                                               |
-                                103                                                     246                                                                      403                                                   511                                                     658                                                                   858                                                     |
-    27     39        72                   135               186               234                 261           279                          358       391                 425           442   472               501                     560               611           650                     686       704               806           830                     903       912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447   480,490,494,501   503   516,526,554,560   564,576,577,611   612,615,650   657   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854   882,884,903   907,912   922,937,946,961   976,987,989|
+                                                                                                                           317                                                                                          511                                                                                                                            858                                                     |
+                                103                                                     246                                                                      403                           472                                                      578                     658                         704                                                                                                |
+    27     39        72                   135               186               234                 261           279                          358       391                 425           442                     501                      560                             650                     686                         806           830                      903       912               961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447   480,490,494,501   503    516,526,554,560   564,576,577   611,612,615,650   657   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854    882,884,903   907,912   922,937,946,961   976,987,989|
 """);
         case 13 -> /* 704 */ ok(m.printHorizontally(), """
-                                                                                                                           317                                                                                                                                                                                                                                                                           |
-                                103                                                     246                                                                      403                                                   511                                                     658                                                               858                                                     |
-    27     39        72                   135               186               234                 261           279                          358       391                 425           442   472               501                     560               611           650                     686   704               806           830                     903       912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447   480,490,494,501   503   516,526,554,560   564,576,577,611   612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839,854   882,884,903   907,912   922,937,946,961   976,987,989|
+                                                                                                                           317                                                                                          511                                                                                                                        858                                                     |
+                                103                                                     246                                                                      403                           472                                                                              658                     704                                                                                                |
+    27     39        72                   135               186               234                 261           279                          358       391                 425           442                     501                      560           578               650                     686                     806           830                      903       912               961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447   480,490,494,501   503    516,526,554,560   564,576,577   611,612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839,854    882,884,903   907,912   922,937,946,961   976,987,989|
 """);
         case 14 -> /* 882 */ ok(m.printHorizontally(), """
-                                                                                                                           317                                                                                                                                                                                                                                                                       |
-                                103                                                     246                                                                      403                                                   511                                                     658                                                               858                                                 |
-    27     39        72                   135               186               234                 261           279                          358       391                 425           442   472               501                     560               611           650                     686   704               806           830                 903       912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447   480,490,494,501   503   516,526,554,560   564,576,577,611   612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839,854   884,903   907,912   922,937,946,961   976,987,989|
+                                                                                                                           317                                                                                          511                                                                                                                                                                           |
+                                103                                                     246                                                                      403                           472                                                                              658                     704                                       858                                                 |
+    27     39        72                   135               186               234                 261           279                          358       391                 425           442                     501                      560           578               650                     686                     806           830                 903       912               961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447   480,490,494,501   503    516,526,554,560   564,576,577   611,612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839,854   884,903   907,912   922,937,946,961   976,987,989|
 """);
         case 15 -> /* 246 */ ok(m.printHorizontally(), """
-                                                                                                                       317                                                                                                                                                                                                                                                                       |
-                                103                                                 246                                                                      403                                                   511                                                     658                                                               858                                                 |
-    27     39        72                   135               186               234             261           279                          358       391                 425           442   472               501                     560               611           650                     686   704               806           830                 903       912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447   480,490,494,501   503   516,526,554,560   564,576,577,611   612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839,854   884,903   907,912   922,937,946,961   976,987,989|
+                                                                                                                       317                                                                                          511                                                                                                                                                                           |
+                                103                                                 246                                                                      403                           472                                                                              658                     704                                       858                                                 |
+    27     39        72                   135               186               234             261           279                          358       391                 425           442                     501                      560           578               650                     686                     806           830                 903       912               961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,261   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447   480,490,494,501   503    516,526,554,560   564,576,577   611,612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839,854   884,903   907,912   922,937,946,961   976,987,989|
 """);
         case 16 -> /* 261 */ ok(m.printHorizontally(), """
-                                                                                                                   317                                                                                                                                                                                                                                                                       |
-                                103                                                 246                                                                  403                                                   511                                                     658                                                               858                                                 |
-    27     39        72                   135               186               234         261           279                          358       391                 425           442   472               501                     560               611           650                     686   704               806           830                 903       912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447   480,490,494,501   503   516,526,554,560   564,576,577,611   612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839,854   884,903   907,912   922,937,946,961   976,987,989|
+                                                                                                                   317                                                                                          511                                                                                                                                                                           |
+                                103                                                 246                                                                  403                           472                                                                              658                     704                                       858                                                 |
+    27     39        72                   135               186               234         261           279                          358       391                 425           442                     501                      560           578               650                     686                     806           830                 903       912               961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447   480,490,494,501   503    516,526,554,560   564,576,577   611,612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839,854   884,903   907,912   922,937,946,961   976,987,989|
 """);
         case 17 -> /* 501 */ ok(m.printHorizontally(), """
-                                                                                                                   317                                                                                                                                                                                                                                                                 |
-                                103                                                 246                                                                  403                                             511                                                     658                                                               858                                                 |
-    27     39        72                   135               186               234         261           279                          358       391                 425               472           501                     560               611           650                     686   704               806           830                 903       912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438,447   480,490,494   503   516,526,554,560   564,576,577,611   612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839,854   884,903   907,912   922,937,946,961   976,987,989|
+                                                                                                                   317                                                                                      511                                                                                                                                                                           |
+                                103                                                 246                                                                  403                           472                                                                          658                     704                                       858                                                 |
+    27     39        72                   135               186               234         261           279                          358       391                 425           442                 501                      560           578               650                     686                     806           830                 903       912               961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260   272,273,279   288,298    338,344,354,358   376,377   401,403   422,425   436,437,438   447   480,490,494   503    516,526,554,560   564,576,577   611,612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839,854   884,903   907,912   922,937,946,961   976,987,989|
 """);
         case 18 -> /* 354 */ ok(m.printHorizontally(), """
-                                                                                                                   317                                                                                                                                                                                                                                                           |
-                                103                                                 246                                                            403                                             511                                                     658                                                               858                                                 |
-    27     39        72                   135               186               234         261           279                      358                         425               472           501                     560               611           650                     686   704               806           830                 903       912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260   272,273,279   288,298    338,344,358   376,377,401,403   422,425   436,437,438,447   480,490,494   503   516,526,554,560   564,576,577,611   612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839,854   884,903   907,912   922,937,946,961   976,987,989|
+                                                                                                                   317                                                                                511                                                                                                                                                                           |
+                                103                                                 246                                                            403                           472                                                                          658                     704                                       858                                                 |
+    27     39        72                   135               186               234         261           279                      358                         425           442                 501                      560           578               650                     686                     806           830                 903       912               961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260   272,273,279   288,298    338,344,358   376,377,401,403   422,425   436,437,438   447   480,490,494   503    516,526,554,560   564,576,577   611,612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839,854   884,903   907,912   922,937,946,961   976,987,989|
 """);
         case 19 -> /* 903 */ ok(m.printHorizontally(), """
-                                                                                                                   317                                                                                                                                                                                                                                                     |
-                                103                                                 246                                                            403                                             511                                                     658                                                               858                                           |
-    27     39        72                   135               186               234         261           279                      358                         425               472           501                     560               611           650                     686   704               806           830                     912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260   272,273,279   288,298    338,344,358   376,377,401,403   422,425   436,437,438,447   480,490,494   503   516,526,554,560   564,576,577,611   612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839,854   884,907,912   922,937,946,961   976,987,989|
+                                                                                                                   317                                                                                511                                                                                                                                                                     |
+                                103                                                 246                                                            403                           472                                                                          658                     704                                       858                                           |
+    27     39        72                   135               186               234         261           279                      358                         425           442                 501                      560           578               650                     686                     806           830                     912               961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260   272,273,279   288,298    338,344,358   376,377,401,403   422,425   436,437,438   447   480,490,494   503    516,526,554,560   564,576,577   611,612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839,854   884,907,912   922,937,946,961   976,987,989|
 """);
         case 20 -> /* 854 */ ok(m.printHorizontally(), """
-                                                                                                                   317                                                                                                                                                                                                                                                 |
-                                103                                                 246                                                            403                                             511                                                     658                                                           858                                           |
-    27     39        72                   135               186               234         261           279                      358                         425               472           501                     560               611           650                     686   704               806           830                 912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260   272,273,279   288,298    338,344,358   376,377,401,403   422,425   436,437,438,447   480,490,494   503   516,526,554,560   564,576,577,611   612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839   884,907,912   922,937,946,961   976,987,989|
+                                                                                                                   317                                                                                511                                                                                                                                                                 |
+                                103                                                 246                                                            403                           472                                                                          658                     704                                   858                                           |
+    27     39        72                   135               186               234         261           279                      358                         425           442                 501                      560           578               650                     686                     806           830                 912               961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260   272,273,279   288,298    338,344,358   376,377,401,403   422,425   436,437,438   447   480,490,494   503    516,526,554,560   564,576,577   611,612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839   884,907,912   922,937,946,961   976,987,989|
 """);
         case 21 -> /* 279 */ ok(m.printHorizontally(), """
-                                                                                                             317                                                                                                                                                                                                                                                 |
-                                103                                                 246                                                      403                                             511                                                     658                                                           858                                           |
-    27     39        72                   135               186               234                 279                      358                         425               472           501                     560               611           650                     686   704               806           830                 912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377,401,403   422,425   436,437,438,447   480,490,494   503   516,526,554,560   564,576,577,611   612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839   884,907,912   922,937,946,961   976,987,989|
+                                                                                                             317                                                                                511                                                                                                                                                                 |
+                                103                                                 246                                                      403                           472                                                                          658                     704                                   858                                           |
+    27     39        72                   135               186               234                 279                      358                         425           442                 501                      560           578               650                     686                     806           830                 912               961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377,401,403   422,425   436,437,438   447   480,490,494   503    516,526,554,560   564,576,577   611,612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839   884,907,912   922,937,946,961   976,987,989|
 """);
         case 22 -> /* 526 */ ok(m.printHorizontally(), """
-                                                                                                             317                                                                                                                                                                                                                                           |
-                                103                                                 246                                                      403                                             511                                               658                                                           858                                           |
-    27     39        72                   135               186               234                 279                      358                         425               472           501                 560               611                                 686   704               806           830                 912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377,401,403   422,425   436,437,438,447   480,490,494   503   516,554,560   564,576,577,611   612,615,650,657   667,679,681,686   690   769,773,804,806   809,826,830   839   884,907,912   922,937,946,961   976,987,989|
+                                                                                                             317                                                                                511                                                                                                                                                             |
+                                103                                                 246                                                      403                           472                                                                      658                     704                                   858                                           |
+    27     39        72                   135               186               234                 279                      358                         425           442                 501                  560           578               650                     686                     806           830                 912               961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377,401,403   422,425   436,437,438   447   480,490,494   503    516,554,560   564,576,577   611,612,615,650   657   667,679,681,686   690   769,773,804,806   809,826,830   839   884,907,912   922,937,946,961   976,987,989|
 """);
         case 23 -> /* 686 */ ok(m.printHorizontally(), """
-                                                                                                             317                                                                                                                                                                                                                                     |
-                                103                                                 246                                                      403                                             511                                               658                                                     858                                           |
-    27     39        72                   135               186               234                 279                      358                         425               472           501                 560               611                             686   704               806                             912               961           |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377,401,403   422,425   436,437,438,447   480,490,494   503   516,554,560   564,576,577,611   612,615,650,657   667,679,681   690   769,773,804,806   809,826,830,839   884,907,912   922,937,946,961   976,987,989|
+                                                                                                             317                                                                                511                                                                                                                                                         |
+                                103                                                 246                                                      403                           472                                                                      658                 704                                   858                                           |
+    27     39        72                   135               186               234                 279                      358                         425           442                 501                  560           578               650                 686                     806           830                 912               961           |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377,401,403   422,425   436,437,438   447   480,490,494   503    516,554,560   564,576,577   611,612,615,650   657   667,679,681   690   769,773,804,806   809,826,830   839   884,907,912   922,937,946,961   976,987,989|
 """);
         case 24 -> /* 987 */ ok(m.printHorizontally(), """
-                                                                                                             317                                                                                                                                                                                                                                 |
-                                103                                                 246                                                      403                                             511                                               658                                                     858                                       |
-    27     39        72                   135               186               234                 279                      358                         425               472           501                 560               611                             686   704               806                             912               961       |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377,401,403   422,425   436,437,438,447   480,490,494   503   516,554,560   564,576,577,611   612,615,650,657   667,679,681   690   769,773,804,806   809,826,830,839   884,907,912   922,937,946,961   976,989|
+                                                                                                             317                                                                                511                                                                                                                                                     |
+                                103                                                 246                                                      403                           472                                                                      658                 704                                   858                                       |
+    27     39        72                   135               186               234                 279                      358                         425           442                 501                  560           578               650                 686                     806           830                 912               961       |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377,401,403   422,425   436,437,438   447   480,490,494   503    516,554,560   564,576,577   611,612,615,650   657   667,679,681   690   769,773,804,806   809,826,830   839   884,907,912   922,937,946,961   976,989|
 """);
         case 25 -> /* 403 */ ok(m.printHorizontally(), """
-                                                                                                             317                                                                                                                                                                                                                             |
-                                103                                                 246                                                  403                                             511                                               658                                                     858                                       |
-    27     39        72                   135               186               234                 279                      358                     425               472           501                 560               611                             686   704               806                             912               961       |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377,401   422,425   436,437,438,447   480,490,494   503   516,554,560   564,576,577,611   612,615,650,657   667,679,681   690   769,773,804,806   809,826,830,839   884,907,912   922,937,946,961   976,989|
+                                                                                                             317                                                                            511                                                                                                                                                     |
+                                103                                                 246                                                  403                           472                                                                      658                 704                                   858                                       |
+    27     39        72                   135               186               234                 279                      358                     425           442                 501                  560           578               650                 686                     806           830                 912               961       |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377,401   422,425   436,437,438   447   480,490,494   503    516,554,560   564,576,577   611,612,615,650   657   667,679,681   690   769,773,804,806   809,826,830   839   884,907,912   922,937,946,961   976,989|
 """);
         case 26 -> /* 401 */ ok(m.printHorizontally(), """
-                                                                                                             317                                                                                                                                                                                                                         |
-                                103                                                 246                                              403                                             511                                               658                                                     858                                       |
-    27     39        72                   135               186               234                 279                      358                 425               472           501                 560               611                             686   704               806                             912               961       |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377   422,425   436,437,438,447   480,490,494   503   516,554,560   564,576,577,611   612,615,650,657   667,679,681   690   769,773,804,806   809,826,830,839   884,907,912   922,937,946,961   976,989|
+                                                                                                             317                                                                        511                                                                                                                                                     |
+                                103                                                 246                                              403                           472                                                                      658                 704                                   858                                       |
+    27     39        72                   135               186               234                 279                      358                 425           442                 501                  560           578               650                 686                     806           830                 912               961       |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377   422,425   436,437,438   447   480,490,494   503    516,554,560   564,576,577   611,612,615,650   657   667,679,681   690   769,773,804,806   809,826,830   839   884,907,912   922,937,946,961   976,989|
 """);
         case 27 -> /* 989 */ ok(m.printHorizontally(), """
-                                                                                                             317                                                                                                                                                                                                                     |
-                                103                                                 246                                              403                                             511                                               658                                                     858                                   |
-    27     39        72                   135               186               234                 279                      358                 425               472           501                 560               611                             686   704               806                             912               961   |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377   422,425   436,437,438,447   480,490,494   503   516,554,560   564,576,577,611   612,615,650,657   667,679,681   690   769,773,804,806   809,826,830,839   884,907,912   922,937,946,961   976|
+                                                                                                             317                                                                        511                                                                                                                                                 |
+                                103                                                 246                                              403                           472                                                                      658                 704                                   858                                   |
+    27     39        72                   135               186               234                 279                      358                 425           442                 501                  560           578               650                 686                     806           830                 912               961   |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377   422,425   436,437,438   447   480,490,494   503    516,554,560   564,576,577   611,612,615,650   657   667,679,681   690   769,773,804,806   809,826,830   839   884,907,912   922,937,946,961   976|
 """);
         case 28 -> /* 650 */ ok(m.printHorizontally(), """
-                                                                                                             317                                                                                                                                                                                                                 |
-                                103                                                 246                                              403                                             511                                           658                                                     858                                   |
-    27     39        72                   135               186               234                 279                      358                 425               472           501                 560               611                         686   704               806                             912               961   |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377   422,425   436,437,438,447   480,490,494   503   516,554,560   564,576,577,611   612,615,657   667,679,681   690   769,773,804,806   809,826,830,839   884,907,912   922,937,946,961   976|
+                                                                                                             317                                                                        511                                                                                                                                             |
+                                103                                                 246                                              403                           472                                                                  658                 704                                   858                                   |
+    27     39        72                   135               186               234                 279                      358                 425           442                 501                  560           578           650                 686                     806           830                 912               961   |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377   422,425   436,437,438   447   480,490,494   503    516,554,560   564,576,577   611,612,615   657   667,679,681   690   769,773,804,806   809,826,830   839   884,907,912   922,937,946,961   976|
 """);
         case 29 -> /* 576 */ ok(m.printHorizontally(), """
-                                                                                                             317                                                                                                                                                                                                             |
-                                103                                                 246                                              403                                             511                                       658                                                     858                                   |
-    27     39        72                   135               186               234                 279                      358                 425               472           501                 560           611                         686   704               806                             912               961   |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377   422,425   436,437,438,447   480,490,494   503   516,554,560   564,577,611   612,615,657   667,679,681   690   769,773,804,806   809,826,830,839   884,907,912   922,937,946,961   976|
+                                                                                                             317                                                                        511                                                                                                                                       |
+                                103                                                 246                                              403                           472                                                            658                 704                                   858                                   |
+    27     39        72                   135               186               234                 279                      358                 425           442                 501                  560       578                             686                     806           830                 912               961   |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377   422,425   436,437,438   447   480,490,494   503    516,554,560   564,577   611,612,615,657   667,679,681   690   769,773,804,806   809,826,830   839   884,907,912   922,937,946,961   976|
 """);
         case 30 -> /* 436 */ ok(m.printHorizontally(), """
-                                                                                                             317                                                                                                                                                                                                       |
-                                103                                                 246                                              403                                       511                                       658                                                     858                                   |
-    27     39        72                   135               186               234                 279                      358                 425           472                             560           611                         686   704               806                             912               961   |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377   422,425   437,438,447   480,490,494,503   516,554,560   564,577,611   612,615,657   667,679,681   690   769,773,804,806   809,826,830,839   884,907,912   922,937,946,961   976|
+                                                                                                             317                                                                  511                                                                                                                                       |
+                                103                                                 246                                              403                     472                                                            658                 704                                   858                                   |
+    27     39        72                   135               186               234                 279                      358                 425                         501                  560       578                             686                     806           830                 912               961   |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377   422,425   437,438,447   480,490,494   503    516,554,560   564,577   611,612,615,657   667,679,681   690   769,773,804,806   809,826,830   839   884,907,912   922,937,946,961   976|
 """);
         case 31 -> /* 560 */ ok(m.printHorizontally(), """
-                                                                                                             317                                                                                                                                                                                                   |
-                                103                                                 246                                                                                        511                                   658                                                     858                                   |
-    27     39        72                   135               186               234                 279                      358       403       425           472                         560           611                         686   704               806                             912               961   |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377   422,425   437,438,447   480,490,494,503   516,554   564,577,611   612,615,657   667,679,681   690   769,773,804,806   809,826,830,839   884,907,912   922,937,946,961   976|
+                                                                                                             317                                                                  511                                                                                                                                   |
+                                103                                                 246                                              403                     472                                                        658                 704                                   858                                   |
+    27     39        72                   135               186               234                 279                      358                 425                         501              560       578                             686                     806           830                 912               961   |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377   422,425   437,438,447   480,490,494   503    516,554   564,577   611,612,615,657   667,679,681   690   769,773,804,806   809,826,830   839   884,907,912   922,937,946,961   976|
 """);
         case 32 -> /* 806 */ ok(m.printHorizontally(), """
-                                                                                                             317                                                                                                                                                                                             |
-                                103                                                 246                                                                                        511                                   658                                               858                                   |
-    27     39        72                   135               186               234                 279                      358       403       425           472                         560           611                             704           806                             912               961   |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377   422,425   437,438,447   480,490,494,503   516,554   564,577,611   612,615,657   667,679,681,690   769,773,804   809,826,830,839   884,907,912   922,937,946,961   976|
+                                                                                                             317                                                                  511                                                                                                                             |
+                                103                                                 246                                              403                     472                                                        658                 704                             858                                   |
+    27     39        72                   135               186               234                 279                      358                 425                         501              560       578                             686                 806                             912               961   |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377   422,425   437,438,447   480,490,494   503    516,554   564,577   611,612,615,657   667,679,681   690   769,773,804   809,826,830,839   884,907,912   922,937,946,961   976|
 """);
         case 33 -> /* 554 */ ok(m.printHorizontally(), """
-                                                                                                             317                                                                                                                                                                                         |
-                                103                                                 246                                                                                        511                               658                                               858                                   |
-    27     39        72                   135               186               234                 279                      358       403       425           472                     560           611                             704           806                             912               961   |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377   422,425   437,438,447   480,490,494,503   516   564,577,611   612,615,657   667,679,681,690   769,773,804   809,826,830,839   884,907,912   922,937,946,961   976|
+                                                                                                             317                                                                  511                                                                                                                       |
+                                103                                                 246                                              403                     472                                                  658                                                 858                                   |
+    27     39        72                   135               186               234                 279                      358                 425                         501                  578                             686   704           806                             912               961   |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377   422,425   437,438,447   480,490,494   503    516,564,577   611,612,615,657   667,679,681   690   769,773,804   809,826,830,839   884,907,912   922,937,946,961   976|
 """);
         case 34 -> /* 422 */ ok(m.printHorizontally(), """
-                                                                                                             317                                                                                                                                                                                   |
-                                103                                                 246                                                                                  511                               658                                               858                                   |
-    27     39        72                   135               186               234                 279                      358           425           472                     560           611                             704           806                             912               961   |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377,425   437,438,447   480,490,494,503   516   564,577,611   612,615,657   667,679,681,690   769,773,804   809,826,830,839   884,907,912   922,937,946,961   976|
+                                                                                                             317                                                            511                                                                                                                       |
+                                103                                                 246                                                                472                                                  658                                                 858                                   |
+    27     39        72                   135               186               234                 279                      358           425                         501                  578                             686   704           806                             912               961   |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288,298    338,344,358   376,377,425   437,438,447   480,490,494   503    516,564,577   611,612,615,657   667,679,681   690   769,773,804   809,826,830,839   884,907,912   922,937,946,961   976|
 """);
         case 35 -> /* 298 */ ok(m.printHorizontally(), """
-                                                                                                         317                                                                                                                                                                                   |
-                                103                                                 246                                                                              511                               658                                               858                                   |
-    27     39        72                   135               186               234                 279                  358           425           472                     560           611                             704           806                             912               961   |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288    338,344,358   376,377,425   437,438,447   480,490,494,503   516   564,577,611   612,615,657   667,679,681,690   769,773,804   809,826,830,839   884,907,912   922,937,946,961   976|
+                                                                                                         317                                                            511                                                                                                                       |
+                                103                                                 246                                                            472                                                  658                                                 858                                   |
+    27     39        72                   135               186               234                 279                  358           425                         501                  578                             686   704           806                             912               961   |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288    338,344,358   376,377,425   437,438,447   480,490,494   503    516,564,577   611,612,615,657   667,679,681   690   769,773,804   809,826,830,839   884,907,912   922,937,946,961   976|
 """);
         case 36 -> /* 425 */ ok(m.printHorizontally(), """
-                                                                                                         317                                                                                                                                                                               |
-                                103                                                 246                                                                          511                               658                                               858                                   |
-    27     39        72                   135               186               234                 279                  358       425           472                     560           611                             704           806                             912               961   |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288    338,344,358   376,377   437,438,447   480,490,494,503   516   564,577,611   612,615,657   667,679,681,690   769,773,804   809,826,830,839   884,907,912   922,937,946,961   976|
+                                                                                                         317                                                        511                                                                                                                       |
+                                103                                                 246                                                        472                                                  658                                                 858                                   |
+    27     39        72                   135               186               234                 279                  358       425                         501                  578                             686   704           806                             912               961   |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288    338,344,358   376,377   437,438,447   480,490,494   503    516,564,577   611,612,615,657   667,679,681   690   769,773,804   809,826,830,839   884,907,912   922,937,946,961   976|
 """);
         case 37 -> /* 912 */ ok(m.printHorizontally(), """
-                                                                                                         317                                                                                                                                                                           |
-                                103                                                 246                                                                          511                               658                                               858                               |
-    27     39        72                   135               186               234                 279                  358       425           472                     560           611                             704           806                         912               961   |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288    338,344,358   376,377   437,438,447   480,490,494,503   516   564,577,611   612,615,657   667,679,681,690   769,773,804   809,826,830,839   884,907   922,937,946,961   976|
+                                                                                                         317                                                        511                                                                                                                   |
+                                103                                                 246                                                        472                                                  658                                                 858                               |
+    27     39        72                   135               186               234                 279                  358       425                         501                  578                             686   704           806                         912               961   |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288    338,344,358   376,377   437,438,447   480,490,494   503    516,564,577   611,612,615,657   667,679,681   690   769,773,804   809,826,830,839   884,907   922,937,946,961   976|
 """);
         case 38 -> /* 503 */ ok(m.printHorizontally(), """
-                                                                                                         317                                                                                                                                                                       |
-                                103                                                 246                                                                      511                               658                                               858                               |
-    27     39        72                   135               186               234                 279                  358       425           472                 560           611                             704           806                         912               961   |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288    338,344,358   376,377   437,438,447   480,490,494   516   564,577,611   612,615,657   667,679,681,690   769,773,804   809,826,830,839   884,907   922,937,946,961   976|
+                                                                                                         317                                                  511                                                                                                                   |
+                                103                                                 246                                                        472                                            658                                                 858                               |
+    27     39        72                   135               186               234                 279                  358       425                                        578                             686   704           806                         912               961   |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288    338,344,358   376,377   437,438,447   480,490,494    516,564,577   611,612,615,657   667,679,681   690   769,773,804   809,826,830,839   884,907   922,937,946,961   976|
 """);
         case 39 -> /* 611 */ ok(m.printHorizontally(), """
-                                                                                                         317                                                                                                                                                                 |
-                                103                                                 246                                                                      511                         658                                               858                               |
-    27     39        72                   135               186               234                 279                  358       425           472                         611                             704           806                         912               961   |
-1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288    338,344,358   376,377   437,438,447   480,490,494   516,564,577   612,615,657   667,679,681,690   769,773,804   809,826,830,839   884,907   922,937,946,961   976|
+                                                                                                         317                                                  511                                                                                                               |
+                                103                                                 246                                                        472                                        658                                                 858                               |
+    27     39        72                   135               186               234                 279                  358       425                                        578                         686   704           806                         912               961   |
+1,13  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237   260,272,273   288    338,344,358   376,377   437,438,447   480,490,494    516,564,577   612,615,657   667,679,681   690   769,773,804   809,826,830,839   884,907   922,937,946,961   976|
 """);
         case 40 -> /* 135 */ ok(m.printHorizontally(), """
-                                                                                                     317                                                                                                                                                                 |
-                                103                                             246                                                                      511                         658                                               858                               |
-    27     39        72               135               186               234                 279                  358       425           472                         611                             704           806                         912               961   |
-1,13  29,39  43,55,72  90,96,103   106   151,155,157,186   188,229,232,234   237   260,272,273   288    338,344,358   376,377   437,438,447   480,490,494   516,564,577   612,615,657   667,679,681,690   769,773,804   809,826,830,839   884,907   922,937,946,961   976|
+                                                                                                     317                                                  511                                                                                                               |
+                                103                                             246                                                        472                                        658                                                 858                               |
+    27     39        72               135               186               234                 279                  358       425                                        578                         686   704           806                         912               961   |
+1,13  29,39  43,55,72  90,96,103   106   151,155,157,186   188,229,232,234   237   260,272,273   288    338,344,358   376,377   437,438,447   480,490,494    516,564,577   612,615,657   667,679,681   690   769,773,804   809,826,830,839   884,907   922,937,946,961   976|
 """);
         case 41 -> /* 447 */ ok(m.printHorizontally(), """
-                                                                                                     317                                                                                                                                                             |
-                                103                                             246                                                                  511                                                                           858                               |
-    27     39        72               135               186               234                 279                  358       425       472                         611           658               704           806                         912               961   |
-1,13  29,39  43,55,72  90,96,103   106   151,155,157,186   188,229,232,234   237   260,272,273   288    338,344,358   376,377   437,438   480,490,494   516,564,577   612,615,657   667,679,681,690   769,773,804   809,826,830,839   884,907   922,937,946,961   976|
+                                                                                                     317                                              511                                                                                                               |
+                                103                                             246                                                                                               658                                                 858                               |
+    27     39        72               135               186               234                 279                  358       425       472                          578                         686   704           806                         912               961   |
+1,13  29,39  43,55,72  90,96,103   106   151,155,157,186   188,229,232,234   237   260,272,273   288    338,344,358   376,377   437,438   480,490,494    516,564,577   612,615,657   667,679,681   690   769,773,804   809,826,830,839   884,907   922,937,946,961   976|
 """);
         case 42 -> /* 344 */ ok(m.printHorizontally(), """
-                                                                                                     317                                                                                                                                                       |
-                                103                                             246                                                            511                                                                           858                               |
-    27     39        72               135               186               234                 279              358               472                         611           658               704           806                         912               961   |
-1,13  29,39  43,55,72  90,96,103   106   151,155,157,186   188,229,232,234   237   260,272,273   288    338,358   376,377,437,438   480,490,494   516,564,577   612,615,657   667,679,681,690   769,773,804   809,826,830,839   884,907   922,937,946,961   976|
+                                                                                                                                               511                                                                                                               |
+                                103                                             246                 317                                                                    658                                                 858                               |
+    27     39        72               135               186               234                 279             358               472                          578                         686   704           806                         912               961   |
+1,13  29,39  43,55,72  90,96,103   106   151,155,157,186   188,229,232,234   237   260,272,273   288   338,358   376,377,437,438   480,490,494    516,564,577   612,615,657   667,679,681   690   769,773,804   809,826,830,839   884,907   922,937,946,961   976|
 """);
         case 43 -> /* 338 */ ok(m.printHorizontally(), """
-                                                                                                     317                                                                                                                                                   |
-                                103                                             246                                                        511                                                                           858                               |
-    27     39        72               135               186               234                 279          358               472                         611           658               704           806                         912               961   |
-1,13  29,39  43,55,72  90,96,103   106   151,155,157,186   188,229,232,234   237   260,272,273   288    358   376,377,437,438   480,490,494   516,564,577   612,615,657   667,679,681,690   769,773,804   809,826,830,839   884,907   922,937,946,961   976|
+                                                                                                                                           511                                                                                                               |
+                                103                                             246                 317                                                                658                                                 858                               |
+    27     39        72               135               186               234                 279         358               472                          578                         686   704           806                         912               961   |
+1,13  29,39  43,55,72  90,96,103   106   151,155,157,186   188,229,232,234   237   260,272,273   288   358   376,377,437,438   480,490,494    516,564,577   612,615,657   667,679,681   690   769,773,804   809,826,830,839   884,907   922,937,946,961   976|
 """);
         case 44 -> /* 39 */ ok(m.printHorizontally(), """
-                                                                                                 317                                                                                                                                                   |
-                            103                                             246                                                        511                                                                           858                               |
-       39        72               135               186               234                 279          358               472                         611           658               704           806                         912               961   |
-1,13,29  43,55,72  90,96,103   106   151,155,157,186   188,229,232,234   237   260,272,273   288    358   376,377,437,438   480,490,494   516,564,577   612,615,657   667,679,681,690   769,773,804   809,826,830,839   884,907   922,937,946,961   976|
+                                                                                                                                       511                                                                                                               |
+                            103                                             246                 317                                                                658                                                 858                               |
+       39        72               135               186               234                 279         358               472                          578                         686   704           806                         912               961   |
+1,13,29  43,55,72  90,96,103   106   151,155,157,186   188,229,232,234   237   260,272,273   288   358   376,377,437,438   480,490,494    516,564,577   612,615,657   667,679,681   690   769,773,804   809,826,830,839   884,907   922,937,946,961   976|
 """);
         case 45 -> /* 804 */ ok(m.printHorizontally(), """
-                                                                                                 317                                                                                                                                               |
-                            103                                             246                                                        511                                                                       858                               |
-       39        72               135               186               234                 279          358               472                         611           658               704       806                         912               961   |
-1,13,29  43,55,72  90,96,103   106   151,155,157,186   188,229,232,234   237   260,272,273   288    358   376,377,437,438   480,490,494   516,564,577   612,615,657   667,679,681,690   769,773   809,826,830,839   884,907   922,937,946,961   976|
+                                                                                                                                       511                                                                                                         |
+                            103                                             246                 317                                                                658                                           858                               |
+       39        72               135               186               234                 279         358               472                          578                             704       806                         912               961   |
+1,13,29  43,55,72  90,96,103   106   151,155,157,186   188,229,232,234   237   260,272,273   288   358   376,377,437,438   480,490,494    516,564,577   612,615,657   667,679,681,690   769,773   809,826,830,839   884,907   922,937,946,961   976|
 """);
         case 46 -> /* 976 */ ok(m.printHorizontally(), """
-                                                                                                 317                                                                                                                                            |
-                            103                                             246                                                        511                                                                       858                            |
-       39        72               135               186               234                 279          358               472                         611           658               704       806                         912               961|
-1,13,29  43,55,72  90,96,103   106   151,155,157,186   188,229,232,234   237   260,272,273   288    358   376,377,437,438   480,490,494   516,564,577   612,615,657   667,679,681,690   769,773   809,826,830,839   884,907   922,937,946,961   |
+                                                                                                                                       511                                                                                                      |
+                            103                                             246                 317                                                                658                                           858                            |
+       39        72               135               186               234                 279         358               472                          578                             704       806                         912               961|
+1,13,29  43,55,72  90,96,103   106   151,155,157,186   188,229,232,234   237   260,272,273   288   358   376,377,437,438   480,490,494    516,564,577   612,615,657   667,679,681,690   769,773   809,826,830,839   884,907   922,937,946,961   |
 """);
         case 47 -> /* 186 */ ok(m.printHorizontally(), """
-                                                                                             317                                                                                                                                            |
-                            103                                         246                                                        511                                                                       858                            |
-       39        72               135           186               234                 279          358               472                         611           658               704       806                         912               961|
-1,13,29  43,55,72  90,96,103   106   151,155,157   188,229,232,234   237   260,272,273   288    358   376,377,437,438   480,490,494   516,564,577   612,615,657   667,679,681,690   769,773   809,826,830,839   884,907   922,937,946,961   |
+                                                                                                                                   511                                                                                                      |
+                            103                                         246                 317                                                                658                                           858                            |
+       39        72               135           186               234                 279         358               472                          578                             704       806                         912               961|
+1,13,29  43,55,72  90,96,103   106   151,155,157   188,229,232,234   237   260,272,273   288   358   376,377,437,438   480,490,494    516,564,577   612,615,657   667,679,681,690   769,773   809,826,830,839   884,907   922,937,946,961   |
 """);
         case 48 -> /* 234 */ ok(m.printHorizontally(), """
-                                                                                       317                                                                                                                                            |
-                            103                                   246                                                        511                                                                       858                            |
-       39        72                           186           234                 279          358               472                         611           658               704       806                         912               961|
-1,13,29  43,55,72  90,96,103   106,151,155,157   188,229,232   237   260,272,273   288    358   376,377,437,438   480,490,494   516,564,577   612,615,657   667,679,681,690   769,773   809,826,830,839   884,907   922,937,946,961   |
+                                                                                                                             511                                                                                                      |
+                            103                                   246                 317                                                                658                                           858                            |
+       39        72                           186           234                 279         358               472                          578                             704       806                         912               961|
+1,13,29  43,55,72  90,96,103   106,151,155,157   188,229,232   237   260,272,273   288   358   376,377,437,438   480,490,494    516,564,577   612,615,657   667,679,681,690   769,773   809,826,830,839   884,907   922,937,946,961   |
 """);
         case 49 -> /* 106 */ ok(m.printHorizontally(), """
-                                                                               317                                                                                                                                            |
-                            103                                                                                      511                                                                       858                            |
-       39        72                       186               246                      358               472                         611           658               704       806                         912               961|
-1,13,29  43,55,72  90,96,103   151,155,157   188,229,232,237   260,272,273,288    358   376,377,437,438   480,490,494   516,564,577   612,615,657   667,679,681,690   769,773   809,826,830,839   884,907   922,937,946,961   |
+                                                                                                                       511                                                                                                      |
+                            103                             246                 317                                                                658                                           858                            |
+       39        72                       186                             279         358               472                          578                             704       806                         912               961|
+1,13,29  43,55,72  90,96,103   151,155,157   188,229,232,237   260,272,273   288   358   376,377,437,438   480,490,494    516,564,577   612,615,657   667,679,681,690   769,773   809,826,830,839   884,907   922,937,946,961   |
 """);
         case 50 -> /* 667 */ ok(m.printHorizontally(), """
-                             103                                                317                                    511                                                                    858                            |
-       39        72                        186               246                      358               472                          611           658           704       806                          912               961|
-1,13,29  43,55,72  90,96,103    151,155,157   188,229,232,237   260,272,273,288    358   376,377,437,438   480,490,494    516,564,577   612,615,657   679,681,690   769,773   809,826,830,839    884,907   922,937,946,961   |
+                                                                                                                       511                                                                                                  |
+                            103                             246                 317                                                                658                                       858                            |
+       39        72                       186                             279         358               472                          578                         704       806                         912               961|
+1,13,29  43,55,72  90,96,103   151,155,157   188,229,232,237   260,272,273   288   358   376,377,437,438   480,490,494    516,564,577   612,615,657   679,681,690   769,773   809,826,830,839   884,907   922,937,946,961   |
 """);
         case 51 -> /* 494 */ ok(m.printHorizontally(), """
-                             103                                                317                                511                                                                    858                            |
-       39        72                        186               246                      358               472                      611           658           704       806                          912               961|
-1,13,29  43,55,72  90,96,103    151,155,157   188,229,232,237   260,272,273,288    358   376,377,437,438   480,490    516,564,577   612,615,657   679,681,690   769,773   809,826,830,839    884,907   922,937,946,961   |
+                                                                                                                   511                                                                                                  |
+                            103                                                 317                                                            658                                       858                            |
+       39        72                       186               246           279         358               472                      578                         704       806                         912               961|
+1,13,29  43,55,72  90,96,103   151,155,157   188,229,232,237   260,272,273   288   358   376,377,437,438   480,490    516,564,577   612,615,657   679,681,690   769,773   809,826,830,839   884,907   922,937,946,961   |
 """);
         case 52 -> /* 690 */ ok(m.printHorizontally(), """
-                             103                                                317                                511                                                                858                            |
-       39        72                        186               246                      358               472                      611           658       704       806                          912               961|
-1,13,29  43,55,72  90,96,103    151,155,157   188,229,232,237   260,272,273,288    358   376,377,437,438   480,490    516,564,577   612,615,657   679,681   769,773   809,826,830,839    884,907   922,937,946,961   |
+                                                                                                                   511                                                                                              |
+                            103                                                 317                                                            658                                   858                            |
+       39        72                       186               246           279         358               472                      578                     704       806                         912               961|
+1,13,29  43,55,72  90,96,103   151,155,157   188,229,232,237   260,272,273   288   358   376,377,437,438   480,490    516,564,577   612,615,657   679,681   769,773   809,826,830,839   884,907   922,937,946,961   |
 """);
         case 53 -> /* 480 */ ok(m.printHorizontally(), """
-                             103                                                317                            511                                                                858                            |
-       39        72                        186               246                      358               472                  611           658       704       806                          912               961|
-1,13,29  43,55,72  90,96,103    151,155,157   188,229,232,237   260,272,273,288    358   376,377,437,438   490    516,564,577   612,615,657   679,681   769,773   809,826,830,839    884,907   922,937,946,961   |
+                                                                                                               511                                                                                              |
+                            103                                                 317                                                        658                                   858                            |
+       39        72                       186               246           279         358               472                  578                     704       806                         912               961|
+1,13,29  43,55,72  90,96,103   151,155,157   188,229,232,237   260,272,273   288   358   376,377,437,438   490    516,564,577   612,615,657   679,681   769,773   809,826,830,839   884,907   922,937,946,961   |
 """);
         case 54 -> /* 288 */ ok(m.printHorizontally(), """
-                             103                                            317                            511                                                                858                            |
-       39        72                        186               246                  358               472                  611           658       704       806                          912               961|
-1,13,29  43,55,72  90,96,103    151,155,157   188,229,232,237   260,272,273    358   376,377,437,438   490    516,564,577   612,615,657   679,681   769,773   809,826,830,839    884,907   922,937,946,961   |
+                                                                                                         511                                                                                              |
+                            103                                           317                                                        658                                   858                            |
+       39        72                       186               246                 358               472                  578                     704       806                         912               961|
+1,13,29  43,55,72  90,96,103   151,155,157   188,229,232,237   260,272,273   358   376,377,437,438   490    516,564,577   612,615,657   679,681   769,773   809,826,830,839   884,907   922,937,946,961   |
 """);
         case 55 -> /* 151 */ ok(m.printHorizontally(), """
-                             103                                        317                            511                                                                858                            |
-       39        72                    186               246                  358               472                  611           658       704       806                          912               961|
-1,13,29  43,55,72  90,96,103    155,157   188,229,232,237   260,272,273    358   376,377,437,438   490    516,564,577   612,615,657   679,681   769,773   809,826,830,839    884,907   922,937,946,961   |
+                                                                                                     511                                                                                              |
+                            103                                       317                                                        658                                   858                            |
+       39        72                   186               246                 358               472                  578                     704       806                         912               961|
+1,13,29  43,55,72  90,96,103   155,157   188,229,232,237   260,272,273   358   376,377,437,438   490    516,564,577   612,615,657   679,681   769,773   809,826,830,839   884,907   922,937,946,961   |
 """);
         case 56 -> /* 773 */ ok(m.printHorizontally(), """
-                             103                                        317                            511                                                          858                            |
-       39        72                    186               246                  358               472                  611           658           806                          912               961|
-1,13,29  43,55,72  90,96,103    155,157   188,229,232,237   260,272,273    358   376,377,437,438   490    516,564,577   612,615,657   679,681,769   809,826,830,839    884,907   922,937,946,961   |
+                                                                                                     511                                                                                        |
+                            103                                       317                                                        658                             858                            |
+       39        72                   186               246                 358               472                  578                         806                         912               961|
+1,13,29  43,55,72  90,96,103   155,157   188,229,232,237   260,272,273   358   376,377,437,438   490    516,564,577   612,615,657   679,681,769   809,826,830,839   884,907   922,937,946,961   |
 """);
         case 57 -> /* 769 */ ok(m.printHorizontally(), """
-                             103                                        317                            511                                                      858                            |
-       39        72                    186               246                  358               472                  611           658       806                          912               961|
-1,13,29  43,55,72  90,96,103    155,157   188,229,232,237   260,272,273    358   376,377,437,438   490    516,564,577   612,615,657   679,681   809,826,830,839    884,907   922,937,946,961   |
+                                                                                                     511                                                                                    |
+                            103                                       317                                                                                    858                            |
+       39        72                   186               246                 358               472                  578           658       806                         912               961|
+1,13,29  43,55,72  90,96,103   155,157   188,229,232,237   260,272,273   358   376,377,437,438   490    516,564,577   612,615,657   679,681   809,826,830,839   884,907   922,937,946,961   |
 """);
         case 58 -> /* 260 */ ok(m.printHorizontally(), """
-                             103                                    317                            511                                                      858                            |
-       39        72                    186               246              358               472                  611           658       806                          912               961|
-1,13,29  43,55,72  90,96,103    155,157   188,229,232,237   272,273    358   376,377,437,438   490    516,564,577   612,615,657   679,681   809,826,830,839    884,907   922,937,946,961   |
+                                                                                                 511                                                                                    |
+                            103                                   317                                                                                    858                            |
+       39        72                   186               246             358               472                  578           658       806                         912               961|
+1,13,29  43,55,72  90,96,103   155,157   188,229,232,237   272,273   358   376,377,437,438   490    516,564,577   612,615,657   679,681   809,826,830,839   884,907   922,937,946,961   |
 """);
         case 59 -> /* 809 */ ok(m.printHorizontally(), """
-                             103                                    317                            511                                                  858                            |
-       39        72                    186               246              358               472                  611           658       806                      912               961|
-1,13,29  43,55,72  90,96,103    155,157   188,229,232,237   272,273    358   376,377,437,438   490    516,564,577   612,615,657   679,681   826,830,839    884,907   922,937,946,961   |
+                                                                                                 511                                                                                |
+                            103                                   317                                                                                858                            |
+       39        72                   186               246             358               472                  578           658       806                     912               961|
+1,13,29  43,55,72  90,96,103   155,157   188,229,232,237   272,273   358   376,377,437,438   490    516,564,577   612,615,657   679,681   826,830,839   884,907   922,937,946,961   |
 """);
         case 60 -> /* 438 */ ok(m.printHorizontally(), """
-                             103                                    317                        511                                                  858                            |
-       39        72                    186               246              358           472                  611           658       806                      912               961|
-1,13,29  43,55,72  90,96,103    155,157   188,229,232,237   272,273    358   376,377,437   490    516,564,577   612,615,657   679,681   826,830,839    884,907   922,937,946,961   |
+                                                                                             511                                                                                |
+                            103                                   317                                                                            858                            |
+       39        72                   186               246             358           472                  578           658       806                     912               961|
+1,13,29  43,55,72  90,96,103   155,157   188,229,232,237   272,273   358   376,377,437   490    516,564,577   612,615,657   679,681   826,830,839   884,907   922,937,946,961   |
 """);
         case 61 -> /* 237 */ ok(m.printHorizontally(), """
-                             103                                317                        511                                                  858                            |
-       39        72                    186           246              358           472                  611           658       806                      912               961|
-1,13,29  43,55,72  90,96,103    155,157   188,229,232   272,273    358   376,377,437   490    516,564,577   612,615,657   679,681   826,830,839    884,907   922,937,946,961   |
+                                                                                         511                                                                                |
+                            103                               317                                                                            858                            |
+       39        72                   186           246             358           472                  578           658       806                     912               961|
+1,13,29  43,55,72  90,96,103   155,157   188,229,232   272,273   358   376,377,437   490    516,564,577   612,615,657   679,681   826,830,839   884,907   922,937,946,961   |
 """);
         case 62 -> /* 516 */ ok(m.printHorizontally(), """
-                             103                                317                        511                                              858                            |
-       39        72                    186           246              358           472              611           658       806                      912               961|
-1,13,29  43,55,72  90,96,103    155,157   188,229,232   272,273    358   376,377,437   490    564,577   612,615,657   679,681   826,830,839    884,907   922,937,946,961   |
+                                                                                         511                                                                            |
+                            103                               317                                                                        858                            |
+       39        72                   186           246             358           472              578           658       806                     912               961|
+1,13,29  43,55,72  90,96,103   155,157   188,229,232   272,273   358   376,377,437   490    564,577   612,615,657   679,681   826,830,839   884,907   922,937,946,961   |
 """);
         case 63 -> /* 29 */ ok(m.printHorizontally(), """
-                          103                                317                        511                                              858                            |
-    39        72                    186           246              358           472              611           658       806                      912               961|
-1,13  43,55,72  90,96,103    155,157   188,229,232   272,273    358   376,377,437   490    564,577   612,615,657   679,681   826,830,839    884,907   922,937,946,961   |
+                                                                                      511                                                                            |
+                         103                               317                                                                        858                            |
+    39        72                   186           246             358           472              578           658       806                     912               961|
+1,13  43,55,72  90,96,103   155,157   188,229,232   272,273   358   376,377,437   490    564,577   612,615,657   679,681   826,830,839   884,907   922,937,946,961   |
 """);
         case 64 -> /* 376 */ ok(m.printHorizontally(), """
-                          103                                317                  511                                              858                            |
-    39        72                    186           246                      472              611           658       806                      912               961|
-1,13  43,55,72  90,96,103    155,157   188,229,232   272,273    358,377,437   490    564,577   612,615,657   679,681   826,830,839    884,907   922,937,946,961   |
+                                                                                511                                                                            |
+                         103                               317                                                                  858                            |
+    39        72                   186           246                     472              578           658       806                     912               961|
+1,13  43,55,72  90,96,103   155,157   188,229,232   272,273   358,377,437   490    564,577   612,615,657   679,681   826,830,839   884,907   922,937,946,961   |
 """);
         case 65 -> /* 72 */ ok(m.printHorizontally(), """
-                       103                                                    511                                              858                            |
-    39     72                    186           246       317           472              611           658       806                      912               961|
-1,13  43,55  90,96,103    155,157   188,229,232   272,273   358,377,437   490    564,577   612,615,657   679,681   826,830,839    884,907   922,937,946,961   |
+                                                                             511                                                                            |
+                      103                               317                                                                  858                            |
+    39     72                   186           246                     472              578           658       806                     912               961|
+1,13  43,55  90,96,103   155,157   188,229,232   272,273   358,377,437   490    564,577   612,615,657   679,681   826,830,839   884,907   922,937,946,961   |
 """);
         case 66 -> /* 946 */ ok(m.printHorizontally(), """
-                       103                                                    511                                              858                     |
-    39     72                    186           246       317           472              611           658       806                      912           |
-1,13  43,55  90,96,103    155,157   188,229,232   272,273   358,377,437   490    564,577   612,615,657   679,681   826,830,839    884,907   922,937,961|
+                                                                             511                                                                     |
+                      103                               317                                                                  858                     |
+    39     72                   186           246                     472              578           658       806                     912           |
+1,13  43,55  90,96,103   155,157   188,229,232   272,273   358,377,437   490    564,577   612,615,657   679,681   826,830,839   884,907   922,937,961|
 """);
         case 67 -> /* 103 */ ok(m.printHorizontally(), """
-                  103                                                    511                                              858                     |
-          72                186           246       317           472              611           658       806                      912           |
-1,13,43,55  90,96    155,157   188,229,232   272,273   358,377,437   490    564,577   612,615,657   679,681   826,830,839    884,907   922,937,961|
+                                                                        511                                                                     |
+                 103                               317                                                                  858                     |
+          72               186           246                     472              578           658       806                     912           |
+1,13,43,55  90,96   155,157   188,229,232   272,273   358,377,437   490    564,577   612,615,657   679,681   826,830,839   884,907   922,937,961|
 """);
         case 68 -> /* 961 */ ok(m.printHorizontally(), """
-                  103                                                    511                                              858                 |
-          72                186           246       317           472              611           658       806                      912       |
-1,13,43,55  90,96    155,157   188,229,232   272,273   358,377,437   490    564,577   612,615,657   679,681   826,830,839    884,907   922,937|
+                                                                        511                                                                 |
+                 103                               317                                                                  858                 |
+          72               186           246                     472              578           658       806                     912       |
+1,13,43,55  90,96   155,157   188,229,232   272,273   358,377,437   490    564,577   612,615,657   679,681   826,830,839   884,907   922,937|
 """);
         case 69 -> /* 55 */ ok(m.printHorizontally(), """
-               103                                                    511                                              858                 |
-       72                186           246       317           472              611           658       806                      912       |
-1,13,43  90,96    155,157   188,229,232   272,273   358,377,437   490    564,577   612,615,657   679,681   826,830,839    884,907   922,937|
+                                                                     511                                                                 |
+              103                               317                                                                  858                 |
+       72               186           246                     472              578           658       806                     912       |
+1,13,43  90,96   155,157   188,229,232   272,273   358,377,437   490    564,577   612,615,657   679,681   826,830,839   884,907   922,937|
 """);
         case 70 -> /* 358 */ ok(m.printHorizontally(), """
-               103                                              511                                              858                 |
-       72                186           246       317                      611           658       806                      912       |
-1,13,43  90,96    155,157   188,229,232   272,273   377,437,490    564,577   612,615,657   679,681   826,830,839    884,907   922,937|
+                                                               511                                                                 |
+              103                               317                                                            858                 |
+       72               186           246                                578           658       806                     912       |
+1,13,43  90,96   155,157   188,229,232   272,273   377,437,490    564,577   612,615,657   679,681   826,830,839   884,907   922,937|
 """);
         case 71 -> /* 232 */ ok(m.printHorizontally(), """
-               103                                          511                                              858                 |
-       72                186       246       317                      611           658       806                      912       |
-1,13,43  90,96    155,157   188,229   272,273   377,437,490    564,577   612,615,657   679,681   826,830,839    884,907   922,937|
+                                                           511                                                                 |
+              103                                                                                          858                 |
+       72               186       246       317                      578           658       806                     912       |
+1,13,43  90,96   155,157   188,229   272,273   377,437,490    564,577   612,615,657   679,681   826,830,839   884,907   922,937|
 """);
         case 72 -> /* 229 */ ok(m.printHorizontally(), """
                103                                    511                                              858                 |
-       72                    246       317                      611           658       806                      912       |
+       72                    246       317                      578           658       806                      912       |
 1,13,43  90,96    155,157,188   272,273   377,437,490    564,577   612,615,657   679,681   826,830,839    884,907   922,937|
 """);
         case 73 -> /* 90 */ ok(m.printHorizontally(), """
-                                                  511                                              858                 |
-       72  103           246       317                      611           658       806                      912       |
-1,13,43  96   155,157,188   272,273   377,437,490    564,577   612,615,657   679,681   826,830,839    884,907   922,937|
+            103                                    511                                              858                 |
+       72                 246       317                      578           658       806                      912       |
+1,13,43  96    155,157,188   272,273   377,437,490    564,577   612,615,657   679,681   826,830,839    884,907   922,937|
 """);
         case 74 -> /* 155 */ ok(m.printHorizontally(), """
-                                             511                                              858                 |
-          103       246       317                      611           658       806                      912       |
-1,13,43,96   157,188   272,273   377,437,490    564,577   612,615,657   679,681   826,830,839    884,907   922,937|
+            103                                511                                              858                 |
+       72             246       317                      578           658       806                      912       |
+1,13,43  96    157,188   272,273   377,437,490    564,577   612,615,657   679,681   826,830,839    884,907   922,937|
 """);
         case 75 -> /* 657 */ ok(m.printHorizontally(), """
-                                             511                                          858                 |
-          103       246       317                      611       658       806                      912       |
-1,13,43,96   157,188   272,273   377,437,490    564,577   612,615   679,681   826,830,839    884,907   922,937|
+            103                                511                                          858                 |
+       72             246       317                      578       658       806                      912       |
+1,13,43  96    157,188   272,273   377,437,490    564,577   612,615   679,681   826,830,839    884,907   922,937|
 """);
         case 76 -> /* 681 */ ok(m.printHorizontally(), """
-                                             511                                    858                 |
-          103       246       317                              658   806                      912       |
-1,13,43,96   157,188   272,273   377,437,490    564,577,612,615   679   826,830,839    884,907   922,937|
+            103                                511                                    858                 |
+       72             246       317                              658   806                      912       |
+1,13,43  96    157,188   272,273   377,437,490    564,577,612,615   679   826,830,839    884,907   922,937|
 """);
         case 77 -> /* 43 */ ok(m.printHorizontally(), """
-                                        511                                                       |
-       103               317                              658   806           858       912       |
-1,13,96   157,188,272,273   377,437,490    564,577,612,615   679   826,830,839   884,907   922,937|
+        103                                511                                    858                 |
+                  246       317                              658   806                      912       |
+1,13,96    157,188   272,273   377,437,490    564,577,612,615   679   826,830,839    884,907   922,937|
 """);
         case 78 -> /* 907 */ ok(m.printHorizontally(), """
-                                        511                                               |
-       103               317                              658               858           |
-1,13,96   157,188,272,273   377,437,490    564,577,612,615   679,826,830,839   884,922,937|
+                                          511                                    858           |
+       103       246       317                              658   806                          |
+1,13,96   157,188   272,273   377,437,490    564,577,612,615   679   826,830,839    884,922,937|
 """);
         case 79 -> /* 564 */ ok(m.printHorizontally(), """
-                                        511                                           |
-       103               317                          658               858           |
-1,13,96   157,188,272,273   377,437,490    577,612,615   679,826,830,839   884,922,937|
+                                          511                                           |
+       103       246       317                          658               858           |
+1,13,96   157,188   272,273   377,437,490    577,612,615   679,826,830,839   884,922,937|
 """);
         case 80 -> /* 377 */ ok(m.printHorizontally(), """
                                     511                                           |
@@ -1200,27 +1245,29 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 1,13,96   188,273,437    577   679,826,830,839   884,937|
 """);
         case 87 -> /* 679 */ ok(m.printHorizontally(), """
-        103                658            858       |
-1,13,96    188,273,437,577    826,830,839    884,937|
+                      511                           |
+       103                  658           858       |
+1,13,96   188,273,437    577   826,830,839   884,937|
 """);
         case 88 -> /* 830 */ ok(m.printHorizontally(), """
-        103                658        858       |
-1,13,96    188,273,437,577    826,839    884,937|
+                      511                     |
+       103                          858       |
+1,13,96   188,273,437    577,826,839   884,937|
 """);
         case 89 -> /* 839 */ ok(m.printHorizontally(), """
-        103                658           |
-1,13,96    188,273,437,577    826,884,937|
+        103            511        858       |
+1,13,96    188,273,437    577,826    884,937|
 """);
         case 90 -> /* 437 */ ok(m.printHorizontally(), """
-        103            658           |
-1,13,96    188,273,577    826,884,937|
+        103        511               |
+1,13,96    188,273    577,826,884,937|
 """);
         case 91 -> /* 826 */ ok(m.printHorizontally(), """
-        103            658       |
-1,13,96    188,273,577    884,937|
+        103        511           |
+1,13,96    188,273    577,884,937|
 """);
         case 92 -> /* 577 */ ok(m.printHorizontally(), """
-        103        658       |
+        103        511       |
 1,13,96    188,273    884,937|
 """);
         case 93 -> /* 937 */ ok(m.printHorizontally(), """
@@ -1247,7 +1294,6 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
         case 99 -> /* 188 */ ok(m.printHorizontally(), """
 []
 """);
-        default -> {}
        }
      }
    }
@@ -1264,8 +1310,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
         say("\"\"\");");
        }
       //ok(m.size(), r.length - i - 1);
-      switch(i)
-       {case 99 -> /* 188 */ ok(m.printHorizontally(), """
+      switch(i) {
+        case 99 -> /* 188 */ ok(m.printHorizontally(), """
                                                                                                                                                                                                                                             511                                                                                                                                                                                                                     |
                                                                                                                              317                                                                                                                                                                                        658                                                                       858                                                               |
                                    103                                                 246                                                                               403                                   472                                                                    578                                                           704                                                                       912                                   |
@@ -1273,432 +1319,452 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 1,13,27  29,39  43,55,72  90,96,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,273,279   288,298,317   338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
 """);
         case 98 -> /* 1 */ ok(m.printHorizontally(), """
-                                                                                                                            317                                                                                                                                                                                        658                                                                                                                                         |
-                                 103                                                 246                                                                                403                                   472                         511                                       578                                                            704                                           858                         912                                   |
-     27     39        72                   135               186           234                 261           279                      344       358           391                 425               442                         501                     545       560                         611           650                          686                         806           830                         903                             961       987       |
-13,27  29,39  43,55,72  90,96,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,273,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511   516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
+                                                                                                                                                                                                                                          511                                                                                                                                                                                                                     |
+                                                                                                                           317                                                                                                                                                                                        658                                                                       858                                                               |
+                                 103                                                 246                                                                               403                                   472                                                                    578                                                           704                                                                       912                                   |
+     27     39        72                   135               186           234                 261           279                     344       358           391                 425               442                         501                      545       560                         611           650                         686                         806           830                         903                             961       987       |
+13,27  29,39  43,55,72  90,96,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,273,279   288,298,317   338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
 """);
         case 97 -> /* 273 */ ok(m.printHorizontally(), """
-                                                                                                                        317                                                                                                                                                                                        658                                                                                                                                         |
-                                 103                                                 246                                                                            403                                   472                         511                                       578                                                            704                                           858                         912                                   |
-     27     39        72                   135               186           234                 261       279                      344       358           391                 425               442                         501                     545       560                         611           650                          686                         806           830                         903                             961       987       |
-13,27  29,39  43,55,72  90,96,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511   516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
+                                                                                                                                                                                                                                      511                                                                                                                                                                                                                     |
+                                                                                                                       317                                                                                                                                                                                        658                                                                       858                                                               |
+                                 103                                                 246                                                                           403                                   472                                                                    578                                                           704                                                                       912                                   |
+     27     39        72                   135               186           234                 261       279                     344       358           391                 425               442                         501                      545       560                         611           650                         686                         806           830                         903                             961       987       |
+13,27  29,39  43,55,72  90,96,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317   338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
 """);
         case 96 -> /* 96 */ ok(m.printHorizontally(), """
-                                                                                                                    317                                                                                                                                                                                        658                                                                                                                                         |
-                             103                                                 246                                                                            403                                   472                         511                                       578                                                            704                                           858                         912                                   |
-           39        72                135               186           234                 261       279                      344       358           391                 425               442                         501                     545       560                         611           650                          686                         806           830                         903                             961       987       |
-13,27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511   516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
+                                                                                                                                                                                                                                  511                                                                                                                                                                                                                     |
+                                                                                                                   317                                                                                                                                                                                        658                                                                       858                                                               |
+                             103                                                 246                                                                           403                                   472                                                                    578                                                           704                                                                       912                                   |
+           39        72                135               186           234                 261       279                     344       358           391                 425               442                         501                      545       560                         611           650                         686                         806           830                         903                             961       987       |
+13,27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317   338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
 """);
         case 95 -> /* 13 */ ok(m.printHorizontally(), """
-                                                                                                                 317                                                                                                                                                                                        658                                                                                                                                         |
-                          103                                                 246                                                                            403                                   472                         511                                       578                                                            704                                           858                         912                                   |
-        39        72                135               186           234                 261       279                      344       358           391                 425               442                         501                     545       560                         611           650                          686                         806           830                         903                             961       987       |
-27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511   516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
+                                                                                                                                                                                                                               511                                                                                                                                                                                                                     |
+                                                                                                                317                                                                                                                                                                                        658                                                                       858                                                               |
+                          103                                                 246                                                                           403                                   472                                                                    578                                                           704                                                                       912                                   |
+        39        72                135               186           234                 261       279                     344       358           391                 425               442                         501                      545       560                         611           650                         686                         806           830                         903                             961       987       |
+27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317   338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
 """);
         case 94 -> /* 884 */ ok(m.printHorizontally(), """
-                                                                                                                 317                                                                                                                                                                                        658                                                                                                                                   |
-                          103                                                 246                                                                            403                                   472                         511                                       578                                                                                                          858                                                         |
-        39        72                135               186           234                 261       279                      344       358           391                 425               442                         501                     545       560                         611           650                          686       704               806           830                     903           912               961               |
-27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511   516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,903   906,907,912   922,937,946,961   976,987,989,993|
+                                                                                                                                                                                                                               511                                                                                                                                                                                                                 |
+                                                                                                                317                                                                                                                                                                                                                                                                  858                                                           |
+                          103                                                 246                                                                           403                                   472                                                                    578                               658                         704                                                                   912                                   |
+        39        72                135               186           234                 261       279                     344       358           391                 425               442                         501                      545       560                         611           650                         686                         806           830                     903                             961       987       |
+27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317   338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,903   906,907,912   922,937,946,961   976,987   989,993|
 """);
         case 93 -> /* 937 */ ok(m.printHorizontally(), """
-                                                                                                                 317                                                                                                                                                                                        658                                                                                                                               |
-                          103                                                 246                                                                            403                                   472                         511                                       578                                                                                                          858                                                     |
-        39        72                135               186           234                 261       279                      344       358           391                 425               442                         501                     545       560                         611           650                          686       704               806           830                     903           912           961               |
-27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511   516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,903   906,907,912   922,946,961   976,987,989,993|
+                                                                                                                 317                                                                                                            511                                                                                                                                                    858                                                     |
+                          103                                                 246                                                                            403                                   472                                                                    578                               658                         704                                                                    912                             |
+        39        72                135               186           234                 261       279                      344       358           391                 425               442                         501                      545       560                         611           650                         686                         806           830                      903                         961               |
+27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858    882,903   906,907,912   922,946,961   976,987,989,993|
 """);
         case 92 -> /* 577 */ ok(m.printHorizontally(), """
-                                                                                                                 317                                                                                                                                                                                    658                                                                                                                               |
-                          103                                                 246                                                                            403                                                               511                                   578                                                                                                          858                                                     |
-        39        72                135               186           234                 261       279                      344       358           391                 425               442       472               501                     545       560                     611           650                          686       704               806           830                     903           912           961               |
-27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511   516,526,545   554,560   564,576,578   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,903   906,907,912   922,946,961   976,987,989,993|
+                                                                                                                 317                                                                                                            511                                                                                                                                                858                                                     |
+                          103                                                 246                                                                            403                                   472                                                                578                               658                         704                                                                    912                             |
+        39        72                135               186           234                 261       279                      344       358           391                 425               442                         501                      545       560                     611           650                         686                         806           830                      903                         961               |
+27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858    882,903   906,907,912   922,946,961   976,987,989,993|
 """);
         case 91 -> /* 826 */ ok(m.printHorizontally(), """
-                                                                                                                 317                                                                                                                                                                                    658                                                                                                                           |
-                          103                                                 246                                                                            403                                                               511                                   578                                                                                                      858                                                     |
-        39        72                135               186           234                 261       279                      344       358           391                 425               442       472               501                     545       560                     611           650                          686       704               806       830                     903           912           961               |
-27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511   516,526,545   554,560   564,576,578   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,830   839,854,858   882,903   906,907,912   922,946,961   976,987,989,993|
+                                                                                                                 317                                                                                                            511                                                                                                                                            858                                                     |
+                          103                                                 246                                                                            403                                   472                                                                578                               658                         704                                                                912                             |
+        39        72                135               186           234                 261       279                      344       358           391                 425               442                         501                      545       560                     611           650                         686                         806       830                      903                         961               |
+27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,830   839,854,858    882,903   906,907,912   922,946,961   976,987,989,993|
 """);
         case 90 -> /* 437 */ ok(m.printHorizontally(), """
-                                                                                                                 317                                                                                                                                                                                658                                                                                                                           |
-                          103                                                 246                                                                            403                                                           511                                   578                                                                                                      858                                                     |
-        39        72                135               186           234                 261       279                      344       358           391                 425           442       472               501                     545       560                     611           650                          686       704               806       830                     903           912           961               |
-27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,490,494,501   503,511   516,526,545   554,560   564,576,578   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,830   839,854,858   882,903   906,907,912   922,946,961   976,987,989,993|
+                                                                                                                 317                                                                                                        511                                                                                                                                            858                                                     |
+                          103                                                 246                                                                            403                               472                                                                578                               658                         704                                                                912                             |
+        39        72                135               186           234                 261       279                      344       358           391                 425           442                         501                      545       560                     611           650                         686                         806       830                      903                         961               |
+27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,830   839,854,858    882,903   906,907,912   922,946,961   976,987,989,993|
 """);
         case 89 -> /* 839 */ ok(m.printHorizontally(), """
-                                                                                                                 317                                                                                                                                                                                658                                                                                                                       |
-                          103                                                 246                                                                            403                                                           511                                   578                                                                                                  858                                                     |
-        39        72                135               186           234                 261       279                      344       358           391                 425           442       472               501                     545       560                     611           650                          686       704               806       830                 903           912           961               |
-27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,490,494,501   503,511   516,526,545   554,560   564,576,578   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,830   854,858   882,903   906,907,912   922,946,961   976,987,989,993|
+                                                                                                                 317                                                                                                        511                                                                                                                                        858                                                     |
+                          103                                                 246                                                                            403                               472                                                                578                               658                         704                                                            912                             |
+        39        72                135               186           234                 261       279                      344       358           391                 425           442                         501                      545       560                     611           650                         686                         806       830                  903                         961               |
+27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,830   854,858    882,903   906,907,912   922,946,961   976,987,989,993|
 """);
         case 88 -> /* 830 */ ok(m.printHorizontally(), """
-                                                                                                                 317                                                                                                                                                                                658                                                                                                                 |
-                          103                                                 246                                                                            403                                                           511                                   578                                                                                            858                                                     |
-        39        72                135               186           234                 261       279                      344       358           391                 425           442       472               501                     545       560                     611           650                          686       704               806                     903           912           961               |
-27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,490,494,501   503,511   516,526,545   554,560   564,576,578   586,611   612,615,650   657,658    667,679,681,686   690,704   769,773,804,806   809,854,858   882,903   906,907,912   922,946,961   976,987,989,993|
+                                                                                                                 317                                                                                                        511                                                                                                                                  858                                                     |
+                          103                                                 246                                                                            403                               472                                                                578                               658                         704                                                      912                             |
+        39        72                135               186           234                 261       279                      344       358           391                 425           442                         501                      545       560                     611           650                         686                         806                      903                         961               |
+27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,854,858    882,903   906,907,912   922,946,961   976,987,989,993|
 """);
         case 87 -> /* 679 */ ok(m.printHorizontally(), """
-                                                                                                                 317                                                                                                                                                                                658                                                                                                             |
-                          103                                                 246                                                                            403                                                           511                                   578                                                                                        858                                                     |
-        39        72                135               186           234                 261       279                      344       358           391                 425           442       472               501                     545       560                     611           650                      686       704               806                     903           912           961               |
-27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,490,494,501   503,511   516,526,545   554,560   564,576,578   586,611   612,615,650   657,658    667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,907,912   922,946,961   976,987,989,993|
+                                                                                                                 317                                                                                                        511                                                                                                                              858                                                     |
+                          103                                                 246                                                                            403                               472                                                                578                               658                                                                              912                             |
+        39        72                135               186           234                 261       279                      344       358           391                 425           442                         501                      545       560                     611           650                     686       704               806                      903                         961               |
+27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,578   586,611   612,615,650   657,658   667,681,686   690,704   769,773,804,806   809,854,858    882,903   906,907,912   922,946,961   976,987,989,993|
 """);
         case 86 -> /* 490 */ ok(m.printHorizontally(), """
-                                                                                                                 317                                                                                                                                                                            658                                                                                                             |
-                          103                                                 246                                                                            403                                                       511                                   578                                                                                        858                                                     |
-        39        72                135               186           234                 261       279                      344       358           391                 425           442       472           501                     545       560                     611           650                      686       704               806                     903           912           961               |
-27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560   564,576,578   586,611   612,615,650   657,658    667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,907,912   922,946,961   976,987,989,993|
+                                                                                                                 317                                                                                                    511                                                                                                                              858                                                     |
+                          103                                                 246                                                                            403                               472                                                            578                               658                                                                              912                             |
+        39        72                135               186           234                 261       279                      344       358           391                 425           442                     501                      545       560                     611           650                     686       704               806                      903                         961               |
+27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261   272,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   564,576,578   586,611   612,615,650   657,658   667,681,686   690,704   769,773,804,806   809,854,858    882,903   906,907,912   922,946,961   976,987,989,993|
 """);
         case 85 -> /* 272 */ ok(m.printHorizontally(), """
-                                                                                                           317                                                                                                                                                                            658                                                                                                             |
-                          103                                                 246                                                                      403                                                       511                                   578                                                                                        858                                                     |
-        39        72                135               186           234                     279                      344       358           391                 425           442       472           501                     545       560                     611           650                      686       704               806                     903           912           961               |
-27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560   564,576,578   586,611   612,615,650   657,658    667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,907,912   922,946,961   976,987,989,993|
+                                                                                                           317                                                                                                    511                                                                                                                              858                                                     |
+                          103                                                 246                                                                      403                               472                                                            578                               658                                                                              912                             |
+        39        72                135               186           234                     279                      344       358           391                 425           442                     501                      545       560                     611           650                     686       704               806                      903                         961               |
+27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   564,576,578   586,611   612,615,650   657,658   667,681,686   690,704   769,773,804,806   809,854,858    882,903   906,907,912   922,946,961   976,987,989,993|
 """);
         case 84 -> /* 922 */ ok(m.printHorizontally(), """
-                                                                                                           317                                                                                                                                                                            658                                                                                                         |
-                          103                                                 246                                                                      403                                                       511                                   578                                                                                        858                                                 |
-        39        72                135               186           234                     279                      344       358           391                 425           442       472           501                     545       560                     611           650                      686       704               806                     903           912       961               |
-27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560   564,576,578   586,611   612,615,650   657,658    667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,907,912   946,961   976,987,989,993|
+                                                                                                           317                                                                                                    511                                                                                                                              858                                                 |
+                          103                                                 246                                                                      403                               472                                                            578                               658                                                                                                          |
+        39        72                135               186           234                     279                      344       358           391                 425           442                     501                      545       560                     611           650                     686       704               806                      903           912       961               |
+27,29,39  43,55,72  90,103   106,135   151,155,157,186   229,232,234   237,246   260,261,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   564,576,578   586,611   612,615,650   657,658   667,681,686   690,704   769,773,804,806   809,854,858    882,903   906,907,912   946,961   976,987,989,993|
 """);
         case 83 -> /* 157 */ ok(m.printHorizontally(), """
-                                                                                                       317                                                                                                                                                                            658                                                                                                         |
-                          103                                             246                                                                      403                                                       511                                   578                                                                                        858                                                 |
-        39        72                135           186           234                     279                      344       358           391                 425           442       472           501                     545       560                     611           650                      686       704               806                     903           912       961               |
-27,29,39  43,55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560   564,576,578   586,611   612,615,650   657,658    667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,907,912   946,961   976,987,989,993|
+                                                                                                       317                                                                                                    511                                                                                                                                                                                 |
+                          103                                             246                                                                      403                               472                                                            578                               658                                                     858                                                 |
+        39        72                135           186           234                     279                      344       358           391                 425           442                     501                      545       560                     611           650                     686       704               806                     903           912       961               |
+27,29,39  43,55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   564,576,578   586,611   612,615,650   657,658   667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,907,912   946,961   976,987,989,993|
 """);
         case 82 -> /* 612 */ ok(m.printHorizontally(), """
-                                                                                                       317                                                                                                                                                                        658                                                                                                         |
-                          103                                             246                                                                      403                                                       511                                   578                                                                                    858                                                 |
-        39        72                135           186           234                     279                      344       358           391                 425           442       472           501                     545       560                     611       650                      686       704               806                     903           912       961               |
-27,29,39  43,55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560   564,576,578   586,611   615,650   657,658    667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,907,912   946,961   976,987,989,993|
+                                                                                                       317                                                                                                    511                                                                                                                                                                             |
+                          103                                             246                                                                      403                               472                                                            578                           658                                                     858                                                 |
+        39        72                135           186           234                     279                      344       358           391                 425           442                     501                      545       560                     611       650                     686       704               806                     903           912       961               |
+27,29,39  43,55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   564,576,578   586,611   615,650   657,658   667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,907,912   946,961   976,987,989,993|
 """);
         case 81 -> /* 615 */ ok(m.printHorizontally(), """
-                                                                                                       317                                                                                                                                                                  658                                                                                                         |
-                          103                                             246                                                                      403                                                       511                                   578                                                                              858                                                 |
-        39        72                135           186           234                     279                      344       358           391                 425           442       472           501                     545       560                         650                      686       704               806                     903           912       961               |
-27,29,39  43,55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560   564,576,578   586,611,650   657,658    667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,907,912   946,961   976,987,989,993|
+                                                                                                       317                                                                                                    511                                                                                                                                                                       |
+                          103                                             246                                                                      403                               472                                                            578                     658                                                     858                                                 |
+        39        72                135           186           234                     279                      344       358           391                 425           442                     501                      545       560                         650                     686       704               806                     903           912       961               |
+27,29,39  43,55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344   354,358   376,377,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   564,576,578   586,611,650   657,658   667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,907,912   946,961   976,987,989,993|
 """);
         case 80 -> /* 377 */ ok(m.printHorizontally(), """
-                                                                                                       317                                                                                                                                                            658                                                                                                         |
-                          103                                             246                                                                403                                                       511                                                                                                                    858                                                 |
-        39        72                135           186           234                     279                              358       391                 425           442       472           501                     545       560           578           650                      686       704               806                     903           912       961               |
-27,29,39  43,55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560   564,576,578   586,611,650   657,658    667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,907,912   946,961   976,987,989,993|
+                                                                                                       317                                                                                              511                                                                                                                                                                       |
+                          103                                             246                                                                403                               472                                                            578                     658                                                     858                                                 |
+        39        72                135           186           234                     279                              358       391                 425           442                     501                      545       560                         650                     686       704               806                     903           912       961               |
+27,29,39  43,55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   564,576,578   586,611,650   657,658   667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,907,912   946,961   976,987,989,993|
 """);
         case 79 -> /* 564 */ ok(m.printHorizontally(), """
-                                                                                                       317                                                                                                                                                                                                                                                                   |
-                          103                                             246                                                                403                                                       511                                                       658                                                     858                                                 |
-        39        72                135           186           234                     279                              358       391                 425           442       472           501                     545       560       578           650                     686       704               806                     903           912       961               |
-27,29,39  43,55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560   576,578   586,611,650   657,658   667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,907,912   946,961   976,987,989,993|
+                                                                                                       317                                                                                              511                                                                                                                                                                   |
+                          103                                             246                                                                403                               472                                                        578                     658                                                     858                                                 |
+        39        72                135           186           234                     279                              358       391                 425           442                     501                      545       560                     650                     686       704               806                     903           912       961               |
+27,29,39  43,55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   657,658   667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,907,912   946,961   976,987,989,993|
 """);
         case 78 -> /* 907 */ ok(m.printHorizontally(), """
-                                                                                                       317                                                                                                                                                                                                                                                               |
-                          103                                             246                                                                403                                                       511                                                       658                                                     858                                             |
-        39        72                135           186           234                     279                              358       391                 425           442       472           501                     545       560       578           650                     686       704               806                     903       912       961               |
-27,29,39  43,55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560   576,578   586,611,650   657,658   667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
+                                                                                                       317                                                                                              511                                                                                                                                                               |
+                          103                                             246                                                                403                               472                                                        578                     658                                                     858                                             |
+        39        72                135           186           234                     279                              358       391                 425           442                     501                      545       560                     650                     686       704               806                     903       912       961               |
+27,29,39  43,55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   657,658   667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
 """);
         case 77 -> /* 43 */ ok(m.printHorizontally(), """
-                                                                                                    317                                                                                                                                                                                                                                                               |
-                       103                                             246                                                                403                                                       511                                                       658                                                     858                                             |
-        39     72                135           186           234                     279                              358       391                 425           442       472           501                     545       560       578           650                     686       704               806                     903       912       961               |
-27,29,39  55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560   576,578   586,611,650   657,658   667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
+                                                                                                    317                                                                                              511                                                                                                                                                               |
+                       103                                             246                                                                403                               472                                                        578                     658                                                     858                                             |
+        39     72                135           186           234                     279                              358       391                 425           442                     501                      545       560                     650                     686       704               806                     903       912       961               |
+27,29,39  55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   657,658   667,681,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
 """);
         case 76 -> /* 681 */ ok(m.printHorizontally(), """
-                                                                                                    317                                                                                                                                                                                                                                                           |
-                       103                                             246                                                                403                                                       511                                                       658                                                 858                                             |
-        39     72                135           186           234                     279                              358       391                 425           442       472           501                     545       560       578           650                 686       704               806                     903       912       961               |
-27,29,39  55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560   576,578   586,611,650   657,658   667,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
+                                                                                                    317                                                                                              511                                                                                                                                                           |
+                       103                                             246                                                                403                               472                                                        578                     658                                                 858                                             |
+        39     72                135           186           234                     279                              358       391                 425           442                     501                      545       560                     650                 686       704               806                     903       912       961               |
+27,29,39  55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   657,658   667,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
 """);
         case 75 -> /* 657 */ ok(m.printHorizontally(), """
-                                                                                                    317                                                                                                                                                                                                                                                     |
-                       103                                             246                                                                403                                                       511                                                 658                                                 858                                             |
-        39     72                135           186           234                     279                              358       391                 425           442       472           501                     545               578           650             686       704               806                     903       912       961               |
-27,29,39  55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560,576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
+                                                                                                    317                                                                                              511                                                                                                                                                       |
+                       103                                             246                                                                403                               472                                                        578                 658                                                 858                                             |
+        39     72                135           186           234                     279                              358       391                 425           442                     501                      545       560                     650             686       704               806                     903       912       961               |
+27,29,39  55,72  90,103   106,135   151,155,186   229,232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
 """);
         case 74 -> /* 155 */ ok(m.printHorizontally(), """
-                                                                                                317                                                                                                                                                                                                                                                     |
-                       103                                         246                                                                403                                                       511                                                 658                                                 858                                             |
-        39     72                135       186           234                     279                              358       391                 425           442       472           501                     545               578           650             686       704               806                     903       912       961               |
-27,29,39  55,72  90,103   106,135   151,186   229,232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560,576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
+                                                                                                317                                                                                              511                                                                                                                                                       |
+                       103                                         246                                                                403                               472                                                        578                 658                                                 858                                             |
+        39     72                135       186           234                     279                              358       391                 425           442                     501                      545       560                     650             686       704               806                     903       912       961               |
+27,29,39  55,72  90,103   106,135   151,186   229,232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
 """);
         case 73 -> /* 90 */ ok(m.printHorizontally(), """
-                                                                                            317                                                                                                                                                                                                                                                     |
-                   103                                         246                                                                403                                                       511                                                 658                                                 858                                             |
-        39                   135       186           234                     279                              358       391                 425           442       472           501                     545               578           650             686       704               806                     903       912       961               |
-27,29,39  55,72,103   106,135   151,186   229,232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560,576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
+                                                                                            317                                                                                              511                                                                                                                                                       |
+                   103                                         246                                                                403                               472                                                        578                 658                                                 858                                             |
+        39                   135       186           234                     279                              358       391                 425           442                     501                      545       560                     650             686       704               806                     903       912       961               |
+27,29,39  55,72,103   106,135   151,186   229,232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
 """);
         case 72 -> /* 229 */ ok(m.printHorizontally(), """
-                                                                                      317                                                                                                                                                                                                                                                     |
-                   103                                   246                                                                403                                                       511                                                 658                                                 858                                             |
-        39                           186       234                     279                              358       391                 425           442       472           501                     545               578           650             686       704               806                     903       912       961               |
-27,29,39  55,72,103   106,135,151,186   232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560,576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
+                                                                                      317                                                                                              511                                                                                                                                                       |
+                   103                                   246                                                                403                               472                                                        578                 658                                                 858                                             |
+        39                           186       234                     279                              358       391                 425           442                     501                      545       560                     650             686       704               806                     903       912       961               |
+27,29,39  55,72,103   106,135,151,186   232,234   237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
 """);
         case 71 -> /* 232 */ ok(m.printHorizontally(), """
-                                                                                317                                                                                                                                                                                                                                                     |
-                                                   246                                                                403                                                       511                                                 658                                                 858                                             |
-        39         103               186                         279                              358       391                 425           442       472           501                     545               578           650             686       704               806                     903       912       961               |
-27,29,39  55,72,103   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560,576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
+                                                                                317                                                                                              511                                                                                                                                                       |
+                   103                             246                                                                403                               472                                                        578                 658                                                 858                                             |
+        39                           186                         279                              358       391                 425           442                     501                      545       560                     650             686       704               806                     903       912       961               |
+27,29,39  55,72,103   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354,358   376,391   401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
 """);
         case 70 -> /* 358 */ ok(m.printHorizontally(), """
-                                                                                317                                                                                                                                                                                                                                               |
-                                                   246                                                          403                                                       511                                                 658                                                 858                                             |
-        39         103               186                         279                          358                         425           442       472           501                     545               578           650             686       704               806                     903       912       961               |
-27,29,39  55,72,103   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   376,391,401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560,576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
+                                                                                317                                                                                        511                                                                                                                                                       |
+                   103                             246                                                          403                               472                                                        578                 658                                                 858                                             |
+        39                           186                         279                          358                         425           442                     501                      545       560                     650             686       704               806                     903       912       961               |
+27,29,39  55,72,103   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   376,391,401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
 """);
         case 69 -> /* 55 */ ok(m.printHorizontally(), """
-                                                                             317                                                                                                                                                                                                                                               |
-                                                246                                                          403                                                       511                                                 658                                                 858                                             |
-        39      103               186                         279                          358                         425           442       472           501                     545               578           650             686       704               806                     903       912       961               |
-27,29,39  72,103   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   376,391,401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560,576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
+                                                                             317                                                                                        511                                                                                                                                                       |
+                                                246                                                          403                               472                                                        578                 658                                                 858                                             |
+        39      103               186                         279                          358                         425           442                     501                      545       560                     650             686       704               806                     903       912       961               |
+27,29,39  72,103   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   376,391,401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903   906,912   946,961   976,987,989,993|
 """);
         case 68 -> /* 961 */ ok(m.printHorizontally(), """
-                                                                             317                                                                                                                                                                                                                                         |
-                                                246                                                          403                                                       511                                                 658                                                 858                                       |
-        39      103               186                         279                          358                         425           442       472           501                     545               578           650             686       704               806                             912   961               |
-27,29,39  72,103   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   376,391,401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560,576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912   946   976,987,989,993|
+                                                                             317                                                                                        511                                                                                                                                                 |
+                                                246                                                          403                               472                                                        578                 658                                                 858                                       |
+        39      103               186                         279                          358                         425           442                     501                      545       560                     650             686       704               806                             912   961               |
+27,29,39  72,103   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   376,391,401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912   946   976,987,989,993|
 """);
         case 67 -> /* 103 */ ok(m.printHorizontally(), """
-                                                                         317                                                                                                                                                                                                                                         |
-                                            246                                                          403                                                       511                                                 658                                                 858                                       |
-        39  103               186                         279                          358                         425           442       472           501                     545               578           650             686       704               806                             912   961               |
-27,29,39  72   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   376,391,401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560,576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912   946   976,987,989,993|
+                                                                         317                                                                                        511                                                                                                                                                 |
+                                            246                                                          403                               472                                                        578                 658                                                 858                                       |
+        39  103               186                         279                          358                         425           442                     501                      545       560                     650             686       704               806                             912   961               |
+27,29,39  72   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   376,391,401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912   946   976,987,989,993|
 """);
         case 66 -> /* 946 */ ok(m.printHorizontally(), """
-                                                                         317                                                                                                                                                                                                                                      |
-                                            246                                                          403                                                       511                                                 658                                                 858                                    |
-        39  103               186                         279                          358                         425           442       472           501                     545               578           650             686       704               806                             912961               |
-27,29,39  72   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   376,391,401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560,576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912      976,987,989,993|
+                                                                         317                                                                                        511                                                                                                                                              |
+                                            246                                                          403                               472                                                        578                 658                                                 858                                    |
+        39  103               186                         279                          358                         425           442                     501                      545       560                     650             686       704               806                             912961               |
+27,29,39  72   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   376,391,401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912      976,987,989,993|
 """);
         case 65 -> /* 72 */ ok(m.printHorizontally(), """
-                                                                     317                                                                                                                                                                                                                                      |
-                                        246                                                          403                                                       511                                                 658                                                 858                                    |
-        103               186                         279                          358                         425           442       472           501                     545               578           650             686       704               806                             912961               |
-27,29,39   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   376,391,401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560,576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912      976,987,989,993|
+                                                                     317                                                                                        511                                                                                                                                              |
+                                        246                                                          403                               472                                                        578                 658                                                 858                                    |
+        103               186                         279                          358                         425           442                     501                      545       560                     650             686       704               806                             912961               |
+27,29,39   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   376,391,401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912      976,987,989,993|
 """);
         case 64 -> /* 376 */ ok(m.printHorizontally(), """
-                                                                     317                                                                                                                                                                                                                                  |
-                                        246                                                      403                                                       511                                                 658                                                 858                                    |
-        103               186                         279                          358                     425           442       472           501                     545               578           650             686       704               806                             912961               |
-27,29,39   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   391,401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560,576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912      976,987,989,993|
+                                                                     317                                                                                    511                                                                                                                                              |
+                                        246                                                      403                               472                                                        578                 658                                                 858                                    |
+        103               186                         279                          358                     425           442                     501                      545       560                     650             686       704               806                             912961               |
+27,29,39   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   391,401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912      976,987,989,993|
 """);
         case 63 -> /* 29 */ ok(m.printHorizontally(), """
-                                                                  317                                                                                                                                                                                                                                  |
-                                                                                              403                                                       511                                                 658                                                 858                                    |
-     103               186           246           279                          358                     425           442       472           501                     545               578           650             686       704               806                             912961               |
-27,39   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   391,401,403   422,425   436,438,442   447,472   480,494,501   503,511   516,526,545   554,560,576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912      976,987,989,993|
+                                                                  317                                                                                    511                                                                                                                                              |
+                                     246                                                      403                               472                                                        578                 658                                                 858                                    |
+     103               186                         279                          358                     425           442                     501                      545       560                     650             686       704               806                             912961               |
+27,39   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   391,401,403   422,425   436,438,442   447,472   480,494,501   503,511    516,526,545   554,560   576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912      976,987,989,993|
 """);
         case 62 -> /* 516 */ ok(m.printHorizontally(), """
-                                                                  317                                                                                                                                                                                                                            |
-                                                                                              403                                                       511                                           658                                                 858                                    |
-     103               186           246           279                          358                     425           442       472           501                 545               578                         686       704               806                             912961               |
-27,39   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   391,401,403   422,425   436,438,442   447,472   480,494,501   503,511   526,545   554,560,576,578   586,611,650,658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912      976,987,989,993|
+                                                                  317                                                                                    511                                                                                                                                        |
+                                     246                                                      403                               472                                                  578                 658                                                 858                                    |
+     103               186                         279                          358                     425           442                     501                  545                             650             686       704               806                             912961               |
+27,39   106,135,151,186   234,237,246   260,261,279   288,298,317    338,344,354   391,401,403   422,425   436,438,442   447,472   480,494,501   503,511    526,545   554,560,576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912      976,987,989,993|
 """);
         case 61 -> /* 237 */ ok(m.printHorizontally(), """
-                                                              317                                                                                                                                                                                                                            |
-                                                                                          403                                                       511                                           658                                                 858                                    |
-     103               186       246           279                          358                     425           442       472           501                 545               578                         686       704               806                             912961               |
-27,39   106,135,151,186   234,246   260,261,279   288,298,317    338,344,354   391,401,403   422,425   436,438,442   447,472   480,494,501   503,511   526,545   554,560,576,578   586,611,650,658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912      976,987,989,993|
+                                                              317                                                                                    511                                                                                                                                        |
+                                 246                                                      403                               472                                                  578                 658                                                 858                                    |
+     103               186                     279                          358                     425           442                     501                  545                             650             686       704               806                             912961               |
+27,39   106,135,151,186   234,246   260,261,279   288,298,317    338,344,354   391,401,403   422,425   436,438,442   447,472   480,494,501   503,511    526,545   554,560,576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912      976,987,989,993|
 """);
         case 60 -> /* 438 */ ok(m.printHorizontally(), """
-                                                              317                                                                                                                                                                                                                        |
-                                                                                          403                                                   511                                           658                                                 858                                    |
-     103               186       246           279                          358                     425       442       472           501                 545               578                         686       704               806                             912961               |
-27,39   106,135,151,186   234,246   260,261,279   288,298,317    338,344,354   391,401,403   422,425   436,442   447,472   480,494,501   503,511   526,545   554,560,576,578   586,611,650,658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912      976,987,989,993|
+                                                              317                                                                                511                                                                                                                                        |
+                                 246                                                      403                           472                                                  578                 658                                                 858                                    |
+     103               186                     279                          358                     425       442                     501                  545                             650             686       704               806                             912961               |
+27,39   106,135,151,186   234,246   260,261,279   288,298,317    338,344,354   391,401,403   422,425   436,442   447,472   480,494,501   503,511    526,545   554,560,576,578   586,611,650   658   667,686   690,704   769,773,804,806   809,854,858   882,903,906,912      976,987,989,993|
 """);
         case 59 -> /* 809 */ ok(m.printHorizontally(), """
-                                                              317                                                                                                                                                                                                                  |
-                                                                                          403                                                   511                                           658                                           858                                    |
-     103               186       246           279                          358                     425       442       472           501                 545               578                                 704               806                         912961               |
-27,39   106,135,151,186   234,246   260,261,279   288,298,317    338,344,354   391,401,403   422,425   436,442   447,472   480,494,501   503,511   526,545   554,560,576,578   586,611,650,658   667,686,690,704   769,773,804,806   854,858   882,903,906,912      976,987,989,993|
+                                                              317                                                                                511                                                                                                                                  |
+                                 246                                                      403                           472                                                                      658                                           858                                    |
+     103               186                     279                          358                     425       442                     501                  545               578           650                     704               806                         912961               |
+27,39   106,135,151,186   234,246   260,261,279   288,298,317    338,344,354   391,401,403   422,425   436,442   447,472   480,494,501   503,511    526,545   554,560,576,578   586,611,650   658   667,686,690,704   769,773,804,806   854,858   882,903,906,912      976,987,989,993|
 """);
         case 58 -> /* 260 */ ok(m.printHorizontally(), """
-                                                          317                                                                                                                                                                                                                  |
-                                                                                      403                                                   511                                           658                                           858                                    |
-     103               186       246       279                          358                     425       442       472           501                 545               578                                 704               806                         912961               |
-27,39   106,135,151,186   234,246   261,279   288,298,317    338,344,354   391,401,403   422,425   436,442   447,472   480,494,501   503,511   526,545   554,560,576,578   586,611,650,658   667,686,690,704   769,773,804,806   854,858   882,903,906,912      976,987,989,993|
+                                                          317                                                                                511                                                                                                                                  |
+                                 246                                                  403                           472                                                                      658                                           858                                    |
+     103               186                 279                          358                     425       442                     501                  545               578           650                     704               806                         912961               |
+27,39   106,135,151,186   234,246   261,279   288,298,317    338,344,354   391,401,403   422,425   436,442   447,472   480,494,501   503,511    526,545   554,560,576,578   586,611,650   658   667,686,690,704   769,773,804,806   854,858   882,903,906,912      976,987,989,993|
 """);
         case 57 -> /* 769 */ ok(m.printHorizontally(), """
-                                                          317                                                                                                                                                                                                              |
-                                                                                      403                                                   511                                           658                                       858                                    |
-     103               186       246       279                          358                     425       442       472           501                 545               578                                 704           806                         912961               |
-27,39   106,135,151,186   234,246   261,279   288,298,317    338,344,354   391,401,403   422,425   436,442   447,472   480,494,501   503,511   526,545   554,560,576,578   586,611,650,658   667,686,690,704   773,804,806   854,858   882,903,906,912      976,987,989,993|
+                                                          317                                                                                511                                                                                                                              |
+                                 246                                                  403                           472                                                                      658                                       858                                    |
+     103               186                 279                          358                     425       442                     501                  545               578           650                     704           806                         912961               |
+27,39   106,135,151,186   234,246   261,279   288,298,317    338,344,354   391,401,403   422,425   436,442   447,472   480,494,501   503,511    526,545   554,560,576,578   586,611,650   658   667,686,690,704   773,804,806   854,858   882,903,906,912      976,987,989,993|
 """);
         case 56 -> /* 773 */ ok(m.printHorizontally(), """
-                                                          317                                                                                                                                                                                                          |
-                                                                                      403                                                   511                                           658                                   858                                    |
-     103               186       246       279                          358                     425       442       472           501                 545               578                                 704       806                         912961               |
-27,39   106,135,151,186   234,246   261,279   288,298,317    338,344,354   391,401,403   422,425   436,442   447,472   480,494,501   503,511   526,545   554,560,576,578   586,611,650,658   667,686,690,704   804,806   854,858   882,903,906,912      976,987,989,993|
+                                                          317                                                                                511                                                                                                                          |
+                                 246                                                  403                           472                                                                      658                                   858                                    |
+     103               186                 279                          358                     425       442                     501                  545               578           650                     704       806                         912961               |
+27,39   106,135,151,186   234,246   261,279   288,298,317    338,344,354   391,401,403   422,425   436,442   447,472   480,494,501   503,511    526,545   554,560,576,578   586,611,650   658   667,686,690,704   804,806   854,858   882,903,906,912      976,987,989,993|
 """);
         case 55 -> /* 151 */ ok(m.printHorizontally(), """
-                                                    317                                                                                                                                                                                                          |
-                                                                                403                                                   511                                           658                                   858                                    |
-     103           186               279                          358                     425       442       472           501                 545               578                                 704       806                         912961               |
-27,39   106,135,186   234,246,261,279   288,298,317    338,344,354   391,401,403   422,425   436,442   447,472   480,494,501   503,511   526,545   554,560,576,578   586,611,650,658   667,686,690,704   804,806   854,858   882,903,906,912      976,987,989,993|
+                                                      317                                                                                511                                                                                                                          |
+                             246                                                  403                           472                                                                      658                                   858                                    |
+     103           186                 279                          358                     425       442                     501                  545               578           650                     704       806                         912961               |
+27,39   106,135,186   234,246   261,279   288,298,317    338,344,354   391,401,403   422,425   436,442   447,472   480,494,501   503,511    526,545   554,560,576,578   586,611,650   658   667,686,690,704   804,806   854,858   882,903,906,912      976,987,989,993|
 """);
         case 54 -> /* 288 */ ok(m.printHorizontally(), """
-                                                317                                                                                                                                                                                                          |
-                                                                            403                                                   511                                           658                                   858                                    |
-     103           186               279                      358                     425       442       472           501                 545               578                                 704       806                         912961               |
-27,39   106,135,186   234,246,261,279   298,317    338,344,354   391,401,403   422,425   436,442   447,472   480,494,501   503,511   526,545   554,560,576,578   586,611,650,658   667,686,690,704   804,806   854,858   882,903,906,912      976,987,989,993|
+                                                  317                                                                                511                                                                                                                          |
+                             246                                              403                           472                                                                      658                                   858                                    |
+     103           186                 279                      358                     425       442                     501                  545               578           650                     704       806                         912961               |
+27,39   106,135,186   234,246   261,279   298,317    338,344,354   391,401,403   422,425   436,442   447,472   480,494,501   503,511    526,545   554,560,576,578   586,611,650   658   667,686,690,704   804,806   854,858   882,903,906,912      976,987,989,993|
 """);
         case 53 -> /* 480 */ ok(m.printHorizontally(), """
-                                                317                                                                                                                                                                                                    |
-                                                                            403                                             511                                           658                                   858                                    |
-     103           186               279                      358                             442       472       501                 545               578                                 704       806                         912961               |
-27,39   106,135,186   234,246,261,279   298,317    338,344,354   391,401,403   422,425,436,442   447,472   494,501   503,511   526,545   554,560,576,578   586,611,650,658   667,686,690,704   804,806   854,858   882,903,906,912      976,987,989,993|
+                                                  317                                                                            511                                                                                                                          |
+                             246                                              403                           472                                                                  658                                   858                                    |
+     103           186                 279                      358                     425       442                 501                  545               578           650                     704       806                         912961               |
+27,39   106,135,186   234,246   261,279   298,317    338,344,354   391,401,403   422,425   436,442   447,472   494,501   503,511    526,545   554,560,576,578   586,611,650   658   667,686,690,704   804,806   854,858   882,903,906,912      976,987,989,993|
 """);
         case 52 -> /* 690 */ ok(m.printHorizontally(), """
-                                                317                                                                                                                                                                                              |
-                                                                            403                                             511                                           658                             858                                    |
-     103           186               279                      358                             442       472       501                 545               578                             704                                 912961               |
-27,39   106,135,186   234,246,261,279   298,317    338,344,354   391,401,403   422,425,436,442   447,472   494,501   503,511   526,545   554,560,576,578   586,611,650,658   667,686,704   804,806,854,858   882,903,906,912      976,987,989,993|
+                                                  317                                                                            511                                                                                                                    |
+                             246                                              403                           472                                                                  658                             858                                    |
+     103           186                 279                      358                     425       442                 501                  545               578           650                 704                                 912961               |
+27,39   106,135,186   234,246   261,279   298,317    338,344,354   391,401,403   422,425   436,442   447,472   494,501   503,511    526,545   554,560,576,578   586,611,650   658   667,686,704   804,806,854,858   882,903,906,912      976,987,989,993|
 """);
         case 51 -> /* 494 */ ok(m.printHorizontally(), """
-                                                317                                                                                                                                                                                        |
-                                                                            403                                       511                                                                           858                                    |
-     103           186               279                      358                             442           501                 545               578               658           704                                 912961               |
-27,39   106,135,186   234,246,261,279   298,317    338,344,354   391,401,403   422,425,436,442   447,472,501   503,511   526,545   554,560,576,578   586,611,650,658   667,686,704   804,806,854,858   882,903,906,912      976,987,989,993|
+                                                  317                                                                      511                                                                                                                    |
+                             246                                              403                           472                                                            658                             858                                    |
+     103           186                 279                      358                     425       442                                545               578           650                 704                                 912961               |
+27,39   106,135,186   234,246   261,279   298,317    338,344,354   391,401,403   422,425   436,442   447,472   501,503,511    526,545   554,560,576,578   586,611,650   658   667,686,704   804,806,854,858   882,903,906,912      976,987,989,993|
 """);
         case 50 -> /* 667 */ ok(m.printHorizontally(), """
-                                                317                                                                    511                                                                        858                                    |
-     103           186               279                      358           403               442           501                  545               578               658       704                                  912961               |
-27,39   106,135,186   234,246,261,279   298,317    338,344,354   391,401,403   422,425,436,442   447,472,501   503,511    526,545   554,560,576,578   586,611,650,658   686,704   804,806,854,858    882,903,906,912      976,987,989,993|
+                                                  317                                                                      511                                                                                                                |
+                             246                                              403                           472                                                            658                         858                                    |
+     103           186                 279                      358                     425       442                                545               578           650             704                                 912961               |
+27,39   106,135,186   234,246   261,279   298,317    338,344,354   391,401,403   422,425   436,442   447,472   501,503,511    526,545   554,560,576,578   586,611,650   658   686,704   804,806,854,858   882,903,906,912      976,987,989,993|
 """);
         case 49 -> /* 106 */ ok(m.printHorizontally(), """
-                                            317                                                                    511                                                                        858                                    |
-     103       186               279                      358           403               442           501                  545               578               658       704                                  912961               |
-27,39   135,186   234,246,261,279   298,317    338,344,354   391,401,403   422,425,436,442   447,472,501   503,511    526,545   554,560,576,578   586,611,650,658   686,704   804,806,854,858    882,903,906,912      976,987,989,993|
+                                              317                                                                      511                                                                                                                |
+                         246                                              403                           472                                                            658                         858                                    |
+     103       186                 279                      358                     425       442                                545               578           650             704                                 912961               |
+27,39   135,186   234,246   261,279   298,317    338,344,354   391,401,403   422,425   436,442   447,472   501,503,511    526,545   554,560,576,578   586,611,650   658   686,704   804,806,854,858   882,903,906,912      976,987,989,993|
 """);
         case 48 -> /* 234 */ ok(m.printHorizontally(), """
-                                      317                                                                    511                                                                        858                                    |
-             186           279                      358           403               442           501                  545               578               658       704                                  912961               |
-27,39,135,186   246,261,279   298,317    338,344,354   391,401,403   422,425,436,442   447,472,501   503,511    526,545   554,560,576,578   586,611,650,658   686,704   804,806,854,858    882,903,906,912      976,987,989,993|
+                                        317                                                                      511                                                                                                                |
+                   246                                              403                           472                                                            658                         858                                    |
+             186             279                      358                     425       442                                545               578           650             704                                 912961               |
+27,39,135,186   246   261,279   298,317    338,344,354   391,401,403   422,425   436,442   447,472   501,503,511    526,545   554,560,576,578   586,611,650   658   686,704   804,806,854,858   882,903,906,912      976,987,989,993|
 """);
         case 47 -> /* 186 */ ok(m.printHorizontally(), """
-                                  317                                                                    511                                                                        858                                    |
-         186           279                      358           403               442           501                  545               578               658       704                                  912961               |
-27,39,135   246,261,279   298,317    338,344,354   391,401,403   422,425,436,442   447,472,501   503,511    526,545   554,560,576,578   586,611,650,658   686,704   804,806,854,858    882,903,906,912      976,987,989,993|
+                                  317                                                                      511                                                                                                                |
+                                                              403                           472                                                            658                         858                                    |
+         186           279                      358                     425       442                                545               578           650             704                                 912961               |
+27,39,135   246,261,279   298,317    338,344,354   391,401,403   422,425   436,442   447,472   501,503,511    526,545   554,560,576,578   586,611,650   658   686,704   804,806,854,858   882,903,906,912      976,987,989,993|
 """);
         case 46 -> /* 976 */ ok(m.printHorizontally(), """
-                                  317                                                                    511                                                                        858                             |
-         186           279                      358           403               442           501                  545               578               658       704                                  961           |
-27,39,135   246,261,279   298,317    338,344,354   391,401,403   422,425,436,442   447,472,501   503,511    526,545   554,560,576,578   586,611,650,658   686,704   804,806,854,858    882,903,906,912   987,989,993|
+                                                                                                          511                                                                                                         |
+                                 317                         403                           472                                                            658                         858                             |
+         186           279                     358                     425       442                                545               578           650             704                                 961           |
+27,39,135   246,261,279   298,317   338,344,354   391,401,403   422,425   436,442   447,472   501,503,511    526,545   554,560,576,578   586,611,650   658   686,704   804,806,854,858   882,903,906,912   987,989,993|
 """);
         case 45 -> /* 804 */ ok(m.printHorizontally(), """
-                                  317                                                                    511                                                                    858                             |
-         186           279                      358           403               442           501                  545               578               658       704                              961           |
-27,39,135   246,261,279   298,317    338,344,354   391,401,403   422,425,436,442   447,472,501   503,511    526,545   554,560,576,578   586,611,650,658   686,704   806,854,858    882,903,906,912   987,989,993|
+                                                                                                          511                                                                                                     |
+                                 317                         403                           472                                                            658                                                     |
+         186           279                     358                     425       442                                545               578           650             704           858               961           |
+27,39,135   246,261,279   298,317   338,344,354   391,401,403   422,425   436,442   447,472   501,503,511    526,545   554,560,576,578   586,611,650   658   686,704   806,854,858   882,903,906,912   987,989,993|
 """);
         case 44 -> /* 39 */ ok(m.printHorizontally(), """
-                               317                                                                    511                                                                    858                             |
-      186           279                      358           403               442           501                  545               578               658       704                              961           |
-27,135   246,261,279   298,317    338,344,354   391,401,403   422,425,436,442   447,472,501   503,511    526,545   554,560,576,578   586,611,650,658   686,704   806,854,858    882,903,906,912   987,989,993|
+                                                                                                       511                                                                                                     |
+                              317                         403                                                                                          658                                                     |
+      186           279                     358                     425       442       472                      545               578           650             704           858               961           |
+27,135   246,261,279   298,317   338,344,354   391,401,403   422,425   436,442   447,472   501,503,511    526,545   554,560,576,578   586,611,650   658   686,704   806,854,858   882,903,906,912   987,989,993|
 """);
         case 43 -> /* 338 */ ok(m.printHorizontally(), """
-                               317                                                                511                                                                    858                             |
-      186           279                  358           403               442           501                  545               578               658       704                              961           |
-27,135   246,261,279   298,317    344,354   391,401,403   422,425,436,442   447,472,501   503,511    526,545   554,560,576,578   586,611,650,658   686,704   806,854,858    882,903,906,912   987,989,993|
+                                                                                                   511                                                                                                     |
+                              317                     403                                                                                          658                                                     |
+      186           279                 358                     425       442       472                      545               578           650             704           858               961           |
+27,135   246,261,279   298,317   344,354   391,401,403   422,425   436,442   447,472   501,503,511    526,545   554,560,576,578   586,611,650   658   686,704   806,854,858   882,903,906,912   987,989,993|
 """);
         case 42 -> /* 344 */ ok(m.printHorizontally(), """
-                               317                                                            511                                                                    858                             |
-      186           279              358           403               442           501                  545               578               658       704                              961           |
-27,135   246,261,279   298,317    354   391,401,403   422,425,436,442   447,472,501   503,511    526,545   554,560,576,578   586,611,650,658   686,704   806,854,858    882,903,906,912   987,989,993|
+                                                                                               511                                                                                                     |
+                              317                 403                                                                                          658                                                     |
+      186           279             358                     425       442       472                      545               578           650             704           858               961           |
+27,135   246,261,279   298,317   354   391,401,403   422,425   436,442   447,472   501,503,511    526,545   554,560,576,578   586,611,650   658   686,704   806,854,858   882,903,906,912   987,989,993|
 """);
         case 41 -> /* 447 */ ok(m.printHorizontally(), """
-                               317                                                      511                                                                    858                             |
-      186           279                          403               442       501                  545               578               658       704                              961           |
-27,135   246,261,279   298,317    354,391,401,403   422,425,436,442   472,501   503,511    526,545   554,560,576,578   586,611,650,658   686,704   806,854,858    882,903,906,912   987,989,993|
+                                                                                         511                                                                                                     |
+                              317                 403                                                                                    658                                                     |
+      186           279             358                             442   472                      545               578           650             704           858               961           |
+27,135   246,261,279   298,317   354   391,401,403   422,425,436,442   472   501,503,511    526,545   554,560,576,578   586,611,650   658   686,704   806,854,858   882,903,906,912   987,989,993|
 """);
         case 40 -> /* 135 */ ok(m.printHorizontally(), """
-                           317                                                      511                                                                    858                             |
-  186           279                          403               442       501                  545               578               658       704                              961           |
-27   246,261,279   298,317    354,391,401,403   422,425,436,442   472,501   503,511    526,545   554,560,576,578   586,611,650,658   686,704   806,854,858    882,903,906,912   987,989,993|
+                                                                                     511                                                                                                     |
+                          317                 403                                                                                    658                                                     |
+  186           279             358                             442   472                      545               578           650             704           858               961           |
+27   246,261,279   298,317   354   391,401,403   422,425,436,442   472   501,503,511    526,545   554,560,576,578   586,611,650   658   686,704   806,854,858   882,903,906,912   987,989,993|
 """);
         case 39 -> /* 611 */ ok(m.printHorizontally(), """
-                           317                                                      511                                                                858                             |
-  186           279                          403               442       501                  545               578           658       704                              961           |
-27   246,261,279   298,317    354,391,401,403   422,425,436,442   472,501   503,511    526,545   554,560,576,578   586,650,658   686,704   806,854,858    882,903,906,912   987,989,993|
+                                                                                     511                                                                                               |
+                          317                 403                                                                              658                                                     |
+  186           279             358                             442   472                      545               578                     704           858               961           |
+27   246,261,279   298,317   354   391,401,403   422,425,436,442   472   501,503,511    526,545   554,560,576,578   586,650,658   686,704   806,854,858   882,903,906,912   987,989,993|
 """);
         case 38 -> /* 503 */ ok(m.printHorizontally(), """
-                           317                                                511                                                                858                             |
-  186           279                          403               442                      545               578           658       704                              961           |
-27   246,261,279   298,317    354,391,401,403   422,425,436,442   472,501,511    526,545   554,560,576,578   586,650,658   686,704   806,854,858    882,903,906,912   987,989,993|
+                                                                               511                                                                                               |
+                          317                 403                                                                        658                                                     |
+  186           279             358                             442                      545               578                     704           858               961           |
+27   246,261,279   298,317   354   391,401,403   422,425,436,442   472,501,511    526,545   554,560,576,578   586,650,658   686,704   806,854,858   882,903,906,912   987,989,993|
 """);
         case 37 -> /* 912 */ ok(m.printHorizontally(), """
-                           317                                                511                                                                858                         |
-  186           279                          403               442                      545               578           658       704                          961           |
-27   246,261,279   298,317    354,391,401,403   422,425,436,442   472,501,511    526,545   554,560,576,578   586,650,658   686,704   806,854,858    882,903,906   987,989,993|
+                                                                               511                                                                                           |
+                          317                 403                                                                        658                                                 |
+  186           279             358                             442                      545               578                     704           858           961           |
+27   246,261,279   298,317   354   391,401,403   422,425,436,442   472,501,511    526,545   554,560,576,578   586,650,658   686,704   806,854,858   882,903,906   987,989,993|
 """);
         case 36 -> /* 425 */ ok(m.printHorizontally(), """
-                           317                                            511                                                                858                         |
-  186           279                          403           442                      545               578           658       704                          961           |
-27   246,261,279   298,317    354,391,401,403   422,436,442   472,501,511    526,545   554,560,576,578   586,650,658   686,704   806,854,858    882,903,906   987,989,993|
+                                                                         511                                                                                           |
+                          317                                                                                      658                                                 |
+  186           279                         403           442                      545               578                     704           858           961           |
+27   246,261,279   298,317   354,391,401,403   422,436,442   472,501,511    526,545   554,560,576,578   586,650,658   686,704   806,854,858   882,903,906   987,989,993|
 """);
         case 35 -> /* 298 */ ok(m.printHorizontally(), """
-                     317                                            511                                                                858                         |
-              279                      403           442                      545               578           658       704                          961           |
-27,246,261,279   317    354,391,401,403   422,436,442   472,501,511    526,545   554,560,576,578   586,650,658   686,704   806,854,858    882,903,906   987,989,993|
+                     317                                            511                                        658                                                 |
+              279                      403           442                      545               578                      704           858           961           |
+27,246,261,279   317    354,391,401,403   422,436,442   472,501,511    526,545   554,560,576,578   586,650,658    686,704   806,854,858   882,903,906   987,989,993|
 """);
         case 34 -> /* 422 */ ok(m.printHorizontally(), """
-                                                               511                                                                858                         |
-              279   317               403       442                      545               578           658       704                          961           |
-27,246,261,279   317   354,391,401,403   436,442   472,501,511    526,545   554,560,576,578   586,650,658   686,704   806,854,858    882,903,906   987,989,993|
+                     317                                        511                                        658                                                 |
+              279                      403       442                      545               578                      704           858           961           |
+27,246,261,279   317    354,391,401,403   436,442   472,501,511    526,545   554,560,576,578   586,650,658    686,704   806,854,858   882,903,906   987,989,993|
 """);
         case 33 -> /* 554 */ ok(m.printHorizontally(), """
-                                                               511                                                            858                         |
-              279   317               403       442                      545           578           658       704                          961           |
-27,246,261,279   317   354,391,401,403   436,442   472,501,511    526,545   560,576,578   586,650,658   686,704   806,854,858    882,903,906   987,989,993|
+                     317                                        511                                    658                                                 |
+              279                      403       442                      545           578                      704           858           961           |
+27,246,261,279   317    354,391,401,403   436,442   472,501,511    526,545   560,576,578   586,650,658    686,704   806,854,858   882,903,906   987,989,993|
 """);
         case 32 -> /* 806 */ ok(m.printHorizontally(), """
-                                                               511                                                        858                         |
-              279   317               403       442                      545           578           658       704                      961           |
-27,246,261,279   317   354,391,401,403   436,442   472,501,511    526,545   560,576,578   586,650,658   686,704   854,858    882,903,906   987,989,993|
+                     317                                        511                                    658                                             |
+              279                      403       442                      545           578                      704       858           961           |
+27,246,261,279   317    354,391,401,403   436,442   472,501,511    526,545   560,576,578   586,650,658    686,704   854,858   882,903,906   987,989,993|
 """);
         case 31 -> /* 560 */ ok(m.printHorizontally(), """
-                                                               511                                                  858                         |
-              279   317               403       442                      545       578           658                              961           |
-27,246,261,279   317   354,391,401,403   436,442   472,501,511    526,545   576,578   586,650,658   686,704,854,858    882,903,906   987,989,993|
+                     317                                        511                                658                                             |
+              279                      403       442                      545       578                      704       858           961           |
+27,246,261,279   317    354,391,401,403   436,442   472,501,511    526,545   576,578   586,650,658    686,704   854,858   882,903,906   987,989,993|
 """);
         case 30 -> /* 436 */ ok(m.printHorizontally(), """
-                                                           511                                                  858                         |
-              279   317               403   442                      545       578           658                              961           |
-27,246,261,279   317   354,391,401,403   442   472,501,511    526,545   576,578   586,650,658   686,704,854,858    882,903,906   987,989,993|
+                     317                                    511                                658                                             |
+              279                      403   442                      545       578                      704       858           961           |
+27,246,261,279   317    354,391,401,403   442   472,501,511    526,545   576,578   586,650,658    686,704   854,858   882,903,906   987,989,993|
 """);
         case 29 -> /* 576 */ ok(m.printHorizontally(), """
-                                                           511                                            858                         |
-              279   317               403   442                          578           658                              961           |
-27,246,261,279   317   354,391,401,403   442   472,501,511    526,545,578   586,650,658   686,704,854,858    882,903,906   987,989,993|
+                     317                                    511                          658                                             |
+              279                      403   442                          578                      704       858           961           |
+27,246,261,279   317    354,391,401,403   442   472,501,511    526,545,578   586,650,658    686,704   854,858   882,903,906   987,989,993|
 """);
         case 28 -> /* 650 */ ok(m.printHorizontally(), """
-                                                           511                                                                   |
-              279   317               403   442                          578       658               858           961           |
-27,246,261,279   317   354,391,401,403   442   472,501,511    526,545,578   586,658   686,704,854,858   882,903,906   987,989,993|
+                     317                                    511                      658                                             |
+              279                      403   442                          578                  704       858           961           |
+27,246,261,279   317    354,391,401,403   442   472,501,511    526,545,578   586,658    686,704   854,858   882,903,906   987,989,993|
 """);
         case 27 -> /* 989 */ ok(m.printHorizontally(), """
-                                                           511                                                               |
-              279   317               403   442                          578       658               858           961       |
-27,246,261,279   317   354,391,401,403   442   472,501,511    526,545,578   586,658   686,704,854,858   882,903,906   987,993|
+                     317                                    511                      658                                       |
+              279                      403   442                          578                          858           961       |
+27,246,261,279   317    354,391,401,403   442   472,501,511    526,545,578   586,658    686,704,854,858   882,903,906   987,993|
 """);
         case 26 -> /* 401 */ ok(m.printHorizontally(), """
-                                                     511                                                               |
-              279   317           403                              578       658               858           961       |
-27,246,261,279   317   354,391,403   442,472,501,511    526,545,578   586,658   686,704,854,858   882,903,906   987,993|
+                     317                              511                      658                                       |
+              279                  403                              578                          858           961       |
+27,246,261,279   317    354,391,403   442,472,501,511    526,545,578   586,658    686,704,854,858   882,903,906   987,993|
 """);
         case 25 -> /* 403 */ ok(m.printHorizontally(), """
-                                               511                                                               |
-              279           403                              578       658               858           961       |
-27,246,261,279   317,354,391   442,472,501,511    526,545,578   586,658   686,704,854,858   882,903,906   987,993|
+                                               511                      658                                       |
+              279           403                              578                          858           961       |
+27,246,261,279   317,354,391   442,472,501,511    526,545,578   586,658    686,704,854,858   882,903,906   987,993|
 """);
         case 24 -> /* 987 */ ok(m.printHorizontally(), """
-                                               511                                                           |
-              279           403                              578       658               858           961   |
-27,246,261,279   317,354,391   442,472,501,511    526,545,578   586,658   686,704,854,858   882,903,906   993|
+                                               511                      658                                   |
+              279           403                              578                          858           961   |
+27,246,261,279   317,354,391   442,472,501,511    526,545,578   586,658    686,704,854,858   882,903,906   993|
 """);
         case 23 -> /* 686 */ ok(m.printHorizontally(), """
-                                               511                                                     |
-              279           403                              578       658           858               |
-27,246,261,279   317,354,391   442,472,501,511    526,545,578   586,658   704,854,858   882,903,906,993|
+                                               511                      658                             |
+              279           403                              578                      858               |
+27,246,261,279   317,354,391   442,472,501,511    526,545,578   586,658    704,854,858   882,903,906,993|
 """);
         case 22 -> /* 526 */ ok(m.printHorizontally(), """
                                                511                                                 |
@@ -1741,12 +1807,14 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 27,317,391   442,472,511    545,578,586,658   704,858   882,906,993|
 """);
         case 14 -> /* 882 */ ok(m.printHorizontally(), """
-           403            511                658        858       |
-27,317,391    442,472,511    545,578,586,658    704,858    906,993|
+                         511                                   |
+          403                              658       858       |
+27,317,391   442,472,511    545,578,586,658   704,858   906,993|
 """);
         case 13 -> /* 704 */ ok(m.printHorizontally(), """
-           403            511                658           |
-27,317,391    442,472,511    545,578,586,658    858,906,993|
+                         511                             |
+          403                              658           |
+27,317,391   442,472,511    545,578,586,658   858,906,993|
 """);
         case 12 -> /* 658 */ ok(m.printHorizontally(), """
            403            511            658           |
@@ -1800,14 +1868,6 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
      }
    }
 
-  static void test_delete_reverse_squeeze()
-   {final long[]r = random_array();
-    var m = mjaf(4);
-    for (int i = 0; i < r.length; ++i) m.put(r[i], (long)i);
-    m.delete(690l); say(m.printHorizontally());
-    m.delete(704l); say(m.printHorizontally());
-   }
-
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_create();
     test_leaf_split();
@@ -1822,14 +1882,12 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     test_insert_random();
     test_delete();
     test_delete_reverse();
-    //test_delete_reverse_squeeze();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    //test_delete();
     //test_delete_reverse();
-    //test_delete_reverse_squeeze();
+    //test_delete();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
@@ -1844,5 +1902,3 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
      }
    }
  }
-
-// 690,704
