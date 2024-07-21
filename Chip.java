@@ -1558,39 +1558,33 @@ public class Chip                                                               
 
 //D2 Masks                                                                      // Point masks and monotone masks. A point mask has a single bit set to true, the rest are set to false.  The true bit indicates the point at which something is to happen.
 
-//D3 Monotone masks                                                             // A monotone up mask is any bit string whose bits can be sorted into ascending order (false, true) without being changed.  A monotone down mask is one where sorting with sort order (true, false) has no effect.
-
-  class UpMask                                                                  // Monotone up mask
+  class Mask                                                                    // Mask
    {final Bits bits;                                                            // Source bits for monotone up mask
-    UpMask(Bits Bits)         {bits = Bits;}                                    // Make a monotone up mask from bits
+    Mask(Bits Bits)           {bits = Bits;}                                    // Make a monotone up mask from bits
     public String name()      {return bits.name();}                             // Name of mask
     public int    bits()      {return bits.bits();}                             // Number of bits of bus - the width of the bus
     public Bit       b(int i) {return bits.b   (i);}                            // Number of bits of bus - the width of the bus
     public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
    }
 
+//D3 Monotone masks                                                             // A monotone up mask is any bit string whose bits can be sorted into ascending order (false, true) without being changed.  A monotone down mask is one where sorting with sort order (true, false) has no effect.
+
+  class UpMask extends Mask                                                     // Monotone up mask
+   {UpMask(Bits bits)         {super(bits);}                                    // Make a monotone up mask from bits
+   }
+
   UpMask upMask(Bits bits)    {return new UpMask(bits);}                        // Make a monotone up mask from bits
 
-  class DownMask                                                                // Monotone down mask
-   {final Bits bits;                                                            // Source bits for monotone down mask
-    DownMask(Bits Bits)       {bits = Bits;}                                    // Make a monotone down mask from bits
-    public String name()      {return bits.name();}                             // Name of mask
-    public int    bits()      {return bits.bits();}                             // Number of bits of bus - the width of the bus
-    public Bit       b(int i) {return bits.b   (i);}                            // Number of bits of bus - the width of the bus
-    public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+  class DownMask extends Mask                                                   // Monotone down mask
+   {DownMask(Bits bits)       {super(bits);}                                    // Make a monotone down mask from bits
    }
 
   DownMask downMask(Bits bits) {return new DownMask(bits);}                     // Make a monotone down mask from bits
 
 //D3 Point masks                                                                // A point mask is the differential of a monotone mask: it has no more then one bit set to true, the rest are set to false.
 
-  class PointMask                                                               // Point mask
-   {final Bits bits;                                                            // Source bits for monotone mask
-    PointMask(Bits Bits)      {bits = Bits;}                                    // Make a monotone mask from bits
-    public String name()      {return bits.name();}                             // Name of mask
-    public int    bits()      {return bits.bits();}                             // Number of bits of bus - the width of the bus
-    public Bit       b(int i) {return bits.b   (i);}                            // Number of bits of bus - the width of the bus
-    public void anneal()      {bits.anneal();}                                  // Anneal this bit bus so that the annealed gates are not reported as driving anything.  Such gates should be avoided in real chips as they waste surface area and power while doing nothing, but anneal often simplifies testing by allowing us to ignore such gates for the duration of the test.
+  class PointMask extends Mask                                                  // Point mask
+   {PointMask(Bits bits)      {super(bits);}                                    // Make a monotone mask from bits
    }
 
   PointMask pointMask(Bits bits) {return new PointMask(bits);}                  // Make a monotone mask from bits
