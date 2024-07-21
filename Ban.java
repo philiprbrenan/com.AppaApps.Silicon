@@ -7,9 +7,9 @@ package com.AppaApps.Silicon;                                                   
 Io sono docile,    - son rispettosa,
 sono ubbediente,   - dolce, amorosa;
 mi lascio reggere, - mi fo guidar.
-Ma se mi toccano   - dov'Ã¨ il mio debole,
-sarÃ² una vipera    - e cento trappole
-prima di cedere    - farÃ² giocar.
+Ma se mi toccano   - dov'e il mio debole,
+saro una vipera    - e cento trappole
+prima di cedere    - faro giocar.
 */
 import java.util.*;
 
