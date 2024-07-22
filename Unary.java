@@ -28,7 +28,7 @@ class Unary extends Chip                                                        
 
   void ok(int n) {ok(get(), n);}                                                // Check that a unary number has the expected value
 
-//D1 Set and get                                                                // Set and get a unary numnber
+//D1 Set and get                                                                // Set and get a unary number
 
   void set(int n)                                                               // Set the unary number
    {if (n <= u.length)
