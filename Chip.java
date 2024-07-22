@@ -93,7 +93,7 @@ public class Chip                                                               
   Stack<Connection>       connections;                                          // Pairs of gates to be connected
   Diagram                     diagram;                                          // Diagram specifying the layout of the chip
 
-  Chip(String Name) {name = Name;}                                              // Create a new L<chip>.
+  Chip(String Name) {name = Name; run();}                                       // Create a new L<chip>.
 
   Chip() {this(currentTestNameSuffix());}                                       // Create a new chip while testing.
 
@@ -492,7 +492,7 @@ public class Chip                                                               
        }
      }
 
-    static void reverse(Gate[]G)                                                // Reverse an attay of gates
+    static void reverse(Gate[]G)                                                // Reverse an array of gates
      {for (int i = 0; i < G.length/2; i++)
        {final Gate g = G[i];
         G[i] = G[G.length-1-i];
@@ -808,10 +808,19 @@ public class Chip                                                               
       for (OutputUnit o : O) o.outputUnitAction();                              // Action on each output peripheral affected by a falling edge
       if (executionTrace != null) executionTrace.addTrace();                    // Trace requested
 
+      eachStep();                                                               // Routine to do something on each step
       if (!changes() && (!miss || steps >= minSimulationSteps)) return;         // No changes occurred and we are beyond the minimum simulation time or no such time was set
      }
     if (maxSimulationSteps == null)                                             // Not enough steps available by default
       err("Out of time after", actualMaxSimulationSteps, "steps");
+   }
+
+  void run()                                                                    // Override this method to define and run a simulation
+   {
+   }
+
+  void eachStep()                                                               // Override this method to do something on each step of the simulation
+   {
    }
 
 //D1 Circuits                                                                   // Some useful circuits
@@ -1600,7 +1609,7 @@ public class Chip                                                               
     return pointMask(o);
    }
 
-  Bits chooseWordUnderMask(String output, Words input, PointMask mask)          // Choose one of a specified number of words B<w>, each of a specified width, using a point mask B<m> placing the selected word in B<o>.  If no word is selected then B<o> will be zero.
+  Bits chooseWordUnderMask(String output, Words input, PointMask mask)          // Choose a word under the control of a point mask
    {final Words wb = input;
     final Bits   o = bits(output, wb.bits());
     final int   mi = mask.bits();
@@ -1888,7 +1897,7 @@ public class Chip                                                               
     public Bits sum  () {return sum;}
    }
 
-  BinaryAdd binaryAdd(String output, Bits in1, Bits in2)                        // Add two bit buses of the same size to make a bit bus one bit wider
+  BinaryAdd binaryAdd(String output, Bits in1, Bits in2)                        // Add two bit buses of the same size to make a bit bus of the same width and a carry
    {final int b = in1.bits();                                                   // Number of bits in input monotone mask
     final int B = in2.bits();                                                   // Number of bits in input monotone mask
     if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
@@ -1900,7 +1909,7 @@ public class Chip                                                               
     Xor(o.b(1), in1.b(1), in2.b(1));                                            // Low order bit has no carry in
     And(c.b(1), in1.b(1), in2.b(1));                                            // Low order bit carry out
     n.b(1).anneal(); N.b(1).anneal(); C.b(b).anneal();                          // These bits are not needed, but get defined, so we anneal them off to prevent error messages
-// #  c 1 2  R C
+// #  c 1 2  R C                                                                // Input carry, input 1, input 2, resukt, resulting carry
 // 1  0 0 0  0 0
 // 2  0 0 1  1 0                                                                // We only need 1 bits so do not define a full bus as we would have to anneal a lot of unused gates which would be wasteful.
 // 3  0 1 0  1 0
@@ -1913,16 +1922,16 @@ public class Chip                                                               
     final Bits i = in1;                                                         // Input 1
     final Bits I = in2;                                                         // Input 2
     for (int j = 2; j <= b; j++)                                                // Create the remaining bits of the shifted result
-     {Gate r2 = And(n(j, 2, R), C.b(j-1), n.b(j), I.b(j));                      // Result
-      Gate r3 = And(n(j, 3, R), C.b(j-1), i.b(j), N.b(j));
-      Gate r5 = And(n(j, 5, R), c.b(j-1), n.b(j), N.b(j));
-      Gate r8 = And(n(j, 8, R), c.b(j-1), i.b(j), I.b(j));
+     {Bit r2 = And(n(j, 2, R), C.b(j-1), n.b(j), I.b(j));                       // Result
+      Bit r3 = And(n(j, 3, R), C.b(j-1), i.b(j), N.b(j));
+      Bit r5 = And(n(j, 5, R), c.b(j-1), n.b(j), N.b(j));
+      Bit r8 = And(n(j, 8, R), c.b(j-1), i.b(j), I.b(j));
       Or(o.b(j), r2, r3, r5, r8);
 
-      Gate c4 = And(n(j, 4, K), C.b(j-1), i.b(j), I.b(j));                      // Carry
-      Gate c6 = And(n(j, 6, K), c.b(j-1), n.b(j), I.b(j));
-      Gate c7 = And(n(j, 7, K), c.b(j-1), i.b(j), N.b(j));
-      Gate c8 = And(n(j, 8, K), c.b(j-1), i.b(j), I.b(j));
+      Bit c4 = And(n(j, 4, K), C.b(j-1), i.b(j), I.b(j));                       // Carry
+      Bit c6 = And(n(j, 6, K), c.b(j-1), n.b(j), I.b(j));
+      Bit c7 = And(n(j, 7, K), c.b(j-1), i.b(j), N.b(j));
+      Bit c8 = And(n(j, 8, K), c.b(j-1), i.b(j), I.b(j));
       Or(c.b(j), c4, c6, c7, c8);
      }
 
@@ -1937,7 +1946,7 @@ public class Chip                                                               
    {final int         B = in.bits();                                            // Number of bits
     final Bits        n =   notBits(n(output, "not"), in);                      // Not of input
     final Bits      one =      bits(n(output, "one"), in.bits(), 1);            // A one of the correct width
-    final BinaryAdd add = binaryAdd(n(output), n, one);                         // Add one to form twos complement
+    final BinaryAdd add = binaryAdd(  output, n, one);                          // Add one to form twos complement
     return add.sum;                                                             // Ignore sum
    }
 
@@ -1945,7 +1954,7 @@ public class Chip                                                               
    {final int b = in1.bits();                                                   // Number of bits in input monotone mask
     final int B = in2.bits();                                                   // Number of bits in input monotone mask
     if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
-    final BinaryAdd sub = binaryAdd(n(output), in1, in2);                       // Effect the addition
+    final BinaryAdd sub = binaryAdd( output, in1, in2);                         // Effect the addition
     return sub.sum;
    }
 
@@ -1958,7 +1967,7 @@ public class Chip                                                               
     final int B = in2.bits();                                                   // Number of bits in input monotone mask
     if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
     final Bits        m = binaryTwosComplement(n(output, "subtract"), in2);     // Twos complement of subtrahend
-    final BinaryAdd sub = binaryAdd(n(output), in1, m);                         // Effect the subtraction
+    final BinaryAdd sub = binaryAdd(output, in1, m);                            // Effect the subtraction
     return sub.sum;
    }
 
@@ -3358,7 +3367,7 @@ public class Chip                                                               
 
   static String currentCallerName()                                             // Looks for the first method written in camel case
    {final StackTraceElement[] T = Thread.currentThread().getStackTrace();       // Current stack trace
-    for (StackTraceElement t : T)                                               // Locate deepest method with a anme written in camel case
+    for (StackTraceElement t : T)                                               // Locate deepest method with a name written in camel case
      {final String c = t.getMethodName();
       if (c.matches("\\A.*_.*\\Z")) return c;
      }
@@ -5141,11 +5150,18 @@ Step  o     e
     for (int i = 0; i < N; i++) r[i].ok((int)T[i]);
    }
 
-  static void test_ddd()
-   {ddd();
-    ddd("aaa");
-    ddd("aaa\nbbb");
-    stop();
+  static void test_each_step()
+   {Chip c = new Chip()
+     {int counter = 0;
+      void eachStep() {counter++;}
+      void run()
+       {Bit z = Zero  ("z");
+        Bit o = Output("o", z);
+        simulate();
+        o.ok(false);
+        ok(counter, 3);
+       }
+     };
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -5218,10 +5234,12 @@ Step  o     e
     test_choose_equals2();
     test_choose_equals_zero();
     test_read_memory();
+    test_each_step();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
+    test_each_step();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
