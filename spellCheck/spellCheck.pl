@@ -26,17 +26,17 @@ die unless $speller;                                                            
 sub check($)                                                                    # Check spelling in file
  {my ($file) = @_;                                                              # File
   my %errors;                                                                   # Mis-spellings
-  my $s = lc readFile($file);
+  my $s = readFile($file);
   my @lines = split /\n/, $s;
 
   for my $i(keys @lines)                                                        # Check spelling of each line
    {my $line = $lines[$i];
     next unless $line =~ m(\A.{80}//(.*)\Z);                                    # Line with comment in specified position
-    my $l = lc $1;
+    my $l = $1;
        $l =~ s(".*?")   ()g;
        $l =~ s(\(.*?\)) ()g;
        $l =~ s(\W)      ( )g;
-    my @w = split /\s+/, $l;                                                    # Words
+    my @w = map {lc} grep {!/\A[A-Z]/} split /\s+/, $l;                         # Words - remove proper names then normalize
 
     for my $w(@w)                                                               # Check spelling of each word in the comment on a line
      {next if $ignoreSpellings{$w} or $speller->check($w);
@@ -60,4 +60,7 @@ sub check($)                                                                    
 
 check(q(../Ban.java));
 check(q(../Chip.java));
+check(q(../Mjaf.java));
 check(q(../RiscV.java));
+check(q(../Stuck.java));
+check(q(../Unary.java));
