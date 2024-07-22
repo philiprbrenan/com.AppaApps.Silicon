@@ -5152,14 +5152,18 @@ Step  o     e
 
   static void test_each_step()
    {Chip c = new Chip()
-     {int counter = 0;
-      void eachStep() {counter++;}
+     {Pulse p, q;
+      int fell = 0;
+      void eachStep()
+       {if (p.fellStep == steps) ++fell;
+       }
       void run()
-       {Bit z = Zero  ("z");
-        Bit o = Output("o", z);
+       {final int N = 4;
+        p = pulse("p").period(N+0).b();
+        q = pulse("q").period(N-1).b();
+        minSimulationSteps(8*N);
         simulate();
-        o.ok(false);
-        ok(counter, 3);
+        ok(fell, 9);
        }
      };
    }
