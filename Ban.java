@@ -282,7 +282,7 @@ final public class Ban extends Chip                                             
 
       dR      = C.chooseEq (q("dR"), funct7, edR0, edR2);                       // Choose the dyadic operation
 
-      eq12    = C.compareEq        (q("eq12"),  rs1v, rs2v);                    // Compare source1 with immediate
+      eq12    = C.compareEq        (q("eq12"),  rs1v, rs2v);                    // Compare source with immediate
       lt12    = C.binaryTCCompareLt(q("lt12"),  rs1v, rs2v);
       ltu12   = C.compareLt        (q("ltu12"), rs1v, rs2v);
       pcb     = C.binaryTCAdd(q("pcb"),   pc, immB2);                           // Pc plus sign extended immediate
