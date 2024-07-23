@@ -100,17 +100,20 @@ final public class Ban extends Chip                                             
 //D2 Memory                                                                     // Make a request to memory or receive data from memory.
 
    class MemoryControl                                                          // Interface between CPU and memory
-     {Bit  loadRequested  = null;                                               // Load requested
-      Bit  storeRequested = null;                                               // Store requested
-      Bits type           = null;                                               // Type of load or store requested
-      Bits address        = null;                                               // Address to load from or load to
-      Bits register       = null;                                               // Register to be loaded or stored
+     {Bit  loadRequested;                                                       // Load requested
+      Bit  storeRequested;                                                      // Store requested
+      Bits type;                                                                // Type of load or store requested
+      Bits address;                                                             // Address to load from or load to
+      Bits sourceRegister;                                                      // Store content of rs2 into memory indexed by rd1 and immediate
+      Bits targetRegister;                                                      // Load register rd from memory indexed by rs1 and immediate
+
       void anneal()                                                             // Anneal memory to avoid error messages during testing
        {loadRequested .anneal();                                                // Load requested
         storeRequested.anneal();                                                // Store requested
         type          .anneal();                                                // Type of load or store requested
         address       .anneal();                                                // Address to load from or load to
-        register      .anneal();                                                // Register to be loaded or stored
+        sourceRegister.anneal();                                                // Register to be stored
+        targetRegister.anneal();                                                // Register to be loaded
        }
       public String toString()                                                  // Memory request represented as a string
        {final StringBuilder b = new StringBuilder();
@@ -118,7 +121,8 @@ final public class Ban extends Chip                                             
         say(b,  "storeRequested:", storeRequested);
         say(b,  "          type:", type);
         say(b,  "       address:", address);
-        say(b,  "      register:", register);
+        say(b,  "sourceRegister:", sourceRegister);
+        say(b,  "targetRegister:", targetRegister);
         return b.toString();
        }
      }
@@ -332,7 +336,9 @@ final public class Ban extends Chip                                             
       eqLoad           = C.eq(C.bits(q("opLoad"),  D.l_opCode, D.opLoad),  mAL);// Load address
       eqStore          = C.eq(C.bits(q("opStore"), D.l_opCode, D.opStore), mAS);// Store address
       m.address        = C.chooseEq(q("memAddress"), opCode, eqLoad, eqStore);  // Save address
-      m.register       = rd;                                                    // Register to load or store
+      m.targetRegister = rd;                                                    // Load register rd from memory indexed by rs1 and immediate
+      m.sourceRegister = rs2;                                                   // Store content of rs2 into memory indexed by rd1 and immediate
+
 
       X[0] = null;                                                              // X0
       for (int i = 1; i < XLEN; i++)                                            // Values to reload back into registers
@@ -361,7 +367,7 @@ final public class Ban extends Chip                                             
    }
 
   static void test_decode_addi()                                                // Addi
-   {final RV32I R = test_instruction(0xa00093);
+   {final RV32I R = test_instruction(0xa00093);                                 // 0000 1 001 0011
 
     R.ok("pc=8 x1=10");
     R.   opCode.ok(D.opArithImm);
@@ -393,15 +399,15 @@ final public class Ban extends Chip                                             
     R.   result.ok(  10);
    }
 
-  static void test_decode_add1 () {test_instruction(0x310233).ok("pc=8 x4=5");}
-  static void test_decode_add2 () {test_instruction(0x0201b3).ok("pc=8 x3=4");}
-  static void test_decode_slt1 () {test_instruction(0x20afb3).ok("pc=8 x31=1");}
-  static void test_decode_slt2 () {test_instruction(0x112f33).ok("pc=8 x30=0");}
-  static void test_decode_jal  () {test_instruction(0x80016f).ok("pc=12 x2=8");}
+  static void test_decode_add1 () {RV32I i = test_instruction(0x310233); i.ok("pc=8 x4=5");     i.rd.ok(4);}
+  static void test_decode_add2 () {RV32I i = test_instruction(0x0201b3); i.ok("pc=8 x3=4");     i.rd.ok(2);}
+  static void test_decode_slt1 () {RV32I i = test_instruction(0x20afb3); i.ok("pc=8 x31=1");    i.rd.ok(31);}
+  static void test_decode_slt2 () {RV32I i = test_instruction(0x112f33); i.ok("pc=8 x30=0");    i.rd.ok(30);}
+  static void test_decode_jal  () {RV32I i = test_instruction(0x80016f); i.ok("pc=12 x2=8");    i.rd.ok(2);}
 // At start pc=4, x0=0, x2=2. Instruction decode: rd=2 rs1=0 imm=4. Should result in x2=0+4<<1 = 8 and pc=4+4 = 8
-  static void test_decode_jalr () {test_instruction(0x400167).ok("pc=8 x2=8");}
-  static void test_decode_lui  () {test_instruction(0x10b7)  .ok("pc=8 x1=4096");}
-  static void test_decode_auipc() {test_instruction(0x4097)  .ok("pc=8 x1=16388");}
+  static void test_decode_jalr () {RV32I i = test_instruction(0x400167); i.ok("pc=8 x2=8");     i.rd.ok(2);}
+  static void test_decode_lui  () {RV32I i = test_instruction(0x10b7);   i.ok("pc=8 x1=4096");  i.rd.ok(1);}
+  static void test_decode_auipc() {RV32I i = test_instruction(0x4097);   i.ok("pc=8 x1=16388"); i.rd.ok(1);}
 
   static void test_decode_sb()
    {RV32I r = test_instruction(0x1000a3);
@@ -410,8 +416,12 @@ loadRequested : 0
 storeRequested: 1
           type: 000
        address: 0x1
-      register: 00001
+sourceRegister: 00001
+targetRegister: 00001
 """);
+   r.rd.ok(1);
+   r.rs1.ok(0);
+   r.rs2.ok(1);
    }
 
   static void test_decode_lh()
@@ -421,8 +431,12 @@ loadRequested : 1
 storeRequested: 0
           type: 001
        address: 0x0
-      register: 00010
+sourceRegister: 00000
+targetRegister: 00010
 """);
+   r.rd.ok(2);
+   r.rs1.ok(0);
+   r.rs2.ok(0);
    }
 
   static void test_fibonacci()                                                  // Test Risc V cpu by producing some Fibonacci numbers
@@ -442,7 +456,7 @@ storeRequested: 0
 
     Bits code = c.bits("code", XLEN, Code);
 
-    Bits  pc4 = c.shiftRightArithmetic("pc4", pc, 2);                           // Address instruction in blocks of XLEN bits
+    Bits  pc4 = c.shiftRightArithmetic("pc4", pc, 2);                           // Address instruction in blocks of XLEN bits spread across 8 bit bytes
     Bits  instruction = c.readMemory("instruction", code, pc4, XLEN);           // Latest instruction
 
     RV32I cpu = rv32i(c, "cpu", instruction, pc, xb);                           // Execute instruction
@@ -467,6 +481,70 @@ storeRequested: 0
     c.printExecutionTrace();
    }
 
+  static void test_fibonacci_memory()                                           // Implement memory operations in Risc V cpu producing Fibonacci numbers
+   {final int    N = 90;
+    final Chip   c = new Chip()
+     {Pulse     xi;                                                             // Execute an instruction
+      Pulse     xf;                                                             // Extract a Fibonacci number once per loop
+      Register  pc;                                                             // Initialize pc
+      Register[] x;                                                             // The registers of the RiscV architecture
+      Bits    []xb;                                                             // Registers as bits
+      final long[]Code = {0xa00093, 0x293,   0x113,   0x100193, 0x228a23,       // Code for Fibonacci numbers in Risc V machine code
+                          0x310233, 0x18133, 0x201b3, 0x128293, 0xfe12cbe3};
+      Bits code;                                                                // Instructions as numbers
+      Bits  pc4;                                                                // Address instruction in blocks of XLEN bits spread across 8 bit bytes
+      Bits  instruction;                                                        // Latest instruction
+      RV32I cpu;                                                                // Execute instruction
+      OutputUnit aVariable;                                                     // Extract Fibonacci numbers as they are formed. Paul Halmos: Naive Set Theory, page 45: the object defined has some irrelevant structure, which seems to get in the way (but is in fact harmless).
+
+      public void run()
+       {xi = pulse("xi").period(  N).on(N/2).start(1).b();                      // Execute an instruction
+        xf = pulse("xf").period(6*N).on(N/2).start(1).b();                      // Extract a Fibonacci number once per loop
+        pc = new Register("pc", XLEN, xi, 0);                                   // Initialize pc
+         x = new Register[XLEN];                                                // The registers of the RiscV architecture
+        xb = new Bits    [XLEN];                                                // Registers as bits
+
+        for (int i = 1; i < XLEN; i++)  x[i] = new Register("x"+i, XLEN, xi, 0);// Initialize registers
+        for (int i = 1; i < XLEN; i++) xb[i] = x[i].anneal();  // Necessary     // Registers as bits
+
+        code = bits("code", XLEN, Code);                                        // Instructions as numbers
+
+        pc4  = shiftRightArithmetic("pc4", pc, 2);                              // Address instruction in blocks of XLEN bits spread across 8 bit bytes
+        instruction = readMemory("instruction", code, pc4, XLEN);               // Latest instruction
+
+        cpu  = rv32i(this, "cpu", instruction, pc, xb);                         // Execute instruction
+
+        for (int i = 1; i < XLEN; i++) x[i].load(cpu.X[i]);                     // Initialize registers
+
+        continueBits(pc.load, cpu.PC);                                          // Update
+
+        aVariable = new OutputUnit("aVariable", cpu.X[2], xf)                   // Extract Fibonacci numbers as they are formed. Paul Halmos: Naive Set Theory, page 45: the object defined has some irrelevant structure, which seems to get in the way (but is in fact harmless).
+         {void action() {log.push(cpu.X[2].Int());}                             // Extract latest Fibonacci number and write it to the output channel
+         };
+
+        simulationSteps(70*N);                                                  // Simulation
+
+        instruction.anneal(); cpu.m.anneal();
+        for (int i = 1; i < XLEN; i++) cpu.X[i].anneal();
+
+        simulate();
+
+        aVariable.ok(0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55);
+        printExecutionTrace();
+       }
+      public void eachStep()                                                    // At each step
+       {if (xi.fellStep == steps)                                               // Instruction has just executed
+         {final Integer opCode = cpu.opCode.Int();                              //
+          final Integer funct3 = cpu.funct3.Int();                              //
+          say("AAAA", opCode, funct3, RiscV.Decode.opStore, RiscV.Decode.f3_sb);
+          say("BBBB", cpu.m.toString());
+          say("CCCC", cpu.rd.Int());
+         }
+       }
+     };
+    c.run();
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_decode_addi();
     test_decode_add1();
@@ -482,6 +560,7 @@ storeRequested: 0
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
+    //test_fibonacci_memory();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
