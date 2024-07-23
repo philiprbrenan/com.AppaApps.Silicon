@@ -93,8 +93,7 @@ public class Chip                                                               
   Stack<Connection>       connections;                                          // Pairs of gates to be connected
   Diagram                     diagram;                                          // Diagram specifying the layout of the chip
 
-  Chip(String Name) {name = Name; run();}                                       // Create a new L<chip>.
-
+  Chip(String Name) {name = Name;}                                              // Create a new L<chip>.
   Chip() {this(currentTestNameSuffix());}                                       // Create a new chip while testing.
 
   static Chip chip()            {return new Chip();}                            // Create a new chip while testing.
@@ -912,7 +911,7 @@ public class Chip                                                               
         if (g != null) s.append(g.value == null ? '.' : g.value ? '1' : '0');
         else stop("No such gate as:", b.name);
        }
-      return s.reverse().toString();
+      return s.reverse().toString();                                            // Prints string with lowest bit rightmost
      }
 
     public Integer Int()                                                        // Convert the bits represented by an output bus to an integer
@@ -3352,7 +3351,7 @@ public class Chip                                                               
    {final StackTraceElement[] T = Thread.currentThread().getStackTrace();       // Current stack trace
     for (StackTraceElement t : T)                                               // Locate deepest method that starts with test
      {final String c = t.getMethodName();
-      if (c.matches("\\Atest_\\w+\\Z")) return c;
+      if (c.matches("\\Atest_.*\\Z")) return c;
      }
     return null;                                                                // Not called in a test
    }
@@ -5166,6 +5165,7 @@ Step  o     e
         ok(fell, 9);
        }
      };
+    c.run();
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
