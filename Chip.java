@@ -931,6 +931,15 @@ public class Chip                                                               
       return v;                                                                 // Value of bit bus
      }
 
+    public void set(Integer Int)                                                // Set the value of a bit bus - perhaps we are loading from simulated memory
+     {final int B = bits();
+      final boolean[]b = bitStack(B, Int);                                      // Number as a stack of bits padded to specified width
+      for  (int i = 1; i <= B; i++)                                             // Each bit on bus
+       {final Gate g = gates.get(b(i).name);                                    // Gate with the name of the bit
+        g.value = b[i-1];                                                       // Set bit
+       }
+     }
+
     public void ok(Integer e)                                                   // Confirm the expected values of the bit bus. Write a message describing any unexpected values
      {final Integer g = Int();                                                  // The values we actually got
       final StringBuilder b = new StringBuilder();
@@ -5242,7 +5251,7 @@ Step  o     e
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
+   {oldTests();
     test_each_step();
    }
 
