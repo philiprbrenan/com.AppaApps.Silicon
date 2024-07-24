@@ -10,6 +10,17 @@ http://prb.appaapps.com/zesal/pitchdeck/pitchDeck.html
 
 Or you might want to design your own [RiscV machine](https://github.com/philiprbrenan/com.AppaApps.Silicon/blob/main/RiscV.java) and [operating system](https://en.wikipedia.org/wiki/Operating_system) to run on it.
 
+# Files
+
+```
+Ban   - RiscV 32I Cpu on a silicon chip.
+Chip  - Design, simulate and layout a binary tree on a silicon chip.
+Mjaf  - Btree with data stored only in the leaves to simplify deletion.
+RiscV - Execute Risc V machine code. Little endian RV32I.
+Stuck - A fixed size stack of ordered keys controlled by a unary number.
+Unary - Unary arithmetic using boolean arrays.
+```
+
 # Examples
 
 ## And
@@ -389,4 +400,4 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-Modified: 2024-07-24 at 03:46:24
+Modified: 2024-07-24 at 03:53:10
