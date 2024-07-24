@@ -1,4 +1,4 @@
-# Test 2024-07-24 at 03:36:15
+# Test 2024-07-24 at 03:42:49
 
 name: Test
 run-name: Silicon Chip
@@ -47,7 +47,7 @@ jobs:
 
     - name: Compile
       run: |
-        javac -g -d Classes -cp Classes `find . -path "com/AppaApps/Silicon/*.java"`
+        javac -g -d Classes -cp Classes `find com/AppaApps/Silicon -name "*.java"`
 
     - name: Test Risc V
       if: matrix.task == 'RiscV'
