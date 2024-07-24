@@ -98,7 +98,7 @@ jobs:
     - name: Position
       run: |
         mkdir -p $c/tests
-        cp $(find . -path "*.java") $c
+        cp `find . -path "*.java"` $c
 
     - name: Files
       run:
@@ -106,7 +106,7 @@ jobs:
 
     - name: Compile
       run: |
-        javac -g -d Classes -cp Classes $(find . -path "$c/*.java")
+        javac -g -d Classes -cp Classes `find . -path "$c/*.java"`
 
     - name: Test Risc V
       if: matrix.task == 'RiscV'
