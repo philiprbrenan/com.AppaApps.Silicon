@@ -45,6 +45,10 @@ public class RiscV extends Chip                                                 
   TreeMap<String, Variable> variables = new TreeMap<>();                        // Variables in assembler code
   int                      pVariables = 0;                                      // Position of variables in memory
 
+  final Stack<Integer>          stdin = new Stack<>();                          // Stdin
+  final Stack<Integer>         stdout = new Stack<>();                          // Stdout
+  final Stack<Integer>         stderr = new Stack<>();                          // Stderr
+
   RiscV(String Name)                                                            // Create a new program
    {name = Name;                                                                // Name of chip
     for (int i = 0; i < x.length; i++) x[i] = new Register(i);                  // Create the registers
@@ -106,6 +110,15 @@ public class RiscV extends Chip                                                 
     return b.toString();                                                        // String describing chip
    }
 
+  public String printCodeSequence()                                             // Print the program code in a form where it can be used by Ban
+   {final StringBuilder b = new StringBuilder();
+    final int N = code.size();
+    for (int i = 0; i < N; i++)                                                 // Print each instruction
+      b.append(String.format("0x%x, ", code.elementAt(i).instruction));
+    if (N > 0) b.setLength(b.length()-2);
+    return "long[]code = {"+b.toString()+"};";                                  // String describing program
+   }
+
   public void ok(String expected)                                               // Confirm the current state of the Risc V chip
    {ok(toString(), expected);
    }
@@ -143,7 +156,7 @@ public class RiscV extends Chip                                                 
       final Encode e = code.elementAt(pc / instructionBytes);
       final Decode.Executable d = decode(e);
       if (d == null) stop("Need data for instruction at byte:", pc);
-      d.action();
+      try {d.action();} catch(Stop x) {return;}                                 // Execute the instruction and respond to any exceptions
      }
     if (maxSimulationSteps == null)                                             // Not enough steps available by default
      {err("Out of time after", actualMaxSimulationSteps, "steps");
@@ -197,7 +210,7 @@ public class RiscV extends Chip                                                 
            0, 0, label);
      }
 
-    void setLabel(int offset)                                                   // Set immediate field from any label referenced by this instruction
+    void setLabel(int offset) throws Stop                                       // Set immediate field from any label referenced by this instruction
      {if (label == null) return;                                                // No label
       final Decode d = decode(this).details();                                  // Decode this instruction so we can reassemble it with the current immediate value
       final int    o = label.offset - offset;                                   // Offset to target instruction from current instruction in blocks of 4 bytes
@@ -481,7 +494,7 @@ public class RiscV extends Chip                                                 
      }
    }
 
-  Decode.Executable decode(Encode e)                                            // Decode an instruction
+  Decode.Executable decode(Encode e) throws Stop                                // Decode an instruction
    {final Decode d = new Decode(e);
     switch(d.opCode)
      {case Decode.opArith ->                                                    // Arithmetic
@@ -651,6 +664,14 @@ public class RiscV extends Chip                                                 
          {public void action()
            {pc = d.advance(pc);
             ecall.push(RiscV.this.toString());
+            final int svc = x[1].value;                                         // Supervisor request
+            switch(svc)                                                         // Decode supervisor request
+             {case 0 -> {throw new Stop();}                                     // Stop requested
+              case 1 -> {x[1].value = stdin.remove(0);}                         // Read an integer from stdin
+              case 2 -> {stdout.push(x[2].value);}                              // Write an integer to stdout
+              case 3 -> {stderr.push(x[2].value);}                              // Write an integer to stderr
+              default -> stop("Unknown supervisorcode:", svc);
+             }
            }
          };
        }
@@ -994,11 +1015,11 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
   static void test_fibonacci()                                                  // Fibonacci
    {RiscV    r = new RiscV();                                                   // New Risc V machine and program
     Register z = r.x0;                                                          // Zero
-    Register N = r.x1;                                                          // Number of Fibonacci numbers to produce
-    Register a = r.x2;                                                          // A
-    Register b = r.x3;                                                          // B
-    Register c = r.x4;                                                          // C = A + B
-    Register i = r.x5;                                                          // Loop counter
+    Register N = r.x3;                                                          // Number of Fibonacci numbers to produce
+    Register a = r.x4;                                                          // A
+    Register b = r.x5;                                                          // B
+    Register c = r.x6;                                                          // C = A + B
+    Register i = r.x7;                                                          // Loop counter
 
     Variable p = r.new Variable("p", 2, 10);                                    // Variable declarations
     Variable o = r.new Variable("a", 4, 10);                                    // Block of 40 bytes starting at byte address 20
@@ -1008,35 +1029,49 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     r.addi(b, z, 1);                                                            // b =  1
     Label start = r.new Label("start");                                         // Start of for loop
     r.sb  (i, a, o.at());                                                       // Save latest result in memory
+    r.addi(r.x1, z, 2);                                                         // Write to stdout
+    r.add (r.x2, z, a);                                                         // Write to stdout variable a
+    r.ecall();
     r.add (c, a, b);                                                            // Latest Fibonacci number
     r.add (a, b, z);                                                            // Move b to a
     r.add (b, c, z);                                                            // Move c to b
     r.addi(i, i, 1);                                                            // Increment loop count
     r.blt (i, N, start);                                                        // Loop
+
+    r.add (r.x1, z, z);  r.ecall();                                             // Request exit with x1 = 0
+
     r.emulate();                                                                // Run the program
+    //stop(r);
     r.ok("""
 RiscV      : fibonacci
-Step       : 65
-Instruction: 40
-Registers  :  x1=10 x2=55 x3=89 x4=89 x5=10
+Step       : 96
+Instruction: 60
+Registers  :  x2=34 x3=10 x4=55 x5=89 x6=89 x7=10
 Memory     :  21=1 22=1 23=2 24=3 25=5 26=8 27=13 28=21 29=34
 """);
    //stop(r.printCode());
    ok(r.printCode(), """
 RiscV Hex Code: fibonacci
 Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
-0000      addi    13   1  0  a   0   0  0  0  0 0          a   a00093
-0001      addi    13   5  0  0   0   0  0  0  0 0          0      293
-0002      addi    13   2  0  0   0   0  0  0  0 0          0      113
-0003      addi    13   3  0  1   0   0  0  0  0 0          1   100193
-0004        sb    23  14  5  2   0   0  0  0  0 0         14   228a23
-0005       add    33   4  2  3   0   0  0  0  0 0          0   310233
-0006       add    33   2  3  0   0   0  0  0  0 0          0    18133
-0007       add    33   3  4  0   0   0  0  0  0 0          0    201b3
-0008      addi    13   5  5  1   0   0  0  0  0 0          1   128293
-0009       blt    63  17  5  1   4   4 1f 7f  0 0   fffffff6 fe12cbe3
+0000      addi    13   3  0  a   0   0  0  0  0 0          a   a00193
+0001      addi    13   7  0  0   0   0  0  0  0 0          0      393
+0002      addi    13   4  0  0   0   0  0  0  0 0          0      213
+0003      addi    13   5  0  1   0   0  0  0  0 0          1   100293
+0004        sb    23  14  7  4   0   0  0  0  0 0         14   438a23
+0005      addi    13   1  0  2   0   0  0  0  0 0          2   200093
+0006       add    33   2  0  4   0   0  0  0  0 0          0   400133
+0007     ecall    73   0  0  0   0   0  0  0  0 0          0       73
+0008       add    33   6  4  5   0   0  0  0  0 0          0   520333
+0009       add    33   4  5  0   0   0  0  0  0 0          0    28233
+000a       add    33   5  6  0   0   0  0  0  0 0          0    302b3
+000b      addi    13   7  7  1   0   0  0  0  0 0          1   138393
+000c       blt    63  11  7  3   4   4 1f 7f  0 0   fffffff0 fe33c8e3
+000d       add    33   1  0  0   0   0  0  0  0 0          0       b3
+000e     ecall    73   0  0  0   0   0  0  0  0 0          0       73
 """);
-   }
+    ok(r.stdout.toString(), "[0, 1, 1, 2, 3, 5, 8, 13, 21, 34]");
+    ok(r.printCodeSequence(), "long[]code = {0xa00193, 0x393, 0x213, 0x100293, 0x438a23, 0x200093, 0x400133, 0x73, 0x520333, 0x28233, 0x302b3, 0x138393, 0xfe33c8e3, 0xb3, 0x73};");
+   } // test_fibonacci
 
   static void test_lui()                                                        // Load upper immediate
    {RiscV    r = new RiscV();
