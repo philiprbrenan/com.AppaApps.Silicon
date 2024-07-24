@@ -1,4 +1,4 @@
-# Test 2024-07-24 at 03:44:10
+# Test 2024-07-24 at 03:46:29
 
 name: Test
 run-name: Silicon Chip
@@ -38,8 +38,8 @@ jobs:
 
     - name: Position
       run: |
-        mkdir -p com/AppaApps/Silicon/tests
-        cp `find . -path "*.java"` com/AppaApps/Silicon
+        mkdir -p com/AppaApps/Silicon
+        cp `find . -name "*.java"` com/AppaApps/Silicon
 
     - name: Files
       run:
