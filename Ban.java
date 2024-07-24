@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// RiscV 32I and Btree on a silicon chip
+// RiscV 32I Cpu on a silicon chip
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
@@ -16,7 +16,7 @@ import java.util.*;
 //D1 Construct                                                                  // Construct a Risc V program and execute it
 
 final public class Ban extends Chip                                             // Create a chip that contains a Risc V processor extended with Btree instructions
- {final static int XLEN                  = RiscV.XLEN;                          // Number of bits in a register
+ {final static int XLEN = RiscV.XLEN;                                           // Number of bits in a register
 
   final static class D extends RiscV.Decode {D(){super(null);}}                 // Easier access to static constants
 
@@ -34,7 +34,7 @@ final public class Ban extends Chip                                             
 
     opArithImm   = D.opArithImm,        opArith      = D.opArith;
 
-//D1 RV32I                                                                      // Risc V RV32I CPU.
+//D1 RV32I Cpu                                                                  // Risc V RV32I CPU.
 
   static class RV32I                                                            // Decode and execute an RV32I instruction
    {final String   out;                                                         // Name for this instruction processor
@@ -350,7 +350,76 @@ final public class Ban extends Chip                                             
    {return new RV32I(chip, out, decode, pc, x);
    }
 
-//D0
+  static class Cpu extends Chip                                                 // RiscV cpu on a chip
+   {final int       N = 90;                                                     // The number of steps to execute an instruction
+    Pulse          xi;                                                          // Execute an instruction
+    Register       pc;                                                          // Initialize pc
+    Register[]      x;                                                          // The registers of the RiscV architecture
+    final long[] Code;                                                          // The code to be executed by this Cpu
+    Bits         code;                                                          // Instructions as numbers
+    Bits          pc4;                                                          // Address instruction in blocks of XLEN bits spread across 8 bit bytes
+    Bits  instruction;                                                          // Latest instruction
+    RV32I         cpu;                                                          // Execute instruction
+
+    final int[]memory;                                                          // Memory for this chip
+    final Stack<Integer>stdin  = new Stack<>();                                 // Stdin
+    final Stack<Integer>stdout = new Stack<>();                                 // Stdout
+    final Stack<Integer>stderr = new Stack<>();                                 // Stderr
+
+    Cpu(int Memory, long...Code)                                                // Create CPU
+     {this.Code = Code;                                                         // Code to be executed - prepare using RiscV.java
+      memory = new int[Memory];                                                 // Allocate memory
+      xi = pulse("xi").period(  N).on(N/2).start(1).b();                        // Execute an instruction
+      pc = new Register("pc", XLEN, xi, 0);                                     // Initialize program counter
+       x = new Register[XLEN];                                                  // The registers of the RiscV architecture
+
+      for (int i = 1; i < XLEN; i++) x[i] = new Register("x"+i, XLEN, xi, 0);   // Initialize registers
+
+      code = bits("code", XLEN, Code);                                          // Instructions as numbers
+
+      pc4  = shiftRightArithmetic("pc4", pc, 2);                                // Address instruction in blocks of XLEN bits spread across 8 bit bytes
+      instruction = readMemory("instruction", code, pc4, XLEN);                 // Latest instruction
+
+      cpu  = rv32i(this, "cpu", instruction, pc, x);                            // Execute instruction
+
+      for (int i = 1; i < XLEN; i++) x[i].load(cpu.X[i]);                       // Update registers
+
+      continueBits(pc.load, cpu.PC);                                            // Update the program counter
+
+      cpu.m.anneal();                                                           // Anneal potentially unused gates
+      for (int i = 1; i < XLEN; i++) cpu.X[i].anneal();
+     }
+
+    final public void eachStep()                                                // Implement load and store instructions
+     {if (xi.fellStep == steps)                                                 // Instruction has just executed
+       {switch(cpu.opCode.Int())                                                // Switch on opcode
+         {case RiscV.Decode.opStore ->                                          // Store instruction
+           {final int a = cpu.m.address.Int();
+            final int r = cpu.m.sourceRegister.Int();
+            memory[a] = cpu.x[r].Int();
+           }
+          case RiscV.Decode.opLoad ->                                           // Load instruction
+           {final int a = cpu.m.address.Int();
+            final int r = cpu.m.targetRegister.Int();
+            cpu.x[r].set(memory[a]);
+           }
+          case RiscV.Decode.opEcall ->                                          // Supervisor call
+           {final Integer src = cpu.x[1].Int();                                 // Supervisor service code as requested in x1
+            switch(src)                                                         // Decode supervisor service as requested in x1
+             {case 0 -> {throw new Stop();}                                     // Stop: brings the emulation to an end
+              case 1 -> {cpu.x[1].set(stdin.remove(0));}                        // Read a 32 bit integer from stdin channel
+              case 2 -> {stdout.push(cpu.x[2].Int());}                          // Write a 32 bit integer to stdout channel
+              case 3 -> {stderr.push(cpu.x[2].Int());}                          // Write a 32 bit integer to stderr channel
+              default -> stop("Unknown supervisor request code:", src);
+             }
+           }
+          default -> {}                                                         // Not an instruction that requires interaction with the outside world
+         }
+       }
+     }
+   } // Cpu
+
+//D0 Tests                                                                      // Test the CPU
 
   static RV32I test_instruction(Integer instruction)                            // Test an instruction
    {final Chip          C = new Chip();
@@ -409,7 +478,7 @@ final public class Ban extends Chip                                             
   static void test_decode_lui  () {RV32I i = test_instruction(0x10b7);   i.ok("pc=8 x1=4096");  i.rd.ok(1);}
   static void test_decode_auipc() {RV32I i = test_instruction(0x4097);   i.ok("pc=8 x1=16388"); i.rd.ok(1);}
 
-  static void test_decode_sb()
+  static void test_decode_sb()                                                  // Store instruction
    {RV32I r = test_instruction(0x1000a3);
     r.om("""
 loadRequested : 0
@@ -424,7 +493,7 @@ targetRegister: 00001
    r.rs2.ok(1);
    }
 
-  static void test_decode_lh()
+  static void test_decode_lh()                                                  // Load instruction
    {RV32I r = test_instruction(0x1103);
     r.om("""
 loadRequested : 1
@@ -439,92 +508,12 @@ targetRegister: 00010
    r.rs2.ok(0);
    }
 
-  static void test_fibonacci()                                                  // Test Risc V cpu by producing some Fibonacci numbers
-   {final int       N = 90;                                                     // 40 seconds
-    final Chip      c = new Chip();
-    final Pulse    xi = c.pulse("xi").period(  N).on(N/2).start(1).b();         // Execute an instruction
-    final Pulse    xf = c.pulse("xf").period(6*N).on(N/2).start(1).b();         // Extract a Fibonacci number once per loop
-    final Register pc = c.new Register("pc", XLEN, xi, 0);                      // Initialize pc
-    final Register[]x = new Register[XLEN];
-
-    for (int i = 1; i < XLEN; i++)  x[i] = c.new Register("x"+i, XLEN, xi, 0);  // Initialize registers
-
-    long[]Code = {0xa00093, 0x293,   0x113,   0x100193, 0x228a23,               // Code for Fibonacci numbers in Risc V machine code
-                  0x310233, 0x18133, 0x201b3, 0x128293, 0xfe12cbe3};
-
-    Bits code = c.bits("code", XLEN, Code);
-
-    Bits  pc4 = c.shiftRightArithmetic("pc4", pc, 2);                           // Address instruction in blocks of XLEN bits spread across 8 bit bytes
-    Bits  instruction = c.readMemory("instruction", code, pc4, XLEN);           // Latest instruction
-
-    RV32I cpu = rv32i(c, "cpu", instruction, pc, x);                            // Execute instruction
-
-    for (int i = 1; i < XLEN; i++) x[i].load(cpu.X[i]);                         // Initialize registers
-
-    c.continueBits(pc.load, cpu.PC);                                            // Update
-
-    OutputUnit aVariable = c.new OutputUnit("aVariable", cpu.X[2], xf)          // Extract Fibonacci numbers as they are formed. Paul Halmos: Naive Set Theory, page 45: the object defined has some irrelevant structure, which seems to get in the way (but is in fact harmless).
-     {void action() {log.push(cpu.X[2].Int());}                                 // Extract latest Fibonacci number and write it to the output channel
-     };
-
-    c.simulationSteps(70*N);                                                    // Simulation
-
-    instruction.anneal(); cpu.m.anneal();
-    for (int i = 1; i < XLEN; i++) cpu.X[i].anneal();
-
-    c.simulate();
-
-    aVariable.ok(0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55);
-   }
-
-  static void test_fibonacci_memory()                                           // Implement memory operations in Risc V cpu producing Fibonacci numbers
-   {final int    N = 90;
-    final Chip   c = new Chip()
-     {Pulse     xi;                                                             // Execute an instruction
-      Pulse     xf;                                                             // Extract a Fibonacci number once per loop
-      Register  pc;                                                             // Initialize pc
-      Register[] x;                                                             // The registers of the RiscV architecture
-      final long[]Code = {0xa00093, 0x293,   0x113,   0x100193, 0x228a23,       // Code for Fibonacci numbers in Risc V machine code
-                          0x310233, 0x18133, 0x201b3, 0x128293, 0xfe12cbe3};
-      Bits code;                                                                // Instructions as numbers
-      Bits  pc4;                                                                // Address instruction in blocks of XLEN bits spread across 8 bit bytes
-      Bits  instruction;                                                        // Latest instruction
-      RV32I cpu;                                                                // Execute instruction
-      OutputUnit aVariable;                                                     // Extract Fibonacci numbers as they are formed. Paul Halmos: Naive Set Theory, page 45: the object defined has some irrelevant structure, which seems to get in the way (but is in fact harmless).
-
-      int[]memory = new int[64];                                                // Memory for this chip
-
-      public void run()
-       {xi = pulse("xi").period(  N).on(N/2).start(1).b();                      // Execute an instruction
-        xf = pulse("xf").period(6*N).on(N/2).start(1).b();                      // Extract a Fibonacci number once per loop
-        pc = new Register("pc", XLEN, xi, 0);                                   // Initialize pc
-         x = new Register[XLEN];                                                // The registers of the RiscV architecture
-
-        for (int i = 1; i < XLEN; i++) x[i] = new Register("x"+i, XLEN, xi, 0); // Initialize registers
-
-        code = bits("code", XLEN, Code);                                        // Instructions as numbers
-
-        pc4  = shiftRightArithmetic("pc4", pc, 2);                              // Address instruction in blocks of XLEN bits spread across 8 bit bytes
-        instruction = readMemory("instruction", code, pc4, XLEN);               // Latest instruction
-
-        cpu  = rv32i(this, "cpu", instruction, pc, x);                          // Execute instruction
-
-        for (int i = 1; i < XLEN; i++) x[i].load(cpu.X[i]);                     // Initialize registers
-
-        continueBits(pc.load, cpu.PC);                                          // Update
-
-        aVariable = new OutputUnit("aVariable", cpu.X[2], xf)                   // Extract Fibonacci numbers as they are formed. Paul Halmos: Naive Set Theory, page 45: the object defined has some irrelevant structure, which seems to get in the way (but is in fact harmless).
-         {void action() {log.push(cpu.X[2].Int());}                             // Extract latest Fibonacci number and write it to the output channel
-         };
-
-        simulationSteps(70*N);                                                  // Simulation
-
-        instruction.anneal(); cpu.m.anneal();
-        for (int i = 1; i < XLEN; i++) cpu.X[i].anneal();
-
+  static void test_fibonacci()                                                  // Implement memory operations in Risc V cpu producing Fibonacci numbers
+   {Cpu c = new Cpu(64, 0xa00193, 0x393, 0x213, 0x100293, 0x438a23, 0x200093, 0x400133, 0x73, 0x520333, 0x28233, 0x302b3, 0x138393, 0xfe33c8e3, 0xb3, 0x73)
+     {public void run()                                                         // Run the simulation
+       {simulationSteps(1000*N);                                                // Simulation steps: we need to set it to sopmething, but on the other and the code has an eCall to exit so we do not have to be accurate just big enough.
         simulate();
-
-        aVariable.ok(0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55);
+        ok(stdout.toString(), "[0, 1, 1, 2, 3, 5, 8, 13, 21, 34]");
         ok(memory[20], 0 );
         ok(memory[21], 1 );
         ok(memory[22], 1 );
@@ -536,25 +525,8 @@ targetRegister: 00010
         ok(memory[28], 21);
         ok(memory[29], 34);
        }
-
-      public void eachStep()                                                    // Implement load and store instructions
-       {if (xi.fellStep == steps)                                               // Instruction has just executed
-         {final Integer opCode = cpu.opCode.Int();                              // Opcode
-          final Integer funct3 = cpu.funct3.Int();                              // Function code within opcode
-          if      (opCode == RiscV.Decode.opStore)                              // Store instruction
-           {final int a = cpu.m.address.Int();
-            final int r = cpu.m.sourceRegister.Int();
-            memory[a] = cpu.x[r].Int();
-           }
-          else if (opCode == RiscV.Decode.opLoad)                               // Load instruction
-           {final int a = cpu.m.address.Int();
-            final int r = cpu.m.targetRegister.Int();
-            cpu.x[r].set(memory[a]);
-           }
-         }
-       }
      };
-    c.run();
+    c.run();                                                                    // Run the RiscV computer
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -568,12 +540,11 @@ targetRegister: 00010
     test_decode_sb();
     test_decode_lh();
     test_fibonacci();
-    test_fibonacci_memory();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    //test_fibonacci_memory();
+    //test_fibonacci();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
