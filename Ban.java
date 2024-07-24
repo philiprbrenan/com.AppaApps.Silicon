@@ -11,7 +11,7 @@ Ma se mi toccano   - dov'e il mio debole,
 saro una vipera    - e cento trappole
 prima di cedere    - faro giocar.
 */
-import java.util.*;
+import java.util.Stack;
 
 //D1 Construct                                                                  // Construct a Risc V program and execute it
 
@@ -366,7 +366,7 @@ final public class Ban extends Chip                                             
     final Stack<Integer>stdout = new Stack<>();                                 // Stdout
     final Stack<Integer>stderr = new Stack<>();                                 // Stderr
 
-    Cpu(int Memory, long...Code)                                                // Create CPU
+    Cpu(int Memory, long...Code)                                                // Create CPU with the specified amount of memory and a preloaded program
      {this.Code = Code;                                                         // Code to be executed - prepare using RiscV.java
       memory = new int[Memory];                                                 // Allocate memory
       xi = pulse("xi").period(  N).on(N/2).start(1).b();                        // Execute an instruction
