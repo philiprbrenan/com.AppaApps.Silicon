@@ -97,8 +97,8 @@ jobs:
 
     - name: Position
       run: |
-        mkdir -p $c/tests
-        cp `find . -path "*.java"` $c
+        mkdir -p $c
+        cp `find . -name "*.java"` $c
 
     - name: Files
       run:
