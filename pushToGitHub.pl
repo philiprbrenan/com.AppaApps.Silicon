@@ -97,9 +97,8 @@ jobs:
 
     - name: Position
       run: |
-        mkdir -p com/AppaApps/Silicon/tests
-        cp       *.java $c
-        cp tests/*.java $c/tests
+        mkdir -p $c/tests
+        cp $(find . -path "*.java") $c
 
     - name: Files
       run:
@@ -107,7 +106,7 @@ jobs:
 
     - name: Compile
       run: |
-        javac -g -d Classes -cp Classes $(find . -path "*.java")
+        javac -g -d Classes -cp Classes $(find . -path "$c/*.java")
 
     - name: Test Risc V
       if: matrix.task == 'RiscV'
