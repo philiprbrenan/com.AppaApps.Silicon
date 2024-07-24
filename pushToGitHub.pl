@@ -107,7 +107,7 @@ jobs:
 
     - name: Compile
       run: |
-        javac -g -d Classes -cp Classes $c/*.java $c/tests/*.java
+        javac -g -d Classes -cp Classes $(find . -path "*.java")
 
     - name: Test Risc V
       if: matrix.task == 'RiscV'
