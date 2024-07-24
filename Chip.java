@@ -776,11 +776,15 @@ public class Chip                                                               
     ok(executionTrace.toString(), expected);
    }
 
-  void printActiveGates(Gate[]G)                                               // Print active gates
+  void printActiveGates(Gate[]G)                                                // Print active gates
    {ddd("GGGG Gates at step", steps);
     for (Gate g : G)
      {ddd("GGGG", g.name, g.value);
      }
+   }
+
+  class Stop extends RuntimeException                                           // Raise this exception to stop the current simulation
+   {private static final long serialVersionUID = 1L;
    }
 
   void simulate() {simulate(null);}                                             // Simulate the operation of a chip with no input pins. If the chip has in fact got input pins an error will be reported.
@@ -807,20 +811,17 @@ public class Chip                                                               
       for (OutputUnit o : O) o.outputUnitAction();                              // Action on each output peripheral affected by a falling edge
       if (executionTrace != null) executionTrace.addTrace();                    // Trace requested
 
-      eachStep();                                                               // Routine to do something on each step
+      try           {eachStep();}                                               // Routine to do something after each step
+      catch(Stop e) {return;}                                                   // Stop was requested during end of step processing
+
       if (!changes() && (!miss || steps >= minSimulationSteps)) return;         // No changes occurred and we are beyond the minimum simulation time or no such time was set
      }
     if (maxSimulationSteps == null)                                             // Not enough steps available by default
       err("Out of time after", actualMaxSimulationSteps, "steps");
    }
 
-  void run()                                                                    // Override this method to define and run a simulation
-   {
-   }
-
-  void eachStep()                                                               // Override this method to do something on each step of the simulation
-   {
-   }
+  void run() {}                                                                 // Override this method to define and run a simulation
+  void eachStep() {}                                                            // Override this method to do something on each step of the simulation
 
 //D1 Circuits                                                                   // Some useful circuits
 
