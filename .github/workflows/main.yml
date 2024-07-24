@@ -1,4 +1,4 @@
-# Test 2024-07-24 at 03:33:44
+# Test 2024-07-24 at 03:36:15
 
 name: Test
 run-name: Silicon Chip
@@ -39,7 +39,7 @@ jobs:
     - name: Position
       run: |
         mkdir -p com/AppaApps/Silicon/tests
-        cp 1000 4 24 27 30 46 122 132 133 1000find . -path "*.java") com/AppaApps/Silicon
+        cp `find . -path "*.java"` com/AppaApps/Silicon
 
     - name: Files
       run:
@@ -47,7 +47,7 @@ jobs:
 
     - name: Compile
       run: |
-        javac -g -d Classes -cp Classes 1000 4 24 27 30 46 122 132 133 1000find . -path "com/AppaApps/Silicon/*.java")
+        javac -g -d Classes -cp Classes `find . -path "com/AppaApps/Silicon/*.java"`
 
     - name: Test Risc V
       if: matrix.task == 'RiscV'
