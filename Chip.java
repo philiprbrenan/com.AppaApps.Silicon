@@ -2,8 +2,6 @@
 // Design, simulate and layout a binary tree on a silicon chip.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
-// Check gate names match variable names
-// Words words( should accept null values and be a class not an interface
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
 /*
 Essere o non essere, questo e il problema:
@@ -26,7 +24,7 @@ le angosce del respinto amore, gli indugi della legge,
 la tracotanza dei grandi, i calci in faccia che il merito paziente riceve dai mediocri,
 quando di mano propria potrebbe saldare il suo conto con due dita di pugnale?
 
-Chi vorrebbe caricarsi di grossi fardelli imprecando e sudando sotto il peso di tutta una vita stracca,
+Chi vorrebbe caricarsi i grossi fardelli, imprecando e sudando sotto il peso di tutta una vita stracca,
 se non fosse il timore di qualche cosa, dopo la morte,
 la terra inesplorata donde mai non tornÃ² alcun viaggiatore, a sgomentare la nostra volonta
 e a persuaderci di sopportare i nostri mali piuttosto che correre in cerca d'altri che non conosciamo?
