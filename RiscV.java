@@ -313,6 +313,11 @@ public class RiscV extends Chip                                                 
 
     final static int    f3_jalr = 0;
 
+    final static int  eCall_stop         = 0;                                   // Stop requested
+    final static int  eCall_read_stdin   = 1;                                   // Read an integer from stdin
+    final static int  eCall_write_stdout = 2;                                   // Write an integer to stdout
+    final static int  eCall_write_stderr = 3;                                   // Write an integer to stdout
+
     Decode(String Name, Encode Instruction)                                     // Decode an instruction
      {instruction = Instruction;
       name        = Name;
@@ -666,10 +671,10 @@ public class RiscV extends Chip                                                 
             ecall.push(RiscV.this.toString());
             final int svc = x[1].value;                                         // Supervisor request
             switch(svc)                                                         // Decode supervisor request
-             {case 0 -> {throw new Stop();}                                     // Stop requested
-              case 1 -> {x[1].value = stdin.remove(0);}                         // Read an integer from stdin
-              case 2 -> {stdout.push(x[2].value);}                              // Write an integer to stdout
-              case 3 -> {stderr.push(x[2].value);}                              // Write an integer to stderr
+             {case Decode.eCall_stop         -> {throw new Stop();}             // Stop requested
+              case Decode.eCall_read_stdin   -> {x[1].value = stdin.remove(0);} // Read an integer from stdin
+              case Decode.eCall_write_stdout -> {stdout.push(x[2].value);}      // Write an integer to stdout
+              case Decode.eCall_write_stderr -> {stderr.push(x[2].value);}      // Write an integer to stderr
               default -> stop("Unknown supervisorcode:", svc);
              }
            }
@@ -901,19 +906,21 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
 //D1 Variables                                                                  // Variables are symbolic names for fixed locations in memory
 
-  class Variable                                                                // Variable/Array definition
+  class Variable                                                                // Variable/Array definition. If there is only room for one element it is an element, otherwise it is an array.
    {final String name;                                                          // Name of
     final int at;                                                               // Offset of variable either from start of memory or from start of a structure
-    final int width;                                                            // Width of  variable
-    final int size;                                                             // Number of elements in variable
+    final int width;                                                            // Width of variable
+    final int size;                                                             // Number of elements in array variable
+    final int bytes;                                                            // Number of bytes in array
 
     Variable(String Name, int Width, int Size)                                  // Create variable
      {name = Name; width = Width; size = Size;
       pVariables = (at = pVariables) + width * size;                            // Offset of this variable
       variables.put(name, this);                                                // Save variable
+      bytes = width * size;                                                     // Size of the array in bytes
      }
 
-    int at(int i)  {return at;}                                                 // Offset to an element in an array
+    int at(int i)  {return at + i * width;}                                     // Offset to an element in an array
     int at()       {return at(0);}                                              // Offset to start of variable
    }
 
@@ -1240,6 +1247,66 @@ Registers  :  x1=2
 """);
    }
 
+  static void test_bubble_sort()                                                // Bubble sort an array of integers
+   {RiscV    r = new RiscV();                                                   // New Risc V machine and program
+    Register z = r.x0;                                                          // Zero
+    Register q = r.x3;                                                          // Upper limit of array to be sorted
+    Register p = r.x4;                                                          // Current position in array
+    Register a = r.x5;                                                          // Lower element
+    Register b = r.x6;                                                          // Upper element
+
+    final int[]array = {9,5,8,3,1,4,7,2,6,0,99};                                // Array to sort
+    Variable A = r.new Variable("a", 4, array.length);                          // Array in memory
+    for (int j = 0; j < array.length; j++)                                      // Load array into memory
+     {r.addi(a, z, array[j]);
+      r.sw  (z, a, A.at(j));
+     }
+
+    r.addi(q, z, A.bytes);                                                      // Size of array
+    Label outerStart = r.new Label("outerStart");                               // Outer loop
+    Label outerEnd   = r.new Label("outerEnd");
+      r.addi(q, q,-A.width);                                                    // Each pass shortens the number of elements that still need to be sorted
+      r.blt (q, z, outerEnd);                                                   // Finished pouter loop
+
+      r.add (p, z, z);                                                          // p = 0
+      Label inner = r.new Label("inner");                                       // Swap loop
+        r.lw  (a, p, 0);                                                        // Lower element
+        r.lw  (b, p, A.width);                                                  // Upper width
+
+        Label inOrder = r.new Label("inOrder");                                 // Elements in order
+        r.blt(a, b, inOrder);                                                   // Jump if elements are in order
+          r.sw(p, b, 0);                                                        // Swap elements
+          r.sw(p, a, A.width);
+        inOrder.set();
+
+        r.addi(p, p, A.width);                                                  // Increment pointer
+        r.blt (p, q, inner);                                                    // Inner loop
+
+      r.jal (z, outerStart);                                                    // Next swap pass
+    outerEnd.set();
+
+    r.addi(q, z, A.bytes-A.width);                                              // Print loop
+    r.add (p, z, z);                                                            // Element to print
+    Label printStart = r.new Label("printStart");
+    Label printEnd   = r.new Label("printEnd");
+    r.blt (q, p, printEnd);                                                     // Elements still to print
+      r.addi (r.x1, z, Decode.eCall_write_stdout);                              // Write element to stdout
+      r.lw   (r.x2, p, 0);
+      r.ecall();
+      r.addi (p, p, A.width);                                                   // Next element
+      r.jal  (z, printStart);                                                   // Restart loop
+    printEnd.set();
+
+    r.addi (r.x1, z, Decode.eCall_stop);  r.ecall();                            // Stop
+
+    r.simulationSteps(1_000_000);
+    r.emulate();                                                                // Run the program
+    //say(r.stdout);
+    ok(r.stdout.toString(), "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 99]");
+    //say(r.printCodeSequence());
+    ok(r.printCodeSequence(), "long[]code = {0x900293, 0x502023, 0x500293, 0x502223, 0x800293, 0x502423, 0x300293, 0x502623, 0x100293, 0x502823, 0x400293, 0x502a23, 0x700293, 0x502c23, 0x200293, 0x502e23, 0x600293, 0x2502023, 0x293, 0x2502223, 0x6300293, 0x2502423, 0x2c00193, 0xffc18193, 0x1ca63, 0x233, 0x22283, 0x422303, 0x62c363, 0x622023, 0x522223, 0x420213, 0xfe324ae3, 0xfd9ff06f, 0x2800193, 0x233, 0x41c663, 0x200093, 0x22103, 0x73, 0x420213, 0xfedff06f, 0x93, 0x73};");
+   } // test_bubble_sort
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {if (github_actions) test_immediate_b();
     if (github_actions) test_immediate_j();
@@ -1253,11 +1320,12 @@ Registers  :  x1=2
     test_store_load();
     test_ecall();
     test_fibonacci();
+    test_bubble_sort();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    //test_lui();
+    //test_bubble_sort();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
