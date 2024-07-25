@@ -406,10 +406,10 @@ final public class Ban extends Chip                                             
           case RiscV.Decode.opEcall ->                                          // Supervisor call
            {final Integer src = cpu.x[1].Int();                                 // Supervisor service code as requested in x1
             switch(src)                                                         // Decode supervisor service as requested in x1
-             {case 0 -> {throw new Stop();}                                     // Stop: brings the emulation to an end
-              case 1 -> {cpu.x[1].set(stdin.remove(0));}                        // Read a 32 bit integer from stdin channel
-              case 2 -> {stdout.push(cpu.x[2].Int());}                          // Write a 32 bit integer to stdout channel
-              case 3 -> {stderr.push(cpu.x[2].Int());}                          // Write a 32 bit integer to stderr channel
+             {case RiscV.Decode.eCall_Stop        -> {throw new Stop();}              // Stop: brings the emulation to an end
+              case RiscV.Decode.eCall_read_stdin  -> {cpu.x[1].set(stdin.remove(0));} // Read a 32 bit integer from stdin channel
+              case RiscV.Decode.eCall_read_stdout -> {stdout.push(cpu.x[2].Int());}   // Write a 32 bit integer to stdout channel
+              case RiscV.Decode.eCall_read_stderr -> {stderr.push(cpu.x[2].Int());}   // Write a 32 bit integer to stderr channel
               default -> stop("Unknown supervisor request code:", src);
              }
            }
