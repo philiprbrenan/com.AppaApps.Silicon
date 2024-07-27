@@ -55,6 +55,7 @@ final public class Ban extends Chip                                             
 
     final Bits    immi, immu, immb, immj, imms;                                 // Imipac: the weapon that defends itself.
     final Bits    immB, immI, immJ, immS, immU, immB2, immI2, immJ2, immU2;     // Sign extend the immediate field
+    final Bit     immI7;                                                        // The bit in the immediate value that differentiates between the possible types of right shift
 
     final Eq[]      sv;                                                         // Get value of s1, s2 registers
     final Bits    rs1v, rs2v;                                                   // The value of the selected s1, s2 registers
@@ -63,14 +64,13 @@ final public class Ban extends Chip                                             
                 f3_slt,  f3_sltu, f3_beq, f3_bne, f3_blt, f3_bge,
                 f3_bltu, f3_bgeu;
 
-    final Bits    addI, subI, xorI, orI, andI, sllI, srlI, sraI, sltI, sltuI;   // Immediate operation
+    final Bits    addI, xorI, orI, andI, sllI, srlI, sraI, sltI, sltuI;         // Immediate operation
     final Bit     cmpI, cmpuI;
 
-    final Bits   rAddi, rSubi, rXori, rOri, rAndi, rSlli, rSrli, rSrai,         // Enable result of immediate operation
+    final Bits   rAddi, rXori, rOri, rAndi, rSlli, rSrli, rSrai, rSral,         // Enable result of immediate operation
                  rSlti, rSltui;
 
-    final Bits     iR0, iR2, iR;                                                // Choose the immediate operation
-    final Eq      eiR0, eiR2;                                                   // Decode funct7 for immediate opcode
+    final Bits    iR;                                                           // Choose the immediate operation
 
     final Bits    addD, subD, xorD, orD, andD, sllD, srlD, sraD, sltD, sltuD;   // Dyadic operation
 
@@ -193,6 +193,7 @@ final public class Ban extends Chip                                             
       immU    = C.binaryTCSignExtend(q("immU"),  immu, XLEN);
       immB2   = C.shiftUp           (q("immB2"), immB);                         // Multiply by two to get the branch offset in bytes
       immI2   = C.shiftUp           (q("immI2"), immI);
+      immI7   = immi.b(D.I.p_sr+2);                                             // The bit that differentiates the type of right shift
       immJ2   = C.shiftUp           (q("immJ2"), immJ);
       immU2   = C.shiftLeftConstant (q("immU2"), immu, D.U.p_immediate);        // Place the 20 bits provided in the immediate operand in the high bits of the target register
 
@@ -223,7 +224,6 @@ final public class Ban extends Chip                                             
       f3_bgeu = C.bits(q("f3_bgeu"), l_funct3, D.f3_bgeu);
 
       addI    = C.binaryTCAdd         (q("addI"),  rs1v, immI);                 // Immediate operation
-      subI    = C.binaryTCSubtract    (q("subI"),  rs1v, immI);
       xorI    = C.xorBits             (q("xorI"),  rs1v, immI);
       orI     = C.orBits              (q("orI"),   rs1v, immI);
       andI    = C.andBits             (q("andI"),  rs1v, immI);
@@ -236,23 +236,20 @@ final public class Ban extends Chip                                             
       sltuI   = C.enableWord          (q("sltuI"), one,  cmpuI);
 
       rAddi   = C.enableWordIfEq(q("rAddi"),   addI, funct3, f3_add);           // Enable result of immediate operation
-      rSubi   = C.enableWordIfEq(q("rSubi"),   subI, funct3, f3_add);
       rXori   = C.enableWordIfEq(q("rXori"),   xorI, funct3, f3_xor);
       rOri    = C.enableWordIfEq(q("rOri"),     orI, funct3, f3_or);
       rAndi   = C.enableWordIfEq(q("rAndi"),   andI, funct3, f3_and);
       rSlli   = C.enableWordIfEq(q("rSlli"),   sllI, funct3, f3_sll);
+
       rSrli   = C.enableWordIfEq(q("rSrli"),   srlI, funct3, f3_srl);
       rSrai   = C.enableWordIfEq(q("rSrai"),   sraI, funct3, f3_srl);
+      rSral   = C.chooseFromTwoWords(q("rSral"), rSrli, rSrai, immI7);          // Particular case of shift right
+
       rSlti   = C.enableWordIfEq(q("rSlti"),   sltI, funct3, f3_slt);
       rSltui  = C.enableWordIfEq(q("rSltui"), sltuI, funct3, f3_sltu);
-      iR0     = C.orBits(q("iR0"), rAddi, rXori, rOri,  rAndi,
-                                   rSlli, rSrli, rSlti, rSltui);
-      iR2     = C.orBits(q("iR2"), rSubi, rSrai);
 
-      eiR0    = C.eq(C.bits(q("if70"), l_funct7, 0), iR0);                      // Decode funct7 for immediate opcode
-      eiR2    = C.eq(C.bits(q("if72"), l_funct7, 2), iR2);
-
-      iR      = C.chooseEq(q("iR"), funct7, eiR0, eiR2);                        // Choose the dyadic operation
+      iR      = C.orBits(q("iR"),  rAddi, rXori, rOri,  rAndi,                  // Select the immediate operation as only the required value can be non zero
+                                   rSlli, rSral, rSlti, rSltui);
 
       addD    = C.binaryTCAdd         (q("addD"),  rs1v, rs2v);
       subD    = C.binaryTCSubtract    (q("subD"),  rs1v, rs2v);
@@ -339,7 +336,6 @@ final public class Ban extends Chip                                             
       m.targetRegister = rd;                                                    // Load register rd from memory indexed by rs1 and immediate
       m.sourceRegister = rs2;                                                   // Store content of rs2 into memory indexed by rd1 and immediate
 
-
       X[0] = null;                                                              // X0
       for (int i = 1; i < XLEN; i++)                                            // Values to reload back into registers
         X[i]  = C.chooseThenElseIfEQ(q("X")+i, result, x[i], rd, i);            // Either the passed in register value or the newly computed one
@@ -351,7 +347,7 @@ final public class Ban extends Chip                                             
    }
 
   static class Cpu extends Chip                                                 // RiscV cpu on a chip
-   {final int       N = 90;                                                     // The number of steps to execute an instruction
+   {final int       N = 110;                                                    // The number of steps to execute an instruction
     Pulse          xi;                                                          // Execute an instruction
     Register       pc;                                                          // Initialize pc
     Register[]      x;                                                          // The registers of the RiscV architecture
@@ -361,14 +357,14 @@ final public class Ban extends Chip                                             
     Bits  instruction;                                                          // Latest instruction
     RV32I         cpu;                                                          // Execute instruction
 
-    final int[]memory;                                                          // Memory for this chip
+    final byte[]memory;                                                         // Memory for this chip
     final Stack<Integer>stdin  = new Stack<>();                                 // Stdin
     final Stack<Integer>stdout = new Stack<>();                                 // Stdout
     final Stack<Integer>stderr = new Stack<>();                                 // Stderr
 
     Cpu(int Memory, long...Code)                                                // Create CPU with the specified amount of memory and a preloaded program
      {this.Code = Code;                                                         // Code to be executed - prepare using RiscV.java
-      memory = new int[Memory];                                                 // Allocate memory
+      memory = new byte[Memory];                                                // Allocate memory
       xi = pulse("xi").period(  N).on(N/2).start(1).b();                        // Execute an instruction
       pc = new Register("pc", XLEN, xi, 0);                                     // Initialize program counter
        x = new Register[XLEN];                                                  // The registers of the RiscV architecture
@@ -390,31 +386,61 @@ final public class Ban extends Chip                                             
       for (int i = 1; i < XLEN; i++) cpu.X[i].anneal();
      }
 
-    final public void eachStep()                                                // Implement load and store instructions
-     {if (xi.fellStep == steps)                                                 // Instruction has just executed
-       {switch(cpu.opCode.Int())                                                // Switch on opcode
-         {case RiscV.Decode.opStore ->                                          // Store instruction
+    final public void eachStep()                                                // Implement load and store instructions, ecall instruction as these  instructions interact with the outside world
+     {final Integer opCode = cpu.opCode.Int();                                  // Opcode
+      if (opCode == null) return;
+      switch(opCode)                                                            // Switch on opcode
+       {case RiscV.Decode.opStore ->                                            // Store instruction
+         {if (xi.fellStep == steps)
            {final int a = cpu.m.address.Int();
             final int r = cpu.m.sourceRegister.Int();
-            memory[a] = cpu.x[r].Int();
+            final int n = cpu.x[r].Int();
+
+            memory[a] = (byte) (n & 0xff);                                      // Store at least a byte
+            switch(cpu.funct3.Int())                                            // Decode type of store
+             {case RiscV.Decode.f3_sb -> {}                                     // Byte
+              case RiscV.Decode.f3_sh ->                                        // Two bytes == half word
+               {memory[a+1] = (byte) (n>> 8 & 0xff);
+               }
+              case RiscV.Decode.f3_sw ->                                        // Full word
+               {memory[a+1] = (byte) (n>> 8 & 0xff);
+                memory[a+2] = (byte) (n>>16 & 0xff);
+                memory[a+3] = (byte) (n>>24 & 0xff);
+               }
+              default -> stop("Unknown funct3", cpu.funct3.Int(), "for store operation");
+             }
            }
-          case RiscV.Decode.opLoad ->                                           // Load instruction
+         }
+        case RiscV.Decode.opLoad ->                                             // Load instruction
+         {if (xi.fellStep >= steps - 2)                                         // The target bits have to be set for several steps to make them stick. It is not apparent why 3 steps are needed, but for 32 bit wide operands it seems to work so we go with it.
            {final int a = cpu.m.address.Int();
             final int r = cpu.m.targetRegister.Int();
-            cpu.x[r].set(memory[a]);
+            int A = 0, B = 0, C = 0, D = 0, v = 0;
+            switch(cpu.funct3.Int())
+             {case RiscV.Decode.f3_lb  -> {v = memory[a];                                                                    v <<= 24; v >>= 24;}
+              case RiscV.Decode.f3_lbu -> {v = memory[a];                                                                                       }
+              case RiscV.Decode.f3_lh  -> {A = memory[a]; B = memory[a];                                     v = A | (B<<8); v <<= 16; v >>= 16;}
+              case RiscV.Decode.f3_lhu -> {A = memory[a]; B = memory[a];                                     v = A | (B<<8);                    }
+              case RiscV.Decode.f3_lw  -> {A = memory[a]; B = memory[a+1]; C = memory[a+2]; D = memory[a+3]; v = A | (B<<8) | (C<<16) | (D<<24);}
+              default -> stop("Unknown funct3", cpu.funct3.Int(), "for load operation");
+             }
+say("AAAA", steps, r, v);
+            x[r].set(v);
            }
-          case RiscV.Decode.opEcall ->                                          // Supervisor call
+         }
+        case RiscV.Decode.opEcall ->                                            // Supervisor call
+         {if (xi.fellStep == steps)                                             // Instruction has just executed
            {final Integer src = cpu.x[1].Int();                                 // Supervisor service code as requested in x1
             switch(src)                                                         // Decode supervisor service as requested in x1
-             {case RiscV.Decode.eCall_Stop        -> {throw new Stop();}              // Stop: brings the emulation to an end
-              case RiscV.Decode.eCall_read_stdin  -> {cpu.x[1].set(stdin.remove(0));} // Read a 32 bit integer from stdin channel
-              case RiscV.Decode.eCall_read_stdout -> {stdout.push(cpu.x[2].Int());}   // Write a 32 bit integer to stdout channel
-              case RiscV.Decode.eCall_read_stderr -> {stderr.push(cpu.x[2].Int());}   // Write a 32 bit integer to stderr channel
+             {case RiscV.Decode.eCall_stop         -> {throw new Stop();}              // Stop: brings the emulation to an end
+              case RiscV.Decode.eCall_read_stdin   -> {cpu.x[1].set(stdin.remove(0));} // Read a 32 bit integer from stdin channel
+              case RiscV.Decode.eCall_write_stdout -> {stdout.push(cpu.x[2].Int());}   // Write a 32 bit integer to stdout channel
+              case RiscV.Decode.eCall_write_stderr -> {stderr.push(cpu.x[2].Int());}   // Write a 32 bit integer to stderr channel
               default -> stop("Unknown supervisor request code:", src);
              }
            }
-          default -> {}                                                         // Not an instruction that requires interaction with the outside world
          }
+        default -> {}                                                           // Not an instruction that requires interaction with the outside world
        }
      }
    } // Cpu
@@ -468,15 +494,18 @@ final public class Ban extends Chip                                             
     R.   result.ok(  10);
    }
 
-  static void test_decode_add1 () {RV32I i = test_instruction(0x310233); i.ok("pc=8 x4=5");     i.rd.ok(4);}
-  static void test_decode_add2 () {RV32I i = test_instruction(0x0201b3); i.ok("pc=8 x3=4");     i.rd.ok(2);}
-  static void test_decode_slt1 () {RV32I i = test_instruction(0x20afb3); i.ok("pc=8 x31=1");    i.rd.ok(31);}
-  static void test_decode_slt2 () {RV32I i = test_instruction(0x112f33); i.ok("pc=8 x30=0");    i.rd.ok(30);}
-  static void test_decode_jal  () {RV32I i = test_instruction(0x80016f); i.ok("pc=12 x2=8");    i.rd.ok(2);}
+  static void test_decode_add1 () {RV32I i = test_instruction(0x310233);  i.ok("pc=8 x4=5");     i.rd.ok(4);}
+  static void test_decode_add2 () {RV32I i = test_instruction(0x0201b3);  i.ok("pc=8 x3=4");     i.rd.ok(2);}
+  static void test_decode_slt1 () {RV32I i = test_instruction(0x20afb3);  i.ok("pc=8 x31=1");    i.rd.ok(31);}
+  static void test_decode_slt2 () {RV32I i = test_instruction(0x112f33);  i.ok("pc=8 x30=0");    i.rd.ok(30);}
+  static void test_decode_jal  () {RV32I i = test_instruction(0x80016f);  i.ok("pc=12 x2=8");    i.rd.ok(2);}
 // At start pc=4, x0=0, x2=2. Instruction decode: rd=2 rs1=0 imm=4. Should result in x2=0+4<<1 = 8 and pc=4+4 = 8
-  static void test_decode_jalr () {RV32I i = test_instruction(0x400167); i.ok("pc=8 x2=8");     i.rd.ok(2);}
-  static void test_decode_lui  () {RV32I i = test_instruction(0x10b7);   i.ok("pc=8 x1=4096");  i.rd.ok(1);}
-  static void test_decode_auipc() {RV32I i = test_instruction(0x4097);   i.ok("pc=8 x1=16388"); i.rd.ok(1);}
+  static void test_decode_jalr () {RV32I i = test_instruction(0x400167);  i.ok("pc=8 x2=8");     i.rd.ok(2);}
+  static void test_decode_lui  () {RV32I i = test_instruction(0x10b7);    i.ok("pc=8 x1=4096");  i.rd.ok(1);}
+  static void test_decode_auipc() {RV32I i = test_instruction(0x4097);    i.ok("pc=8 x1=16388"); i.rd.ok(1);}
+  static void test_decode_i31()   {RV32I i = test_instruction(0x1f00293); i.ok("pc=8 x5=31"); i.immi.ok(31);   i.immI.ok(31);}
+  static void test_decode_i33()   {RV32I i = test_instruction(0x2100293); i.ok("pc=8 x5=33"); i.immi.ok(33);   i.immI.ok(33); i.addI.ok(33); i.iR.ok(33); i.result.ok(33);}
+  static void test_decode_subi()  {RV32I i = test_instruction(0xffe18193);i.ok("pc=8 x3=1");  i.immi.ok(4094); i.immI.ok(-2); i.addI.ok(1); i.iR.ok(1); i.result.ok(1);}
 
   static void test_decode_sb()                                                  // Store instruction
    {RV32I r = test_instruction(0x1000a3);
@@ -511,7 +540,7 @@ targetRegister: 00010
   static void test_fibonacci()                                                  // Implement memory operations in Risc V cpu producing Fibonacci numbers
    {Cpu c = new Cpu(64, 0xa00193, 0x393, 0x213, 0x100293, 0x438a23, 0x200093, 0x400133, 0x73, 0x520333, 0x28233, 0x302b3, 0x138393, 0xfe33c8e3, 0xb3, 0x73)
      {public void run()                                                         // Run the simulation
-       {simulationSteps(1000*N);                                                // Simulation steps: we need to set it to sopmething, but on the other and the code has an eCall to exit so we do not have to be accurate just big enough.
+       {simulationSteps(1000*N);                                                // Simulation steps: we need to set it to something, but on the other and the code has an eCall to exit so we do not have to be accurate just big enough.
         simulate();
         ok(stdout.toString(), "[0, 1, 1, 2, 3, 5, 8, 13, 21, 34]");
         ok(memory[20], 0 );
@@ -529,6 +558,28 @@ targetRegister: 00010
     c.run();                                                                    // Run the RiscV computer
    }
 
+  static void test_bubble_sort()                                                // Bubble sort
+   {long[]code = {0x300293, 0x502023, 0x100293, 0x502223, 0x200293, 0x502423, 0xc00193, 0xffc18193, 0xfe01cfe3, 0x233, 0x22283, 0x422303, 0x62c363, 0x622023, 0x522223, 0x93, 0x73};
+
+    Cpu c = new Cpu(64, code)
+     {public void run()                                                         // Run the simulation
+       {simulationSteps(1000*N);                                                // Simulation steps: we need to set it to sopmething, but on the other and the code has an eCall to exit so we do not have to be accurate just big enough.
+        simulate();
+        say(stdout);
+        //ok(stdout.toString(), "[0, 1, 1, 2, 3, 5, 8, 13, 21, 34]");
+        for (int i = 0; i < memory.length; i++)
+         {final int m = memory[i];
+          if (m > 0) say("M", i, m);
+         }
+        for (int i = 1; i < XLEN; i++)
+         {final int r = cpu.X[i].Int();
+          if (r > 0) say("R", i, r);
+         }
+       }
+     };
+    c.run();                                                                    // Run the RiscV computer
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_decode_addi();
     test_decode_add1();
@@ -539,12 +590,16 @@ targetRegister: 00010
     test_decode_auipc();
     test_decode_sb();
     test_decode_lh();
+    test_decode_i31();
+    test_decode_i33();
     test_fibonacci();
+    test_bubble_sort();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
-    //test_fibonacci();
+   {//oldTests();
+    //test_decode_subi();
+    test_bubble_sort();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
@@ -554,7 +609,8 @@ targetRegister: 00010
       Chip.testSummary();
      }
     catch(Exception e)                                                          // Get a traceback in a format clickable in Geany
-     {System.err.println(Chip.traceBack(e));
+     {say("AAAA", e);
+      System.err.println(Chip.fullTraceBack(e));
      }
    }
  }
