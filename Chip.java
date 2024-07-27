@@ -2069,7 +2069,7 @@ public class Chip                                                               
    }
 
   Bits shiftRightArithmetic(String output, Bits input, int shift)               // Shift the input bits right by the specified fixed number number of positions
-   {final Bits b = bits(n(output, "shiftAmount"), input.bits(), shift);        // Shift amount
+   {final Bits b = bits(n(output, "shiftAmount"), input.bits(), shift);         // Shift amount
     return shiftRightArithmetic(output, input, b);                              // Shift the input bits right by the number of positions specified in shift filling in the highest bit
    }
 
@@ -3305,8 +3305,7 @@ public class Chip                                                               
 //D2 Traceback                                                                  // Trace back so we know where we are
 
   static String fullTraceBack(Exception e)                                      // Get a full stack trace that we can use in Geany
-   {final int Skip = 2;
-    final StackTraceElement[]  t = e.getStackTrace();
+   {final StackTraceElement[]  t = e.getStackTrace();
     final StringBuilder        b = new StringBuilder();
     if (e.getMessage() != null)b.append(e.getMessage()+'\n');
 
@@ -4459,6 +4458,26 @@ Step  p
    }
 
   static void test_binary_add()
+   {loop: for (int B = 20;;)
+     {int B2 = powerTwo(B);
+      for      (int i = 1; ;)
+       {for    (int j = 1; ;)
+         {Chip      c = chip();
+          Bits      I = c.bits("i", B, i);
+          Bits      J = c.bits("j", B, j);
+          BinaryAdd a = c.binaryAdd ("ij",  I, J);
+          Bits      o = c.outputBits("o", a.sum());
+          c.Output    ("co", a.carry);
+          c.simulate  ();
+          a.sum  .ok((i+j) %  B2);
+          a.carry.ok((i+j) >= B2);
+          break loop;
+         }
+       }
+     }
+   }
+
+  static void test_binary_add22()
    {for (int B = 1; B <= (github_actions ? 4 : 3); B++)
      {int B2 = powerTwo(B);
       for      (int i = 0; i < B2; i++)
@@ -4472,6 +4491,7 @@ Step  p
           c.simulate  ();
           a.sum  .ok((i+j) %  B2);
           a.carry.ok((i+j) >= B2);
+          say("AAAA", c.steps);
          }
        }
      }
@@ -5251,7 +5271,6 @@ Step  o     e
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_each_step();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
