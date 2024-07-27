@@ -34,7 +34,6 @@ cosi l'incarnato naturale della determinazione si scolora al cospetto del pallid
 E cosi imprese di grande importanza e rilievo sono distratte dal loro naturale corso:
 e dell'azione perdono anche il nome
 */
-
 import java.util.*;
 
 //D1 Construct                                                                  // Construct a silicon chip using standard logic gates combined via buses.
@@ -538,6 +537,7 @@ public class Chip                                                               
   Gate FanIn(Operator Op, CharSequence Named, Bit...Input)                      // Normal gate - not a fan out gate
    {final String Name = Named.toString();
     final int N = Input.length;
+
     if (N == 0)                                                                 // Zerad
      {if (!zerad(Op)) stop(Op, "gate:", Name, "does not accept zero inputs");
       return new Gate(Op, Name, null, null);
@@ -1483,6 +1483,19 @@ public class Chip                                                               
     final Bits e = new BitBus(n(output), B);                                    // Enabled word
     final Bit  q = compareEq(n(output, "eq"), a, b);                            // Compare
     return enableWord(output, result, q);                                       // Enable the result if a equals b
+   }
+
+//D2 Checks                                                                     // Check that the first word is one of the following words
+
+  Bit checkIn(String Output, Bits Needle, Bits...HayStack)                      // Check that the first word is one of the following words
+   {final Bit[]R = new Bit[HayStack.length];                                    // Bit for each check
+    for (int i = 0; i < R.length; i++)                                          // Check each possible word
+     {final Bits h = HayStack[i];
+      Needle.sameSize(h);                                                       // Check that possible word has the same width as search field
+      R[i] = compareEq(n(i+1, Output, "eq"), Needle, h);                        // Check whether it is equal to this element of the list
+     }
+
+    return Or(Output, R);                                                       // One bit on means we have a match
    }
 
 //D2 Choices                                                                    // Choose one word or another
@@ -3975,6 +3988,37 @@ public class Chip                                                               
      }
    }
 
+  static void test_check_in()
+   {int  B = 4;
+    Chip c = new Chip()
+     {public void run()
+       {Bits n0 = bits   ("n0", B, 0);
+        Bits n1 = bits   ("n1", B, 1);
+        Bits n2 = bits   ("n2", B, 2);
+        Bits n3 = bits   ("n3", B, 3);
+        Bits n5 = bits   ("n5", B, 5);
+        Bits n7 = bits   ("n7", B, 7);
+        Bits n9 = bits   ("n9", B, 9);
+        Bit  p1 = checkIn("p1", n3, n7, n3);
+        Bit  p2 = checkIn("p2", n5, n7, n5, n9);
+        Bit  p3 = checkIn("p3", n7, n7, n5, n3, n9);
+        Bit  f1 = checkIn("f1", n0, n7, n5);
+        Bit  f2 = checkIn("f2", n1, n7, n5, n9);
+        Bit  f3 = checkIn("f3", n2, n7, n5, n3, n9);
+        p1.anneal(); p2.anneal(); p3.anneal();
+        f1.anneal(); f2.anneal(); f3.anneal();
+        simulate();
+        p1.ok(true);
+        p2.ok(true);
+        p3.ok(true);
+        f1.ok(false);
+        f2.ok(false);
+        f3.ok(false);
+       }
+     };
+    c.run();
+   }
+
   static void test_enable_word_equal()
    {int B = 4;
     final int[]x = {0, 2, 4, 6, 8};
@@ -5228,6 +5272,7 @@ Step  o     e
     test_enable_word_equal();
     test_monotone_mask_to_point_mask();
     test_choose_word_under_mask();
+    test_check_in();
     test_delay_bits();
     test_shift();
     test_binary_add();
@@ -5271,6 +5316,7 @@ Step  o     e
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
+    //test_check_in();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
