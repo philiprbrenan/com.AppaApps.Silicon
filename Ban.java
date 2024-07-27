@@ -92,8 +92,9 @@ final public class Ban extends Chip                                             
 
     final Bits mAL, mAS;                                                        // Memory load address, store address
     final Eq   eqLoad, eqStore;                                                 // Load requested, store requested
+    final Bit  modifyRd;                                                        // This instruction modifies the target register
 
-    final Bits    result;                                                       // Choose between immediate or dyadic operation
+    final Bits   result;                                                        // Choose between immediate or dyadic operation
 
 //D2 Memory                                                                     // Make a request to memory or receive data from memory.
 
@@ -334,9 +335,16 @@ final public class Ban extends Chip                                             
       m.targetRegister = rd;                                                    // Load register rd from memory indexed by rs1 and immediate
       m.sourceRegister = rs2;                                                   // Store content of rs2 into memory indexed by rd1 and immediate
 
+      modifyRd = C.checkIn(q("modifyRd"), opCode,                               // Is this an operation code that modifies the target register?
+       D.opArithImm, D.opArith, D.opJal, D.opJalr, D.opLui, D.opAuiPc);
+
       X[0] = null;                                                              // X0
       for (int i = 1; i < XLEN; i++)                                            // Values to reload back into registers
-        X[i]  = C.chooseThenElseIfEQ(q("X")+i, result, x[i], rd, i);            // Either the passed in register value or the newly computed one
+       {final Bit eqReg = C.compareEq(q("eqReg_")       +i, rd,   i);           // Is this the target register I see before me?
+        final Bit eqRegMod =    C.And(q("eqRegMod_")    +i, modifyRd, eqReg);   // Is this the target register and we have an instruction that modifies it?
+        X[i] = C.chooseFromTwoWords  (q("modTargetReg_")+i, x[i], result, eqRegMod);// Either the passed in register value or the newly computed one
+        //X[i]  = C.chooseThenElseIfEQ(q("X_")+i, result, x[i], rd, i);         // Either the passed in register value or the newly computed one
+       }
      }
    }
 
@@ -387,14 +395,12 @@ final public class Ban extends Chip                                             
     final public void eachStep()                                                // Implement load and store instructions, ecall instruction as these  instructions interact with the outside world
      {final Integer opCode = cpu.opCode.Int();                                  // Opcode
       if (opCode == null) return;
-//say("LLLL", steps, instruction, x[6]);
       switch(opCode)                                                            // Switch on opcode
        {case RiscV.Decode.opStore ->                                            // Store instruction
          {if (xi.fellStep == steps)
            {final int a = cpu.m.address.Int();
             final int r = cpu.m.sourceRegister.Int();
             final int v = cpu.x[r].Int();
-//say("SSSS", steps, r, v);
 
             memory[a] = (byte) (v & 0xff);                                      // Store at least a byte
             switch(cpu.funct3.Int())                                            // Decode type of store
@@ -424,7 +430,6 @@ final public class Ban extends Chip                                             
               case RiscV.Decode.f3_lw  -> {A = memory[a]; B = memory[a+1]; C = memory[a+2]; D = memory[a+3]; v = A | (B<<8) | (C<<16) | (D<<24);}
               default -> stop("Unknown funct3", cpu.funct3.Int(), "for load operation");
              }
-say("LLLL", steps, r, v, "was", x[r]);
             x[r].set(v);
            }
          }
@@ -442,6 +447,26 @@ say("LLLL", steps, r, v, "was", x[r]);
          }
         default -> {}                                                           // Not an instruction that requires interaction with the outside world
        }
+     }
+
+    public String toString()                                                    // Print the state of the cpu
+     {final StringBuilder M = new StringBuilder();
+      for (int i = 0; i < memory.length; i++)                                   // Non zero memory
+       {if (memory[i] > 0) M.append(""+i+"="+memory[i]+", ");
+       }
+      if (M.length() > 0) M.setLength(M.length()-2);
+
+      final StringBuilder R = new StringBuilder();                              // Non zero registers
+      for (int i = 1; i < XLEN; i++)
+       {final Integer r = x[i].Int();
+        if (r != null && r != 0) R.append(""+i+"="+r+", ");
+       }
+      if (R.length() > 0) R.setLength(R.length()-2);                            // Non zero registers
+
+      final StringBuilder b = new StringBuilder();                              // Format results
+      if (M.length() > 0) b.append("Memory   : "+ M.toString()+"\n");
+      if (R.length() > 0) b.append("Registers: "+ R.toString()+"\n");
+      return b.toString();
      }
    } // Cpu
 
@@ -559,22 +584,14 @@ targetRegister: 00010
    }
 
   static void test_bubble_sort()                                                // Bubble sort
-   {long[]code = {0x300293, 0x502023, 0x100293, 0x502223, 0x200293, 0x502423, 0xc00193, 0xffc18193, 0xfe01cfe3, 0x233, 0x22283, 0x422303, 0x62c363, 0x622023, 0x522223, 0x93, 0x73};
+   {long[]code = {0x900293, 0x502023, 0x300293, 0x502223, 0x100293, 0x502423, 0x200293, 0x502623, 0x800293, 0x502823, 0x600293, 0x502a23, 0x400293, 0x502c23, 0x700293, 0x502e23, 0x500293, 0x2502023, 0x2400193, 0xffc18193, 0x1ca63, 0x233, 0x22283, 0x422303, 0x62c363, 0x622023, 0x522223, 0x420213, 0xfe324ae3, 0xfd9ff06f, 0x233, 0x2103, 0x200093, 0x73, 0x402103, 0x200093, 0x73, 0x802103, 0x200093, 0x73, 0xc02103, 0x200093, 0x73, 0x1002103, 0x200093, 0x73, 0x1402103, 0x200093, 0x73, 0x1802103, 0x200093, 0x73, 0x1c02103, 0x200093, 0x73, 0x2002103, 0x200093, 0x73, 0x93, 0x73};
 
     Cpu c = new Cpu(64, code)
      {public void run()                                                         // Run the simulation
        {simulationSteps(1000*N);                                                // Simulation steps: we need to set it to sopmething, but on the other and the code has an eCall to exit so we do not have to be accurate just big enough.
         simulate();
-        say(stdout);
-        //ok(stdout.toString(), "[0, 1, 1, 2, 3, 5, 8, 13, 21, 34]");
-        for (int i = 0; i < memory.length; i++)
-         {final int m = memory[i];
-          if (m > 0) say("M", i, m);
-         }
-        for (int i = 1; i < XLEN; i++)
-         {final int r = cpu.X[i].Int();
-          if (r > 0) say("R", i, r);
-         }
+        //say(stdout);
+        ok(""+stdout, "[1, 2, 3, 4, 5, 6, 7, 8, 9]");
        }
      };
     c.run();                                                                    // Run the RiscV computer
@@ -593,13 +610,11 @@ targetRegister: 00010
     test_decode_i31();
     test_decode_i33();
     test_fibonacci();
-    //test_bubble_sort();
+    test_bubble_sort();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    //test_decode_subi();
-    //test_bubble_sort();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
