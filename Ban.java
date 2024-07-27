@@ -30,9 +30,7 @@ final public class Ban extends Chip                                             
     p_rs2        = 1 + D.p_rs2,         l_rs2        = D.l_rs2,
 
     ip_immediate = 1 + D.I.p_immediate, il_immediate = D.I.l_immediate,
-    up_immediate = 1 + D.U.p_immediate, ul_immediate = D.U.l_immediate,
-
-    opArithImm   = D.opArithImm,        opArith      = D.opArith;
+    up_immediate = 1 + D.U.p_immediate, ul_immediate = D.U.l_immediate;
 
 //D1 RV32I Cpu                                                                  // Risc V RV32I CPU.
 
@@ -313,8 +311,8 @@ final public class Ban extends Chip                                             
       PC      = C.chooseEq(q("PC"), opCode, pc4, opBranch, opJal, opJalr);      // Advance normally by default, otherwise depending on a branch or as requested by a jump
       pcImmU2 = C.binaryTCAdd(q("pcImmU2"), pc, immU2);                         // Auipc
 
-      eid13   = C.eq(C.bits(q("opCode13"),   l_opCode, opArithImm), iR     );   // Was it an arithmetic with immediate instruction?
-      eid33   = C.eq(C.bits(q("opCode33"),   l_opCode, opArith   ), dR     );   // Was it an arithmetic with two source registers?
+      eid13   = C.eq(C.bits(q("opCode13"),   l_opCode, D.opArithImm), iR   );   // Was it an arithmetic with immediate instruction?
+      eid33   = C.eq(C.bits(q("opCode33"),   l_opCode, D.opArith   ), dR   );   // Was it an arithmetic with two source registers?
       eJal    = C.eq(C.bits(q("opCodeJal"),  l_opCode, D.opJal   ), pc4    );   // Jal
       eJalr   = C.eq(C.bits(q("opCodeJalr"), l_opCode, D.opJalr  ), pc4    );   // Jalr
       eLui    = C.eq(C.bits(q("opLui"),      l_opCode, D.opLui   ), immU2  );   // Lui
@@ -389,30 +387,32 @@ final public class Ban extends Chip                                             
     final public void eachStep()                                                // Implement load and store instructions, ecall instruction as these  instructions interact with the outside world
      {final Integer opCode = cpu.opCode.Int();                                  // Opcode
       if (opCode == null) return;
+//say("LLLL", steps, instruction, x[6]);
       switch(opCode)                                                            // Switch on opcode
        {case RiscV.Decode.opStore ->                                            // Store instruction
          {if (xi.fellStep == steps)
            {final int a = cpu.m.address.Int();
             final int r = cpu.m.sourceRegister.Int();
-            final int n = cpu.x[r].Int();
+            final int v = cpu.x[r].Int();
+//say("SSSS", steps, r, v);
 
-            memory[a] = (byte) (n & 0xff);                                      // Store at least a byte
+            memory[a] = (byte) (v & 0xff);                                      // Store at least a byte
             switch(cpu.funct3.Int())                                            // Decode type of store
              {case RiscV.Decode.f3_sb -> {}                                     // Byte
               case RiscV.Decode.f3_sh ->                                        // Two bytes == half word
-               {memory[a+1] = (byte) (n>> 8 & 0xff);
+               {memory[a+1] = (byte) (v >> 8 & 0xff);
                }
               case RiscV.Decode.f3_sw ->                                        // Full word
-               {memory[a+1] = (byte) (n>> 8 & 0xff);
-                memory[a+2] = (byte) (n>>16 & 0xff);
-                memory[a+3] = (byte) (n>>24 & 0xff);
+               {memory[a+1] = (byte) (v >> 8 & 0xff);
+                memory[a+2] = (byte) (v >>16 & 0xff);
+                memory[a+3] = (byte) (v >>24 & 0xff);
                }
               default -> stop("Unknown funct3", cpu.funct3.Int(), "for store operation");
              }
            }
          }
         case RiscV.Decode.opLoad ->                                             // Load instruction
-         {if (xi.fellStep >= steps - 2)                                         // The target bits have to be set for several steps to make them stick. It is not apparent why 3 steps are needed, but for 32 bit wide operands it seems to work so we go with it.
+         {if (xi.fellStep >= steps - 4)                                         // The target bits have to be set for several steps to make them stick. It is not apparent why 3 steps are needed, but for 32 bit wide operands it seems to work so we go with it.
            {final int a = cpu.m.address.Int();
             final int r = cpu.m.targetRegister.Int();
             int A = 0, B = 0, C = 0, D = 0, v = 0;
@@ -424,7 +424,7 @@ final public class Ban extends Chip                                             
               case RiscV.Decode.f3_lw  -> {A = memory[a]; B = memory[a+1]; C = memory[a+2]; D = memory[a+3]; v = A | (B<<8) | (C<<16) | (D<<24);}
               default -> stop("Unknown funct3", cpu.funct3.Int(), "for load operation");
              }
-say("AAAA", steps, r, v);
+say("LLLL", steps, r, v, "was", x[r]);
             x[r].set(v);
            }
          }
@@ -593,13 +593,13 @@ targetRegister: 00010
     test_decode_i31();
     test_decode_i33();
     test_fibonacci();
-    test_bubble_sort();
+    //test_bubble_sort();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
+   {oldTests();
     //test_decode_subi();
-    test_bubble_sort();
+    //test_bubble_sort();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
