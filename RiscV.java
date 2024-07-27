@@ -386,7 +386,7 @@ public class RiscV extends Chip                                                 
      }
 
     class I implements Executable                                               // Decode an I format instruction
-     {final static int p_immediate = 20, l_immediate = 12;                      // Position of immediate value
+     {final static int p_immediate = 20, l_immediate = 12, p_sr = 5;            // Position of immediate value
 
       I(String Name)                                                            // Decode instruction
        {format = "I"; name = Name;
@@ -528,16 +528,16 @@ public class RiscV extends Chip                                                 
 
       case Decode.opArithImm ->                                                 // Arithmetic with immediate operands
        {switch(d.funct3)
-         {case Decode.f3_add:  return d.new I("addi")   {public void action() {x[d.rd].value = x[d.rs1].value +   d.immediate; pc = d.advance(pc);}};
-          case Decode.f3_xor:  return d.new I("xori")   {public void action() {x[d.rd].value = x[d.rs1].value ^   d.immediate; pc = d.advance(pc);}};
-          case Decode. f3_or:  return d.new I("ori")    {public void action() {x[d.rd].value = x[d.rs1].value |   d.immediate; pc = d.advance(pc);}};
-          case Decode.f3_and:  return d.new I("andi")   {public void action() {x[d.rd].value = x[d.rs1].value &   d.immediate; pc = d.advance(pc);}};
-          case Decode.f3_sll:  return d.new I("slli")   {public void action() {x[d.rd].value = x[d.rs1].value <<  d.immediate; pc = d.advance(pc);}};
+         {case Decode.f3_add:  return d.new I("addi")   {public void action() {x[d.rd].value = x[d.rs1].value +   d.immediate;         pc = d.advance(pc);}};
+          case Decode.f3_xor:  return d.new I("xori")   {public void action() {x[d.rd].value = x[d.rs1].value ^   d.immediate;         pc = d.advance(pc);}};
+          case Decode. f3_or:  return d.new I("ori")    {public void action() {x[d.rd].value = x[d.rs1].value |   d.immediate;         pc = d.advance(pc);}};
+          case Decode.f3_and:  return d.new I("andi")   {public void action() {x[d.rd].value = x[d.rs1].value &   d.immediate;         pc = d.advance(pc);}};
+          case Decode.f3_sll:  return d.new I("slli")   {public void action() {x[d.rd].value = x[d.rs1].value <<  d.immediate;         pc = d.advance(pc);}};
           case Decode.f3_srl:
             final Decode dI = d.new I(null).details();
-            switch((dI.immediate >> 5) & 0b111_1111)
-             {case 0:  return d.new I("srli")   {public void action() {x[d.rd].value = x[d.rs1].value >>> d.immediate;         pc = d.advance(pc);}};
-              case 2:  return d.new I("srai")   {public void action() {x[d.rd].value = x[d.rs1].value >>  d.immediate;         pc = d.advance(pc);}};
+            switch((dI.immediate >> Decode.I.p_sr) & 0b111_1111)
+             {case 0:  return d.new I("srli")           {public void action() {x[d.rd].value = x[d.rs1].value >>> d.immediate;         pc = d.advance(pc);}};
+              case 2:  return d.new I("srai")           {public void action() {x[d.rd].value = x[d.rs1].value >>  d.immediate;         pc = d.advance(pc);}};
               default: return null;
              }
           case Decode.f3_slt : return d.new I("slti" )  {public void action() {x[d.rd].value = x[d.rs1].value <   d.immediate ? 1 : 0; pc = d.advance(pc);}};
@@ -705,7 +705,7 @@ public class RiscV extends Chip                                                 
     return new Encode(opCode, rd, rs1, null, funct3, 0, 0, 0, i);
    }
 
-  static int encodeIImmediate(int Immediate)                                    // Encode the immediate field of a J format instruction
+  static int encodeIImmediate(int Immediate)                                    // Encode the immediate field of a I format instruction
    {return Immediate << Decode.I.p_immediate;
    }
 
@@ -1036,7 +1036,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     r.addi(b, z, 1);                                                            // b =  1
     Label start = r.new Label("start");                                         // Start of for loop
     r.sb  (i, a, o.at());                                                       // Save latest result in memory
-    r.addi(r.x1, z, 2);                                                         // Write to stdout
+    r.addi(r.x1, z, Decode.eCall_write_stdout);                                 // Write to stdout
     r.add (r.x2, z, a);                                                         // Write to stdout variable a
     r.ecall();
     r.add (c, a, b);                                                            // Latest Fibonacci number
@@ -1045,7 +1045,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     r.addi(i, i, 1);                                                            // Increment loop count
     r.blt (i, N, start);                                                        // Loop
 
-    r.add (r.x1, z, z);  r.ecall();                                             // Request exit with x1 = 0
+    r.addi(r.x1, z, Decode.eCall_stop);  r.ecall();                             // Request exit with x1 = 0
 
     r.emulate();                                                                // Run the program
     //stop(r);
@@ -1255,7 +1255,65 @@ Registers  :  x1=2
     Register a = r.x5;                                                          // Lower element
     Register b = r.x6;                                                          // Upper element
 
-    final int[]array = {9,5,8,3,1,4,7,2,6,0,99};                                // Array to sort
+    final int[]array = {3,1,2};                                                 // Array to sort
+    Variable A = r.new Variable("a", 4, array.length);                          // Array in memory
+    for (int j = 0; j < array.length; j++)                                      // Load array into memory
+     {r.addi(a, z, array[j]);
+      r.sw  (z, a, A.at(j));
+     }
+
+    r.addi(q, z, A.bytes);                                                      // Size of array
+    Label outerStart = r.new Label("outerStart");                               // Outer loop
+    Label outerEnd   = r.new Label("outerEnd");
+      r.addi(q, q, -A.width);                                                   // Each pass shortens the number of elements that still need to be sorted
+      r.blt (q, z, outerEnd);                                                   // Finished pouter loop
+
+      r.add (p, z, z);                                                          // p = 0
+      Label inner = r.new Label("inner");                                       // Swap loop
+        r.lw  (a, p, 0);                                                        // Lower element
+        r.lw  (b, p, A.width);                                                  // Upper width
+
+        Label inOrder = r.new Label("inOrder");                                 // Elements in order
+        r.blt(a, b, inOrder);                                                   // Jump if elements are in order
+          r.sw(p, b, 0);                                                        // Swap elements
+          r.sw(p, a, A.width);
+        inOrder.set();
+/*
+        r.addi(p, p, A.width);                                                  // Increment pointer
+//      r.blt (p, q, inner);                                                    // Inner loop
+
+//    r.jal (z, outerStart);                                                    // Next swap pass
+    outerEnd.set();
+
+    r.add (p, z, z);                                                            // Write sorted array
+    for (int i = 0; i < array.length; i++)
+     {r.lw  (r.x2, z, A.at(i));
+      r.addi(r.x1, z, Decode.eCall_write_stdout);
+      r.ecall();
+     }
+*/
+    r.addi (r.x1, z, Decode.eCall_stop);  r.ecall();                            // Stop
+
+    r.simulationSteps(1_000_000);
+    r.emulate();                                                                // Run the program
+    //say(r.stdout);
+    //ok(r.stdout.toString(), "[1, 2, 3]");
+    //say(r.printCode());
+    say(r.printCodeSequence());
+    //ok(r.printCodeSequence(), "long[]code = {0x900293, 0x502023, 0x500293, 0x502223, 0x800293, 0x502423, 0x300293, 0x502623, 0x100293, 0x502823, 0x400293, 0x502a23, 0x700293, 0x502c23, 0x200293, 0x502e23, 0x600293, 0x2502023, 0x293, 0x2502223, 0x6300293, 0x2502423, 0x2c00193, 0xffc18193, 0x1ca63, 0x233, 0x22283, 0x422303, 0x62c363, 0x622023, 0x522223, 0x420213, 0xfe324ae3, 0xfd9ff06f, 0x2800193, 0x233, 0x41c663, 0x200093, 0x22103, 0x73, 0x420213, 0xfedff06f, 0x93, 0x73};");
+    say(r);
+
+   } // test_bubble_sort
+
+  static void test_bubble_sort2()                                                // Bubble sort an array of integers
+   {RiscV    r = new RiscV();                                                   // New Risc V machine and program
+    Register z = r.x0;                                                          // Zero
+    Register q = r.x3;                                                          // Upper limit of array to be sorted
+    Register p = r.x4;                                                          // Current position in array
+    Register a = r.x5;                                                          // Lower element
+    Register b = r.x6;                                                          // Upper element
+
+    final int[]array = {3,1,2};                                                 // Array to sort
     Variable A = r.new Variable("a", 4, array.length);                          // Array in memory
     for (int j = 0; j < array.length; j++)                                      // Load array into memory
      {r.addi(a, z, array[j]);
@@ -1274,15 +1332,15 @@ Registers  :  x1=2
         r.lw  (b, p, A.width);                                                  // Upper width
 
         Label inOrder = r.new Label("inOrder");                                 // Elements in order
-        r.blt(a, b, inOrder);                                                   // Jump if elements are in order
+//      r.blt(a, b, inOrder);                                                   // Jump if elements are in order
           r.sw(p, b, 0);                                                        // Swap elements
           r.sw(p, a, A.width);
         inOrder.set();
 
         r.addi(p, p, A.width);                                                  // Increment pointer
-        r.blt (p, q, inner);                                                    // Inner loop
+//      r.blt (p, q, inner);                                                    // Inner loop
 
-      r.jal (z, outerStart);                                                    // Next swap pass
+//    r.jal (z, outerStart);                                                    // Next swap pass
     outerEnd.set();
 
     r.addi(q, z, A.bytes-A.width);                                              // Print loop
@@ -1302,9 +1360,9 @@ Registers  :  x1=2
     r.simulationSteps(1_000_000);
     r.emulate();                                                                // Run the program
     //say(r.stdout);
-    ok(r.stdout.toString(), "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 99]");
-    //say(r.printCodeSequence());
-    ok(r.printCodeSequence(), "long[]code = {0x900293, 0x502023, 0x500293, 0x502223, 0x800293, 0x502423, 0x300293, 0x502623, 0x100293, 0x502823, 0x400293, 0x502a23, 0x700293, 0x502c23, 0x200293, 0x502e23, 0x600293, 0x2502023, 0x293, 0x2502223, 0x6300293, 0x2502423, 0x2c00193, 0xffc18193, 0x1ca63, 0x233, 0x22283, 0x422303, 0x62c363, 0x622023, 0x522223, 0x420213, 0xfe324ae3, 0xfd9ff06f, 0x2800193, 0x233, 0x41c663, 0x200093, 0x22103, 0x73, 0x420213, 0xfedff06f, 0x93, 0x73};");
+    ok(r.stdout.toString(), "[1, 2, 3]");
+    say(r.printCodeSequence());
+    //ok(r.printCodeSequence(), "long[]code = {0x900293, 0x502023, 0x500293, 0x502223, 0x800293, 0x502423, 0x300293, 0x502623, 0x100293, 0x502823, 0x400293, 0x502a23, 0x700293, 0x502c23, 0x200293, 0x502e23, 0x600293, 0x2502023, 0x293, 0x2502223, 0x6300293, 0x2502423, 0x2c00193, 0xffc18193, 0x1ca63, 0x233, 0x22283, 0x422303, 0x62c363, 0x622023, 0x522223, 0x420213, 0xfe324ae3, 0xfd9ff06f, 0x2800193, 0x233, 0x41c663, 0x200093, 0x22103, 0x73, 0x420213, 0xfedff06f, 0x93, 0x73};");
    } // test_bubble_sort
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -1324,8 +1382,8 @@ Registers  :  x1=2
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
-    //test_bubble_sort();
+   {//oldTests();
+    test_bubble_sort();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
@@ -1335,7 +1393,7 @@ Registers  :  x1=2
       Chip.testSummary();
      }
     catch(Exception e)                                                          // Get a traceback in a format clickable in Geany
-     {System.err.println(Chip.traceBack(e));
+     {System.err.println(Chip.fullTraceBack(e));
      }
    }
  }
