@@ -1488,14 +1488,25 @@ public class Chip                                                               
 //D2 Checks                                                                     // Check that the first word is one of the following words
 
   Bit checkIn(String Output, Bits Needle, Bits...HayStack)                      // Check that the first word is one of the following words
-   {final Bit[]R = new Bit[HayStack.length];                                    // Bit for each check
-    for (int i = 0; i < R.length; i++)                                          // Check each possible word
+   {final int L = HayStack.length;
+    if (L < 2) stop("Need at least two possibilities in HayStack");
+    final Bit[]R = new Bit[L];                                                  // Bit for each check
+    for (int i = 0; i < L; i++)                                                 // Check each possible word
      {final Bits h = HayStack[i];
       Needle.sameSize(h);                                                       // Check that possible word has the same width as search field
       R[i] = compareEq(n(i+1, Output, "eq"), Needle, h);                        // Check whether it is equal to this element of the list
      }
 
-    return Or(Output, R);                                                       // One bit on means we have a match
+    return Or(Output, R);                                                       // One bit on means we have a match.
+   }
+
+  Bit checkIn(String Output, Bits Needle, int...HayStack)                       // Check that the first word is one of the following words
+   {final int B = Needle.bits();
+    final Bits[]H = new Bits[HayStack.length];                                  // Bit for each check
+    for (int i = 0; i < H.length; i++)                                          // Check each possible word
+      H[i] = bits(n(i+1, Output, "checkInInt"), B, HayStack[i]);                // Check whether it is equal to this element of the list
+
+    return checkIn(Output, Needle, H);                                          // One bit on means we have a match
    }
 
 //D2 Choices                                                                    // Choose one word or another
@@ -4019,6 +4030,33 @@ public class Chip                                                               
     c.run();
    }
 
+  static void test_check_in_int()
+   {int  B = 4;
+    Chip c = new Chip()
+     {public void run()
+       {Bits n3 = bits   ("n3", B, 3);
+        Bits n5 = bits   ("n5", B, 5);
+        Bits n7 = bits   ("n7", B, 7);
+        Bit  p1 = checkIn("p1", n3, 2, 3);
+        Bit  p2 = checkIn("p2", n5, 5, 4);
+        Bit  p3 = checkIn("p3", n7, 5, 3, 7, 9);
+        Bit  f1 = checkIn("f1", n3, 2, 4, 5, 6);
+        Bit  f2 = checkIn("f2", n5, 6, 1, 6);
+        Bit  f3 = checkIn("f3", n7, 1, 9);
+        p1.anneal(); p2.anneal(); p3.anneal();
+        f1.anneal(); f2.anneal(); f3.anneal();
+        simulate();
+        p1.ok(true);
+        p2.ok(true);
+        p3.ok(true);
+        f1.ok(false);
+        f2.ok(false);
+        f3.ok(false);
+       }
+     };
+    c.run();
+   }
+
   static void test_enable_word_equal()
    {int B = 4;
     final int[]x = {0, 2, 4, 6, 8};
@@ -5273,6 +5311,7 @@ Step  o     e
     test_monotone_mask_to_point_mask();
     test_choose_word_under_mask();
     test_check_in();
+    test_check_in_int();
     test_delay_bits();
     test_shift();
     test_binary_add();
@@ -5315,8 +5354,8 @@ Step  o     e
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
-    //test_check_in();
+   {//oldTests();
+    test_check_in_int();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
