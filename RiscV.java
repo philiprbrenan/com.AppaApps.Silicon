@@ -1649,7 +1649,7 @@ Registers  :  x3=11 x4=22
     r.stop();
 
     r.emulate();
-    //stop(r.printCodeSequence());
+    stop(r.printCodeSequence());
     //stop(r.stdout);
     ok(r.stdout, "[10, 9, 8, 7, 6, 5, 4]");
    }
