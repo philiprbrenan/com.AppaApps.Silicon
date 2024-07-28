@@ -400,7 +400,7 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-## Signal fan in and out
+# Signal fan in and out
 
 The underlying [chip](https://en.wikipedia.org/wiki/Integrated_circuit) is built up out of [Boolean](https://en.wikipedia.org/wiki/Boolean_data_type) gates that have two inputs and
 one output and a copy of the output giving two input pins and two output pins
@@ -433,4 +433,4 @@ So,Â logically, you can have as many inputs and outputs as you need for each
 Boolean [gate](https://en.wikipedia.org/wiki/Logic_gate), but at the cost of a `log(N)` delay where `N` is the number of
 bits to be fanned in or out.
 
-Modified: 2024-07-28 at 18:50:21
+Modified: 2024-07-28 at 18:55:12
