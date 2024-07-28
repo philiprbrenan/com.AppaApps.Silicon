@@ -172,6 +172,55 @@ Words Bits  Bus_____________________________
    3     3                              next  1, 3, 5
 ```
 
+# Structured programming
+
+## For loops
+
+Often a ``for`` loop can be unrolled because we know how many iterations there
+will be in advance.
+
+For example to sum the square roots of the 10 elements of [array](https://en.wikipedia.org/wiki/Dynamic_array) ``a`` we might [write](https://en.wikipedia.org/wiki/Write_(system_call)): 
+```
+count = 0;
+for(i = 1; i <= 10; ++i)
+  count += sqrt(a[i]);
+```
+
+But we could just as well unroll the loop and [write](https://en.wikipedia.org/wiki/Write_(system_call)): 
+```
+0+sqrt(a[1])+sqrt(sqrt(a[2])+sqrt(a[3])+ ... sqrt(a[10])
+```
+
+We can generate this [code](https://en.wikipedia.org/wiki/Computer_program) by writing:
+
+```
+String s  = "0"
+for(i = 1; i <= 10; ++i)
+  s  += "+sqrt(a["+i+"])"
+print(s)
+
+// 0+sqrt(a[1])+sqrt(sqrt(a[2])+ ... sqrt(a[10])
+```
+
+If you need to generate names of [variables](https://en.wikipedia.org/wiki/Variable_(computer_science)) inside the loop body, use a name
+plus an index, as in:
+
+```
+n(i, "a")
+```
+
+which will generate names like: ``a_i`` which can be used in expressions as
+needed.
+
+The [gcc](https://en.wikipedia.org/wiki/GNU_Compiler_Collection) compiler uses the same technique when you specify ``-O3`` requesting [code](https://en.wikipedia.org/wiki/Computer_program) optimized for [speed](https://en.wikipedia.org/wiki/Speed) because it eliminates the overhead of maintaining and
+checking the index [variable](https://en.wikipedia.org/wiki/Variable_(computer_science)) ``i`` which can be significant on tight loops.
+
+If the number of iterations is unknown in advance, or the generated [code](https://en.wikipedia.org/wiki/Computer_program) would
+be too large, you either have to use a pulse and a register to save results and
+coordinate reuse of the [Silicon](https://en.wikipedia.org/wiki/Silicon) - difficult - see ``test_fibonacci in Chip.java`` -
+or go up to the RiscV layer, see ``RiscV.java`` and [write](https://en.wikipedia.org/wiki/Write_(system_call)) it in conventional, but
+much slower, [assembler](https://en.wikipedia.org/wiki/Assembly_language#Assembler) [code](https://en.wikipedia.org/wiki/Computer_program). I.e. one can do addition in [software](https://en.wikipedia.org/wiki/Software) or [hardware](https://en.wikipedia.org/wiki/Digital_electronics). Our goal is to do as much as possible in [hardware](https://en.wikipedia.org/wiki/Digital_electronics) with the goal of producing a [database](https://en.wikipedia.org/wiki/Database) system on a [chip](https://en.wikipedia.org/wiki/Integrated_circuit) that is much faster and more power efficient than
+any-one else's because they are all written in [software](https://en.wikipedia.org/wiki/Software). 
 # Diagnostics
 
 ## Trace
@@ -434,4 +483,4 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-Modified: 2024-07-28 at 19:01:46
+Modified: 2024-07-28 at 21:45:33
