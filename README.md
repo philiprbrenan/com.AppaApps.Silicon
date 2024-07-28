@@ -76,8 +76,8 @@ A complete [B-Tree](https://en.wikipedia.org/wiki/B-tree):
 
 # Gates
 
-A [chip](https://en.wikipedia.org/wiki/Integrated_circuit) is built of standard [Boolean](https://en.wikipedia.org/wiki/Boolean_data_type) logic gates. Each [gate](https://en.wikipedia.org/wiki/Logic_gate) produces a [bit](https://en.wikipedia.org/wiki/Bit) value
-that can be used to drive one input [pin](https://en.wikipedia.org/wiki/555_timer_IC) of another [gate](https://en.wikipedia.org/wiki/Logic_gate) or one output [pin](https://en.wikipedia.org/wiki/555_timer_IC). 
+A [chip](https://en.wikipedia.org/wiki/Integrated_circuit) is built at the [Register Transfer Level](https://en.wikipedia.org/wiki/Register-transfer_level) out of standard [Boolean](https://en.wikipedia.org/wiki/Boolean_data_type) logic gates. Each [gate](https://en.wikipedia.org/wiki/Logic_gate) produces a [bit](https://en.wikipedia.org/wiki/Bit) value that can be used to drive one input [pin](https://en.wikipedia.org/wiki/555_timer_IC) of another [gate](https://en.wikipedia.org/wiki/Logic_gate) or
+one output [pin](https://en.wikipedia.org/wiki/555_timer_IC). 
 Each input [pin](https://en.wikipedia.org/wiki/555_timer_IC) of each [gate](https://en.wikipedia.org/wiki/Logic_gate) can only be driven by one output [pin](https://en.wikipedia.org/wiki/555_timer_IC) of a [gate](https://en.wikipedia.org/wiki/Logic_gate). To
 allow one [gate](https://en.wikipedia.org/wiki/Logic_gate) output [pin](https://en.wikipedia.org/wiki/555_timer_IC) to drive several input pins, each [gate](https://en.wikipedia.org/wiki/Logic_gate) produces two
 copies of its output [bit](https://en.wikipedia.org/wiki/Bit) enabling the construction of equal depth fan out [trees](https://en.wikipedia.org/wiki/Tree_(data_structure)). 
@@ -86,9 +86,10 @@ requested. The remaining [gate](https://en.wikipedia.org/wiki/Logic_gate) types 
 
 ## Signal fan in and out
 
-The underlying [chip](https://en.wikipedia.org/wiki/Integrated_circuit) is built up out of [Boolean](https://en.wikipedia.org/wiki/Boolean_data_type) gates that have two inputs and
-one output and a copy of the output giving two input pins and two output pins
-per [gate](https://en.wikipedia.org/wiki/Logic_gate). One output [pin](https://en.wikipedia.org/wiki/555_timer_IC) can drive just one input [pin](https://en.wikipedia.org/wiki/555_timer_IC) via a connecting wire.
+The underlying [chip](https://en.wikipedia.org/wiki/Integrated_circuit) is built up out of [Register Transfer Level](https://en.wikipedia.org/wiki/Register-transfer_level) [Boolean](https://en.wikipedia.org/wiki/Boolean_data_type) gates that have two inputs
+and one output and a copy of the output giving two input pins and two output
+pins per [gate](https://en.wikipedia.org/wiki/Logic_gate). One output [pin](https://en.wikipedia.org/wiki/555_timer_IC) can drive just one input [pin](https://en.wikipedia.org/wiki/555_timer_IC) via a connecting
+wire.
 
 There has to be a limit on how many input pins an output [pin](https://en.wikipedia.org/wiki/555_timer_IC) can drive
 otherwise we could have situations in which one output [pin](https://en.wikipedia.org/wiki/555_timer_IC) was driving millions
@@ -113,8 +114,7 @@ delay along each line of propagation. The alternative would have been to allow
 the signals to diverge as they propagate, but this makes debugging very
 difficult.
 
-So, logically, you can have as many inputs and outputs as you need for each
-Boolean [gate](https://en.wikipedia.org/wiki/Logic_gate), but at the cost of a ``log(N)`` delay where ``N`` is the number of
+So, logically, you can have as many inputs and outputs as you need for each [Register Transfer Level](https://en.wikipedia.org/wiki/Register-transfer_level) [Boolean](https://en.wikipedia.org/wiki/Boolean_data_type) [gate](https://en.wikipedia.org/wiki/Logic_gate), but at the cost of a ``log(N)`` delay where ``N`` is the number of
 bits to be fanned in or out.
 
 
@@ -174,6 +174,36 @@ Words Bits  Bus_____________________________
 
 # Structured programming
 
+## If/Then/Else statements
+
+In parallel processing both the ``then`` and ``else`` clauses will be executed
+in parallel, simultaneously, regardless of the value of the if condition.  But
+we can then ``and`` the condition with the results of each clause and ``or``
+these results together to consolidate the results and make subsequent
+processing dependent on just one branch. In effect we are converting
+conventional [code](https://en.wikipedia.org/wiki/Computer_program): 
+```
+if (c)
+  result = 1
+else
+  result = 2
+```
+
+to parallel [code](https://en.wikipedia.org/wiki/Computer_program) where ``&`` means run in parallel:
+
+```
+(a = 1 & b = 2 & C = not c)
+
+result = (a and c) or (b and C);
+```
+
+This is essentially the technique used in ``chooseThenElseIfEQ in Chip.java``.
+
+## Switch/Case statements
+
+Use a ladder of ``if`` statements, which is the method used to implement:
+``chooseEq in Chip.java``.
+
 ## For loops
 
 Often a ``for`` loop can be unrolled because we know how many iterations there
@@ -217,10 +247,20 @@ checking the index [variable](https://en.wikipedia.org/wiki/Variable_(computer_s
 
 If the number of iterations is unknown in advance, or the generated [code](https://en.wikipedia.org/wiki/Computer_program) would
 be too large, you either have to use a pulse and a register to save results and
-coordinate reuse of the [Silicon](https://en.wikipedia.org/wiki/Silicon) - difficult - see ``test_fibonacci in Chip.java`` -
-or go up to the RiscV layer, see ``RiscV.java`` and [write](https://en.wikipedia.org/wiki/Write_(system_call)) it in conventional, but
-much slower, [assembler](https://en.wikipedia.org/wiki/Assembly_language#Assembler) [code](https://en.wikipedia.org/wiki/Computer_program). I.e. one can do addition in [software](https://en.wikipedia.org/wiki/Software) or [hardware](https://en.wikipedia.org/wiki/Digital_electronics). Our goal is to do as much as possible in [hardware](https://en.wikipedia.org/wiki/Digital_electronics) with the goal of producing a [database](https://en.wikipedia.org/wiki/Database) system on a [chip](https://en.wikipedia.org/wiki/Integrated_circuit) that is much faster and more power efficient than
-any-one else's because they are all written in [software](https://en.wikipedia.org/wiki/Software). 
+coordinate reuse of the [Silicon](https://en.wikipedia.org/wiki/Silicon) - difficult - see ``test_fibonacci in
+Chip.java`` - or go up to the RiscV layer, see ``RiscV.java`` and [write](https://en.wikipedia.org/wiki/Write_(system_call)) it in
+conventional, but much slower, [assembler](https://en.wikipedia.org/wiki/Assembly_language#Assembler) [code](https://en.wikipedia.org/wiki/Computer_program). I.e. one can do addition in [software](https://en.wikipedia.org/wiki/Software) or [hardware](https://en.wikipedia.org/wiki/Digital_electronics). Our goal is to do as much as possible in [hardware](https://en.wikipedia.org/wiki/Digital_electronics) with
+the goal of producing a [database](https://en.wikipedia.org/wiki/Database) system on a [chip](https://en.wikipedia.org/wiki/Integrated_circuit) that is much faster and more
+power efficient than any-one else's because they are all written in [software](https://en.wikipedia.org/wiki/Software). 
+## Subroutines
+
+There are no subroutines at the [Register Transfer Level](https://en.wikipedia.org/wiki/Register-transfer_level) .  All notional subroutines
+have to be inlined. This precludes the use of recursion.  However, there is
+nothing stopping you from using subroutines, with or without recursion, at the [Java](https://en.wikipedia.org/wiki/Java_(programming_language)) level to generate the [Register Transfer Level](https://en.wikipedia.org/wiki/Register-transfer_level) [code](https://en.wikipedia.org/wiki/Computer_program) needed to implement an algorithm.
+
+And you can also use ``for`` loops to reuse [code](https://en.wikipedia.org/wiki/Computer_program) to obtain a similar effect to
+calling a subroutine.
+
 # Diagnostics
 
 ## Trace
@@ -483,4 +523,4 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-Modified: 2024-07-28 at 21:45:33
+Modified: 2024-07-28 at 23:56:31
