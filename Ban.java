@@ -597,6 +597,19 @@ targetRegister: 00010
     c.run();                                                                    // Run the RiscV computer
    }
 
+  static void test_for()                                                        // For loop
+   {long[]code = {0xa00213, 0x193, 0x41d663, 0x300133, 0x200093, 0x73, 0x118193, 0xfedff06f, 0x93, 0x73};
+    Cpu c = new Cpu(64, code)
+     {public void run()                                                         // Run the simulation
+       {simulationSteps(100*N);
+        simulate();
+        //stop(stdout);
+        ok(stdout, "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]");
+       }
+     };
+    c.run();                                                                    // Run the RiscV computer
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_decode_addi();
     test_decode_add1();
@@ -611,10 +624,12 @@ targetRegister: 00010
     test_decode_i33();
     test_fibonacci();
     test_bubble_sort();
+    test_for();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
+    test_for();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
