@@ -88,14 +88,14 @@ requested. The remaining [gate](https://en.wikipedia.org/wiki/Logic_gate) types 
 
 The underlying [chip](https://en.wikipedia.org/wiki/Integrated_circuit) is built up out of [Boolean](https://en.wikipedia.org/wiki/Boolean_data_type) gates that have two inputs and
 one output and a copy of the output giving two input pins and two output pins
-per gate.Â  One output [pin](https://en.wikipedia.org/wiki/555_timer_IC) can drive just one input [pin](https://en.wikipedia.org/wiki/555_timer_IC) via a connecting wire.
+per [gate](https://en.wikipedia.org/wiki/Logic_gate). One output [pin](https://en.wikipedia.org/wiki/555_timer_IC) can drive just one input [pin](https://en.wikipedia.org/wiki/555_timer_IC) via a connecting wire.
 
 There has to be a limit on how many input pins an output [pin](https://en.wikipedia.org/wiki/555_timer_IC) can drive
 otherwise we could have situations in which one output [pin](https://en.wikipedia.org/wiki/555_timer_IC) was driving millions
 of input pins which would require so much current that the output [pin](https://en.wikipedia.org/wiki/555_timer_IC) would
 fuse.
 
-When we request an ``and`` [gate](https://en.wikipedia.org/wiki/Logic_gate) (for example), weÂ might [code](https://en.wikipedia.org/wiki/Computer_program) 
+When we request an ``and`` [gate](https://en.wikipedia.org/wiki/Logic_gate) (for example), we might [code](https://en.wikipedia.org/wiki/Computer_program): 
 ```
 A = And("A", b, c, d, e)
 ```
@@ -109,11 +109,11 @@ Chip.java``.
 The fan in and fan out [trees](https://en.wikipedia.org/wiki/Tree_(data_structure)) are carefully arranged to ensure that the number
 of steps from the root to each leaf is the same along every path so that the
 fanned signal converges or diverges at the same rate leading to the same signal
-delay along each line of propagation.Â The alternative would have been to allow
+delay along each line of propagation. The alternative would have been to allow
 the signals to diverge as they propagate, but this makes debugging very
 difficult.
 
-So,Â logically, you can have as many inputs and outputs as you need for each
+So, logically, you can have as many inputs and outputs as you need for each
 Boolean [gate](https://en.wikipedia.org/wiki/Logic_gate), but at the cost of a ``log(N)`` delay where ``N`` is the number of
 bits to be fanned in or out.
 
@@ -434,4 +434,4 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-Modified: 2024-07-28 at 18:59:28
+Modified: 2024-07-28 at 19:01:46
