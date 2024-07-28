@@ -3553,6 +3553,10 @@ public class Chip                                                               
     else ++testsPassed;
    }
 
+  static void ok(Integer[]G, String E)                                          // Check that two integer arrays are are equal
+   {ok(""+G, E);
+   }
+
   static void ok(Integer[]G, Integer[]E)                                        // Check that two integer arrays are are equal
    {final StringBuilder b = new StringBuilder();
     final int lg = G.length, le = E.length;
