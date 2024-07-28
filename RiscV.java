@@ -897,8 +897,8 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
    {final String name;                                                          // Name of label
     int        offset = 0;                                                      // Instruction following label if known
     Label(String Name)                                                          // Create label assumed to be just after the current instruction
-     {name   = Name;
-      offset = code.size();
+     {offset = code.size();
+      name   = Name+"_"+offset;                                                 // Make sure the label is unique
       labels.put(name, this);                                                   // Index label
      }
     void set() {offset = code.size();}                                          // Set a label to the current point in the code
@@ -922,6 +922,121 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
     int at(int i)  {return at + i * width;}                                     // Offset to an element in an array
     int at()       {return at(0);}                                              // Offset to start of variable
+   }
+
+//D1 Structured programming                                                     // Structured programming features.
+
+  abstract class IfEq                                                           // If equal execute the "then" statement else the "else" statement
+   {final Label el;
+    final Label ed;
+
+    IfEq(Register r1, Register r2)
+     {el = new Label("ifeq_else");
+      ed = new Label("ifeq_end");
+      bne(r1, r2, el);
+        Then();
+        jal(x[0], ed);
+      el.set();
+        Else();
+      ed.set();
+     }
+
+    abstract void Then();
+    void          Else() {}
+   }
+
+  abstract class IfNe                                                           // If not equal execute the "then" statement else the "else" statement
+   {final Label el;
+    final Label ed;
+
+    IfNe(Register r1, Register r2)
+     {el = new Label("ifne_else");
+      ed = new Label("ifne_end");
+      beq(r1, r2, el);
+        Then();
+        jal(x[0], ed);
+      el.set();
+        Else();
+      ed.set();
+     }
+
+    abstract void Then();
+    void          Else() {}
+   }
+
+  abstract class IfLt                                                           // If less than execute the "then" statement else the "else" statement
+   {final Label el;
+    final Label ed;
+
+    IfLt(Register r1, Register r2)
+     {el = new Label("iflt_else");
+      ed = new Label("iflt_end");
+      bge(r1, r2, el);
+        Then();
+        jal(x[0], ed);
+      el.set();
+        Else();
+      ed.set();
+     }
+
+    abstract void Then();
+    void          Else() {}
+   }
+
+  abstract class IfGe                                                           // If greater than or equal execute the "then" statement else the "else" statement
+   {final Label el;
+    final Label ed;
+
+    IfGe(Register r1, Register r2)
+     {el = new Label("ifge_else");
+      ed = new Label("ifge_end");
+      blt(r1, r2, el);
+        Then();
+        jal(x[0], ed);
+      el.set();
+        Else();
+      ed.set();
+     }
+
+    abstract void Then();
+    void          Else() {}
+   }
+
+  abstract class For                                                            // Increment a register from zero to a specified limit executing a body each time
+   {final Label start;
+    final Label end;
+    final Register z = x0;
+
+    For(Register count, Register limit)
+     {addi(count, z, 0);
+      start = new Label("forStart");
+      end   = new Label("forEnd");
+
+      bge(count, limit, end);
+        body();
+        addi(count, count, 1);
+        jal(z, start);
+      end.set();
+     }
+
+    void body() {}                                                              // Body of the for loop
+   }
+
+  void stop()                                                                   // Stop
+   {addi(x1, x0, Decode.eCall_stop);
+    ecall();
+   }
+
+  void out(Register a)                                                          // Write a register to stdout
+   {if (a != x2) add (x2, x0, a);
+    addi(x1, x0, Decode.eCall_write_stdout);
+    ecall();
+   }
+
+  void err(Register a)                                                          // Write a register to stderr
+   {if (a != x2) add (x2, x0, a);
+    addi(x1, x0, Decode.eCall_write_stderr);
+    ecall();
    }
 
 //D0
@@ -1073,11 +1188,11 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
 000a       add    33   5  6  0   0   0  0  0  0 0          0    302b3
 000b      addi    13   7  7  1   0   0  0  0  0 0          1   138393
 000c       blt    63  11  7  3   4   4 1f 7f  0 0   fffffff0 fe33c8e3
-000d       add    33   1  0  0   0   0  0  0  0 0          0       b3
+000d      addi    13   1  0  0   0   0  0  0  0 0          0       93
 000e     ecall    73   0  0  0   0   0  0  0  0 0          0       73
 """);
-    ok(r.stdout.toString(), "[0, 1, 1, 2, 3, 5, 8, 13, 21, 34]");
-    ok(r.printCodeSequence(), "long[]code = {0xa00193, 0x393, 0x213, 0x100293, 0x438a23, 0x200093, 0x400133, 0x73, 0x520333, 0x28233, 0x302b3, 0x138393, 0xfe33c8e3, 0xb3, 0x73};");
+    ok(r.stdout, "[0, 1, 1, 2, 3, 5, 8, 13, 21, 34]");
+    //ok(r.printCodeSequence(), "long[]code = {0xa00193, 0x393, 0x213, 0x100293, 0x438a23, 0x200093, 0x400133, 0x73, 0x520333, 0x28233, 0x302b3, 0x138393, 0xfe33c8e3, 0xb3, 0x73};");
    } // test_fibonacci
 
   static void test_lui()                                                        // Load upper immediate
@@ -1297,11 +1412,164 @@ Registers  :  x1=2
     r.simulationSteps(1_000_000);
     r.emulate();                                                                // Run the program
     //say(r.stdout);
-    ok(r.stdout.toString(), "[1, 2, 3, 4, 5, 6, 7, 8, 9]");
+    ok(r.stdout, "[1, 2, 3, 4, 5, 6, 7, 8, 9]");
     //say(r.printCode());                                                       // Code table
-    say(r.printCodeSequence());                                                 // Code instructions
+    //say(r.printCodeSequence());                                               // Code instructions
     //say(r);                                                                   // Cpu state
    } // test_bubble_sort
+
+  static void test_if_eq()                                                      // Test if equal
+   {RiscV    r = new RiscV();                                                   // New Risc V machine and program
+    Register z = r.x0;                                                          // Zero
+    Register a = r.x3;
+    Register b = r.x4;
+
+    r.addi(a, z, 2);
+    r.addi(b, z, 2);
+    r.new IfEq(a, b)
+     {void Then()
+       {r.addi(a, z, 11);
+        r.addi(b, z, 22);
+       }
+      void Else()
+       {r.addi(a, z, 33);
+        r.addi(b, z, 44);
+       }
+     };
+
+    r.addi (r.x1, z, Decode.eCall_stop);  r.ecall();                            // Stop
+
+    r.simulationSteps(1_000_000);
+    r.emulate();                                                                // Run the program
+    //say(r.printCodeSequence());                                                 // Code instructions
+    //say(r);                                                                     // Cpu state
+    r.ok("""
+RiscV      : if_eq
+Step       : 8
+Instruction: 40
+Registers  :  x3=11 x4=22
+""");
+   }
+
+  static void test_if_ne()                                                      // Test if not equal
+   {RiscV    r = new RiscV();                                                   // New Risc V machine and program
+    Register z = r.x0;                                                          // Zero
+    Register a = r.x3;
+    Register b = r.x4;
+
+    r.addi(a, z, 2);
+    r.addi(b, z, 2);
+    r.new IfNe(a, b)
+     {void Then()
+       {r.addi(a, z, 11);
+        r.addi(b, z, 22);
+       }
+      void Else()
+       {r.addi(a, z, 33);
+        r.addi(b, z, 44);
+       }
+     };
+
+    r.addi (r.x1, z, Decode.eCall_stop);  r.ecall();                            // Stop
+
+    r.simulationSteps(1_000_000);
+    r.emulate();                                                                // Run the program
+    //say(r.printCodeSequence());                                                 // Code instructions
+    //say(r);                                                                     // Cpu state
+    r.ok("""
+RiscV      : if_ne
+Step       : 7
+Instruction: 40
+Registers  :  x3=33 x4=44
+""");
+   }
+
+  static void test_if_lt()                                                      // Test if less than
+   {RiscV    r = new RiscV();                                                   // New Risc V machine and program
+    Register z = r.x0;                                                          // Zero
+    Register a = r.x3;
+    Register b = r.x4;
+
+    r.addi(a, z, 2);
+    r.addi(b, z, 2);
+    r.new IfLt(a, b)
+     {void Then()
+       {r.addi(a, z, 11);
+        r.addi(b, z, 22);
+       }
+      void Else()
+       {r.addi(a, z, 33);
+        r.addi(b, z, 44);
+       }
+     };
+
+    r.addi (r.x1, z, Decode.eCall_stop);  r.ecall();                            // Stop
+
+    r.simulationSteps(1_000_000);
+    r.emulate();                                                                // Run the program
+    //say(r.printCodeSequence());                                                 // Code instructions
+    //say(r);                                                                     // Cpu state
+    r.ok("""
+RiscV      : if_lt
+Step       : 7
+Instruction: 40
+Registers  :  x3=33 x4=44
+""");
+   }
+
+  static void test_if_ge()                                                      // Test if greater than or equal
+   {RiscV    r = new RiscV();                                                   // New Risc V machine and program
+    Register z = r.x0;                                                          // Zero
+    Register a = r.x3;
+    Register b = r.x4;
+
+    r.addi(a, z, 2);
+    r.addi(b, z, 1);
+    r.new IfGe(a, b)
+     {void Then()
+       {r.addi(a, z, 11);
+        r.addi(b, z, 22);
+       }
+      void Else()
+       {r.addi(a, z, 33);
+        r.addi(b, z, 44);
+       }
+     };
+
+    r.addi (r.x1, z, Decode.eCall_stop);  r.ecall();                            // Stop
+
+    r.simulationSteps(1_000_000);
+    r.emulate();                                                                // Run the program
+    //say(r.printCodeSequence());                                                 // Code instructions
+    //say(r);                                                                     // Cpu state
+    r.ok("""
+RiscV      : if_ge
+Step       : 8
+Instruction: 40
+Registers  :  x3=11 x4=22
+""");
+   }
+
+  static void test_for()                                                        // For loop
+   {RiscV    r = new RiscV();
+    Register z = r.x0;
+    Register a = r.x3;
+    Register b = r.x4;
+
+    r.addi(b, z, 10);
+    r.new For(a, b)
+     {void body()
+       {r.out(a);
+       }
+     };
+
+    r.stop();
+
+    r.emulate();
+    //stop(r.printCodeSequence());
+    //stop(r.stdout);
+    ok(r.stdout, "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]");
+   }
 
   static void oldTests()                                                        // Tests thought to be in good shape
    {if (github_actions) test_immediate_b();
@@ -1317,11 +1585,15 @@ Registers  :  x1=2
     test_ecall();
     test_fibonacci();
     test_bubble_sort();
+    test_if_eq();
+    test_if_ne();
+    test_if_lt();
+    test_if_ge();
+    test_for();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_bubble_sort();
+   {oldTests();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
