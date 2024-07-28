@@ -623,6 +623,19 @@ targetRegister: 00010
     c.run();                                                                    // Run the RiscV computer
    }
 
+  static void test_down_break()                                                 // Down for loop
+   {long[]code = {0xa00213, 0x500293, 0x4001b3, 0x18763, 0x300133, 0x200093, 0x73, 0x51c363, 0xfff18193, 0xfe9ff06f, 0x93, 0x73};
+    Cpu c = new Cpu(64, code)
+     {public void run()                                                         // Run the simulation
+       {simulationSteps(100*N);
+        simulate();
+        //stop(stdout);
+        ok(stdout, "[10, 9, 8, 7, 6, 5, 4]");
+       }
+     };
+    c.run();                                                                    // Run the RiscV computer
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_decode_addi();
     test_decode_add1();
@@ -644,6 +657,7 @@ targetRegister: 00010
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
+    test_down_break();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
@@ -653,8 +667,7 @@ targetRegister: 00010
       Chip.testSummary();
      }
     catch(Exception e)                                                          // Get a traceback in a format clickable in Geany
-     {say("AAAA", e);
-      System.err.println(Chip.fullTraceBack(e));
+     {System.err.println(Chip.fullTraceBack(e));
      }
    }
  }
