@@ -49,7 +49,7 @@ if (1)                                                                          
 
     my $t = swapFilePrefix $s, $home;
     my $w = writeFileUsingSavedToken($user, $repo, $t, $c);
-    lll "$w $s $t";
+    lll "$w  $t";
    }
  }
 
