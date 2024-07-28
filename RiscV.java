@@ -1002,24 +1002,62 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     void          Else() {}
    }
 
-  abstract class For                                                            // Increment a register from zero to a specified limit executing a body each time
-   {final Label start;
-    final Label end;
+  abstract class Up                                                             // Increment a register from zero to a specified limit executing a body each time
+   {final Label start;                                                          // Start of the for loop
+    final Label next;                                                           // Next iteration of for loop
+    final Label end;                                                            // End of for loop
     final Register z = x0;
+    final Register count;                                                       // Count register
+    final Register limit;                                                       // Limit register
 
-    For(Register count, Register limit)
-     {addi(count, z, 0);
-      start = new Label("forStart");
-      end   = new Label("forEnd");
+    Up(Register Count, Register Limit)                                          // Create up for loop
+     {count = Count; limit = Limit;
+      addi(count, z, 0);
+      start = new Label("upStart");
+      end   = new Label("upEnd");
 
       bge(count, limit, end);
         body();
+        next = new Label("upNext");
         addi(count, count, 1);
         jal(z, start);
       end.set();
      }
 
-    void body() {}                                                              // Body of the for loop
+    void body    () {}                                                          // Body
+    void Continue() {jal(z, end);}                                              // Restart this iteration
+    void Next    () {jal(z, next);}                                             // Start next iteration
+    void Break   () {jal(z, start);}                                            // Break out unconditionally
+    void breakGe (Register b) {bge(count, b, end);}                             // Break out if the count is greater than or equal to that of the specified register
+   }
+
+  abstract class Down                                                           // Revere for loop
+   {final Label start;                                                          // Start of the for loop
+    final Label next;                                                           // Next iteration of for loop
+    final Label end;                                                            // End of for loop
+    final Register z = x0;
+    final Register count;                                                       // Count register
+    final Register limit;                                                       // Limit register
+
+    Down(Register Count, Register Limit)                                        // Create down for loop
+     {count = Count; limit = Limit;
+      add(count, z, limit);
+      start = new Label("downStart");
+      end   = new Label("downEnd");
+
+      beq(count, z, end);
+        body();
+        next = new Label("downNext");
+        addi(count, count, -1);
+        jal(z, start);
+      end.set();
+     }
+
+    void body    () {}                                                          // Body
+    void Continue() {jal(z, end);}                                              // Restart this iteration
+    void Next    () {jal(z, next);}                                             // Start next iteration
+    void Break   () {jal(z, start);}                                            // Break out unconditionally
+    void breakLt (Register b) {blt(count, b, end);}                             // Break out if count is less than that of the specified register
    }
 
   void stop()                                                                   // Stop
@@ -1550,14 +1588,14 @@ Registers  :  x3=11 x4=22
 """);
    }
 
-  static void test_for()                                                        // For loop
+  static void test_up()                                                         // For loop
    {RiscV    r = new RiscV();
     Register z = r.x0;
     Register a = r.x3;
     Register b = r.x4;
 
     r.addi(b, z, 10);
-    r.new For(a, b)
+    r.new Up(a, b)
      {void body()
        {r.out(a);
        }
@@ -1569,6 +1607,51 @@ Registers  :  x3=11 x4=22
     //stop(r.printCodeSequence());
     //stop(r.stdout);
     ok(r.stdout, "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]");
+   }
+
+  static void test_down()                                                       // Down loop
+   {RiscV    r = new RiscV();
+    Register z = r.x0;
+    Register a = r.x3;
+    Register b = r.x4;
+
+    r.addi(b, z, 10);
+    r.new Down(a, b)
+     {void body()
+       {r.out(a);
+       }
+     };
+
+    r.stop();
+
+    r.emulate();
+    //stop(r.printCodeSequence());
+    //stop(r.stdout);
+    ok(r.stdout, "[10, 9, 8, 7, 6, 5, 4, 3, 2, 1]");
+   }
+
+  static void test_down_break()                                                 // Down with break
+   {RiscV    r = new RiscV();
+    Register z = r.x0;
+    Register a = r.x3;
+    Register b = r.x4;
+    Register c = r.x5;
+
+    r.addi(b, z, 10);
+    r.addi(c, z,  5);
+    r.new Down(a, b)
+     {void body()
+       {r.out(a);
+        breakLt(c);
+       }
+     };
+
+    r.stop();
+
+    r.emulate();
+    //stop(r.printCodeSequence());
+    //stop(r.stdout);
+    ok(r.stdout, "[10, 9, 8, 7, 6, 5, 4]");
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -1589,11 +1672,14 @@ Registers  :  x3=11 x4=22
     test_if_ne();
     test_if_lt();
     test_if_ge();
-    test_for();
+    test_up();
+    test_down();
+    test_down_break();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
+    test_down_break();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
