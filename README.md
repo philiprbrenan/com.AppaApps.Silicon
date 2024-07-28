@@ -95,16 +95,16 @@ otherwise we could have situations in which one output [pin](https://en.wikipedi
 of input pins which would require so much current that the output [pin](https://en.wikipedia.org/wiki/555_timer_IC) would
 fuse.
 
-When we request an `and` [gate](https://en.wikipedia.org/wiki/Logic_gate) (for example), weÂ might [code](https://en.wikipedia.org/wiki/Computer_program) 
+When we request an ``and`` [gate](https://en.wikipedia.org/wiki/Logic_gate) (for example), weÂ might [code](https://en.wikipedia.org/wiki/Computer_program) 
 ```
 A = And("A", b, c, d, e)
 ```
 
-i.e. we might provide more than two inputs `b .. e`.Â  Internally, such
-gates are broken down into a [tree](https://en.wikipedia.org/wiki/Tree_(data_structure)) of AND gates, see: `fanIn in Chip.java`.
+i.e. we might provide more than two inputs ``b .. e``. Internally, such
+gates are broken down into a [tree](https://en.wikipedia.org/wiki/Tree_(data_structure)) of AND gates, see: ``fanIn in Chip.java``.
 
-Also, we might appear to allow one output [pin](https://en.wikipedia.org/wiki/555_timer_IC) to drive more than one input [pin](https://en.wikipedia.org/wiki/555_timer_IC), but internally this is replaced by a [tree](https://en.wikipedia.org/wiki/Tree_(data_structure)) of fan outs, see: `fanOut in
-Chip.java`.
+Also, we might appear to allow one output [pin](https://en.wikipedia.org/wiki/555_timer_IC) to drive more than one input [pin](https://en.wikipedia.org/wiki/555_timer_IC), but internally this is replaced by a [tree](https://en.wikipedia.org/wiki/Tree_(data_structure)) of fan outs, see: ``fanOut in
+Chip.java``.
 
 The fan in and fan out [trees](https://en.wikipedia.org/wiki/Tree_(data_structure)) are carefully arranged to ensure that the number
 of steps from the root to each leaf is the same along every path so that the
@@ -114,7 +114,7 @@ the signals to diverge as they propagate, but this makes debugging very
 difficult.
 
 So,Â logically, you can have as many inputs and outputs as you need for each
-Boolean [gate](https://en.wikipedia.org/wiki/Logic_gate), but at the cost of a `log(N)` delay where `N` is the number of
+Boolean [gate](https://en.wikipedia.org/wiki/Logic_gate), but at the cost of a ``log(N)`` delay where ``N`` is the number of
 bits to be fanned in or out.
 
 
@@ -434,4 +434,4 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-Modified: 2024-07-28 at 18:56:14
+Modified: 2024-07-28 at 18:59:28
