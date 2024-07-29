@@ -74,7 +74,7 @@ public class Chip                                                               
   final Map<String, Pulse>     pulses = new TreeMap<>();                        // Bits that are externally driven by periodic pulses of a specified duty cycle
   Trace                executionTrace = null;                                   // Execution trace goes here
 
-  int                         gateSeq =   0;                                    // Gate sequence number - this allows us to display the gates in the order they were defined to simplify the understanding of drawn layouts
+  int                         gateSeq =   0;                                    // Sequence numbers for gates
   int                           steps =   0;                                    // Simulation step time
   int         maximumDistanceToOutput;                                          // Maximum distance from an output
   int      countAtMostCountedDistance;                                          // The distance at which we have the most gates from an output
@@ -255,7 +255,6 @@ public class Chip                                                               
   class Gate extends Bit                                                        // Description of a gate that produces a bit
    {final Operator     op;                                                      // Operation performed by gate
     final int         seq;                                                      // Sequence number for gate
-    static int        Seq = 0;                                                  // Sequence numbers for gates
     Gate           iGate1,  iGate2;                                             // Gates driving the inputs of this gate as during simulation but not during layout
     Bit  soGate1, soGate2, tiGate1, tiGate2;                                    // Pin assignments on source and target gates used during layout but not during simulation
     final TreeSet<WhichPin>
@@ -276,7 +275,7 @@ public class Chip                                                               
     public Gate(Operator Op, CharSequence Name, Bit Input1, Bit Input2)         // User created gate with a user supplied name and inputs
      {super(Name);
       op  = Op;
-      seq = ++Seq;
+      seq = ++gateSeq;                                                          // Gate sequence number
       gates.put(name, this);
 
       if (commutative(op))                                                      // Any input pin will do
@@ -4557,6 +4556,7 @@ Step  p
           c.simulate  ();
           a.sum  .ok((i+j) %  B2);
           a.carry.ok((i+j) >= B2);
+          if (i == 2 && j == 3) stop(c);
          }
        }
      }
