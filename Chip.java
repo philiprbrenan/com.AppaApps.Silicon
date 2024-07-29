@@ -4556,7 +4556,7 @@ Step  p
           c.simulate  ();
           a.sum  .ok((i+j) %  B2);
           a.carry.ok((i+j) >= B2);
-          if (i == 2 && j == 3) stop(c);
+          //if (i == 2 && j == 3) stop(c);                                      // Test used to generate chip state in README.md
          }
        }
      }
