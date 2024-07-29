@@ -1009,9 +1009,10 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     final Register z = x0;
     final Register count;                                                       // Count register
     final Register limit;                                                       // Limit register
+    final int      step;                                                        // Step
 
-    Up(Register Count, Register Limit)                                          // Create up for loop
-     {count = Count; limit = Limit;
+    Up(Register Count, Register Limit, int Step)                                // Create up for loop with specified step which should be positive else +1 is used
+     {count = Count; limit = Limit; step = max(1, Step);
       addi(count, z, 0);
       start = new Label("upStart");
       end   = new Label("upEnd");
@@ -1019,15 +1020,18 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
       bge(count, limit, end);
         body();
         next = new Label("upNext");
-        addi(count, count, 1);
+        addi(count, count, step);
         jal(z, start);
       end.set();
      }
+    Up(Register Count, Register Limit)                                          // Create up for loop with step of 1
+     {this(Count, Limit, 1);
+     }
 
     void body    () {}                                                          // Body
-    void Continue() {jal(z, end);}                                              // Restart this iteration
+    void Continue() {jal(z, start);}                                            // Restart this iteration
     void Next    () {jal(z, next);}                                             // Start next iteration
-    void Break   () {jal(z, start);}                                            // Break out unconditionally
+    void Break   () {jal(z, end);}                                              // Break out unconditionally
     void breakGe (Register b) {bge(count, b, end);}                             // Break out if the count is greater than or equal to that of the specified register
    }
 
@@ -1038,25 +1042,31 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     final Register z = x0;
     final Register count;                                                       // Count register
     final Register limit;                                                       // Limit register
+    final int      step;                                                        // Step
 
-    Down(Register Count, Register Limit)                                        // Create down for loop
-     {count = Count; limit = Limit;
+    Down(Register Count, Register Limit, int Step)                              // Create down for loop with specified step which should be negative else -1 was is used
+     {count = Count; limit = Limit; step = min(-1, Step);
       add(count, z, limit);
+      addi(count, count, step);
       start = new Label("downStart");
       end   = new Label("downEnd");
 
-      beq(count, z, end);
+      blt(count, z, end);
         body();
         next = new Label("downNext");
-        addi(count, count, -1);
+        addi(count, count, step);
         jal(z, start);
       end.set();
      }
 
+    Down(Register Count, Register Limit)                                        // Create down for loop
+     {this(Count, Limit, -1);
+     }
+
     void body    () {}                                                          // Body
-    void Continue() {jal(z, end);}                                              // Restart this iteration
+    void Continue() {jal(z, start);}                                            // Restart this iteration
     void Next    () {jal(z, next);}                                             // Start next iteration
-    void Break   () {jal(z, start);}                                            // Break out unconditionally
+    void Break   () {jal(z, end);}                                              // Break out unconditionally
     void breakLt (Register b) {blt(count, b, end);}                             // Break out if count is less than that of the specified register
    }
 
@@ -1456,6 +1466,61 @@ Registers  :  x1=2
     //say(r);                                                                   // Cpu state
    } // test_bubble_sort
 
+  static void test_insertion_sort()                                             // Insertion sort an array of integers
+   {RiscV    r = new RiscV();                                                   // New Risc V machine and program
+    Register z = r.x0;                                                          // Zero
+    Register o = r.x3;                                                          // Current search position in sorted prefix
+    Register p = r.x4;                                                          // Current position in array being sorted
+    Register q = r.x5;                                                          // Upper limit of array to be sorted
+    Register a = r.x6;                                                          // Lower element
+    Register b = r.x7;                                                          // Upper element
+
+    final int[]array = {9,3,1,2,8,6,4,7,5};                                     // Array to sort
+    Variable A = r.new Variable("a", 4, array.length);                          // Array in memory
+    for (int j = 0; j < array.length; j++)                                      // Load array into memory
+     {r.addi(a, z, array[j]);
+      r.sw  (z, a, A.at(j));
+     }
+
+    r.addi(q, z, A.bytes);                                                      // Size of array
+    r.new Up(p, q, A.width)
+     {void body()                                                               // Lengthen the sorted suffix
+       {r.new Down(o, p, -A.width)
+         {void body()                                                           // Down through sorted prefix
+           {r.lw(a, o, 0);
+            r.lw(b, o, A.width);
+            final Down down = this;
+            r.new IfLt(b, a)                                                    // Swap
+             {void Then()
+               {r.sw(o, b, 0);
+                r.sw(o, a, A.width);
+               }
+              void Else()                                                       // In order - so finished
+               {down.Break();
+               }
+             };
+           }
+         };
+       }
+     };
+
+    r.new Up(p, q, A.width)                                                     // Write sorted array
+     {void body()
+       {r.lw (a, p, 0);
+        r.out(a);
+       }
+     };
+
+    r.stop();
+    r.simulationSteps(1_000);
+    r.emulate();                                                                // Run the program
+    //say(r.stdout);
+    ok(r.stdout, "[1, 2, 3, 4, 5, 6, 7, 8, 9]");
+    //say(r.printCode());                                                       // Code table
+    say(r.printCodeSequence());                                               // Code instructions
+    //say(r);                                                                   // Cpu state
+   } // test_insertion_sort
+
   static void test_if_eq()                                                      // Test if equal
    {RiscV    r = new RiscV();                                                   // New Risc V machine and program
     Register z = r.x0;                                                          // Zero
@@ -1627,7 +1692,7 @@ Registers  :  x3=11 x4=22
     r.emulate();
     //stop(r.printCodeSequence());
     //stop(r.stdout);
-    ok(r.stdout, "[10, 9, 8, 7, 6, 5, 4, 3, 2, 1]");
+    ok(r.stdout, "[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]");
    }
 
   static void test_down_break()                                                 // Down with break
@@ -1646,12 +1711,10 @@ Registers  :  x3=11 x4=22
        }
      };
 
-    r.stop();
-
     r.emulate();
     //stop(r.printCodeSequence());
     //stop(r.stdout);
-    ok(r.stdout, "[10, 9, 8, 7, 6, 5, 4]");
+    ok(r.stdout, "[9, 8, 7, 6, 5, 4]");
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -1668,6 +1731,7 @@ Registers  :  x3=11 x4=22
     test_ecall();
     test_fibonacci();
     test_bubble_sort();
+    test_insertion_sort();
     test_if_eq();
     test_if_ne();
     test_if_lt();
@@ -1679,7 +1743,7 @@ Registers  :  x3=11 x4=22
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    test_down_break();
+    test_insertion_sort();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
