@@ -239,8 +239,8 @@ plus an index, as in:
 n(i, "a")
 ```
 
-which will generate names like: ``a_i`` which can be used in expressions as
-needed.
+which will generate names like: ``a_1, a_2, a_3 ...`` which can be used in
+expressions as needed.
 
 The [gcc](https://en.wikipedia.org/wiki/GNU_Compiler_Collection) compiler uses the same technique when you specify ``-O3`` requesting [code](https://en.wikipedia.org/wiki/Computer_program) optimized for [speed](https://en.wikipedia.org/wiki/Speed) because it eliminates the overhead of maintaining and
 checking the index [variable](https://en.wikipedia.org/wiki/Variable_(computer_science)) ``i`` which can be significant on tight loops.
@@ -523,4 +523,4 @@ Seq   Name____________________________  Operator  #  111111111111111111111111111
    9                             top_3       One  1                                  -.=.                                  -.=.  0    0    0     3                    out_nextLink_3     0,   0  out_nextLink1_b_3, out_nextLink4_b_3
 ```
 
-Modified: 2024-07-29 at 02:41:07
+Modified: 2024-07-29 at 02:42:01
