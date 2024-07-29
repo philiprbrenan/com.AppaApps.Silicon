@@ -597,6 +597,20 @@ targetRegister: 00010
     c.run();                                                                    // Run the RiscV computer
    }
 
+  static void test_insertion_sort()                                             // Insertion sort
+   {long[]code = {0x900313, 0x602023, 0x300313, 0x602223, 0x100313, 0x602423, 0x200313, 0x602623, 0x800313, 0x602823, 0x600313, 0x602a23, 0x400313, 0x602c23, 0x700313, 0x602e23, 0x500313, 0x2602023, 0x2400293, 0x213, 0x525f63, 0x4001b3, 0xffc18193, 0x1ca63, 0x1a303, 0x41a383, 0x63d463, 0x71a023, 0x61a223, 0x80006f, 0xc0006f, 0xffc18193, 0xfddff06f, 0x420213, 0xfc9ff06f, 0x213, 0x525763, 0x22303, 0x600133, 0x200093, 0x73, 0x420213, 0xfe9ff06f, 0x93, 0x73};
+
+    Cpu c = new Cpu(64, code)
+     {public void run()                                                         // Run the simulation
+       {simulationSteps(1000*N);                                                // Simulation steps: we need to set it to sopmething, but on the other and the code has an eCall to exit so we do not have to be accurate just big enough.
+        simulate();
+        //say(stdout);
+        ok(""+stdout, "[1, 2, 3, 4, 5, 6, 7, 8, 9]");
+       }
+     };
+    c.run();                                                                    // Run the RiscV computer
+   }
+
   static void test_up()                                                         // Up for loop
    {long[]code = {0xa00213, 0x193, 0x41d663, 0x300133, 0x200093, 0x73, 0x118193, 0xfedff06f, 0x93, 0x73};
     Cpu c = new Cpu(64, code)
@@ -650,6 +664,7 @@ targetRegister: 00010
     test_decode_i33();
     test_fibonacci();
     test_bubble_sort();
+    test_insertion_sort();
     test_up();
     test_down();
     test_down_break();
@@ -657,7 +672,7 @@ targetRegister: 00010
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    test_down_break();
+    //test_insertion_sort();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
