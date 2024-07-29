@@ -1981,7 +1981,7 @@ public class Chip                                                               
     final Bits G = andBits(n(output, "G"), in1, in2);                          // Generate prefix bits
     final Bits P = xorBits(n(output, "P"), in1, in2);                          // Propagate prefix bits
     final Bits G_next = bits(n(output, "G_next"), B);                                          // Result bits
-    final Bits P_next = bits(n(output, "G_next"), B);                                          // Result bits
+    final Bits P_next = bits(n(output, "P_next"), B);                                          // Result bits
     //final String R = n(output, "result"), K = n(output, "carry");
     int step = 1;
     while (step < B) {
