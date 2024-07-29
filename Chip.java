@@ -4616,6 +4616,7 @@ Step  p
        Bits      o = c.outputBits("o", a.sum());
        c.Output    ("co", a.carry);
        c.simulate  ();
+       a.sum  .ok(i+j);
        System.err.println("B="+B+" i="+i+" j="+j+" sum="+o.Int()+" steps="+c.steps);
    }
 
@@ -5396,7 +5397,8 @@ Step  o     e
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_binary_add();
+    //test_binary_add();
+    test_binary_add_kogge_stone();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
