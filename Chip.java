@@ -4544,26 +4544,6 @@ Step  p
    }
 
   static void test_binary_add()
-   {loop: for (int B = 20;;)
-     {int B2 = powerTwo(B);
-      for      (int i = 1; ;)
-       {for    (int j = 1; ;)
-         {Chip      c = chip();
-          Bits      I = c.bits("i", B, i);
-          Bits      J = c.bits("j", B, j);
-          BinaryAdd a = c.binaryAdd ("ij",  I, J);
-          Bits      o = c.outputBits("o", a.sum());
-          c.Output    ("co", a.carry);
-          c.simulate  ();
-          a.sum  .ok((i+j) %  B2);
-          a.carry.ok((i+j) >= B2);
-          break loop;
-         }
-       }
-     }
-   }
-
-  static void test_binary_add22()
    {for (int B = 1; B <= (github_actions ? 4 : 3); B++)
      {int B2 = powerTwo(B);
       for      (int i = 0; i < B2; i++)
@@ -4577,7 +4557,6 @@ Step  p
           c.simulate  ();
           a.sum  .ok((i+j) %  B2);
           a.carry.ok((i+j) >= B2);
-          say("AAAA", c.steps);
          }
        }
      }
@@ -5359,7 +5338,7 @@ Step  o     e
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    test_check_in_int();
+    test_binary_add();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
