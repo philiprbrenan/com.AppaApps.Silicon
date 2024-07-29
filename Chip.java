@@ -1971,18 +1971,17 @@ public class Chip                                                               
    {return binaryAdd(output, in1, bits(n(output, "constant"), in1.bits(), in2));
    }
 
-   // Kogge-Stone O(log(n)) adder
+                                                                                // Kogge-Stone O(log(n)) adder
    BinaryAdd binaryAddKoggeStone(String output, Bits in1, Bits in2)             // Add two bit buses of the same size to make a bit bus one bit wider
    {final int b = in1.bits();                                                   // Number of bits in input monotone mask
     final int B = in2.bits();                                                   // Number of bits in input monotone mask
     if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
-    final Bits o = bits(output, b);                                          // Result bits
-    final Bits p = xorBits (n(output, "p"), in1, in2);                       // Propagate bits
-    final Bits G = andBits(n(output, "G"), in1, in2);                          // Generate prefix bits
-    final Bits P = xorBits(n(output, "P"), in1, in2);                          // Propagate prefix bits
-    final Bits G_next = bits(n(output, "G_next"), B);                                          // Result bits
-    final Bits P_next = bits(n(output, "P_next"), B);                                          // Result bits
-    //final String R = n(output, "result"), K = n(output, "carry");
+    final Bits o = bits(output, b);                                             // Result bits
+    final Bits p = xorBits (n(output, "p"), in1, in2);                          // Propagate bits
+    final Bits G = andBits(n(output, "G"), in1, in2);                           // Generate prefix bits
+    final Bits P = xorBits(n(output, "P"), in1, in2);                           // Propagate prefix bits
+    final Bits G_next = bits(n(output, "G_next"), B);                           // Result bits
+    final Bits P_next = bits(n(output, "P_next"), B);                           // Result bits
     int step = 1;
     while (step < B) {
         for (int i = step; i < B; i++) {
@@ -1997,9 +1996,9 @@ public class Chip                                                               
         }
         step *= 2;
     }
-    // Calculate carries
-    final Bits c = bits   (n(output, "carry"),     B+1);                          // Carry bits
-    Zero(c.b(1));                                                             // First carry is always zero
+                                                                               // Calculate carries
+    final Bits c = bits   (n(output, "carry"),     B+1);                       // Carry bits
+    Zero(c.b(1));                                                              // First carry is always zero
     for (int i = 2; i <= (B+1); i++) {
         Gate ci = And(n(i, output, "ci"), P.b(i-1), c.b(i-1));
         Or(c.b(i), G.b(i-1), ci);
@@ -2009,10 +2008,8 @@ public class Chip                                                               
         Gate ri = Xor(n(i, output, "ri"), p.b(i), c.b(i));
         Or(o.b(i), ri, G.b(i));
     }
-    return new BinaryAdd(c.b(B+1), o);                                            // Carry out of the highest bit, result
+    return new BinaryAdd(c.b(B+1), o);                                          // Carry out of the highest bit, result
    }
-
-
 
   Bits binaryTwosComplement(String output, Bits in)                             // Form the binary twos complement of a number
    {final int         B = in.bits();                                            // Number of bits
