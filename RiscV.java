@@ -3,6 +3,8 @@
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 // Make it possible to automatically compare the results of RiscV with Ban.
+// Remove std prefix from stdout and stderr
+// LLLLLLLLLLLLLLLLLL
 package com.AppaApps.Silicon;                                                   // Design, emulate and layout digital a binary tree on a silicon chip.
 /*
 A beginning is the time for taking the most delicate care that the balances are
@@ -45,9 +47,11 @@ public class RiscV extends Chip                                                 
   TreeMap<String, Variable> variables = new TreeMap<>();                        // Variables in assembler code
   int                      pVariables = 0;                                      // Position of variables in memory
 
-  final Stack<Integer>          stdin = new Stack<>();                          // Stdin
-  final Stack<Integer>         stdout = new Stack<>();                          // Stdout
-  final Stack<Integer>         stderr = new Stack<>();                          // Stderr
+  final Stack<Integer>             in = new Stack<>();                          // Stdin
+  final Stack<Integer>            out = new Stack<>();                          // Stdout
+  final Stack<Integer>            err = new Stack<>();                          // Stderr
+  final Stack<Integer>  returnAddress = new Stack<>();                          // Return address
+  final int      returnAddressMaximum = 256;                                    // the return address stack is implemented in hardware and so is of fixed size
 
   RiscV(String Name)                                                            // Create a new program
    {name = Name;                                                                // Name of chip
@@ -213,7 +217,7 @@ public class RiscV extends Chip                                                 
     void setLabel(int offset) throws Stop                                       // Set immediate field from any label referenced by this instruction
      {if (label == null) return;                                                // No label
       final Decode d = decode(this).details();                                  // Decode this instruction so we can reassemble it with the current immediate value
-      final int    o = label.offset - offset;                                   // Offset to target instruction from current instruction in blocks of 4 bytes
+      final int    o = label.fixed ? label.offset : label.offset - offset;      // Offset to target instruction from current instruction in blocks of 2 bytes either as a fixed or relative address
       final int    i = switch(d.format)                                         // Choose encoding format for immediate operand
        {case "B" -> encodeBImmediate(o << 1);                                   // Offset to target instruction from current instruction in signed blocks of 2 bytes
         case "I" -> encodeIImmediate(o << 1);                                   // Offset to target instruction from current instruction in signed blocks of 2 bytes
@@ -638,8 +642,30 @@ public class RiscV extends Chip                                                 
        {switch(d.funct3)
          {case Decode.f3_jalr: return d.new I("jalr")
            {public void action()
-             {if (d.rd > 0) x[d.rd].value = pc + d.instructionSize();           // Byte address of return to next instruction
-              pc = (d.rs1 > 0 ? x[d.rs1].value : 0) + d.immediate<<1;           // Jump to this address
+             {final int source = x[d.rs1].value;                                // Possibly the source and target registers are the same
+              if (d.rd > 0)                                                     // Save byte address to return to for next instruction
+               {final int ret = x[d.rd].value = pc + d.instructionSize();       // Return address
+                if (d.rd == 1 && d.rs1 == 1 && d.immediate == 0)                // Call: jump and return on register one so we also push the return address on the return stack as writing a return address into memory makes it vulnerable to being over written.
+                 {if (returnAddress.size() < returnAddressMaximum)              // Push the return address on to the return address stack for safe keeping during the execution of the called method
+                   {returnAddress.push(ret);
+                   }
+                  else                                                          // The return address stack is not infinite
+                   {stop("Call requested, yet return stack is full");
+                   }
+                 }
+                pc = (d.rs1 > 0 ? source : 0) + d.immediate<<1;                 // Jump to this address
+               }
+              else if (d.rs1 == 1 && d.immediate == 0)                          // Jumping to the address in register one with the immediate field at zero indicates a return
+               {if (returnAddress.size() > 0)                                   // Return
+                 {pc = returnAddress.pop();
+                 }
+                else
+                 {stop("Return requested, yet return stack is empty");
+                 }
+               }
+              else                                                              // Normal jump with no intention of returning as target register is register zero
+               {pc = (d.rs1 > 0 ? source : 0) + d.immediate<<1;                 // Jump to this address
+               }
              }
            };
           default: return null;
@@ -672,9 +698,9 @@ public class RiscV extends Chip                                                 
             final int svc = x[1].value;                                         // Supervisor request
             switch(svc)                                                         // Decode supervisor request
              {case Decode.eCall_stop         -> {throw new Stop();}             // Stop requested
-              case Decode.eCall_read_stdin   -> {x[1].value = stdin.remove(0);} // Read an integer from stdin
-              case Decode.eCall_write_stdout -> {stdout.push(x[2].value);}      // Write an integer to stdout
-              case Decode.eCall_write_stderr -> {stderr.push(x[2].value);}      // Write an integer to stderr
+              case Decode.eCall_read_stdin   -> {x[1].value = in.remove(0);}    // Read an integer from stdin
+              case Decode.eCall_write_stdout -> {out.push(x[2].value);}         // Write an integer to stdout
+              case Decode.eCall_write_stderr -> {err.push(x[2].value);}         // Write an integer to stderr
               default -> stop("Unknown supervisorcode:", svc);
              }
            }
@@ -814,6 +840,11 @@ sltiu  Set Less Than Imm (U)   I 0010011 0x3                rd = (rs1 < imm)?1:0
   Encode  slti(Register rd, Register rs1, int immediate) {return encodeI(0b001_0011, rd, rs1, 0x2,  immediate & 0xfff);}
   Encode sltiu(Register rd, Register rs1, int immediate) {return encodeI(0b001_0011, rd, rs1, 0x3,  immediate & 0xfff);}
 
+  Encode  addi(Register rd, Register rs1, Label label)                          // This variant allows us to load the absolute address of a subroutine
+   {if (rs1 != x0) stop("Source register must be register zero");
+    if (!label.fixed) stop("Label must be fixed");
+    return encodeI(0b001_0011, rd, rs1, 0x0, label);
+   }
 /*
 Inst   Name                  FMT Opcode  funct3 funct7      Description (C) Note
 lb     Load Byte               I 0000011 0x0                rd = M[rs1+imm][0:7]
@@ -864,6 +895,8 @@ jalr   Jump And Link Reg       I 1100111 0x0                rd = PC+4; PC  = rs1
 
   Encode  jal (Register rd,               Label l) {return encodeJ(0b110_1111, rd,         l);}
   Encode  jalr(Register rd, Register rs1, Label l) {return encodeI(0b110_0111, rd, rs1, 0, l);}
+  Encode  call()                                   {return encodeI(0b110_0111, x1, x1,  0, 0);}  // The special case of jalr interpreted as "call" with a return via the subroutine return address stack
+  Encode  ret ()                                   {return encodeI(0b110_0111, x0, x1,  0, 0);}  // The special case of jalr interpreted as "return" via the subroutine return address stack
 
 /*
 Inst   Name                  FMT Opcode  funct3 funct7      Description (C) Note
@@ -893,16 +926,23 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
 //D1 Labels                                                                     // Labels are used to define locations in code
 
-  class Label                                                                   // Label defining a location in code
-   {final String name;                                                          // Name of label
-    int        offset = 0;                                                      // Instruction following label if known
-    Label(String Name)                                                          // Create label assumed to be just after the current instruction
-     {offset = code.size();
+  class Label                                                                   // Label defining a location in code relative to the program counter register allowing for relative addressing if a relative lable, else a fixed location in program memory from the start of the program
+   {final String   name;                                                        // Name of label
+    final boolean fixed;                                                        // A fixed address if true
+    int           offset = 0;                                                   // Address of instruction following label
+
+    Label(String Name, boolean Fixed)                                           // Create label assumed to be just after the current instruction
+     {fixed  = Fixed;
+      offset = code.size();
       name   = Name+"_"+offset;                                                 // Make sure the label is unique
       labels.put(name, this);                                                   // Index label
      }
+
     void set() {offset = code.size();}                                          // Set a label to the current point in the code
    }
+
+  Label fixedLabel   (String name) {return new Label(name, true);}              // New fixed label
+  Label relativeLabel(String name) {return new Label(name, false);}             // New label re,lative to the program counter
 
 //D1 Variables                                                                  // Variables are symbolic names for fixed locations in memory
 
@@ -931,8 +971,8 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     final Label ed;
 
     IfEq(Register r1, Register r2)
-     {el = new Label("ifeq_else");
-      ed = new Label("ifeq_end");
+     {el = relativeLabel("ifeq_else");
+      ed = relativeLabel("ifeq_end");
       bne(r1, r2, el);
         Then();
         jal(x[0], ed);
@@ -950,8 +990,8 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     final Label ed;
 
     IfNe(Register r1, Register r2)
-     {el = new Label("ifne_else");
-      ed = new Label("ifne_end");
+     {el = relativeLabel("ifne_else");
+      ed = relativeLabel("ifne_end");
       beq(r1, r2, el);
         Then();
         jal(x[0], ed);
@@ -969,8 +1009,8 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     final Label ed;
 
     IfLt(Register r1, Register r2)
-     {el = new Label("iflt_else");
-      ed = new Label("iflt_end");
+     {el = relativeLabel("iflt_else");
+      ed = relativeLabel("iflt_end");
       bge(r1, r2, el);
         Then();
         jal(x[0], ed);
@@ -988,8 +1028,8 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     final Label ed;
 
     IfGe(Register r1, Register r2)
-     {el = new Label("ifge_else");
-      ed = new Label("ifge_end");
+     {el = relativeLabel("ifge_else");
+      ed = relativeLabel("ifge_end");
       blt(r1, r2, el);
         Then();
         jal(x[0], ed);
@@ -1014,12 +1054,12 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     Up(Register Count, Register Limit, int Step)                                // Create up for loop with specified step which should be positive else +1 is used
      {count = Count; limit = Limit; step = max(1, Step);
       addi(count, z, 0);
-      start = new Label("upStart");
-      end   = new Label("upEnd");
+      start = relativeLabel("upStart");
+      end   = relativeLabel("upEnd");
 
       bge(count, limit, end);
         body();
-        next = new Label("upNext");
+        next = relativeLabel("upNext");
         addi(count, count, step);
         jal(z, start);
       end.set();
@@ -1048,12 +1088,12 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
      {count = Count; limit = Limit; step = min(-1, Step);
       add(count, z, limit);
       addi(count, count, step);
-      start = new Label("downStart");
-      end   = new Label("downEnd");
+      start = relativeLabel("downStart");
+      end   = relativeLabel("downEnd");
 
       blt(count, z, end);
         body();
-        next = new Label("downNext");
+        next = relativeLabel("downNext");
         addi(count, count, step);
         jal(z, start);
       end.set();
@@ -1076,13 +1116,15 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
    }
 
   void out(Register a)                                                          // Write a register to stdout
-   {if (a != x2) add (x2, x0, a);
+   {if (a == x1) stop("cannot use x1");
+    if (a != x2) add (x2, x0, a);
     addi(x1, x0, Decode.eCall_write_stdout);
     ecall();
    }
 
   void err(Register a)                                                          // Write a register to stderr
-   {if (a != x2) add (x2, x0, a);
+   {if (a == x1) stop("cannot use x1");
+    if (a != x2) add (x2, x0, a);
     addi(x1, x0, Decode.eCall_write_stderr);
     ecall();
    }
@@ -1197,7 +1239,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     r.addi(i, z, 0);                                                            // i =  0
     r.addi(a, z, 0);                                                            // a =  0
     r.addi(b, z, 1);                                                            // b =  1
-    Label start = r.new Label("start");                                         // Start of for loop
+    Label start = r.relativeLabel("start");                                         // Start of for loop
     r.sb  (i, a, o.at());                                                       // Save latest result in memory
     r.addi(r.x1, z, Decode.eCall_write_stdout);                                 // Write to stdout
     r.add (r.x2, z, a);                                                         // Write to stdout variable a
@@ -1239,7 +1281,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
 000d      addi    13   1  0  0   0   0  0  0  0 0          0       93
 000e     ecall    73   0  0  0   0   0  0  0  0 0          0       73
 """);
-    ok(r.stdout, "[0, 1, 1, 2, 3, 5, 8, 13, 21, 34]");
+    ok(r.out, "[0, 1, 1, 2, 3, 5, 8, 13, 21, 34]");
     //ok(r.printCodeSequence(), "long[]code = {0xa00193, 0x393, 0x213, 0x100293, 0x438a23, 0x200093, 0x400133, 0x73, 0x520333, 0x28233, 0x302b3, 0x138393, 0xfe33c8e3, 0xb3, 0x73};");
    } // test_fibonacci
 
@@ -1270,7 +1312,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
    {RiscV    r = new RiscV();
     Register z = r.x0;
     Register i = r.x1;
-    Label    j = r.new Label("jump");
+    Label    j = r.relativeLabel("jump");
 
     r.add(z, z, z);
     r.auipc(i, j);
@@ -1299,7 +1341,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     Register z = r.x0;
     Register i = r.x1;
     Register j = r.x2;
-    Label jump = r.new Label("jump");
+    Label jump = r.relativeLabel("jump");
 
     r.add(z, z, z);
     r.jal (j, jump);
@@ -1327,7 +1369,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     Register z = r.x0;
     Register i = r.x1;
     Register j = r.x2;
-    Label end  = r.new Label("end");
+    Label end  = r.relativeLabel("end");
 
     r.jalr (j, z, end);
     r.addi (i, z, 2);
@@ -1346,6 +1388,29 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
 0000      jalr    67   2  0  4   0   0  0  0  0 0          4   400167
 0001      addi    13   1  0  2   0   0  0  0  0 0          2   200093
 """);
+   }
+
+  static void test_call()                                                       // Call a subroutine
+   {RiscV    r = new RiscV();
+    Register z = r.x0;
+    Register i = r.x1;
+    Register j = r.x2;
+
+    Label end   = r.relativeLabel("end");
+    r.jal(z, end);
+    Label start = r.fixedLabel("start");
+      r.addi(j, z, 42);
+      r.out(j);
+      r.ret();
+    end.set();
+
+    r.addi(i, z, start);                                                        // Absolute address of subroutine
+    r.call();
+    r.addi(i, z, start);
+    r.call();
+    r.emulate();                                                                // Run the program
+    //say(r.printCode());
+    ok(r.out, "[42, 42]");
    }
 
   static void test_store_load()                                                 // Store and then load
@@ -1426,17 +1491,17 @@ Registers  :  x1=2
      }
 
     r.addi(q, z, A.bytes);                                                      // Size of array
-    Label outerStart = r.new Label("outerStart");                               // Outer loop
-    Label outerEnd   = r.new Label("outerEnd");
+    Label outerStart = r.relativeLabel("outerStart");                           // Outer loop
+    Label outerEnd   = r.relativeLabel("outerEnd");
       r.addi(q, q, -A.width);                                                   // Each pass shortens the number of elements that still need to be sorted
       r.blt (q, z, outerEnd);                                                   // Finished pouter loop
 
       r.add (p, z, z);                                                          // p = 0
-      Label inner = r.new Label("inner");                                       // Swap loop
+      Label inner = r.relativeLabel("inner");                                   // Swap loop
         r.lw  (a, p, 0);                                                        // Lower element
         r.lw  (b, p, A.width);                                                  // Upper width
 
-        Label inOrder = r.new Label("inOrder");                                 // Elements in order
+        Label inOrder = r.relativeLabel("inOrder");                             // Elements in order
         r.blt(a, b, inOrder);                                                   // Jump if elements are in order
           r.sw(p, b, 0);                                                        // Swap elements
           r.sw(p, a, A.width);
@@ -1460,7 +1525,7 @@ Registers  :  x1=2
     r.simulationSteps(1_000_000);
     r.emulate();                                                                // Run the program
     //say(r.stdout);
-    ok(r.stdout, "[1, 2, 3, 4, 5, 6, 7, 8, 9]");
+    ok(r.out, "[1, 2, 3, 4, 5, 6, 7, 8, 9]");
     //say(r.printCode());                                                       // Code table
     //say(r.printCodeSequence());                                               // Code instructions
     //say(r);                                                                   // Cpu state
@@ -1515,9 +1580,9 @@ Registers  :  x1=2
     r.simulationSteps(1_000);
     r.emulate();                                                                // Run the program
     //say(r.stdout);
-    ok(r.stdout, "[1, 2, 3, 4, 5, 6, 7, 8, 9]");
+    ok(r.out, "[1, 2, 3, 4, 5, 6, 7, 8, 9]");
     //say(r.printCode());                                                       // Code table
-    say(r.printCodeSequence());                                               // Code instructions
+    //say(r.printCodeSequence());                                               // Code instructions
     //say(r);                                                                   // Cpu state
    } // test_insertion_sort
 
@@ -1671,7 +1736,7 @@ Registers  :  x3=11 x4=22
     r.emulate();
     //stop(r.printCodeSequence());
     //stop(r.stdout);
-    ok(r.stdout, "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]");
+    ok(r.out, "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]");
    }
 
   static void test_down()                                                       // Down loop
@@ -1692,7 +1757,7 @@ Registers  :  x3=11 x4=22
     r.emulate();
     //stop(r.printCodeSequence());
     //stop(r.stdout);
-    ok(r.stdout, "[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]");
+    ok(r.out, "[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]");
    }
 
   static void test_down_break()                                                 // Down with break
@@ -1714,7 +1779,7 @@ Registers  :  x3=11 x4=22
     r.emulate();
     //stop(r.printCodeSequence());
     //stop(r.stdout);
-    ok(r.stdout, "[9, 8, 7, 6, 5, 4]");
+    ok(r.out, "[9, 8, 7, 6, 5, 4]");
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -1727,6 +1792,7 @@ Registers  :  x3=11 x4=22
     test_auipc();
     test_jal();
     test_jalr();
+    test_call();
     test_store_load();
     test_ecall();
     test_fibonacci();
@@ -1742,8 +1808,8 @@ Registers  :  x3=11 x4=22
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_insertion_sort();
+   {oldTests();
+    test_call();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
