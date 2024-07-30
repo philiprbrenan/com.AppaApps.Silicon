@@ -4613,6 +4613,7 @@ Step  p
           Bits      I = c.bits("i", B, i);
           Bits      J = c.bits("j", B, j);
           BinaryAdd a = c.binaryAddKoggeStone("ij",  I, J);
+          c.outputBits("o", a.sum());
           c.Output    ("co", a.carry);
           c.simulate  ();
           a.sum  .ok((i+j) %  B2);
