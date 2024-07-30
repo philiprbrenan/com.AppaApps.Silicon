@@ -1928,9 +1928,8 @@ public class Chip                                                               
    }
 
   BinaryAdd binaryAdd(String output, Bits in1, Bits in2)                        // Add two bit buses of the same size to make a bit bus of the same width and a carry
-   {final int b = in1.bits();                                                   // Number of bits in input monotone mask
-    final int B = in2.bits();                                                   // Number of bits in input monotone mask
-    if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
+   {in1.sameSize(in2);
+    final int b = in1.bits();                                                   // Number of bits in input numbers to add
     final Bits o = bits   (  output,               b);                          // Result bits
     final Bits c = bits   (n(output, "carry"),     b);                          // Carry bits
     final Bits C = notBits(n(output, "not_carry"), c);                          // Not of carry bits
@@ -5337,7 +5336,7 @@ Step  o     e
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
+   {oldTests();
     test_binary_add();
    }
 
