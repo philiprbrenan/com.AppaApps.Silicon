@@ -14,11 +14,11 @@ Or you might want to design your own [RiscV machine](https://github.com/philiprb
 
 ```
 Ban   - RiscV 32I Cpu on a silicon chip.
-Chip  - Design, simulate and layout a binary tree on a silicon chip.
-Mjaf  - Btree with data stored only in the leaves to simplify deletion.
-RiscV - Execute Risc V machine code. Little endian RV32I.
-Stuck - A fixed size stack of ordered keys controlled by a unary number.
-Unary - Unary arithmetic using boolean arrays.
+Chip  - Toolkit to design, simulate and layout the register transfer level code needed to create a binary tree on a silicon chip.
+Mjaf  - Java implementation of the Btree algorithm with data stored only in the leaves to simplify deletion.
+RiscV - Assemble and execute Risc V machine code using the little endian RV32I subset of RiscV.
+Stuck - A fixed size stack of ordered keys used for implementing nodes of the Btree.
+Unary - Unary arithmetic using boolean arrays used to control a fixed size Stack for each node of the Btree.
 ```
 
 # Examples
@@ -395,4 +395,4 @@ Bits  Bus_____________________________  Value
    2                                 o  1
 ```
 
-Modified: 2024-07-29 at 03:02:42
+Modified: 2024-07-30 at 04:19:55
