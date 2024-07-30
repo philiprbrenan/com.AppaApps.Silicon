@@ -1971,6 +1971,49 @@ public class Chip                                                               
    {return binaryAdd(output, in1, bits(n(output, "constant"), in1.bits(), in2));
    }
 
+                                                                                // Kogge-Stone O(log(n)) adder
+   BinaryAdd binaryAddKoggeStone(String output, Bits in1, Bits in2)             // Add two bit buses of the same size to make a bit bus one bit wider
+   {final int b = in1.bits();                                                   // Number of bits of first input
+    final int B = in2.bits();                                                   // Number of bits of second input
+    if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
+    final Gate[]P = new Gate[B];                                                // Arrays of propagate gates
+    final Gate[]G = new Gate[B];                                                // Arrays of generate gates
+    for (int i = 1; i <= B; i++) {                                              // Initialize the propagate and generate bits
+        P[i-1] = Xor(n(i, output, "P"), in1.b(i), in2.b(i));
+        G[i-1] = And(n(i, output, "G"), in1.b(i), in2.b(i));
+    }
+    int step = 1;
+    while (step < B) {
+        final Gate[]P_next = new Gate[B-step];                                   // Holds the propagate gates for this step
+        final Gate[]G_next = new Gate[B-step];                                   // Holds the generate gates for this step
+        for (int i = step; i < B; i++) {                                         // Calculate the propagate and generate bits for this step
+            final Gate g1 = And(n(step, i, output, "g1"), P[i], G[i-step]);
+            G_next[i-step] = Or(n(step, i, output, "G"), G[i], g1);
+            P_next[i-step] = And(n(step, i, output, "P"), P[i], P[i-step]);
+        }
+        for (int i = step; i < B; i++) {                                         // Copy the bits back to the main arrays
+            G[i] = G_next[i-step];
+            P[i] = P_next[i-step];
+        }
+        step *= 2;
+    }
+                                                                                 // Calculate carries
+    final Gate[]C = new Gate[B+1];                                               // Arrays of names of bits
+    C[0] = Zero(n(0, output, "carry"));                                          // First carry is always zero
+    for (int i = 1; i < (B+1); i++) {
+        Gate ci = And(n(i, output, "ci"), P[i-1], C[i-1]);
+        C[i] = Or(n(i, output, "carry"), G[i-1], ci);
+    }
+    final Bits o = bits(output, B);                                             // Result bits
+    final Bits p = xorBits (n(output, "p"), in1, in2);                          // Propagate bits
+
+    // Calculate result output
+    for (int i = 1; i <= B; i++) {
+        Xor(o.b(i), p.b(i), C[i-1]);
+    }
+    return new BinaryAdd(C[B], o);                                              // Carry out of the highest bit, result
+   }
+
   Bits binaryTwosComplement(String output, Bits in)                             // Form the binary twos complement of a number
    {final int         B = in.bits();                                            // Number of bits
     final Bits        n =   notBits(n(output, "not"), in);                      // Not of input
@@ -4561,6 +4604,27 @@ Step  p
      }
    }
 
+   static void test_binary_add_kogge_stone()
+   {for (int B = 1; B <= 2; B++)
+     {int B2 = powerTwo(B);
+      for      (int i = 0; i < B2; i++)
+       {for    (int j = 0; j < B2; j++)
+         {Chip      c = chip();
+          Bits      I = c.bits("i", B, i);
+          Bits      J = c.bits("j", B, j);
+          BinaryAdd a = c.binaryAddKoggeStone("ij",  I, J);
+          c.outputBits("o", a.sum());
+          c.Output    ("co", a.carry);
+          c.simulate  ();
+          a.sum  .ok((i+j) %  B2);
+          a.carry.ok((i+j) >= B2);
+          System.err.println("B="+B+" i="+i+" j="+j+" sum="+a.sum+" carry="+a.carry+" steps="+c.steps);
+          //if (i == 2 && j == 3) stop(c);                                      // Test used to generate chip state in README.md
+         }
+       }
+     }
+   }
+
   static void test_binary_add_constant()
    {final int B = 4;
     for (int i = 0; i < B; i++)
@@ -5297,6 +5361,7 @@ Step  o     e
     test_delay_bits();
     test_shift();
     test_binary_add();
+    test_binary_add_kogge_stone();
     test_binary_add_constant();
     test_btree_node();
     test_btree_leaf_compare();
@@ -5336,8 +5401,9 @@ Step  o     e
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
-    test_binary_add();
+   {//oldTests();
+    //test_binary_add();
+    test_binary_add_kogge_stone();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
