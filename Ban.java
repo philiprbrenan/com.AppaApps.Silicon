@@ -343,7 +343,6 @@ final public class Ban extends Chip                                             
        {final Bit eqReg = C.compareEq(q("eqReg_")       +i, rd,   i);           // Is this the target register I see before me?
         final Bit eqRegMod =    C.And(q("eqRegMod_")    +i, modifyRd, eqReg);   // Is this the target register and we have an instruction that modifies it?
         X[i] = C.chooseFromTwoWords  (q("modTargetReg_")+i, x[i], result, eqRegMod);// Either the passed in register value or the newly computed one
-        //X[i]  = C.chooseThenElseIfEQ(q("X_")+i, result, x[i], rd, i);         // Either the passed in register value or the newly computed one
        }
      }
    }
