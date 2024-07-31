@@ -26,7 +26,7 @@ quando di mano propria potrebbe saldare il suo conto con due dita di pugnale?
 
 Chi vorrebbe caricarsi i grossi fardelli, imprecando e sudando sotto il peso di tutta una vita stracca,
 se non fosse il timore di qualche cosa, dopo la morte,
-la terra inesplorata donde mai non tornÃ² alcun viaggiatore, a sgomentare la nostra volonta
+la terra inesplorata donde mai non tornÃÂ² alcun viaggiatore, a sgomentare la nostra volonta
 e a persuaderci di sopportare i nostri mali piuttosto che correre in cerca d'altri che non conosciamo?
 
 Cosi ci fa vigliacchi la coscienza;
@@ -1927,8 +1927,8 @@ public class Chip                                                               
     public Bits sum  () {return sum;}
    }
 
-  BinaryAdd binaryAdd(String output, Bits in1, Bits in2)                        // Add two bit buses of the same size to make a bit bus of the same width and a carry
-   {in1.sameSize(in2);
+  BinaryAdd binaryAddRipple(String output, Bits in1, Bits in2)                  // Add two bit buses of the same size to make a bit bus of the same width and a carry
+   {in1.sameSize(in2);                                                          // Check bits to be added have the same size
     final int b = in1.bits();                                                   // Number of bits in input numbers to add
     final Bits o = bits   (  output,               b);                          // Result bits
     final Bits c = bits   (n(output, "carry"),     b);                          // Carry bits
@@ -1966,16 +1966,10 @@ public class Chip                                                               
 
     return new BinaryAdd(c.b(b), o);                                            // Carry out of the highest bit, result
    }
-
-  BinaryAdd binaryAdd(String output, Bits in1, int in2)                         // Add a constant to a bit bus
-   {return binaryAdd(output, in1, bits(n(output, "constant"), in1.bits(), in2));
-   }
-
-                                                                                // Kogge-Stone O(log(n)) adder
-   BinaryAdd binaryAddKoggeStone(String output, Bits in1, Bits in2)             // Add two bit buses of the same size to make a bit bus one bit wider
-   {final int b = in1.bits();                                                   // Number of bits of first input
-    final int B = in2.bits();                                                   // Number of bits of second input
-    if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
+                                                                                                                                                                // Kogge-Stone O(log(n)) adder
+  BinaryAdd binaryAddKoggeStone(String output, Bits in1, Bits in2)              // Add two bit buses of the same size to make a bit bus one bit wider
+   {in1.sameSize(in2);                                                          // Check bits to be added have the same size
+    final int B = in1.bits();                                                   // Number of bits of first input
     final Gate[]P = new Gate[B];                                                // Arrays of propagate gates
     final Gate[]G = new Gate[B];                                                // Arrays of generate gates
     for (int i = 1; i <= B; i++) {                                              // Initialize the propagate and generate bits
@@ -1984,22 +1978,22 @@ public class Chip                                                               
     }
     int step = 1;
     while (step < B) {
-        final Gate[]P_next = new Gate[B-step];                                   // Holds the propagate gates for this step
-        final Gate[]G_next = new Gate[B-step];                                   // Holds the generate gates for this step
-        for (int i = step; i < B; i++) {                                         // Calculate the propagate and generate bits for this step
-            final Gate g1 = And(n(step, i, output, "g1"), P[i], G[i-step]);
-            G_next[i-step] = Or(n(step, i, output, "G"), G[i], g1);
-            P_next[i-step] = And(n(step, i, output, "P"), P[i], P[i-step]);
+        final Gate[]P_next = new Gate[B-step];                                  // Holds the propagate gates for this step
+        final Gate[]G_next = new Gate[B-step];                                  // Holds the generate gates for this step
+        for (int i = step; i < B; i++) {                                        // Calculate the propagate and generate bits for this step
+            final Gate g1  = And(n(step, i, output, "g1"), P[i], G[i-step]);
+            G_next[i-step] = Or (n(step, i, output, "G"),  G[i], g1);
+            P_next[i-step] = And(n(step, i, output, "P"),  P[i], P[i-step]);
         }
-        for (int i = step; i < B; i++) {                                         // Copy the bits back to the main arrays
+        for (int i = step; i < B; i++) {                                        // Copy the bits back to the main arrays
             G[i] = G_next[i-step];
             P[i] = P_next[i-step];
         }
         step *= 2;
     }
-                                                                                 // Calculate carries
-    final Gate[]C = new Gate[B+1];                                               // Arrays of names of bits
-    C[0] = Zero(n(0, output, "carry"));                                          // First carry is always zero
+                                                                                // Calculate carries
+    final Gate[]C = new Gate[B+1];                                              // Arrays of names of bits
+    C[0] = Zero(n(0, output, "carry"));                                         // First carry is always zero
     for (int i = 1; i < (B+1); i++) {
         Gate ci = And(n(i, output, "ci"), P[i-1], C[i-1]);
         C[i] = Or(n(i, output, "carry"), G[i-1], ci);
@@ -2007,11 +2001,18 @@ public class Chip                                                               
     final Bits o = bits(output, B);                                             // Result bits
     final Bits p = xorBits (n(output, "p"), in1, in2);                          // Propagate bits
 
-    // Calculate result output
-    for (int i = 1; i <= B; i++) {
+    for (int i = 1; i <= B; i++) {                                              // Calculate result output
         Xor(o.b(i), p.b(i), C[i-1]);
     }
     return new BinaryAdd(C[B], o);                                              // Carry out of the highest bit, result
+   }
+
+  BinaryAdd binaryAdd(String output, Bits in1, Bits in2)                        // Default adder
+   {return binaryAddKoggeStone(output, in1, in2);
+   }
+
+  BinaryAdd binaryAdd(String output, Bits in1, int in2)                         // Add a constant to a bit bus
+   {return binaryAdd(output, in1, bits(n(output, "constant"), in1.bits(), in2));
    }
 
   Bits binaryTwosComplement(String output, Bits in)                             // Form the binary twos complement of a number
@@ -2019,14 +2020,14 @@ public class Chip                                                               
     final Bits        n =   notBits(n(output, "not"), in);                      // Not of input
     final Bits      one =      bits(n(output, "one"), in.bits(), 1);            // A one of the correct width
     final BinaryAdd add = binaryAdd(  output, n, one);                          // Add one to form twos complement
+    add.carry.anneal();                                                         // Anneal the carry in case it is not used by the caller - but they can still use it if they want to.
     return add.sum;                                                             // Ignore sum
    }
 
   Bits binaryTCAdd(String output, Bits in1, Bits in2)                           // Twos complement addition
-   {final int b = in1.bits();                                                   // Number of bits in input monotone mask
-    final int B = in2.bits();                                                   // Number of bits in input monotone mask
-    if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
+   {in1.sameSize(in2);                                                          // Check bits to be added have the same size
     final BinaryAdd sub = binaryAdd( output, in1, in2);                         // Effect the addition
+    sub.carry.anneal();                                                         // Anneal the carry in case it is not used by the caller - but they can still use it if they want to.
     return sub.sum;
    }
 
@@ -2035,11 +2036,10 @@ public class Chip                                                               
    }
 
   Bits binaryTCSubtract(String output, Bits in1, Bits in2)                      // Twos complement subtraction
-   {final int b = in1.bits();                                                   // Number of bits in input monotone mask
-    final int B = in2.bits();                                                   // Number of bits in input monotone mask
-    if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
+   {in1.sameSize(in2);                                                          // Check bits to be added have the same size
     final Bits        m = binaryTwosComplement(n(output, "subtract"), in2);     // Twos complement of subtrahend
     final BinaryAdd sub = binaryAdd(output, in1, m);                            // Effect the subtraction
+    sub.carry.anneal();                                                         // Anneal the carry in case it is not used by the caller - but they can still use it if they want to.
     return sub.sum;
    }
 
@@ -2058,9 +2058,8 @@ public class Chip                                                               
 // 8   1 1 1   1
 
   Bit binaryTCCompareLt(String output, Bits in1, Bits in2)                      // Twos complement less than comparison
-   {final int b = in1.bits();                                                   // Number of bits in first input
-    final int B = in2.bits();                                                   // Number of bits in second input
-    if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
+   {in1.sameSize(in2);                                                          // Check bits to be added have the same size
+    final int b = in1.bits();                                                   // Number of bits in first input
     final Bits i1 = new SubBitBus(n(output, "n1"),  in1, 1, b - 1);             // Numeric part of first number
     final Bit  s1 = in1.b(b);                                                   // Sign of first number
     final Bits i2 = new SubBitBus(n(output, "n2"),  in2, 1, b - 1);             // Numeric part of second number
@@ -3550,7 +3549,14 @@ public class Chip                                                               
     if (le != lg)                                                               // Failed on length
      {matchesLen = false;
       err(b, currentTestName(), "failed: Mismatched length, expected",
-       le, "got", lg, "for text:\n"+G);
+        le, "got", lg, "for text:\n"+G);
+
+//    for (int i = 0; i < G.length(); i++)                                      // Check each character side by side
+//     {final int  g = G.charAt(i);
+//      final int  e = i < E.length() ? E.charAt(i) : ' ';
+//      final char c =                  G.charAt(i);
+//      say(i, g, e, c);
+//     }
      }
 
     int l = 1, c = 0;
@@ -4584,7 +4590,7 @@ Step  p
     od.ok(1);
    }
 
-  static void test_binary_add()
+  static void test_binary_add_ripple()
    {for (int B = 1; B <= (github_actions ? 4 : 3); B++)
      {int B2 = powerTwo(B);
       for      (int i = 0; i < B2; i++)
@@ -4592,10 +4598,10 @@ Step  p
          {Chip      c = chip();
           Bits      I = c.bits("i", B, i);
           Bits      J = c.bits("j", B, j);
-          BinaryAdd a = c.binaryAdd ("ij",  I, J);
+          BinaryAdd a = c.binaryAddRipple("ij",  I, J);
           Bits      o = c.outputBits("o", a.sum());
-          c.Output    ("co", a.carry);
-          c.simulate  ();
+          c.Output  ("co", a.carry);
+          c.simulate();
           a.sum  .ok((i+j) %  B2);
           a.carry.ok((i+j) >= B2);
           //if (i == 2 && j == 3) stop(c);                                      // Test used to generate chip state in README.md
@@ -4604,8 +4610,8 @@ Step  p
      }
    }
 
-   static void test_binary_add_kogge_stone()
-   {for (int B = 1; B <= 2; B++)
+  static void test_binary_add_kogge_stone()
+   {for (int B = 1; B <= 3; B++)
      {int B2 = powerTwo(B);
       for      (int i = 0; i < B2; i++)
        {for    (int j = 0; j < B2; j++)
@@ -4618,10 +4624,28 @@ Step  p
           c.simulate  ();
           a.sum  .ok((i+j) %  B2);
           a.carry.ok((i+j) >= B2);
-          System.err.println("B="+B+" i="+i+" j="+j+" sum="+a.sum+" carry="+a.carry+" steps="+c.steps);
-          //if (i == 2 && j == 3) stop(c);                                      // Test used to generate chip state in README.md
+          //System.err.println("B="+B+" i="+i+" j="+j+" sum="+a.sum+" carry="+a.carry+" steps="+c.steps);
          }
        }
+     }
+   }
+
+  static void test_binary_add_kogge_stone_vs_ripple()
+   {say("Bits____  KogStone    Ripple");
+    for (int B = 2; B <= 32; B *=2)
+     {int N = -2;
+      Chip      k  = chip();
+      Bits      kn = k.bits("n", B, N);
+      BinaryAdd ka = k.binaryAddKoggeStone("ka", kn, kn);
+      ka.sum.anneal(); ka.carry.anneal();
+      k.simulate   ();
+
+      Chip       r = chip();
+      Bits      rn = r.bits("n", B, N);
+      BinaryAdd ra = r.binaryAddRipple("ra", rn, rn);
+      ra.sum.anneal(); ra.carry.anneal();
+      r.simulate  ();
+      say(String.format("%8d  %8d  %8d", B, k.steps, r.steps));
      }
    }
 
@@ -4632,7 +4656,7 @@ Step  p
       Bits      p = c.bits     ("p", B, i);
       BinaryAdd a = c.binaryAdd("a", p, i);
       a.sum.anneal(); a.carry.anneal();
-                    c.simulate ();
+                      c.simulate ();
       a.sum.ok(2*i); a.carry.ok(false);
      }
    }
@@ -5360,8 +5384,9 @@ Step  o     e
     test_check_in_int();
     test_delay_bits();
     test_shift();
-    test_binary_add();
+    test_binary_add_ripple();
     test_binary_add_kogge_stone();
+    //test_binary_add_kogge_stone_vs_ripple();
     test_binary_add_constant();
     test_btree_node();
     test_btree_leaf_compare();
@@ -5403,7 +5428,10 @@ Step  o     e
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
     //test_binary_add();
-    test_binary_add_kogge_stone();
+    //test_binary_add();
+    //test_binary_add_ripple();
+    //test_binary_add_kogge_stone();
+    //test_binary_add_kogge_stone_vs_ripple();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
