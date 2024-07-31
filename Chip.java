@@ -1966,8 +1966,8 @@ public class Chip                                                               
 
     return new BinaryAdd(c.b(b), o);                                            // Carry out of the highest bit, result
    }
-                                                                                                                                                                // Kogge-Stone O(log(n)) adder
-  BinaryAdd binaryAddKoggeStone(String output, Bits in1, Bits in2)              // Add two bit buses of the same size to make a bit bus one bit wider
+
+  BinaryAdd binaryAddKoggeStone(String output, Bits in1, Bits in2)              // Add two bit buses of the same size to make a bit bus one bit wider using the Kogge-Stone O(log(n)) adder courtsey of HÃ¥kon HÃ¦gland
    {in1.sameSize(in2);                                                          // Check bits to be added have the same size
     final int B = in1.bits();                                                   // Number of bits of first input
     final Gate[]P = new Gate[B];                                                // Arrays of propagate gates
