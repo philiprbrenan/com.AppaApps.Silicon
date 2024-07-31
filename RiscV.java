@@ -3,8 +3,6 @@
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 // Make it possible to automatically compare the results of RiscV with Ban.
-// Remove std prefix from stdout and stderr
-// LLLLLLLLLLLLLLLLLL
 package com.AppaApps.Silicon;                                                   // Design, emulate and layout digital a binary tree on a silicon chip.
 /*
 A beginning is the time for taking the most delicate care that the balances are
@@ -36,7 +34,7 @@ public class RiscV extends Chip                                                 
   final Register[]                  x = new Register[32];                       // General purpose registers
   final Register x0,  x1,  x2,   x3,  x4,  x5,  x6,  x7,  x8,  x9,
                  x10, x11, x12, x13, x14, x15, x16, x17, x18, x19,
-                 x20, x21, x22, x23, x24, x25, x26, x27, x28, x29, x30, x31;
+                 x20, x21, x22, x23, x24, x25, x26, x27, x28, x29, x30, x31, z;
   final byte[]                 memory = new byte[100];                          // Memory
   int                              pc = 0;                                      // Program counter expressed in bytes
   int                           steps = 0;                                      // Number of steps taken so far in executing the program
@@ -46,12 +44,17 @@ public class RiscV extends Chip                                                 
   TreeMap<String, Label>       labels = new TreeMap<>();                        // Labels in assembler code
   TreeMap<String, Variable> variables = new TreeMap<>();                        // Variables in assembler code
   int                      pVariables = 0;                                      // Position of variables in memory
+  Stack<Sub>                     subs = new Stack<>();                          // Subroutines created
 
   final Stack<Integer>             in = new Stack<>();                          // Stdin
   final Stack<Integer>            out = new Stack<>();                          // Stdout
   final Stack<Integer>            err = new Stack<>();                          // Stderr
-  final Stack<Integer>  returnAddress = new Stack<>();                          // Return address
-  final int      returnAddressMaximum = 256;                                    // the return address stack is implemented in hardware and so is of fixed size
+  final Stack<ReturnAddress>
+                        returnAddress = new Stack<>();                          // Return address stack
+  final int      returnAddressMaximum = 256;                                    // The return address stack is implemented in hardware and so is of fixed size
+  final Register returnAddressRegister;                                         // The return address stack only applies to jalr instructions using this register as source and target
+  final Stack<String>      traceBacks = new Stack<>();                          // Tracebacks printed during program execution so we can see them for testing purposes
+  boolean     writeTraceBacksToStderr = true;                                   // Normally tracebacks are written to stderr so the user can see them, but sometimes for testing we want to save them for analysis
 
   RiscV(String Name)                                                            // Create a new program
    {name = Name;                                                                // Name of chip
@@ -62,7 +65,8 @@ public class RiscV extends Chip                                                 
     x15 = x[15]; x16 = x[16]; x17 = x[17]; x18 = x[18]; x19 = x[19];
     x20 = x[20]; x21 = x[21]; x22 = x[22]; x23 = x[23]; x24 = x[24];
     x25 = x[25]; x26 = x[26]; x27 = x[27]; x28 = x[28]; x29 = x[29];
-    x30 = x[30]; x31 = x[31];
+    x30 = x[30]; x31 = x[31]; z   = x0;
+    returnAddressRegister = x31;                                                // The return address stack only applies to jalr instructions using this register as source and target
    }
 
   RiscV()                                                                       // Create a new program with the name of the test
@@ -98,6 +102,22 @@ public class RiscV extends Chip                                                 
        {final int v = memory[i];
         if (v != 0) b.append(" "+i+"="+v);
        }
+      b.append("\n");
+     }
+
+    if (out.size() > 0)                                                         // Print out
+     {b.append("Out        : ");
+      final int N = out.size();
+      for (int i = 0; i < N; i++) b.append(""+out.elementAt(i)+", ");
+      b.setLength(b.length()-2);
+      b.append("\n");
+     }
+
+    if (err.size() > 0)                                                         // Print err
+     {b.append("Err        : ");
+      final int N = err.size();
+      for (int i = 0; i < N; i++) b.append(""+err.elementAt(i)+", ");
+      b.setLength(b.length()-2);
       b.append("\n");
      }
 
@@ -161,10 +181,50 @@ public class RiscV extends Chip                                                 
       final Decode.Executable d = decode(e);
       if (d == null) stop("Need data for instruction at byte:", pc);
       try {d.action();} catch(Stop x) {return;}                                 // Execute the instruction and respond to any exceptions
+      eachEmulationStep();                                                      // Called at each step of the emulation
      }
     if (maxSimulationSteps == null)                                             // Not enough steps available by default
      {err("Out of time after", actualMaxSimulationSteps, "steps");
      }
+   }
+
+  void eachEmulationStep() {}                                                   // Called at each step of the emulation
+
+// D1 Trace back                                                                // Produce a trace back showing where we are in a program in terms of subroutines called
+
+  record ReturnAddress                                                          // Record calls and returns so we can print a trace back of subroutine calls
+   (int returnTo,                                                               // The absolute address in the program code that we are going to return to
+    int called                                                                  // The absolute address of the subroutine we called
+   ){}
+
+  String locateContainingSubName(int offset, String def)                        // Locate the subroutine that contains a specified offset
+   {for (Sub s: subs)                                                           // Each subroutine
+     {final int o = offset / instructionBytes;
+      if (o >= s.start.offset && o <= s.end.offset) return s.name;              // Found a plausible subroutine
+     }
+    return def;                                                                 // Return a default value indicating we could not find the subroutine
+   }
+
+  void writeTraceBack()                                                         // Write a trace back
+   {final StringBuilder b = new StringBuilder();
+    b.append(String.format("%4s  %4s  %16s\n","To", "From", "Subroutine"));
+
+    final TreeMap<Integer,String> t = new TreeMap<>();                          // Instruction addresses to label names
+    for (Label l : labels.values()) t.put(l.offset * instructionBytes, l.name); // Assumes fixed instruction size
+
+    for (int i = returnAddress.size()-1; i >= 0; --i)                           // Trace back
+     {final ReturnAddress r = returnAddress.elementAt(i);
+      final int called = r.called, returnTo = r.returnTo;
+      final String c = locateContainingSubName(called, "");
+      say(b, String.format("%4d  %4d  %16s", called, returnTo, c));             // Traceback entry
+     }
+    if (writeTraceBacksToStderr) System.err.print(b.toString());                // Save or write traceback
+    else traceBacks.push(b.toString());
+   }
+
+  void trace()                                                                  // Request a trace back
+   {addi(x1, x0, Decode.eCall_trace_back);
+    ecall();
    }
 
 //D1 Encode and Decode                                                          // Encode and decode instructions to and from their binary formats in machine code
@@ -321,6 +381,7 @@ public class RiscV extends Chip                                                 
     final static int  eCall_read_stdin   = 1;                                   // Read an integer from stdin
     final static int  eCall_write_stdout = 2;                                   // Write an integer to stdout
     final static int  eCall_write_stderr = 3;                                   // Write an integer to stdout
+    final static int  eCall_trace_back   = 4;                                   // Writes a trace back of the current call stac to stderr
 
     Decode(String Name, Encode Instruction)                                     // Decode an instruction
      {instruction = Instruction;
@@ -643,21 +704,28 @@ public class RiscV extends Chip                                                 
          {case Decode.f3_jalr: return d.new I("jalr")
            {public void action()
              {final int source = x[d.rs1].value;                                // Possibly the source and target registers are the same
+              final int retReg = returnAddressRegister.x;                       // Return address register to check
               if (d.rd > 0)                                                     // Save byte address to return to for next instruction
                {final int ret = x[d.rd].value = pc + d.instructionSize();       // Return address
-                if (d.rd == 1 && d.rs1 == 1 && d.immediate == 0)                // Call: jump and return on register one so we also push the return address on the return stack as writing a return address into memory makes it vulnerable to being over written.
+                pc = (d.rs1 > 0 ? source : 0) + d.immediate<<1;                 // Jump to this address
+                if (d.rd == retReg && d.rs1 == retReg && d.immediate == 0)      // Call: jump and return on register one so we also push the return address on the return stack as writing a return address into memory makes it vulnerable to being over written.
                  {if (returnAddress.size() < returnAddressMaximum)              // Push the return address on to the return address stack for safe keeping during the execution of the called method
-                   {returnAddress.push(ret);
+                   {returnAddress.push(new ReturnAddress(ret, pc));             // Record return to , called procedure entry point
                    }
                   else                                                          // The return address stack is not infinite
                    {stop("Call requested, yet return stack is full");
                    }
                  }
-                pc = (d.rs1 > 0 ? source : 0) + d.immediate<<1;                 // Jump to this address
                }
-              else if (d.rs1 == 1 && d.immediate == 0)                          // Jumping to the address in register one with the immediate field at zero indicates a return
+              else if (d.rs1 == retReg && d.immediate == 0)                     // Jumping to the address in register one with the immediate field at zero indicates a return
                {if (returnAddress.size() > 0)                                   // Return
-                 {pc = returnAddress.pop();
+                 {final ReturnAddress ra = returnAddress.pop();                 // Expected return address
+                  final int era = ra.returnTo;                                  // This is what the return address should be according to the return address stack
+                  final int gra = returnAddressRegister.value;                  // Offered return address
+                  if (era != gra)                                               // Expected return address differs from one offered
+                   {stop("Expected return address of:", era, "but got", gra);   // Complain about corrupted return address
+                   }
+                  pc = gra;                                                     // Continue with acceptable return address
                  }
                 else
                  {stop("Return requested, yet return stack is empty");
@@ -701,6 +769,7 @@ public class RiscV extends Chip                                                 
               case Decode.eCall_read_stdin   -> {x[1].value = in.remove(0);}    // Read an integer from stdin
               case Decode.eCall_write_stdout -> {out.push(x[2].value);}         // Write an integer to stdout
               case Decode.eCall_write_stderr -> {err.push(x[2].value);}         // Write an integer to stderr
+              case Decode.eCall_trace_back   -> {writeTraceBack();}             // Write trace back
               default -> stop("Unknown supervisorcode:", svc);
              }
            }
@@ -842,7 +911,9 @@ sltiu  Set Less Than Imm (U)   I 0010011 0x3                rd = (rs1 < imm)?1:0
 
   Encode  addi(Register rd, Register rs1, Label label)                          // This variant allows us to load the absolute address of a subroutine
    {if (rs1 != x0) stop("Source register must be register zero");
-    if (!label.fixed) stop("Label must be fixed");
+    label.fixed();
+    if (rd != returnAddressRegister)
+      stop("Target must be register:", "x"+returnAddressRegister.x);
     return encodeI(0b001_0011, rd, rs1, 0x0, label);
    }
 /*
@@ -893,10 +964,16 @@ jal    Jump And Link           J 1101111                    rd = PC+4; PC += imm
 jalr   Jump And Link Reg       I 1100111 0x0                rd = PC+4; PC  = rs1 + imm
 */
 
-  Encode  jal (Register rd,               Label l) {return encodeJ(0b110_1111, rd,         l);}
-  Encode  jalr(Register rd, Register rs1, Label l) {return encodeI(0b110_0111, rd, rs1, 0, l);}
-  Encode  call()                                   {return encodeI(0b110_0111, x1, x1,  0, 0);}  // The special case of jalr interpreted as "call" with a return via the subroutine return address stack
-  Encode  ret ()                                   {return encodeI(0b110_0111, x0, x1,  0, 0);}  // The special case of jalr interpreted as "return" via the subroutine return address stack
+  Encode  jal (Register rd, Label l)
+   {l.relative();
+    return encodeJ(0b110_1111, rd,           l);
+   }
+  Encode  jalr(Register rd, Register rs1, Label l)
+   {l.fixed();
+    return encodeI(0b110_0111, rd,  rs1,  0, l);
+   }
+  Encode  call()                                   {return encodeI(0b110_0111, x31, x31,  0, 0);}  // The special case of jalr interpreted as "call" with a return via the subroutine return address stack
+  Encode  ret ()                                   {return encodeI(0b110_0111, x0,  x31,  0, 0);}  // The special case of jalr interpreted as "return" via the subroutine return address stack
 
 /*
 Inst   Name                  FMT Opcode  funct3 funct7      Description (C) Note
@@ -939,6 +1016,8 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
      }
 
     void set() {offset = code.size();}                                          // Set a label to the current point in the code
+    void fixed()    {if (!fixed) stop("Fixed label required");}
+    void relative() {if ( fixed) stop("Relative label required");}
    }
 
   Label fixedLabel   (String name) {return new Label(name, true);}              // New fixed label
@@ -1068,14 +1147,14 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
      {this(Count, Limit, 1);
      }
 
-    void body    () {}                                                          // Body
+    abstract void body();                                                       // Body
     void Continue() {jal(z, start);}                                            // Restart this iteration
     void Next    () {jal(z, next);}                                             // Start next iteration
     void Break   () {jal(z, end);}                                              // Break out unconditionally
     void breakGe (Register b) {bge(count, b, end);}                             // Break out if the count is greater than or equal to that of the specified register
    }
 
-  abstract class Down                                                           // Revere for loop
+  abstract class Down                                                           // Reverse for loop
    {final Label start;                                                          // Start of the for loop
     final Label next;                                                           // Next iteration of for loop
     final Label end;                                                            // End of for loop
@@ -1103,11 +1182,44 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
      {this(Count, Limit, -1);
      }
 
-    void body    () {}                                                          // Body
+    abstract void body();                                                       // Body
     void Continue() {jal(z, start);}                                            // Restart this iteration
     void Next    () {jal(z, next);}                                             // Start next iteration
     void Break   () {jal(z, end);}                                              // Break out unconditionally
     void breakLt (Register b) {blt(count, b, end);}                             // Break out if count is less than that of the specified register
+   }
+
+  abstract class Sub                                                            // Sub routine
+   {final String name;                                                          // Name of subroutine
+    final Label start;                                                          // Start of subroutine
+    final Label end;                                                            // End of subroutine
+    final Register z = x0;
+
+    Sub(String Name)                                                            // Create subroutine with the specified name
+     {name = Name;
+      end  = fixedLabel(name+"_end");
+      jump(end);                                                                // Jump over subroutine code
+        start = fixedLabel(name+"_start");                                      // Start of subroutine
+        body();                                                                 // Body of subroutine
+        ret();                                                                  // Return to caller
+      end.set();                                                                // End of subroutine code
+      subs.push(this);                                                          // Subroutines created
+     }
+
+    abstract void body();                                                       // Body
+    final void Return() {ret();}                                                // Return from subroutine
+    final void call  () {addi(x31, z, start); RiscV.this.call();}               // Call subroutine using x31 as the link register
+   }
+
+//D1 Psuedo instructions                                                        // Useful instruction variants
+
+  void jump(Label label)                                                        // Goto the specified fixed label
+   {label.fixed();
+    jalr(z, z, label);
+   }
+
+  void copy(Register a, Register b)                                             // Copy register b to register a
+   {add(a, z, b);
    }
 
   void stop()                                                                   // Stop
@@ -1128,6 +1240,10 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     addi(x1, x0, Decode.eCall_write_stderr);
     ecall();
    }
+
+  void set(Register a, int n) {addi(a, x0, n);}                                 // Set a register
+  void inc(Register a) {addi(a, a, +1);}                                        // Increment a register
+  void dec(Register a) {addi(a, a, -1);}                                        // Decrement a register
 
 //D0
 
@@ -1260,6 +1376,7 @@ Step       : 96
 Instruction: 60
 Registers  :  x2=34 x3=10 x4=55 x5=89 x6=89 x7=10
 Memory     :  21=1 22=1 23=2 24=3 25=5 26=8 27=13 28=21 29=34
+Out        : 0, 1, 1, 2, 3, 5, 8, 13, 21, 34
 """);
    //stop(r.printCode());
    ok(r.printCode(), """
@@ -1369,7 +1486,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     Register z = r.x0;
     Register i = r.x1;
     Register j = r.x2;
-    Label end  = r.relativeLabel("end");
+    Label end  = r.fixedLabel("end");
 
     r.jalr (j, z, end);
     r.addi (i, z, 2);
@@ -1395,6 +1512,7 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     Register z = r.x0;
     Register i = r.x1;
     Register j = r.x2;
+    Register c = r.x31;
 
     Label end   = r.relativeLabel("end");
     r.jal(z, end);
@@ -1404,13 +1522,76 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
       r.ret();
     end.set();
 
-    r.addi(i, z, start);                                                        // Absolute address of subroutine
+    r.addi(c, z, start);                                                        // Absolute address of subroutine
     r.call();
-    r.addi(i, z, start);
+    r.addi(c, z, start);
     r.call();
     r.emulate();                                                                // Run the program
     //say(r.printCode());
     ok(r.out, "[42, 42]");
+   }
+
+  static void test_call_call()
+   {RiscV    r = new RiscV();
+    r.writeTraceBacksToStderr = false;
+    Register a = r.x3;
+    Register b = r.x4;
+
+    r.set(a, 42);
+
+    Sub s = r.new Sub("s")
+     {void body()
+       {r.trace();
+        r.out(a);
+        r.inc(a);
+       }
+     };
+
+    Sub t = r.new Sub("t")
+     {void body()
+       {r.trace();
+        r.copy(b, r.x31);
+        s.call();
+        r.copy(r.x31, b);
+        r.trace();
+        r.inc(a);
+        r.out(a);
+       }
+     };
+
+    t.call();
+    r.emulate();
+
+    ok(r.out, "[42, 44]");
+    ok(r.traceBacks.elementAt(0), """
+  To  From        Subroutine
+  40   100                 t
+""");
+    ok(r.traceBacks.elementAt(1), """
+  To  From        Subroutine
+   8    60                 s
+  40   100                 t
+""");
+    ok(r.traceBacks.elementAt(2), """
+  To  From        Subroutine
+  40   100                 t
+""");
+   }
+
+  static void test_set_inc_dec()
+   {RiscV    r = new RiscV();
+    Register z = r.x0;
+    Register a = r.x3;
+
+    r.set(a, 42);
+    r.out(a);
+    r.inc(a);
+    r.out(a);
+    r.dec(a);
+    r.out(a);
+    r.emulate();                                                                // Run the program
+    //say(r.printCode());
+    ok(r.out, "[42, 43, 42]");
    }
 
   static void test_store_load()                                                 // Store and then load
@@ -1457,6 +1638,7 @@ RiscV      : ecall
 Step       : 4
 Instruction: 12
 Registers  :  x1=4
+Out        : 0
 """);
    //stop(r.printCode());
    ok(r.printCode(), """
@@ -1793,6 +1975,7 @@ Registers  :  x3=11 x4=22
     test_jal();
     test_jalr();
     test_call();
+    test_call_call();
     test_store_load();
     test_ecall();
     test_fibonacci();
@@ -1805,11 +1988,11 @@ Registers  :  x3=11 x4=22
     test_up();
     test_down();
     test_down_break();
+    test_set_inc_dec();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_call();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
