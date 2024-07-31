@@ -4630,9 +4630,28 @@ Step  p
      }
    }
 
-  static void test_binary_add_kogge_stone_vs_ripple()
-   {
-    say("Bits____  KogStone    Ripple");
+  static void test_binary_add_kogge_stone_vs_ripple_same()
+   {say("Bits____  KogStone    Ripple");
+    for (int B = 2; B <= 32; B *=2)
+     {int N = -2;
+      Chip      k  = chip();
+      Bits      kn = k.bits("n", B, N);
+      BinaryAdd ka = k.binaryAddKoggeStone("ka", kn, kn);
+      ka.sum.anneal(); ka.carry.anneal();
+      k.simulate   ();
+
+      Chip       r = chip();
+      Bits      rn = r.bits("n", B, N);
+      BinaryAdd ra = r.binaryAddRipple("ra", rn, rn);
+      ra.sum.anneal(); ra.carry.anneal();
+      r.simulate  ();
+      say(String.format("%8d  %8d  %8d", B, k.steps, r.steps));
+      if (B == 2) say(k, r);
+     }
+   }
+
+ static void test_binary_add_kogge_stone_vs_ripple()
+   {say("Bits____  KogStone    Ripple");
     for (int B = 2; B <= 32; B *=2)
      {int N = -2;
       Chip      k  = chip();
@@ -4654,6 +4673,7 @@ Step  p
       Integer rsum = ra.sum.Int() + rcarry* 2^(B+1);
       Chip.ok(ksum, rsum);
       say(String.format("%8d  %8d  %8d", B, k.steps, r.steps));
+      if (B == 2) say(k, r);
      }
    }
 
@@ -5394,7 +5414,8 @@ Step  o     e
     test_shift();
     test_binary_add_ripple();
     test_binary_add_kogge_stone();
-    //test_binary_add_kogge_stone_vs_ripple();
+    test_binary_add_kogge_stone_vs_ripple();
+    test_binary_add_kogge_stone_vs_ripple_same();
     test_binary_add_constant();
     test_btree_node();
     test_btree_leaf_compare();
@@ -5439,7 +5460,8 @@ Step  o     e
     //test_binary_add();
     //test_binary_add_ripple();
     //test_binary_add_kogge_stone();
-    test_binary_add_kogge_stone_vs_ripple();
+      test_binary_add_kogge_stone_vs_ripple();
+      test_binary_add_kogge_stone_vs_ripple_same();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
