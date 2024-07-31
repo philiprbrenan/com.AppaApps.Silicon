@@ -17,6 +17,7 @@ import java.util.Stack;
 
 final public class Ban extends Chip                                             // Create a chip that contains a Risc V processor extended with Btree instructions
  {final static int XLEN = RiscV.XLEN;                                           // Number of bits in a register
+  final static int numberOfStepsPerInstruction = 68;                            // Number of steps need to complete an instruction down from 110 steps thanks to Kogge-Stone adder from HÃ¥kon HÃ¦gland
 
   final static class D extends RiscV.Decode {D(){super(null);}}                 // Easier access to static constants
 
@@ -352,7 +353,7 @@ final public class Ban extends Chip                                             
    }
 
   static class Cpu extends Chip                                                 // RiscV cpu on a chip
-   {final int       N = 110;                                                    // The number of steps to execute an instruction
+   {final int       N = numberOfStepsPerInstruction;                            // The number of steps to execute an instruction
     Pulse          xi;                                                          // Execute an instruction
     Register       pc;                                                          // Initialize pc
     Register[]      x;                                                          // The registers of the RiscV architecture
@@ -670,8 +671,9 @@ targetRegister: 00010
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
+   {oldTests();
     //test_insertion_sort();
+    //test_fibonacci();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
