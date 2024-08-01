@@ -6,16 +6,16 @@ package com.AppaApps.Silicon;                                                   
 //                 Shall I compare thee to a summer's day?
 //                 Thou art more lovely and more temperate:
 //                 Rough winds do shake the darling buds of May,
-//                 And summerÃ¢ÂÂs lease hath all too short a date;
+//                 And summer's lease hath all too short a date;
 
 //                 Sometime too hot the eye of heaven shines,
 //                 And often is his gold complexion dimm'd;
 //                 For every fair from fair sometime declines,
-//                 By chance or natureÃ¢ÂÂs changing course untrimm'd;
+//                 By chance or nature's changing course untrimm'd;
 
 //                 But now thou art for ever fairly made,
 //                 The eye of heaven lights thy face for me,
-//                 Nor shall death brag thou wanderÃ¢ÂÂst in his shade,
+//                 Nor shall death brag thou wander'st in his shade,
 //                 When these lines being read bring life to thee!
 import java.util.Stack;
 
