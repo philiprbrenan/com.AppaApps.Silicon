@@ -4705,8 +4705,36 @@ Step  p
          }
        }
      }
-   }
-  static void test_binary_add_kogge_stone_vs_ripple_same()
+    }
+
+    static void test_binary_add_brent_kung_vs_kogge_stone()
+    {say("Bits____  BrentKung  KogStone");
+     for (int B = 2; B <= 32; B *=2)
+      {int N = -2;
+       Chip      k  = chip();
+       Bits      kn = k.bits("n", B, N);
+       Bits      km = k.bits("m", B, N);
+       BinaryAdd ka = k.binaryAddBrentKung("ka", kn, km);
+       ka.sum.anneal(); ka.carry.anneal();
+       k.simulate   ();
+
+       Chip       r = chip();
+       Bits      rn = r.bits("n", B, N);
+       Bits      rm = r.bits("m", B, N);
+       BinaryAdd ra = r.binaryAddKoggeStone("ra", rn, rm);
+       ra.sum.anneal(); ra.carry.anneal();
+       r.simulate  ();
+       Integer kcarry = ka.carry.value() ? 1 : 0;
+       Integer ksum = ka.sum.Int() + kcarry* 2^(B+1);
+       Integer rcarry = ra.carry.value() ? 1 : 0;
+       Integer rsum = ra.sum.Int() + rcarry* 2^(B+1);
+       Chip.ok(ksum, rsum);
+       say(String.format("%8d  %8d  %8d", B, k.steps, r.steps));
+       if (B == 2) say(k, r);
+      }
+    }
+
+    static void test_binary_add_kogge_stone_vs_ripple_same()
    {say("Bits____  KogStone    Ripple");
     for (int B = 2; B <= 32; B *=2)
      {int N = -2;
@@ -5539,6 +5567,7 @@ Step  o     e
     //test_binary_add_kogge_stone_vs_ripple();
     //test_binary_add_kogge_stone_vs_ripple_same();
     test_binary_add_brent_kung();
+    test_binary_add_brent_kung_vs_kogge_stone();
     //test_binary_add_kogge_stone_vs_ripple();
    }
 
