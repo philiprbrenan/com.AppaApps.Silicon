@@ -865,7 +865,7 @@ https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.
 Inst   Name                  FMT Opcode  funct3 funct7      Description (C) Note-
 add    ADD                     R 0110011 0x0    0x00        rd = rs1 + rs2
 sub    SUB                     R 0110011 0x0    0x20        rd = rs1 - rs2
-xor    XOR                     R 0110011 0x4    0x00        rd = rs1 Ë rs2
+xor    XOR                     R 0110011 0x4    0x00        rd = rs1 ˆ rs2
 or     OR                      R 0110011 0x6    0x00        rd = rs1 | rs2
 and    AND                     R 0110011 0x7    0x00        rd = rs1 & rs2
 sll    Shift Left Logical      R 0110011 0x1    0x00        rd = rs1 << rs2
@@ -889,7 +889,7 @@ sltu   Set Less Than (U)       R 0110011 0x3    0x00        rd = (rs1 < rs2)?1:0
 /*
 Inst   Name                  FMT Opcode  funct3 funct7      Description (C) Note
 addi   ADD Immediate           I 0010011 0x0                rd = rs1 + imm
-xori   XOR Immediate           I 0010011 0x4                rd = rs1 Ë imm
+xori   XOR Immediate           I 0010011 0x4                rd = rs1 ˆ imm
 ori    OR Immediate            I 0010011 0x6                rd = rs1 | imm
 andi   AND Immediate           I 0010011 0x7                rd = rs1 & imm
 slli   Shift Left Logical Imm  I 0010011 0x1 imm[5:11]=0x00 rd = rs1 << imm[0:4]
@@ -946,9 +946,9 @@ Inst   Name                  FMT Opcode  funct3 funct7      Description (C) Note
 beq    Branch ==               B 1100011 0x0                if(rs1 == rs2) PC += imm
 bne    Branch !=               B 1100011 0x1                if(rs1 != rs2) PC += imm
 blt    Branch <                B 1100011 0x4                if(rs1 < rs2)  PC += imm
-bge    Branch â¥                B 1100011 0x5                if(rs1 >= rs2) PC += imm
+bge    Branch ≥                B 1100011 0x5                if(rs1 >= rs2) PC += imm
 bltu   Branch < (U)            B 1100011 0x6                if(rs1 < rs2)  PC += imm zero-extends
-bgeu   Branch â¥ (U)            B 1100011 0x7                if(rs1 >= rs2) PC += imm zero-extends
+bgeu   Branch ≥ (U)            B 1100011 0x7                if(rs1 >= rs2) PC += imm zero-extends
 */
 
   Encode   beq(Register rs1, Register rs2, Label l) {return encodeB(0b110_0011, rs1, rs2, 0, l);}
