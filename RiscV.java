@@ -1130,6 +1130,109 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
   static Variable structure(String Name)                    {return new Variable(Name, 0,  0,     0, 0);}     // Create structure - forward declaration
   static Variable structure(String Name, int At, int Width) {return new Variable(Name, At, Width, 0, Width);} // Create structure - instantiation
 
+  static class Var                                                              // Variable/Array definition. If there is only room for one element it is an element, otherwise it is an array.
+   {final String name;                                                          // Name of
+    final int at;                                                               // Offset of variable either from start of memory or from start of a structure
+    final int width;                                                            // Width of variable in bytes
+    final int size;                                                             // > 1: Number of elements in array, 1: variable, 0: structure
+    final int bytes;                                                            // Number of bytes in variable which for arrays and is width * size
+    final Map<String,Var> subMap = new TreeMap<>();                             // Unique variables contained inside this variable
+    final Stack<Var>    subStack = new Stack  <>();                           // Order of variables inside this variable
+
+    Var(String Name, int At, int Width, int Size, int Bytes)               // Create variable
+     {name = Name; at = At; width = Width; size = Size; bytes = Bytes;
+     }
+
+    int at(int i)  {return at + i * width;}                                     // Offset to an element in an array
+    int at()       {return at(0);}                                              // Offset to start of variable
+
+    void put(Var...subVar)                                                      // Add a sub variable to this variable
+     {if (size != 0) stop("Can only add variables to structures");
+      for (int i = 0; i < subVar.length; ++i)
+       {final Var s = subVar[i];
+        if (subMap.containsKey(s.name)) stop("Structure", name, "already contains", s.name);
+        subMap  .put (s.name, s);                                               // Add as a sub structure by name
+        subStack.push(s);                                                       // Add as a sub structure in order
+       }
+     }
+
+    Var clone(String newName)                                                   // Create a copy of a variable with a new variable
+     {final Var v = new Var(newName, at, width, size, bytes);
+      v.subMap  .putAll(subMap);
+      v.subStack.addAll(subStack);
+      return v;
+     }
+
+    Var compile(int at)                                                         // Compile this variable so that the size, width and byte fields are correct
+     {if (size == 0)                                                                 // Structure
+       {int w = 0;
+        final Stack<Var> S = new Stack<>();                                     // Clones of the variables in this structure
+        for(Var V : subStack)                                                   // Clone sub structures and variables
+         {final Var v = V.compile(at+w);
+          w += v.bytes;
+          S.push(v);
+         }
+        final Var c = struct(name, at, w);                                      // Structure of calculated width
+        for(Var s : S)                                                          // Install copies of variables in new structure
+         {c.subMap.put(s.name, s);
+          final Var t = new Var(s.name, at, s.width, s.size, s.bytes);
+          t.subMap  .putAll(s.subMap);
+          t.subStack.addAll(s.subStack);
+          c.subStack.push(t);
+          at += s.bytes;
+         }
+        return c;                                                               // Return compiled variable
+       }
+      return this;                                                              // It was already a variable
+     }
+
+    Var compile() {return compile(0);}                                          // Compile this variable so that the size, width and byte fields are correct
+
+    Stack<String> stackString(String name)                                      // Make an Print this structure
+     {final Stack<String> s = new Stack<>();
+      s.push(name);
+      return s;
+     }
+
+    Stack<String> print()                                                       // Print this structure
+     {if (size == 1) return stackString(name+"("+width+"."+at+")");             // Var
+      if (size  > 1) return stackString(name+"("+width+"."+at+":"+size+")");    // Array
+      final Stack<String> b = stackString(name+"("+width+"."+at);
+      for(Var s : subStack)
+       {final Stack<String> A = s.print();                                      // Sub structures
+        for(String a : A) b.push("  "+a);
+       }
+      b.push(")");
+      return b;
+     }
+
+    public String toString()                                                    // Print this structure
+     {final Stack<String> S = print();
+      final StringBuilder b = new StringBuilder();
+      for(String s : S) b.append(s+"\n");
+      return b.toString();
+     }
+   }
+
+  static Var var (String Name, int Width)                                  // Create variable
+   {return new Var(Name, 0, Width, 1, Width);
+   }
+
+  static Var var (String Name, int At, int Width)                          // Create variable inside a structure
+   {return new Var(Name, At, Width, 1, Width);
+   }
+
+  static Var arr    (String Name, int Width, int Size)                        // Create array
+   {return new Var(Name, 0, Width, Size, Width*Size);
+   }
+
+  static Var arr    (String Name, int At, int Width, int Size)                // Create array inside a structure
+   {return new Var(Name, At, Width, Size, Width*Size);
+   }
+
+  static Var struct(String Name)                    {return new Var(Name, 0,  0,     0, 0);}     // Create structure - forward declaration
+  static Var struct(String Name, int At, int Width) {return new Var(Name, At, Width, 0, Width);} // Create structure - instantiation
+
 //D1 Structured programming                                                     // Structured programming features.
 
   abstract class IfEq                                                           // If equal execute the "then" statement else the "else" statement
@@ -2077,6 +2180,32 @@ outer(96.0
 """);
    }
 
+  static void test_var()
+   {Var i = struct("inner");
+    Var a = var("a", 4);
+    Var b = var("b", 4);
+    Var c = arr("c", 4, 10);
+    i.put(a, b, c);
+    Var A = i.clone("aaaa");
+    Var B = i.clone("bbbb");
+    Var o = struct("outer");
+    o.put(A, B);
+    ok(o.compile().toString(), """
+outer(96.0
+  aaaa(48.0
+    a(4.0)
+    b(4.4)
+    c(4.8:10)
+  )
+  bbbb(48.48
+    a(4.48)
+    b(4.52)
+    c(4.56:10)
+  )
+)
+""");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {if (github_actions) test_immediate_b();
     if (github_actions) test_immediate_j();
@@ -2106,7 +2235,8 @@ outer(96.0
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
+    test_var();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
