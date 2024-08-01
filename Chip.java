@@ -4730,7 +4730,6 @@ Step  p
        Integer rsum = ra.sum.Int() + rcarry* 2^(B+1);
        Chip.ok(ksum, rsum);
        say(String.format("%8d  %8d  %8d", B, k.steps, r.steps));
-       if (B == 2) say(k, r);
       }
     }
 
