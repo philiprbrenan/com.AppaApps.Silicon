@@ -1965,47 +1965,104 @@ public class Chip                                                               
      }
 
     return new BinaryAdd(c.b(b), o);                                            // Carry out of the highest bit, result
-   }
+  }
 
   BinaryAdd binaryAddKoggeStone(String output, Bits in1, Bits in2)              // Add two bit buses of the same size to make a bit bus one bit wider using the Kogge-Stone O(log(n)) adder courtsey of HÃ¥kon HÃ¦gland
    {in1.sameSize(in2);                                                          // Check bits to be added have the same size
     final int B = in1.bits();                                                   // Number of bits of first input
     final Gate[]P = new Gate[B];                                                // Arrays of propagate gates
     final Gate[]G = new Gate[B];                                                // Arrays of generate gates
-    for (int i = 1; i <= B; i++) {                                              // Initialize the propagate and generate bits
-        P[i-1] = Xor(n(i, output, "P"), in1.b(i), in2.b(i));
-        G[i-1] = And(n(i, output, "G"), in1.b(i), in2.b(i));
-    }
+    for (int i = 1; i <= B; i++)                                                // Initialize the propagate and generate bits
+     {P[i-1] = Xor(n(i, output, "P"), in1.b(i), in2.b(i));
+      G[i-1] = And(n(i, output, "G"), in1.b(i), in2.b(i));
+     }
     int step = 1;
-    while (step < B) {
-        final Gate[]P_next = new Gate[B-step];                                  // Holds the propagate gates for this step
-        final Gate[]G_next = new Gate[B-step];                                  // Holds the generate gates for this step
-        for (int i = step; i < B; i++) {                                        // Calculate the propagate and generate bits for this step
-            final Gate g1  = And(n(step, i, output, "g1"), P[i], G[i-step]);
-            G_next[i-step] = Or (n(step, i, output, "G"),  G[i], g1);
-            P_next[i-step] = And(n(step, i, output, "P"),  P[i], P[i-step]);
-        }
-        for (int i = step; i < B; i++) {                                        // Copy the bits back to the main arrays
-            G[i] = G_next[i-step];
-            P[i] = P_next[i-step];
-        }
-        step *= 2;
-    }
+    while (step < B)
+     {final Gate[]P_next = new Gate[B-step];                                    // Holds the propagate gates for this step
+      final Gate[]G_next = new Gate[B-step];                                    // Holds the generate gates for this step
+      for (int i = step; i < B; i++)                                            // Calculate the propagate and generate bits for this step
+       {final Gate g1  = And(n(step, i, output, "g1"), P[i], G[i-step]);
+        G_next[i-step] = Or (n(step, i, output, "G"),  G[i], g1);
+        P_next[i-step] = And(n(step, i, output, "P"),  P[i], P[i-step]);
+       }
+      for (int i = step; i < B; i++)                                            // Copy the bits back to the main arrays
+       {G[i] = G_next[i-step];
+        P[i] = P_next[i-step];
+       }
+      step *= 2;
+     }
                                                                                 // Calculate carries
     final Gate[]C = new Gate[B+1];                                              // Arrays of names of bits
     C[0] = Zero(n(0, output, "carry"));                                         // First carry is always zero
-    for (int i = 1; i < (B+1); i++) {
-        Gate ci = And(n(i, output, "ci"), P[i-1], C[i-1]);
-        C[i] = Or(n(i, output, "carry"), G[i-1], ci);
-    }
+    for (int i = 1; i < (B+1); i++)
+     {Gate ci = And(n(i, output, "ci"), P[i-1], C[i-1]);
+      C[i] = Or(n(i, output, "carry"), G[i-1], ci);
+     }
     final Bits o = bits(output, B);                                             // Result bits
     final Bits p = xorBits (n(output, "p"), in1, in2);                          // Propagate bits
 
-    for (int i = 1; i <= B; i++) {                                              // Calculate result output
-        Xor(o.b(i), p.b(i), C[i-1]);
-    }
+    for (int i = 1; i <= B; i++)                                                // Calculate result output
+     {Xor(o.b(i), p.b(i), C[i-1]);
+     }
     return new BinaryAdd(C[B], o);                                              // Carry out of the highest bit, result
-   }
+  }
+
+  BinaryAdd binaryAddBrentKung(String output, Bits in1, Bits in2)              // Add two bit buses of the same size to make a bit bus one bit wider using the Brent-Kung O(log(n)) adder
+   {in1.sameSize(in2);                                                          // Check bits to be added have the same size
+    final int B = in1.bits();                                                   // Number of bits of first input
+    final Gate[][]P = new Gate[B][B];                                           // Matrix of propagate gates
+    final Gate[][]G = new Gate[B][B];                                           // Matrix of generate gates
+    for (int i = 1; i <= B; i++)                                                // Initialize the propagate and generate bits
+     {P[i-1][i-1] = Xor(n(i, output, "P"), in1.b(i), in2.b(i));
+      G[i-1][i-1] = And(n(i, output, "G"), in1.b(i), in2.b(i));
+     }
+
+    for (int d = 1; d < B; d *= 2)                                              // Generate up-sweep tree of propagate and generate signals
+     {for (int i = 0; i < B; i += 2 * d)
+       {int l = i;                                                              // lower index
+        int m = l + d - 1;                                                      // middle index
+        int h = l + 2*d - 1;                                                    // high index
+        if (h < B)
+         {final Gate g1 = And(n(l, h, output, "g1"), P[m+1][h], G[l][m]);
+          G[l][h] = Or(n(l, h, output, "G"), G[m+1][h], g1);
+          P[l][h] = And(n(l, h, output, "P"), P[m+1][h], P[l][m]);
+         }
+       }
+     }
+
+    for (int q = 2; q < B; q++)                                                 // Down-sweep phase to compute the missing prefixes
+     {if (G[0][q] == null)
+       {boolean found = false;
+        for (int d = q - 1; d >= 0; d--)
+         {if (G[0][d] != null && G[d + 1][q] != null)
+           {final Gate g2 = And(n(0, q, output, "g2"), P[d+1][q], G[0][d]);
+            G[0][q] = Or(n(0, q, output, "G"), G[d+1][q], g2);
+            P[0][q] = And(n(0, q, output, "P"), P[d+1][q], P[0][d]);
+            found = true;
+            break;
+           }
+         }
+        if (!found)                                                            // This should never happen!
+         {final String error = String.format("Not able to compute G[0][%d] from previous values", q);
+          stop(error);
+         }
+       }
+     }
+    final Gate[]C = new Gate[B+1];                                              // Arrays of names of bits
+    C[0] = Zero(n(0, output, "carry"));                                         // First carry is always zero
+    for (int i = 1; i < (B+1); i++)
+     {Gate ci = And(n(i, output, "ci"), P[0][i-1], C[i-1]);
+      C[i] = Or(n(i, output, "carry"), G[0][i-1], ci);
+     }
+
+    final Bits o = bits(output, B);                                             // Result bits
+    final Bits p = xorBits (n(output, "p"), in1, in2);                          // Propagate bits
+
+    for (int i = 1; i <= B; i++)                                                // Calculate result output
+     {Xor(o.b(i), p.b(i), C[i-1]);
+     }
+    return new BinaryAdd(C[B], o);                                              // Carry out of the highest bit, result
+  }
 
   BinaryAdd binaryAdd(String output, Bits in1, Bits in2)                        // Default adder
    {return binaryAddKoggeStone(output, in1, in2);
@@ -4630,7 +4687,53 @@ Step  p
      }
    }
 
-  static void test_binary_add_kogge_stone_vs_ripple_same()
+  static void test_binary_add_brent_kung()
+   {for (int B = 1; B <= 3; B++)
+     {int B2 = powerTwo(B);
+      for      (int i = 0; i < B2; i++)
+       {for    (int j = 0; j < B2; j++)
+         {Chip      c = chip();
+          Bits      I = c.bits("i", B, i);
+          Bits      J = c.bits("j", B, j);
+          BinaryAdd a = c.binaryAddBrentKung("ij",  I, J);
+          c.outputBits("o", a.sum());
+          c.Output    ("co", a.carry);
+          c.simulate  ();
+          a.sum  .ok((i+j) %  B2);
+          a.carry.ok((i+j) >= B2);
+          //System.err.println("B="+B+" i="+i+" j="+j+" sum="+a.sum+" carry="+a.carry+" steps="+c.steps);
+         }
+       }
+     }
+    }
+
+    static void test_binary_add_brent_kung_vs_kogge_stone()
+    {say("Bits____  BrentKung  KogStone");
+     for (int B = 2; B <= 32; B *=2)
+      {int N = -2;
+       Chip      k  = chip();
+       Bits      kn = k.bits("n", B, N);
+       Bits      km = k.bits("m", B, N);
+       BinaryAdd ka = k.binaryAddBrentKung("ka", kn, km);
+       ka.sum.anneal(); ka.carry.anneal();
+       k.simulate   ();
+
+       Chip       r = chip();
+       Bits      rn = r.bits("n", B, N);
+       Bits      rm = r.bits("m", B, N);
+       BinaryAdd ra = r.binaryAddKoggeStone("ra", rn, rm);
+       ra.sum.anneal(); ra.carry.anneal();
+       r.simulate  ();
+       Integer kcarry = ka.carry.value() ? 1 : 0;
+       Integer ksum = ka.sum.Int() + kcarry* 2^(B+1);
+       Integer rcarry = ra.carry.value() ? 1 : 0;
+       Integer rsum = ra.sum.Int() + rcarry* 2^(B+1);
+       Chip.ok(ksum, rsum);
+       say(String.format("%8d  %8d  %8d", B, k.steps, r.steps));
+      }
+    }
+
+    static void test_binary_add_kogge_stone_vs_ripple_same()
    {say("Bits____  KogStone    Ripple");
     for (int B = 2; B <= 32; B *=2)
      {int N = -2;
@@ -5460,8 +5563,11 @@ Step  o     e
     //test_binary_add();
     //test_binary_add_ripple();
     //test_binary_add_kogge_stone();
-      test_binary_add_kogge_stone_vs_ripple();
-      test_binary_add_kogge_stone_vs_ripple_same();
+    //test_binary_add_kogge_stone_vs_ripple();
+    //test_binary_add_kogge_stone_vs_ripple_same();
+    test_binary_add_brent_kung();
+    test_binary_add_brent_kung_vs_kogge_stone();
+    //test_binary_add_kogge_stone_vs_ripple();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
