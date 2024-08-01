@@ -1025,12 +1025,14 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
 //D1 Variables                                                                  // Variables are symbolic names for fixed locations in memory
 
+/* Arrays of structures. Offset of element by names and indices */
+
   static class Variable                                                         // Variable/Array definition. If there is only room for one element it is an element, otherwise it is an array.
    {final String name;                                                          // Name of
     final int at;                                                               // Offset of variable either from start of memory or from start of a structure
     final int width;                                                            // Width of variable in bytes
     final int size;                                                             // > 1: Number of elements in array, 1: variable, 0: structure
-    final int bytes;                                                            // Number of bytes in variable which for arrays and and variables this is width * size
+    final int bytes;                                                            // Number of bytes in variable which for arrays and is width * size
     final Map<String,Variable> subMap = new TreeMap<>();                        // Unique variables contained inside this variable
     final Stack<Variable>    subStack = new Stack  <>();                        // Order of variables inside this variable
 
