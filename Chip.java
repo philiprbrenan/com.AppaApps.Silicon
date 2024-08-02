@@ -26,7 +26,7 @@ quando di mano propria potrebbe saldare il suo conto con due dita di pugnale?
 
 Chi vorrebbe caricarsi i grossi fardelli, imprecando e sudando sotto il peso di tutta una vita stracca,
 se non fosse il timore di qualche cosa, dopo la morte,
-la terra inesplorata donde mai non tornÃÂ² alcun viaggiatore, a sgomentare la nostra volonta
+la terra inesplorata donde mai non torno alcun viaggiatore, a sgomentare la nostra volonta
 e a persuaderci di sopportare i nostri mali piuttosto che correre in cerca d'altri che non conosciamo?
 
 Cosi ci fa vigliacchi la coscienza;
@@ -1967,7 +1967,7 @@ public class Chip                                                               
     return new BinaryAdd(c.b(b), o);                                            // Carry out of the highest bit, result
   }
 
-  BinaryAdd binaryAddKoggeStone(String output, Bits in1, Bits in2)              // Add two bit buses of the same size to make a bit bus one bit wider using the Kogge-Stone O(log(n)) adder courtsey of HÃ¥kon HÃ¦gland
+  BinaryAdd binaryAddKoggeStone(String output, Bits in1, Bits in2)              // Add two bit buses of the same size to make a bit bus one bit wider using the Kogge-Stone O(log(n)) adder courtsey of HÃÂ¥kon HÃÂ¦gland
    {in1.sameSize(in2);                                                          // Check bits to be added have the same size
     final int B = in1.bits();                                                   // Number of bits of first input
     final Gate[]P = new Gate[B];                                                // Arrays of propagate gates
