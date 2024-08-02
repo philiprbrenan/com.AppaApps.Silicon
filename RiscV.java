@@ -1029,6 +1029,9 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
    {String name;                                                                // Name of
     int at;                                                                     // Offset of variable either from start of memory or from start of a structure
     int bytes;                                                                  // Number of bytes in variable which for arrays and is width * size
+    int depth;                                                                  // Depth of entry
+    MemoryLayout up;                                                            // Chain to containing layer
+    Stack<MemoryLayout> fields;                                                 // Fields in structure
 
     MemoryLayout(String Name)       {name  = Name;}
     MemoryLayout    at(int At)      {at    = At;    return this;}
@@ -1036,43 +1039,41 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
     int at()       {return at;}                                                 // Offset to start of variable
 
-    abstract void compile(int at);                                              // Compile this variable so that the size, width and byte fields are correct
-    void compile() {compile(0);}                                                // Compile this variable so that the size, width and byte fields are correct
+    abstract void compile(int at, int depth, MemoryLayout ml);                  // Compile this variable so that the size, width and byte fields are correct
+    void compile() {fields = new Stack<>(); compile(0, 0, this);}               // Compile this variable so that the size, width and byte fields are correct
+    String indent() {return "  ".repeat(depth);}                                // Indentation
 
-    Stack<String> stackString(String name)                                      // Make an Print this structure
-     {final Stack<String> s = new Stack<>();
-      s.push(name);
-      return s;
+    public String toString()                                                    // Print the memory layout header
+     {return String.format("%4d  %4d        %s  %s", at, bytes, indent(), name);
      }
 
-    Stack<String> indent(Stack<String> S)                                       // Make an Print this structure
-     {final Stack<String> T = new Stack<>();
-      for (String s : S) T.push("  "+s);
-      return T;
-     }
-
-    Stack<String> append(Stack<String> A, Stack<String> B)                      // Make an Print this structure
-     {for (String b : B) A.push(b);
-      return A;
-     }
-
-    abstract Stack<String> print();                                             // Make an Print this structure
-
-    public String toString()                                                    // Print this structure
-     {final Stack<String> S = print();
+    public String print()                                                       // Walk the field list printing the memory layout headers
+     {if (fields == null) return "";
       final StringBuilder b = new StringBuilder();
-      for(String s : S) b.append(s+"\n");
+      b.append(String.format("%4s  %4s  %4s    %s", "Offs", "Wide", "Size", "Field name\n"));
+      for(MemoryLayout m : fields) b.append(""+m+"\n");
       return b.toString();
+     }
+
+    MemoryLayout getFieldDef(String path)                                       // Path to field
+     {final String[]names = path.split("\\.");                                    // Split path
+      if (fields == null) return null;                                          // Not compiled
+      for (MemoryLayout m : fields)                                             // Each field in structure
+       {MemoryLayout p = m;                                                     // Start at this field and try to match the path
+        boolean found = true;
+        for(int q = names.length; q > 0 && p != null && found; --q, p = p.up)   // Back track through anmes
+         {found = p.name.equals(names[q-1]);                                    // Check path matches
+         }
+        if (found) return m;                                                    // Return this field if its path matches
+       }
+      return null;                                                              // No matching path
      }
    }
 
   static class Variable extends MemoryLayout                                    // Variable
    {Variable(String name, int Bytes) {super(name); bytes(Bytes);}
-    Stack<String> print()                                                       // Print this structure
-     {return stackString(name+"("+bytes+"."+at+")");
-     }
-    void compile(int At)                                                        // Compile this variable so that the size, width and byte fields are correct
-     {at = At;
+    void compile(int At, int Depth, MemoryLayout ml)
+     {at = At; depth = Depth; ml.fields.push(this);
      }
    }
 
@@ -1086,20 +1087,16 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     Array    size(int Size)             {size    = Size;    return this;}
     Array element(MemoryLayout Element) {element = Element; return this;}
 
-    void compile(int At)                                                        // Compile this variable so that the size, width and byte fields are correct
-     {at = At;
-      if (element instanceof Structure)
-       {Structure s = (Structure)element;
-        element.compile(at);
-       }
+    void compile(int At, int Depth, MemoryLayout ml)                            // Compile this variable so that the size, width and byte fields are correct
+     {at = At; depth = Depth; ml.fields.push(this);
+      element.compile(at, Depth+1, ml);
+      element.up = this;                                                        // Chain up
       bytes = size * element.bytes;
      }
 
-    Stack<String> print()                                                       // Print this structure
-     {final Stack<String> s = stackString(name+"["+bytes+"."+at+"*"+size);
-      append(s, indent(element.print()));
-      s.push("]");
-      return s;
+    public String toString()
+     {return String.format("%4d  %4d  %4d  %s  %s",
+                            at, bytes, size, indent(), name);
      }
    }
 
@@ -1107,34 +1104,29 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
    {final Map<String,MemoryLayout> subMap   = new TreeMap<>();                  // Unique variables contained inside this variable
     final Stack     <MemoryLayout> subStack = new Stack  <>();                  // Order of variables inside this variable
 
-    Structure(String Name, MemoryLayout...Elements)
+    Structure(String Name, MemoryLayout...Fields)
      {super(Name);
-      for (int i = 0; i < Elements.length; ++i)
-       {final MemoryLayout s = Elements[i];
+      for (int i = 0; i < Fields.length; ++i)                                   // Each field in this structure
+       {final MemoryLayout s = Fields[i];
+        s.up = this;                                                            // Chain up
         if (subMap.containsKey(s.name)) stop(name, "already contains", s.name);
         subMap  .put (s.name, s);                                               // Add as a sub structure by name
         subStack.push(s);                                                       // Add as a sub structure in order
        }
      }
-    Structure    at(int At)               {at      = At;      return this;}
-    Structure bytes(int Bytes)            {bytes   = Bytes;   return this;}
+    Structure    at(int At)    {at      = At;      return this;}
+    Structure bytes(int Bytes) {bytes   = Bytes;   return this;}
 
-    void compile(int at)                                                        // Compile this variable so that the size, width and byte fields are correct
+    void compile(int at, int Depth, MemoryLayout ml)                            // Compile this variable so that the size, width and byte fields are correct
      {int w = 0;
       bytes = 0;
+      depth = Depth;
+      ml.fields.push(this);
       for(MemoryLayout v : subStack)                                            // Clone sub structures and variables
        {v.at = at+bytes;
-        v.compile(v.at);
+        v.compile(v.at, Depth+1, ml);
         bytes += v.bytes;
        }
-
-     }
-
-    Stack<String> print()                                                       // Print this structure
-     {final Stack<String> b = stackString(name+"{"+bytes+"."+at);
-      for(MemoryLayout s : subStack) append(b, indent(s.print()));              // Sub structures
-      b.push("}");
-      return b;
      }
    }
 
@@ -2059,7 +2051,7 @@ Registers  :  x3=11 x4=22
    {Variable  a1 = new Variable("a1", 4);
     Variable  b1 = new Variable("b1", 4);
     Variable  c1 = new Variable("c1", 2);
-    Array     C1 = new Array   ("C1", c, 10);
+    Array     C1 = new Array   ("C1", c1, 10);
     Structure s1 = new Structure("inner1", a1, b1, C1);
     Variable  a2 = new Variable("a2", 4);
     Variable  b2 = new Variable("b2", 4);
@@ -2070,21 +2062,23 @@ Registers  :  x3=11 x4=22
     Array     A2 = new Array("Array2", s2, 2);
     Structure T  = new Structure("outer", s1, s2);
     T.compile();
-    ok(S.toString(), """
-outer{64.0
-  array[56.0*2
-    inner{28.0
-      a(4.56)
-      b(4.60)
-      c[20.8*10
-        c(2.0)
-      ]
-    }
-  ]
-  a(4.56)
-  b(4.60)
-}
+    ok(T.print(), """
+Offs  Wide  Size    Field name
+   0    56          outer
+   0    28            inner1
+   0     4              a1
+   4     4              b1
+   8    20    10        C1
+   8     2                c1
+  28    28            inner2
+  28     4              a2
+  32     4              b2
+  36    20    10        C2
+  36     2                c2
 """);
+
+    ok(T.getFieldDef("outer.inner1.C1.c1").at,  8);
+    ok(T.getFieldDef("outer.inner2.C2.c2").at, 36);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -2116,7 +2110,7 @@ outer{64.0
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
+   {oldTests();
     test_variable();
    }
 
