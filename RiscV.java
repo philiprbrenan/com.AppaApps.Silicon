@@ -1025,22 +1025,19 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
 //D1 Variables                                                                  // Variables are symbolic names for fixed locations in memory
 
-  static abstract class MemoryLayout                                            // Variable/Array definition. If there is only room for one element it is an element, otherwise it is an array.
-   {String name;                                                                // Name of
+  static abstract class MemoryLayout                                            // Variable/Array/Structure definition.
+   {String name;                                                                // Name of field
     int at;                                                                     // Offset of variable either from start of memory or from start of a structure
-    int bytes;                                                                  // Number of bytes in variable which for arrays and is width * size
-    int depth;                                                                  // Depth of entry
-    MemoryLayout up;                                                            // Chain to containing layer
+    int bytes;                                                                  // Number of bytes in field
+    int depth;                                                                  // Depth of field
+    MemoryLayout up;                                                            // Chain to containing field
     Stack<MemoryLayout> fields;                                                 // Fields in structure
 
     MemoryLayout(String Name)       {name  = Name;}
-    MemoryLayout    at(int At)      {at    = At;    return this;}
     MemoryLayout bytes(int Bytes)   {bytes = Bytes; return this;}
 
-    int at()       {return at;}                                                 // Offset to start of variable
-
-    abstract void compile(int at, int depth, MemoryLayout ml);                  // Compile this variable so that the size, width and byte fields are correct
-    void compile() {fields = new Stack<>(); compile(0, 0, this);}               // Compile this variable so that the size, width and byte fields are correct
+    abstract void layout(int at, int depth, MemoryLayout ml);                   // Layout this field
+    void layout() {fields = new Stack<>(); layout(0, 0, this);}                 // Layout the fields in the structure defined by this field
     String indent() {return "  ".repeat(depth);}                                // Indentation
 
     public String toString()                                                    // Print the memory layout header
@@ -1048,15 +1045,15 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
      }
 
     public String print()                                                       // Walk the field list printing the memory layout headers
-     {if (fields == null) return "";
+     {if (fields == null) return "";                                            // The structure has not been laid out
       final StringBuilder b = new StringBuilder();
       b.append(String.format("%4s  %4s  %4s    %s", "Offs", "Wide", "Size", "Field name\n"));
-      for(MemoryLayout m : fields) b.append(""+m+"\n");
+      for(MemoryLayout m : fields) b.append(""+m+"\n");                         // Print all the fields in the structure layout
       return b.toString();
      }
 
     MemoryLayout getFieldDef(String path)                                       // Path to field
-     {final String[]names = path.split("\\.");                                    // Split path
+     {final String[]names = path.split("\\.");                                  // Split path
       if (fields == null) return null;                                          // Not compiled
       for (MemoryLayout m : fields)                                             // Each field in structure
        {MemoryLayout p = m;                                                     // Start at this field and try to match the path
@@ -1072,59 +1069,57 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
   static class Variable extends MemoryLayout                                    // Variable
    {Variable(String name, int Bytes) {super(name); bytes(Bytes);}
-    void compile(int At, int Depth, MemoryLayout ml)
+    void layout(int At, int Depth, MemoryLayout ml)
      {at = At; depth = Depth; ml.fields.push(this);
      }
    }
 
   static class Array extends MemoryLayout                                       // Array definition.
-   {int size;                                                                   // Dimension
+   {int size;                                                                   // Dimension of array
     MemoryLayout element;                                                       // The elements of this array
     Array(String Name, MemoryLayout Element, int Size)
      {super(Name);
       size(Size).element(Element);
      }
-    Array    size(int Size)             {size    = Size;    return this;}
-    Array element(MemoryLayout Element) {element = Element; return this;}
+    Array    size(int Size)             {size    = Size;    return this;}       // Set the size of the array
+    Array element(MemoryLayout Element) {element = Element; return this;}       // The type of the element in the array
 
-    void compile(int At, int Depth, MemoryLayout ml)                            // Compile this variable so that the size, width and byte fields are correct
+    void layout(int At, int Depth, MemoryLayout ml)                             // Compile this variable so that the size, width and byte fields are correct
      {at = At; depth = Depth; ml.fields.push(this);
-      element.compile(at, Depth+1, ml);
+      element.layout(at, Depth+1, ml);
       element.up = this;                                                        // Chain up
       bytes = size * element.bytes;
      }
 
-    public String toString()
+    public String toString()                                                    // Print the field
      {return String.format("%4d  %4d  %4d  %s  %s",
                             at, bytes, size, indent(), name);
      }
    }
 
-  static class Structure extends MemoryLayout                                   // Structure
+  static class Structure extends MemoryLayout                                   // Structure laid out in memory
    {final Map<String,MemoryLayout> subMap   = new TreeMap<>();                  // Unique variables contained inside this variable
     final Stack     <MemoryLayout> subStack = new Stack  <>();                  // Order of variables inside this variable
 
-    Structure(String Name, MemoryLayout...Fields)
+    Structure(String Name, MemoryLayout...Fields)                               // Fields in the structure
      {super(Name);
       for (int i = 0; i < Fields.length; ++i)                                   // Each field in this structure
        {final MemoryLayout s = Fields[i];
-        s.up = this;                                                            // Chain up
+        s.up = this;                                                            // Chain up to containing structure
         if (subMap.containsKey(s.name)) stop(name, "already contains", s.name);
         subMap  .put (s.name, s);                                               // Add as a sub structure by name
         subStack.push(s);                                                       // Add as a sub structure in order
        }
      }
-    Structure    at(int At)    {at      = At;      return this;}
-    Structure bytes(int Bytes) {bytes   = Bytes;   return this;}
 
-    void compile(int at, int Depth, MemoryLayout ml)                            // Compile this variable so that the size, width and byte fields are correct
+    void layout(int at, int Depth, MemoryLayout ml)                             // Compile this variable so that the size, width and byte fields are correct
      {int w = 0;
       bytes = 0;
       depth = Depth;
       ml.fields.push(this);
-      for(MemoryLayout v : subStack)                                            // Clone sub structures and variables
+      for(MemoryLayout v : subStack)                                            // Layout sub structure
        {v.at = at+bytes;
-        v.compile(v.at, Depth+1, ml);
+        v.layout(v.at, Depth+1, ml);
         bytes += v.bytes;
        }
      }
@@ -2061,7 +2056,7 @@ Registers  :  x3=11 x4=22
     Array     A1 = new Array("Array1", s1, 2);
     Array     A2 = new Array("Array2", s2, 2);
     Structure T  = new Structure("outer", s1, s2);
-    T.compile();
+    T.layout();
     ok(T.print(), """
 Offs  Wide  Size    Field name
    0    56          outer
