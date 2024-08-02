@@ -1083,6 +1083,7 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
      }
     Array    size(int Size)             {size    = Size;    return this;}       // Set the size of the array
     Array element(MemoryLayout Element) {element = Element; return this;}       // The type of the element in the array
+    int at(int i)                       {return at+i*element.bytes;}             // Offset of this array element in the structure
 
     void layout(int At, int Depth, MemoryLayout ml)                             // Compile this variable so that the size, width and byte fields are correct
      {at = At; depth = Depth; ml.fields.push(this);
@@ -2074,6 +2075,7 @@ Offs  Wide  Size    Field name
 
     ok(T.getFieldDef("outer.inner1.C1.c1").at,  8);
     ok(T.getFieldDef("outer.inner2.C2.c2").at, 36);
+    ok(C2.at(2), 40);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
