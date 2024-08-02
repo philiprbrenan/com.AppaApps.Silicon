@@ -865,7 +865,7 @@ https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.
 Inst   Name                  FMT Opcode  funct3 funct7      Description (C) Note-
 add    ADD                     R 0110011 0x0    0x00        rd = rs1 + rs2
 sub    SUB                     R 0110011 0x0    0x20        rd = rs1 - rs2
-xor    XOR                     R 0110011 0x4    0x00        rd = rs1 ˆ rs2
+xor    XOR                     R 0110011 0x4    0x00        rd = rs1 Ë rs2
 or     OR                      R 0110011 0x6    0x00        rd = rs1 | rs2
 and    AND                     R 0110011 0x7    0x00        rd = rs1 & rs2
 sll    Shift Left Logical      R 0110011 0x1    0x00        rd = rs1 << rs2
@@ -889,7 +889,7 @@ sltu   Set Less Than (U)       R 0110011 0x3    0x00        rd = (rs1 < rs2)?1:0
 /*
 Inst   Name                  FMT Opcode  funct3 funct7      Description (C) Note
 addi   ADD Immediate           I 0010011 0x0                rd = rs1 + imm
-xori   XOR Immediate           I 0010011 0x4                rd = rs1 ˆ imm
+xori   XOR Immediate           I 0010011 0x4                rd = rs1 Ë imm
 ori    OR Immediate            I 0010011 0x6                rd = rs1 | imm
 andi   AND Immediate           I 0010011 0x7                rd = rs1 & imm
 slli   Shift Left Logical Imm  I 0010011 0x1 imm[5:11]=0x00 rd = rs1 << imm[0:4]
@@ -946,9 +946,9 @@ Inst   Name                  FMT Opcode  funct3 funct7      Description (C) Note
 beq    Branch ==               B 1100011 0x0                if(rs1 == rs2) PC += imm
 bne    Branch !=               B 1100011 0x1                if(rs1 != rs2) PC += imm
 blt    Branch <                B 1100011 0x4                if(rs1 < rs2)  PC += imm
-bge    Branch ≥                B 1100011 0x5                if(rs1 >= rs2) PC += imm
+bge    Branch â¥                B 1100011 0x5                if(rs1 >= rs2) PC += imm
 bltu   Branch < (U)            B 1100011 0x6                if(rs1 < rs2)  PC += imm zero-extends
-bgeu   Branch ≥ (U)            B 1100011 0x7                if(rs1 >= rs2) PC += imm zero-extends
+bgeu   Branch â¥ (U)            B 1100011 0x7                if(rs1 >= rs2) PC += imm zero-extends
 */
 
   Encode   beq(Register rs1, Register rs2, Label l) {return encodeB(0b110_0011, rs1, rs2, 0, l);}
@@ -1025,65 +1025,19 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
 //D1 Variables                                                                  // Variables are symbolic names for fixed locations in memory
 
-/* Arrays of structures. Offset of element by names and indices */
+  static abstract class MemoryLayout                                            // Variable/Array definition. If there is only room for one element it is an element, otherwise it is an array.
+   {String name;                                                                // Name of
+    int at;                                                                     // Offset of variable either from start of memory or from start of a structure
+    int bytes;                                                                  // Number of bytes in variable which for arrays and is width * size
 
-  static class Variable                                                         // Variable/Array definition. If there is only room for one element it is an element, otherwise it is an array.
-   {final String name;                                                          // Name of
-    final int at;                                                               // Offset of variable either from start of memory or from start of a structure
-    final int width;                                                            // Width of variable in bytes
-    final int size;                                                             // > 1: Number of elements in array, 1: variable, 0: structure
-    final int bytes;                                                            // Number of bytes in variable which for arrays and is width * size
-    final Map<String,Variable> subMap = new TreeMap<>();                        // Unique variables contained inside this variable
-    final Stack<Variable>    subStack = new Stack  <>();                        // Order of variables inside this variable
+    MemoryLayout(String Name)       {name  = Name;}
+    MemoryLayout    at(int At)      {at    = At;    return this;}
+    MemoryLayout bytes(int Bytes)   {bytes = Bytes; return this;}
 
-    Variable(String Name, int At, int Width, int Size, int Bytes)               // Create variable
-     {name = Name; at = At; width = Width; size = Size; bytes = Bytes;
-     }
+    int at()       {return at;}                                                 // Offset to start of variable
 
-    int at(int i)  {return at + i * width;}                                     // Offset to an element in an array
-    int at()       {return at(0);}                                              // Offset to start of variable
-
-    void put(Variable...subVar)                                                 // Add a sub variable to this variable
-     {if (size != 0) stop("Can only add variables to structures");
-      for (int i = 0; i < subVar.length; ++i)
-       {final Variable s = subVar[i];
-        if (subMap.containsKey(s.name)) stop("Structure", name, "already contains", s.name);
-        subMap  .put (s.name, s);                                               // Add as a sub structure by name
-        subStack.push(s);                                                       // Add as a sub structure in order
-       }
-     }
-
-    Variable clone(String newName)                                              // Create a copy of a variable with a new variable
-     {final Variable v = new Variable(newName, at, width, size, bytes);
-      v.subMap  .putAll(subMap);
-      v.subStack.addAll(subStack);
-      return v;
-     }
-
-    Variable compile(int at)                                                    // Compile this variable so that the size, width and byte fields are correct
-     {if (size == 0)                                                            // Structure
-       {int w = 0;
-        final Stack<Variable> S = new Stack<>();                                // Clones of the variables in this structure
-        for(Variable V : subStack)                                              // Clone sub structures and variables
-         {final Variable v = V.compile(at+w);
-          w += v.bytes;
-          S.push(v);
-         }
-        final Variable c = structure(name, at, w);                              // Structure of calculated width
-        for(Variable s : S)                                                     // Install copies of variables in new structure
-         {c.subMap.put(s.name, s);
-          final Variable t = new Variable(s.name, at, s.width, s.size, s.bytes);
-          t.subMap  .putAll(s.subMap);
-          t.subStack.addAll(s.subStack);
-          c.subStack.push(t);
-          at += s.bytes;
-         }
-        return c;                                                               // Return compiled variable
-       }
-      return this;                                                              // It was already a variable
-     }
-
-    Variable compile() {return compile(0);}                                     // Compile this variable so that the size, width and byte fields are correct
+    abstract void compile(int at);                                              // Compile this variable so that the size, width and byte fields are correct
+    void compile() {compile(0);}                                                // Compile this variable so that the size, width and byte fields are correct
 
     Stack<String> stackString(String name)                                      // Make an Print this structure
      {final Stack<String> s = new Stack<>();
@@ -1091,17 +1045,18 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
       return s;
      }
 
-    Stack<String> print()                                                       // Print this structure
-     {if (size == 1) return stackString(name+"("+width+"."+at+")");             // Variable
-      if (size  > 1) return stackString(name+"("+width+"."+at+":"+size+")");    // Array
-      final Stack<String> b = stackString(name+"("+width+"."+at);
-      for(Variable s : subStack)
-       {final Stack<String> A = s.print();                                      // Sub structures
-        for(String a : A) b.push("  "+a);
-       }
-      b.push(")");
-      return b;
+    Stack<String> indent(Stack<String> S)                                       // Make an Print this structure
+     {final Stack<String> T = new Stack<>();
+      for (String s : S) T.push("  "+s);
+      return T;
      }
+
+    Stack<String> append(Stack<String> A, Stack<String> B)                      // Make an Print this structure
+     {for (String b : B) A.push(b);
+      return A;
+     }
+
+    abstract Stack<String> print();                                             // Make an Print this structure
 
     public String toString()                                                    // Print this structure
      {final Stack<String> S = print();
@@ -1111,127 +1066,77 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
      }
    }
 
-  static Variable variable (String Name, int Width)                             // Create variable
-   {return new Variable(Name, 0, Width, 1, Width);
+  static class Variable extends MemoryLayout                                    // Variable
+   {Variable(String name, int Bytes) {super(name); bytes(Bytes);}
+    Stack<String> print()                                                       // Print this structure
+     {return stackString(name+"("+bytes+"."+at+")");
+     }
+    void compile(int At)                                                        // Compile this variable so that the size, width and byte fields are correct
+     {at = At;
+     }
    }
 
-  static Variable variable (String Name, int At, int Width)                     // Create variable inside a structure
-   {return new Variable(Name, At, Width, 1, Width);
-   }
+  static class Array extends MemoryLayout                                       // Array definition.
+   {int size;                                                                   // Dimension
+    MemoryLayout element;                                                       // The elements of this array
+    Array(String Name, MemoryLayout Element, int Size)
+     {super(Name);
+      size(Size).element(Element);
+     }
+    Array    size(int Size)             {size    = Size;    return this;}
+    Array element(MemoryLayout Element) {element = Element; return this;}
 
-  static Variable array    (String Name, int Width, int Size)                   // Create array
-   {return new Variable(Name, 0, Width, Size, Width*Size);
-   }
-
-  static Variable array    (String Name, int At, int Width, int Size)           // Create array inside a structure
-   {return new Variable(Name, At, Width, Size, Width*Size);
-   }
-
-  static Variable structure(String Name)                    {return new Variable(Name, 0,  0,     0, 0);}     // Create structure - forward declaration
-  static Variable structure(String Name, int At, int Width) {return new Variable(Name, At, Width, 0, Width);} // Create structure - instantiation
-
-  static class Var                                                              // Variable/Array definition. If there is only room for one element it is an element, otherwise it is an array.
-   {final String name;                                                          // Name of
-    final int at;                                                               // Offset of variable either from start of memory or from start of a structure
-    final int width;                                                            // Width of variable in bytes
-    final int size;                                                             // > 1: Number of elements in array, 1: variable, 0: structure
-    final int bytes;                                                            // Number of bytes in variable which for arrays and is width * size
-    final Map<String,Var> subMap = new TreeMap<>();                             // Unique variables contained inside this variable
-    final Stack<Var>    subStack = new Stack  <>();                           // Order of variables inside this variable
-
-    Var(String Name, int At, int Width, int Size, int Bytes)               // Create variable
-     {name = Name; at = At; width = Width; size = Size; bytes = Bytes;
+    void compile(int At)                                                        // Compile this variable so that the size, width and byte fields are correct
+     {at = At;
+      if (element instanceof Structure)
+       {Structure s = (Structure)element;
+        element.compile(at);
+       }
+      bytes = size * element.bytes;
      }
 
-    int at(int i)  {return at + i * width;}                                     // Offset to an element in an array
-    int at()       {return at(0);}                                              // Offset to start of variable
+    Stack<String> print()                                                       // Print this structure
+     {final Stack<String> s = stackString(name+"["+bytes+"."+at+"*"+size);
+      append(s, indent(element.print()));
+      s.push("]");
+      return s;
+     }
+   }
 
-    void put(Var...subVar)                                                      // Add a sub variable to this variable
-     {if (size != 0) stop("Can only add variables to structures");
-      for (int i = 0; i < subVar.length; ++i)
-       {final Var s = subVar[i];
-        if (subMap.containsKey(s.name)) stop("Structure", name, "already contains", s.name);
+  static class Structure extends MemoryLayout                                   // Structure
+   {final Map<String,MemoryLayout> subMap   = new TreeMap<>();                  // Unique variables contained inside this variable
+    final Stack     <MemoryLayout> subStack = new Stack  <>();                  // Order of variables inside this variable
+
+    Structure(String Name, MemoryLayout...Elements)
+     {super(Name);
+      for (int i = 0; i < Elements.length; ++i)
+       {final MemoryLayout s = Elements[i];
+        if (subMap.containsKey(s.name)) stop(name, "already contains", s.name);
         subMap  .put (s.name, s);                                               // Add as a sub structure by name
         subStack.push(s);                                                       // Add as a sub structure in order
        }
      }
+    Structure    at(int At)               {at      = At;      return this;}
+    Structure bytes(int Bytes)            {bytes   = Bytes;   return this;}
 
-    Var clone(String newName)                                                   // Create a copy of a variable with a new variable
-     {final Var v = new Var(newName, at, width, size, bytes);
-      v.subMap  .putAll(subMap);
-      v.subStack.addAll(subStack);
-      return v;
-     }
-
-    Var compile(int at)                                                         // Compile this variable so that the size, width and byte fields are correct
-     {if (size == 0)                                                                 // Structure
-       {int w = 0;
-        final Stack<Var> S = new Stack<>();                                     // Clones of the variables in this structure
-        for(Var V : subStack)                                                   // Clone sub structures and variables
-         {final Var v = V.compile(at+w);
-          w += v.bytes;
-          S.push(v);
-         }
-        final Var c = struct(name, at, w);                                      // Structure of calculated width
-        for(Var s : S)                                                          // Install copies of variables in new structure
-         {c.subMap.put(s.name, s);
-          final Var t = new Var(s.name, at, s.width, s.size, s.bytes);
-          t.subMap  .putAll(s.subMap);
-          t.subStack.addAll(s.subStack);
-          c.subStack.push(t);
-          at += s.bytes;
-         }
-        return c;                                                               // Return compiled variable
+    void compile(int at)                                                        // Compile this variable so that the size, width and byte fields are correct
+     {int w = 0;
+      bytes = 0;
+      for(MemoryLayout v : subStack)                                            // Clone sub structures and variables
+       {v.at = at+bytes;
+        v.compile(v.at);
+        bytes += v.bytes;
        }
-      return this;                                                              // It was already a variable
-     }
 
-    Var compile() {return compile(0);}                                          // Compile this variable so that the size, width and byte fields are correct
-
-    Stack<String> stackString(String name)                                      // Make an Print this structure
-     {final Stack<String> s = new Stack<>();
-      s.push(name);
-      return s;
      }
 
     Stack<String> print()                                                       // Print this structure
-     {if (size == 1) return stackString(name+"("+width+"."+at+")");             // Var
-      if (size  > 1) return stackString(name+"("+width+"."+at+":"+size+")");    // Array
-      final Stack<String> b = stackString(name+"("+width+"."+at);
-      for(Var s : subStack)
-       {final Stack<String> A = s.print();                                      // Sub structures
-        for(String a : A) b.push("  "+a);
-       }
-      b.push(")");
+     {final Stack<String> b = stackString(name+"{"+bytes+"."+at);
+      for(MemoryLayout s : subStack) append(b, indent(s.print()));              // Sub structures
+      b.push("}");
       return b;
      }
-
-    public String toString()                                                    // Print this structure
-     {final Stack<String> S = print();
-      final StringBuilder b = new StringBuilder();
-      for(String s : S) b.append(s+"\n");
-      return b.toString();
-     }
    }
-
-  static Var var (String Name, int Width)                                  // Create variable
-   {return new Var(Name, 0, Width, 1, Width);
-   }
-
-  static Var var (String Name, int At, int Width)                          // Create variable inside a structure
-   {return new Var(Name, At, Width, 1, Width);
-   }
-
-  static Var arr    (String Name, int Width, int Size)                        // Create array
-   {return new Var(Name, 0, Width, Size, Width*Size);
-   }
-
-  static Var arr    (String Name, int At, int Width, int Size)                // Create array inside a structure
-   {return new Var(Name, At, Width, Size, Width*Size);
-   }
-
-  static Var struct(String Name)                    {return new Var(Name, 0,  0,     0, 0);}     // Create structure - forward declaration
-  static Var struct(String Name, int At, int Width) {return new Var(Name, At, Width, 0, Width);} // Create structure - instantiation
 
 //D1 Structured programming                                                     // Structured programming features.
 
@@ -1539,24 +1444,20 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
     Register c = r.x6;                                                          // C = A + B
     Register i = r.x7;                                                          // Loop counter
 
-    Variable p = array("p", 2, 10);                                             // Variable declarations
-    Variable o = array("a", 4, 10);                                             // Block of 40 bytes starting at byte address 20
     r.addi(N, z, 10);                                                           // N = 10
     r.addi(i, z, 0);                                                            // i =  0
     r.addi(a, z, 0);                                                            // a =  0
     r.addi(b, z, 1);                                                            // b =  1
     Label start = r.relativeLabel("start");                                     // Start of for loop
-    r.sb  (i, a, o.at());                                                       // Save latest result in memory
-    r.addi(r.x1, z, Decode.eCall_write_stdout);                                 // Write to stdout
-    r.add (r.x2, z, a);                                                         // Write to stdout variable a
-    r.ecall();
+    r.sb  (i, a, 0);                                                            // Save latest result in memory
+    r.out(a);                                                                   // Write to stdout variable a
     r.add (c, a, b);                                                            // Latest Fibonacci number
     r.add (a, b, z);                                                            // Move b to a
     r.add (b, c, z);                                                            // Move c to b
     r.addi(i, i, 1);                                                            // Increment loop count
     r.blt (i, N, start);                                                        // Loop
 
-    r.addi(r.x1, z, Decode.eCall_stop);  r.ecall();                             // Request exit with x1 = 0
+    r.stop();                                                                   // Request exit with x1 = 0
 
     r.emulate();                                                                // Run the program
     //stop(r);
@@ -1577,8 +1478,8 @@ Line      Name    Op   D S1 S2   T  F3 F5 F7  A R  Immediate    Value
 0002      addi    13   4  0  0   0   0  0  0  0 0          0      213
 0003      addi    13   5  0  1   0   0  0  0  0 0          1   100293
 0004        sb    23   0  7  4   0   0  0  0  0 0          0   438023
-0005      addi    13   1  0  2   0   0  0  0  0 0          2   200093
-0006       add    33   2  0  4   0   0  0  0  0 0          0   400133
+0005       add    33   2  0  4   0   0  0  0  0 0          0   400133
+0006      addi    13   1  0  2   0   0  0  0  0 0          2   200093
 0007     ecall    73   0  0  0   0   0  0  0  0 0          0       73
 0008       add    33   6  4  5   0   0  0  0  0 0          0   520333
 0009       add    33   4  5  0   0   0  0  0  0 0          0    28233
@@ -1854,32 +1755,32 @@ Registers  :  x1=2
     Register p = r.x4;                                                          // Current position in array
     Register a = r.x5;                                                          // Lower element
     Register b = r.x6;                                                          // Upper element
+    final int width = 4;                                                        // Bytes in a Fibonacci number
 
     final int[]array = {9,3,1,2,8,6,4,7,5};                                     // Array to sort
-    Variable A = array("a", 4, array.length);                                   // Array in memory
     for (int j = 0; j < array.length; j++)                                      // Load array into memory
      {r.addi(a, z, array[j]);
-      r.sw  (z, a, A.at(j));
+      r.sw  (z, a, j*width);
      }
 
-    r.addi(q, z, A.bytes);                                                      // Size of array
+    r.addi(q, z, width * array.length);                                         // Size of array
     Label outerStart = r.relativeLabel("outerStart");                           // Outer loop
     Label outerEnd   = r.relativeLabel("outerEnd");
-      r.addi(q, q, -A.width);                                                   // Each pass shortens the number of elements that still need to be sorted
+      r.addi(q, q, -width);                                                     // Each pass shortens the number of elements that still need to be sorted
       r.blt (q, z, outerEnd);                                                   // Finished pouter loop
 
       r.add (p, z, z);                                                          // p = 0
       Label inner = r.relativeLabel("inner");                                   // Swap loop
         r.lw  (a, p, 0);                                                        // Lower element
-        r.lw  (b, p, A.width);                                                  // Upper width
+        r.lw  (b, p, width);                                                    // Upper width
 
         Label inOrder = r.relativeLabel("inOrder");                             // Elements in order
         r.blt(a, b, inOrder);                                                   // Jump if elements are in order
           r.sw(p, b, 0);                                                        // Swap elements
-          r.sw(p, a, A.width);
+          r.sw(p, a, width);
 
         inOrder.set();
-        r.addi(p, p, A.width);                                                  // Increment pointer
+        r.addi(p, p, width);                                                    // Increment pointer
         r.blt (p, q, inner);                                                    // Inner loop
 
     r.jal (z, outerStart);                                                      // Next swap pass
@@ -1887,7 +1788,7 @@ Registers  :  x1=2
 
     r.add (p, z, z);                                                            // Write sorted array
     for (int i = 0; i < array.length; i++)
-     {r.lw  (r.x2, z, A.at(i));
+     {r.lw  (r.x2, z, i * width);
       r.addi(r.x1, z, Decode.eCall_write_stdout);
       r.ecall();
      }
@@ -1911,26 +1812,26 @@ Registers  :  x1=2
     Register q = r.x5;                                                          // Upper limit of array to be sorted
     Register a = r.x6;                                                          // Lower element
     Register b = r.x7;                                                          // Upper element
+    final int width = 4;                                                        // The width in bytes of an item to be sorted
 
     final int[]array = {9,3,1,2,8,6,4,7,5};                                     // Array to sort
-    Variable A = array("a", 4, array.length);                                   // Array in memory
     for (int j = 0; j < array.length; j++)                                      // Load array into memory
      {r.addi(a, z, array[j]);
-      r.sw  (z, a, A.at(j));
+      r.sw  (z, a, j * width);
      }
 
-    r.addi(q, z, A.bytes);                                                      // Size of array
-    r.new Up(p, q, A.width)
+    r.addi(q, z, width * array.length);                                         // Size of array
+    r.new Up(p, q, width)
      {void body()                                                               // Lengthen the sorted suffix
-       {r.new Down(o, p, -A.width)
+       {r.new Down(o, p, -width)
          {void body()                                                           // Down through sorted prefix
            {r.lw(a, o, 0);
-            r.lw(b, o, A.width);
+            r.lw(b, o, width);
             final Down down = this;
             r.new IfLt(b, a)                                                    // Swap
              {void Then()
                {r.sw(o, b, 0);
-                r.sw(o, a, A.width);
+                r.sw(o, a, width);
                }
               void Else()                                                       // In order - so finished
                {down.Break();
@@ -1941,7 +1842,7 @@ Registers  :  x1=2
        }
      };
 
-    r.new Up(p, q, A.width)                                                     // Write sorted array
+    r.new Up(p, q, width)                                                       // Write sorted array
      {void body()
        {r.lw (a, p, 0);
         r.out(a);
@@ -2155,54 +2056,34 @@ Registers  :  x3=11 x4=22
    }
 
   static void test_variable()
-   {Variable i = structure("inner");
-    Variable a = variable("a", 4);
-    Variable b = variable("b", 4);
-    Variable c = array   ("c", 4, 10);
-    i.put(a, b, c);
-    Variable A = i.clone("aaaa");
-    Variable B = i.clone("bbbb");
-    Variable o = structure("outer");
-    o.put(A, B);
-    ok(o.compile().toString(), """
-outer(96.0
-  aaaa(48.0
-    a(4.0)
-    b(4.4)
-    c(4.8:10)
-  )
-  bbbb(48.48
-    a(4.48)
-    b(4.52)
-    c(4.56:10)
-  )
-)
-""");
-   }
-
-  static void test_var()
-   {Var i = struct("inner");
-    Var a = var("a", 4);
-    Var b = var("b", 4);
-    Var c = arr("c", 4, 10);
-    i.put(a, b, c);
-    Var A = i.clone("aaaa");
-    Var B = i.clone("bbbb");
-    Var o = struct("outer");
-    o.put(A, B);
-    ok(o.compile().toString(), """
-outer(96.0
-  aaaa(48.0
-    a(4.0)
-    b(4.4)
-    c(4.8:10)
-  )
-  bbbb(48.48
-    a(4.48)
-    b(4.52)
-    c(4.56:10)
-  )
-)
+   {Variable  a1 = new Variable("a1", 4);
+    Variable  b1 = new Variable("b1", 4);
+    Variable  c1 = new Variable("c1", 2);
+    Array     C1 = new Array   ("C1", c, 10);
+    Structure s1 = new Structure("inner1", a1, b1, C1);
+    Variable  a2 = new Variable("a2", 4);
+    Variable  b2 = new Variable("b2", 4);
+    Variable  c2 = new Variable("c2", 2);
+    Array     C2 = new Array   ("C2", c2, 10);
+    Structure s2 = new Structure("inner2", a2, b2, C2);
+    Array     A1 = new Array("Array1", s1, 2);
+    Array     A2 = new Array("Array2", s2, 2);
+    Structure T  = new Structure("outer", s1, s2);
+    T.compile();
+    ok(S.toString(), """
+outer{64.0
+  array[56.0*2
+    inner{28.0
+      a(4.56)
+      b(4.60)
+      c[20.8*10
+        c(2.0)
+      ]
+    }
+  ]
+  a(4.56)
+  b(4.60)
+}
 """);
    }
 
@@ -2236,7 +2117,7 @@ outer(96.0
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    test_var();
+    test_variable();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
