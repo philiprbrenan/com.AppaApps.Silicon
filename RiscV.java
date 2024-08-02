@@ -42,9 +42,7 @@ public class RiscV extends Chip                                                 
   final Stack<String>           ecall = new Stack<>();                          // Ecall executed
 
   TreeMap<String, Label>       labels = new TreeMap<>();                        // Labels in assembler code
-  TreeMap<String, Variable> variables = new TreeMap<>();                        // Variables in assembler code
-  int                      pVariables = 0;                                      // Position of variables in memory
-  Stack<Sub>                     subs = new Stack<>();                          // Subroutines created
+  Stack<Sub>                     subs = new Stack<>();                          // Subroutines that have been created so that we create trace backs
 
   final Stack<Integer>             in = new Stack<>();                          // Stdin
   final Stack<Integer>            out = new Stack<>();                          // Stdout
@@ -1126,6 +1124,10 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
      }
    }
 
+  Variable  variable (String name, int bytes)                    {return new Variable (name, bytes);}
+  Array     array    (String name, MemoryLayout   ml, int bytes) {return new Array    (name, ml, bytes);}
+  Structure structure(String name, MemoryLayout...ml)            {return new Structure(name, ml);}
+
 //D1 Structured programming                                                     // Structured programming features.
 
   abstract class IfEq                                                           // If equal execute the "then" statement else the "else" statement
@@ -2044,19 +2046,20 @@ Registers  :  x3=11 x4=22
    }
 
   static void test_variable()
-   {Variable  a1 = new Variable("a1", 4);
-    Variable  b1 = new Variable("b1", 4);
-    Variable  c1 = new Variable("c1", 2);
-    Array     C1 = new Array   ("C1", c1, 10);
-    Structure s1 = new Structure("inner1", a1, b1, C1);
-    Variable  a2 = new Variable("a2", 4);
-    Variable  b2 = new Variable("b2", 4);
-    Variable  c2 = new Variable("c2", 2);
-    Array     C2 = new Array   ("C2", c2, 10);
-    Structure s2 = new Structure("inner2", a2, b2, C2);
-    Array     A1 = new Array("Array1", s1, 2);
-    Array     A2 = new Array("Array2", s2, 2);
-    Structure T  = new Structure("outer", s1, s2);
+   {RiscV      r = new RiscV();
+    Variable  a1 = r.variable ("a1", 4);
+    Variable  b1 = r.variable ("b1", 4);
+    Variable  c1 = r.variable ("c1", 2);
+    Array     C1 = r.array    ("C1", c1, 10);
+    Structure s1 = r.structure("inner1", a1, b1, C1);
+    Variable  a2 = r.variable ("a2", 4);
+    Variable  b2 = r.variable ("b2", 4);
+    Variable  c2 = r.variable ("c2", 2);
+    Array     C2 = r.array    ("C2", c2, 10);
+    Structure s2 = r.structure("inner2", a2, b2, C2);
+    Array     A1 = r.array    ("Array1", s1, 2);
+    Array     A2 = r.array    ("Array2", s2, 2);
+    Structure T  = r.structure("outer", s1, s2);
     T.layout();
     ok(T.print(), """
 Offs  Wide  Size    Field name
