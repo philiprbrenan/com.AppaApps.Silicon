@@ -2064,6 +2064,18 @@ public class Chip                                                               
     return new BinaryAdd(C[B], o);                                              // Carry out of the highest bit, result
   }
 
+  BinaryAdd binaryAddOne(String output, Bits in1)                               // Add one to a bit bus
+   {final int b = in1.bits();                                                   // Number of bits in input number
+    final Bits o = bits(output, b);                                             // Result bits
+    final Bits c = bits(n(output, "carry"), b+1);                               // Carry bits
+    One(c.b(1));                                                                // Initialize carry with 1 (since we are adding 1)
+    for (int i = 1; i <= b; i++)
+     {Xor(o.b(i), in1.b(i), c.b(i));                                            // Sum bit
+      And(c.b(i+1), in1.b(i), c.b(i));                                          // Carry bit
+     }
+    return new BinaryAdd(c.b(b+1), o);                                          // Carry out of the highest bit, result
+   }
+
   BinaryAdd binaryAdd(String output, Bits in1, Bits in2)                        // Default adder
    {return binaryAddKoggeStone(output, in1, in2);
    }
@@ -4667,6 +4679,25 @@ Step  p
      }
    }
 
+   static void test_binary_add_one()
+   //{for (int B = 1; B <= (github_actions ? 4 : 3); B++)
+    {for (int B = 1; B <= 8; B++)
+     {int B2 = powerTwo(B);
+      for      (int i = 0; i < B2; i++)
+       {Chip      c = chip();
+        Bits      I = c.bits("i", B, i);
+        BinaryAdd a = c.binaryAddOne("io",  I);
+        c.outputBits("o", a.sum());
+        c.Output  ("co", a.carry);
+        c.simulate();
+        Integer carry = a.carry.value() ? 1 : 0;
+        Integer sum = a.sum.Int() + carry* B2;
+        Chip.ok(sum, i+1);
+        say(String.format("B2=%d, carry=%d, sum=%d, exp_sum=%d, steps=%d", B2, carry, sum, i+1, c.steps));
+        }
+     }
+   }
+
   static void test_binary_add_kogge_stone()
    {for (int B = 1; B <= 3; B++)
      {int B2 = powerTwo(B);
@@ -5516,6 +5547,7 @@ Step  o     e
     test_delay_bits();
     test_shift();
     test_binary_add_ripple();
+    test_binary_add_one();
     test_binary_add_kogge_stone();
     test_binary_add_kogge_stone_vs_ripple();
     test_binary_add_kogge_stone_vs_ripple_same();
@@ -5559,15 +5591,7 @@ Step  o     e
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    //test_binary_add();
-    //test_binary_add();
-    //test_binary_add_ripple();
-    //test_binary_add_kogge_stone();
-    //test_binary_add_kogge_stone_vs_ripple();
-    //test_binary_add_kogge_stone_vs_ripple_same();
-    test_binary_add_brent_kung();
-    test_binary_add_brent_kung_vs_kogge_stone();
-    //test_binary_add_kogge_stone_vs_ripple();
+    test_binary_add_one();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
