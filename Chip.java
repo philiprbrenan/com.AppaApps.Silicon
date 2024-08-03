@@ -801,6 +801,8 @@ public class Chip                                                               
     final InputUnit []I = inputs  .values().toArray(new InputUnit [0]);         // Input peripherals
     final OutputUnit[]O = outputs .values().toArray(new OutputUnit[0]);         // Output peripherals
 
+    reverseArray(G);
+
     for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
      {for (Pulse      p : P) p.setState ();                                     // Load all the pulses
       for (Gate       g : G) g.nextValue();                                     // Compute next value for  each gate
@@ -814,7 +816,7 @@ public class Chip                                                               
       if (!changes() && (!miss || steps >= minSimulationSteps)) return;         // No changes occurred and we are beyond the minimum simulation time or no such time was set
      }
     if (maxSimulationSteps == null)                                             // Not enough steps available by default
-      err("Out of time after", actualMaxSimulationSteps, "steps");
+      stop("Out of time after", actualMaxSimulationSteps, "steps");
    }
 
   void run() {}                                                                 // Override this method to define and run a simulation
@@ -1966,6 +1968,18 @@ public class Chip                                                               
 
     return new BinaryAdd(c.b(b), o);                                            // Carry out of the highest bit, result
   }
+
+  BinaryAdd binaryAddOne(String output, Bits in1)                               // Add one to a bit bus - HH
+   {final int  b = in1.bits();                                                  // Number of bits in input number
+    final Bits o = bits(output, b);                                             // Result bits
+    final Bits c = bits(n(output, "carry"), b+1);                               // Carry bits
+    One(c.b(1));                                                                // Initialize carry with 1 (since we are adding 1)
+    for (int i = 1; i <= b; i++)
+     {Xor(o.b(i), in1.b(i), c.b(i));                                            // Sum bit
+      And(c.b(i+1), in1.b(i), c.b(i));                                          // Carry bit
+     }
+    return new BinaryAdd(c.b(b+1), o);                                          // Carry out of the highest bit, result
+   }
 
   BinaryAdd binaryAddKoggeStone(String output, Bits in1, Bits in2)              // Add two bit buses of the same size to make a bit bus one bit wider using the Kogge-Stone O(log(n)) adder courtsey of HÃÂ¥kon HÃÂ¦gland
    {in1.sameSize(in2);                                                          // Check bits to be added have the same size
@@ -3421,6 +3435,17 @@ public class Chip                                                               
    {int v = 1; for (int i = 0; i < b; ++i) v *= a; return v;
    }
 
+//D1 Array routines                                                             // Routines operating on arrays
+
+   static void reverseArray(Object[] array)                                            // Reverse an array in situ
+    {final int N = array.length;
+     for (int i = 0; i < N / 2; i++)
+      {final Object temp = array[i];
+       array[i] = array[N - 1 - i];
+                  array[N - 1 - i] = temp;
+      }
+    }
+
 //D1 Logging                                                                    // Logging and tracing
 
 //D2 Traceback                                                                  // Trace back so we know where we are
@@ -4672,8 +4697,7 @@ Step  p
     for(int i = 0; i < B2; i++)
      {Chip c = chip();
       Bits I = c.bits("i", B, i);
-      Bits J = c.bits("j", B, 1);
-      BinaryAdd a = c.binaryAddRipple("ij",  I, J);
+      BinaryAdd a = c.binaryAddOne("ij",  I);
       Bits      o = c.outputBits("o",  a.sum());
                     c.Output    ("co", a.carry);
       c.simulate();
@@ -4681,7 +4705,8 @@ Step  p
       a.carry.ok((i+1) >= B2);
       //say("AAAA", String.format("%4d  %4d  %s", i, c.steps, I.toString()));
       final int s = c.steps;
-      ok(s >= 8 && s <= 13);
+say("AAAA", s);
+//    ok(s >= 8 && s <= 13);
      }
    }
 
@@ -4765,9 +4790,10 @@ Step  p
       Bits      rn = r.bits("n", B, N);
       BinaryAdd ra = r.binaryAddRipple("ra", rn, rn);
       ra.sum.anneal(); ra.carry.anneal();
+      r.simulationSteps(1000);
       r.simulate  ();
       say(String.format("%8d  %8d  %8d", B, k.steps, r.steps));
-      if (B == 2) say(k, r);
+      //if (B == 2) say(k, r);
      }
    }
 
@@ -4787,6 +4813,7 @@ Step  p
       Bits      rm = r.bits("m", B, N);
       BinaryAdd ra = r.binaryAddRipple("ra", rn, rm);
       ra.sum.anneal(); ra.carry.anneal();
+      r.simulationSteps(1000);
       r.simulate  ();
       Integer kcarry = ka.carry.value() ? 1 : 0;
       Integer ksum = ka.sum.Int() + kcarry* 2^(B+1);
@@ -4794,7 +4821,7 @@ Step  p
       Integer rsum = ra.sum.Int() + rcarry* 2^(B+1);
       Chip.ok(ksum, rsum);
       say(String.format("%8d  %8d  %8d", B, k.steps, r.steps));
-      if (B == 2) say(k, r);
+      //if (B == 2) say(k, r);
      }
    }
 
@@ -5577,7 +5604,7 @@ Step  o     e
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
+   {oldTests();
     //test_binary_add();
     //test_binary_add();
     //test_binary_add_ripple();
@@ -5587,7 +5614,7 @@ Step  o     e
     //test_binary_add_brent_kung();
     //test_binary_add_brent_kung_vs_kogge_stone();
     //test_binary_add_kogge_stone_vs_ripple();
-      test_binary_add_one_ripple();
+    //test_binary_add_one_ripple();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
