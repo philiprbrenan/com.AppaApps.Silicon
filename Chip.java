@@ -4667,6 +4667,24 @@ Step  p
      }
    }
 
+  static void test_binary_add_one_ripple()
+   {final int B = 5, B2 = powerTwo(B);
+    for(int i = 0; i < B2; i++)
+     {Chip c = chip();
+      Bits I = c.bits("i", B, i);
+      Bits J = c.bits("j", B, 1);
+      BinaryAdd a = c.binaryAddRipple("ij",  I, J);
+      Bits      o = c.outputBits("o",  a.sum());
+                    c.Output    ("co", a.carry);
+      c.simulate();
+      a.sum  .ok((i+1) %  B2);
+      a.carry.ok((i+1) >= B2);
+      //say("AAAA", String.format("%4d  %4d  %s", i, c.steps, I.toString()));
+      final int s = c.steps;
+      ok(s >= 8 && s <= 13);
+     }
+   }
+
   static void test_binary_add_kogge_stone()
    {for (int B = 1; B <= 3; B++)
      {int B2 = powerTwo(B);
@@ -5516,6 +5534,7 @@ Step  o     e
     test_delay_bits();
     test_shift();
     test_binary_add_ripple();
+    test_binary_add_one_ripple();
     test_binary_add_kogge_stone();
     test_binary_add_kogge_stone_vs_ripple();
     test_binary_add_kogge_stone_vs_ripple_same();
@@ -5565,9 +5584,10 @@ Step  o     e
     //test_binary_add_kogge_stone();
     //test_binary_add_kogge_stone_vs_ripple();
     //test_binary_add_kogge_stone_vs_ripple_same();
-    test_binary_add_brent_kung();
-    test_binary_add_brent_kung_vs_kogge_stone();
+    //test_binary_add_brent_kung();
+    //test_binary_add_brent_kung_vs_kogge_stone();
     //test_binary_add_kogge_stone_vs_ripple();
+      test_binary_add_one_ripple();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
