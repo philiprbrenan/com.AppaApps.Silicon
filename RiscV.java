@@ -35,7 +35,7 @@ public class RiscV extends Chip                                                 
   final Register x0,  x1,  x2,   x3,  x4,  x5,  x6,  x7,  x8,  x9,
                  x10, x11, x12, x13, x14, x15, x16, x17, x18, x19,
                  x20, x21, x22, x23, x24, x25, x26, x27, x28, x29, x30, x31, z;
-  final byte[]                 memory = new byte[100];                          // Memory
+  byte[]                       memory = new byte[100];                          // Memory
   int                              pc = 0;                                      // Program counter expressed in bytes
   int                           steps = 0;                                      // Number of steps taken so far in executing the program
 
