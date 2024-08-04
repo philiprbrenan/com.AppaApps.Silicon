@@ -17,7 +17,9 @@ import java.util.Stack;
 
 final public class Ban extends Chip                                             // Create a chip that contains a Risc V processor extended with Btree instructions
  {final static int XLEN = RiscV.XLEN;                                           // Number of bits in a register
-  final static int numberOfStepsPerInstruction = 68;                            // Number of steps need to complete an instruction down from 110 steps thanks to Kogge-Stone adder from HÃ¥kon HÃ¦gland
+//final static int numberOfStepsPerInstruction = 68;                            // Number of steps need to complete an instruction down from 110 steps thanks to Kogge-Stone adder from HÃ¥kon HÃ¦gland
+  final static int numberOfStepsPerInstruction = 150;    // -120 +150           // Number of steps need to complete an instruction down from 110 steps thanks to Kogge-Stone adder from HÃ¥kon HÃ¦gland
+  final static int initializationDelay         =  10;                           // Number of steps to initialize - essentially clearing the registers of the cpu
 
   final static class D extends RiscV.Decode {D(){super(null);}}                 // Easier access to static constants
 
@@ -36,7 +38,8 @@ final public class Ban extends Chip                                             
 //D1 RV32I Cpu                                                                  // Risc V RV32I CPU.
 
   static class RV32I                                                            // Decode and execute an RV32I instruction
-   {final String   out;                                                         // Name for this instruction processor
+   {final Chip       C;                                                         // Chip implementing this code
+    final String   out;                                                         // Name for this instruction processor
     final Bits    zero;                                                         // Constant zero
     final Bits     one;                                                         // Constant one
 
@@ -147,8 +150,9 @@ final public class Ban extends Chip                                             
      {Chip.ok(m.toString(), expected);
      }
 
-    RV32I(Chip C, String Out, Bits Decode, Bits pc, Bits[]x)                    // Decode the specified bits as a RV32I instruction and execute it
-     {out     = Out;                                                            // Name for this area of silicon and the prefix for the gates therein
+    RV32I(Chip Chip, String Out, Bits Decode, Bits pc, Bits[]x)                 // Decode the specified bits as a RV32I instruction and execute it
+     {C       = Chip;                                                           // The chip implementing the code
+      out     = Out;                                                            // Name for this area of silicon and the prefix for the gates therein
       decode  = Decode;                                                         // Instruction to decode
       this.pc = pc;                                                             // Program counter at start
       this.x  = x;                                                              // Registers at start
@@ -374,7 +378,6 @@ final public class Ban extends Chip                                             
       xi = pulse("xi").period(  N).on(N/2).start(1).b();                        // Execute an instruction
       pc = new Register("pc", XLEN, xi, 0);                                     // Initialize program counter
        x = new Register[XLEN];                                                  // The registers of the RiscV architecture
-
       for (int i = 1; i < XLEN; i++) x[i] = new Register("x"+i, XLEN, xi, 0);   // Initialize registers
 
       code = bits("code", XLEN, Code);                                          // Instructions as numbers
@@ -481,8 +484,9 @@ final public class Ban extends Chip                                             
     final Bits     decode = C.bits("decode", XLEN, instruction);                // Instruction to decode and execute
     final RV32I         R = rv32i(C, "a", decode, pc, x);                       // Decode and execute the instruction
     for (int i = 1; i < XLEN; i++) R.X[i].anneal();                             // Anneal the outputs
-    R.PC.anneal(); R.m.anneal();
-    C.simulate();                                                               // 61 steps
+    R.PC.anneal(); R.m.anneal();                                                // Pritn teh chip and  it will tell you the longest path in it as presumably we will not need more than that many steps
+    C.simulationSteps(45);                                                      // Was 61 with ripple adder
+    C.simulate();
     return R;
    }
 
@@ -651,7 +655,7 @@ targetRegister: 00010
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
-   {test_decode_addi();
+   {test_decode_addi();                                                         // Maximum distance is 45.
     test_decode_add1();
     test_decode_slt1();
     test_decode_slt2();
@@ -671,15 +675,16 @@ targetRegister: 00010
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
     //test_insertion_sort();
-    //test_fibonacci();
+    test_fibonacci();
+    //test_decode_addi();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
    {if (args.length > 0 && args[0].equals("compile")) System.exit(0);           // Do a syntax check
     try                                                                         // Get a traceback in a format clickable in Geany if something goes wrong to speed up debugging.
-     {if (github_actions) oldTests(); else newTests();                          // Tests to run
+     {//if (github_actions) oldTests(); else newTests();                          // Tests to run
       Chip.testSummary();
      }
     catch(Exception e)                                                          // Get a traceback in a format clickable in Geany
