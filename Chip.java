@@ -4590,7 +4590,7 @@ Step  p
           c.simulate  ();
           a.sum  .ok((i+j) %  B2);
           a.carry.ok((i+j) >= B2);
-          say("B=", B, "i=", i, "j=", j, "sum=", a.sum, "carry=", a.carry, "steps=", c.steps, "distance=", c.maximumDistance);
+          //say("B=", B, "i=", i, "j=", j, "sum=", a.sum, "carry=", a.carry, "steps=", c.steps, "distance=", c.maximumDistance);
          }
        }
      }
@@ -4610,14 +4610,15 @@ Step  p
           c.simulate  ();
           a.sum  .ok((i+j) %  B2);
           a.carry.ok((i+j) >= B2);
-          //System.err.println("B="+B+" i="+i+" j="+j+" sum="+a.sum+" carry="+a.carry+" steps="+c.steps);
+          //say("B=", B, "i=", i, "j=", j, "sum=", a.sum, "carry=", a.carry, "steps=", c.steps);
          }
        }
      }
    }
 
   static void test_binary_add_brent_kung_vs_kogge_stone()
-   {say("Bits____  BrentKung  KogStone");
+   {say("          BrentKung  KogStone   BrentKung  KogStone");
+    say("Bits____  Steps      Steps      Distance   Distance");
     for (int B = 2; B <= 32; B *=2)
      {int N = -2;
       Chip      k  = chip();
@@ -4638,7 +4639,7 @@ Step  p
       Integer rcarry = ra.carry.value() ? 1 : 0;
       Integer rsum = ra.sum.Int() + rcarry* 2^(B+1);
       Chip.ok(ksum, rsum);
-      say(String.format("%8d  %8d  %8d", B, k.steps, r.steps));
+      say(String.format("%8d   %8d  %8d    %8d  %8d", B, k.steps, r.steps, k.maximumDistance, r.maximumDistance));
      }
    }
 
@@ -5430,7 +5431,7 @@ Step  o     e
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-test_binary_add_kogge_stone();
+    test_binary_add_brent_kung_vs_kogge_stone();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
