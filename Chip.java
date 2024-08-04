@@ -4590,7 +4590,7 @@ Step  p
           c.simulate  ();
           a.sum  .ok((i+j) %  B2);
           a.carry.ok((i+j) >= B2);
-          //System.err.println("B="+B+" i="+i+" j="+j+" sum="+a.sum+" carry="+a.carry+" steps="+c.steps);
+          say("B=", B, "i=", i, "j=", j, "sum=", a.sum, "carry=", a.carry, "steps=", c.steps, "distance=", c.maximumDistance);
          }
        }
      }
@@ -5430,6 +5430,7 @@ Step  o     e
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
+test_binary_add_kogge_stone();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
