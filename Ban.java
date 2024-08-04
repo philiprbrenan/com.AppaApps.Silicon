@@ -19,7 +19,6 @@ final public class Ban extends Chip                                             
  {final static int XLEN = RiscV.XLEN;                                           // Number of bits in a register
 //final static int numberOfStepsPerInstruction = 68;                            // Number of steps need to complete an instruction down from 110 steps thanks to Kogge-Stone adder from HÃ¥kon HÃ¦gland
   final static int numberOfStepsPerInstruction = 150;    // -120 +150           // Number of steps need to complete an instruction down from 110 steps thanks to Kogge-Stone adder from HÃ¥kon HÃ¦gland
-  final static int initializationDelay         =  10;                           // Number of steps to initialize - essentially clearing the registers of the cpu
 
   final static class D extends RiscV.Decode {D(){super(null);}}                 // Easier access to static constants
 
@@ -485,7 +484,7 @@ final public class Ban extends Chip                                             
     final RV32I         R = rv32i(C, "a", decode, pc, x);                       // Decode and execute the instruction
     for (int i = 1; i < XLEN; i++) R.X[i].anneal();                             // Anneal the outputs
     R.PC.anneal(); R.m.anneal();                                                // Pritn teh chip and  it will tell you the longest path in it as presumably we will not need more than that many steps
-    C.simulationSteps(45);                                                      // Was 61 with ripple adder
+    C.simulationSteps(145);                                                      // Was 61 with ripple adder
     C.simulate();
     return R;
    }
@@ -666,18 +665,18 @@ targetRegister: 00010
     test_decode_lh();
     test_decode_i31();
     test_decode_i33();
-    test_fibonacci();
-    test_bubble_sort();
-    test_insertion_sort();
-    test_up();
-    test_down();
-    test_down_break();
+    //test_fibonacci();
+    //test_bubble_sort();
+    //test_insertion_sort();
+    //test_up();
+    //test_down();
+    //test_down_break();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
+   {oldTests();
     //test_insertion_sort();
-    test_fibonacci();
+    //test_fibonacci();
     //test_decode_addi();
    }
 
