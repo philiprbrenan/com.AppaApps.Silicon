@@ -43,7 +43,7 @@ if (1)                                                                          
     my $c = readBinaryFile $s;                                                  # Load file
 
     if ($s =~ m(/README))                                                       # Expand README
-     {$c .= "\nModified: ".dateTimeStamp."\n";                                  # Ensure that the README images links get updated as well
+     {#$c .= "\nModified: ".dateTimeStamp."\n";                                  # Ensure that the README images links get updated as well
       $c =  expandWellKnownWordsAsUrlsInMdFormat $c;                            # Expand well known terms
      }
 
