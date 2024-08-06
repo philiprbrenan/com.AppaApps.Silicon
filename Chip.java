@@ -35,6 +35,8 @@ E cosi imprese di grande importanza e rilievo sono distratte dal loro naturale c
 e dell'azione perdono anche il nome
 */
 import java.util.*;
+// Adding constants by optimizing Brent-Kung or Kogge-Stone against known values
+// Anneal should remove all unused gates
 
 //D1 Construct                                                                  // Construct a silicon chip using standard logic gates combined via buses.
 
@@ -76,11 +78,15 @@ public class Chip                                                               
 
   int                         gateSeq =   0;                                    // Sequence numbers for gates
   int                           steps =   0;                                    // Simulation step time
-  int                 maximumDistance;                                          // Maximum distance from an output
+  int  maximumDistanceToNearestOutput =   0;                                    // Maximum distance from nearest output
+  int                maximumDistance  =   0;                                    // Maximum distance from furthest output
   int      countAtMostCountedDistance;                                          // The distance at which we have the most gates from an output
   int             mostCountedDistance;                                          // The number of gates at the distance from the drives that has the most gates
+
   final TreeMap<Integer, TreeSet<String>>                                       // Classify gates by distance to output
                      distanceToOutput = new TreeMap<>();
+  final static TreeMap<String,Integer>                                          // Classify chips by maximum distance
+           classifyByDistanceToOutput = new TreeMap<>();
   final TreeMap<Integer, Stack<String>>                                         // Each column of gates ordered by Y coordinate in layout
                               columns = new TreeMap<>();
   final static TreeMap<String, Diagram>
@@ -133,9 +139,9 @@ public class Chip                                                               
    }
 
   Gate getGate(String name)                                                     // Get details of named gate. Gates that have not been created yet will return null even though their details are pending.
-   {if (name == null) stop("No gate name provided");
+   {if (name == null) err("No gate name provided");
     final Gate g = gates.get(name);
-    if (g == null) stop("No gate named:", name);
+    if (g == null) err("No gate named:", name);
     return g;
    }
 
@@ -143,12 +149,12 @@ public class Chip                                                               
 
   public String toString()                                                      // Convert chip to string
    {final StringBuilder b = new StringBuilder();
-    b.append("Chip: "                             + name);
-    b.append("  Step: "                           + (steps-1));
-    b.append(" # Gates: "                         + gates.size());
-    b.append("  Maximum distance: "               + maximumDistance);
-    b.append("  MostCountedDistance: "            + mostCountedDistance);
-    b.append("  CountAtMostCountedDistance: "     + countAtMostCountedDistance);
+    b.append("Chip: "                         + name);
+    b.append("  Step: "                       + (steps-1));
+    b.append(" # Gates: "                     + gates.size());
+    b.append("  Maximum distance: "           + maximumDistanceToNearestOutput);
+    b.append("  MostCountedDistance: "        + mostCountedDistance);
+    b.append("  CountAtMostCountedDistance: " + countAtMostCountedDistance);
     b.append("\n");
     b.append("Seq   Name____________________________ S  " +
      "Operator  #  11111111111111111111111111111111=#"+
@@ -161,7 +167,7 @@ public class Chip                                                               
      {b.append(""+bitBuses.size()+" Bit buses\n");
       b.append("Bits  Bus_____________________________  Value\n");
       for (String n : bitBuses.keySet())
-       {b.append(String.format("%4d  %32s", bitBuses.get(n).bits(), n));
+       {b.append(String.format("%4d  %32.32s", bitBuses.get(n).bits(), n));
         final Integer v = bitBuses.get(n).Int();
         if (v != null) b.append(String.format("  %d\n", v));
                        b.append(System.lineSeparator());
@@ -173,7 +179,7 @@ public class Chip                                                               
       b.append("Words Bits  Bus_____________________________  Values\n");
       for (String n : wordBuses.keySet())
        {final Words w = wordBuses.get(n);
-        b.append(String.format("%4d  %4d  %32s  ", w.words(), w.bits(), n));
+        b.append(String.format("%4d  %4d  %32.32s  ", w.words(), w.bits(), n));
         final Integer[]v = w.Int();
         if (v != null) for(int i = 0; i < v.length; ++i) b.append(""+v[i]+", ");
         if (b.length() > 1) b.delete(b.length() - 2, b.length());
@@ -187,14 +193,14 @@ public class Chip                                                               
                "Target__________________________\n");
       for   (String        n : pending.keySet())
         for (Gate.WhichPin d : pending.get(n))
-          b.append(String.format("%32s  %32s  %c\n",
+          b.append(String.format("%32.32s  %32.32s  %c\n",
             n, d.drives, d.pin == null ? ' ' : d.pin ? '1' : '2'));
      }
 
     return b.toString();                                                        // String describing chip
    }
 
-  class Bit implements CharSequence                                             // Name of a bit that will eventually be generated by a gate
+  class Bit implements CharSequence, Comparable<Bit>                            // Name of a bit that will eventually be generated by a gate
    {final String name;                                                          // Name of the bit.  This is also the name of the gate and the output of the gate. FanOut gates have a second output which is the name suffixed by the secondary marker. The secondary marker is not normally used in a gate name so a name that ends in ! is easily recognized as the second output of a fan out gate.
 
     Bit(CharSequence Name)                                                      // Named bit
@@ -204,7 +210,7 @@ public class Chip                                                               
     Chip chip() {return Chip.this;}                                             // The chip implementing this bit
 
     String validateName(String name)                                            // Confirm that a component name looks like a variable name and has not already been used
-     {if (name == null) stop("Name needed");
+     {if (name == null) err("Name cannot be null");
       final String[]words = name.split("_");
       for (int i = 0; i < words.length; i++)
        {final String w = words[i];
@@ -213,6 +219,8 @@ public class Chip                                                               
        }
       return name;
      }
+
+    public int compareTo(Bit a)  {return name.compareTo(a.name);}               // So we can create sets if bits
 
     Boolean value()                                                             // Value of bit
      {final Gate g = getGate(name);
@@ -235,7 +243,7 @@ public class Chip                                                               
       else ++testsPassed;                                                       // Passed
      }
 
-    void anneal() {Output(n(name, "anneal"), this);}                            // Anneal bit if it is not required for some reason although this would waste surface area and power on a real chip.
+    Bit anneal() {Output(n(name, "anneal"), this); return this;}                 // Anneal bit if it is not required for some reason although this would waste surface area and power on a real chip.
     public String toString()      {return name;}                                // Name of bit
     public char charAt(int index) {return name.charAt(index);}
     public int  length()          {return name.length();}
@@ -339,14 +347,14 @@ public class Chip                                                               
       final char s = systemGate ? 's' : ' ';                                    // System gate
 
       if (op == Operator.Input)
-        return String.format("%4d  %32s %c  %8s  %c"+" ".repeat(127)+"%4d,%4d  ",
+        return String.format("%4d  %32.32s %c  %8s  %c"+" ".repeat(127)+"%4d,%4d  ",
           seq, name, s, op, v, px, py) + drives() + "\n";
 
       final Boolean pin1 = iGate1 != null ? whichPinDrivesPin1() : null;
       final Boolean pin2 = iGate2 != null ? whichPinDrivesPin2() : null;
 
-      return   String.format("%4d  %32s %c  %8s  %c  %32s=%c  %32s=%c %4d %4d"+
-                             "  %4d %4d  %4d  %32s  %4d,%4d  ",
+      return   String.format("%4d  %32.32s %c  %8s  %c  %32.32s=%c  %32.32s=%c %4d %4d"+
+                             "  %4d %4d  %4d  %32.32s  %4d,%4d  ",
         seq, name, s, op, v,
         iGate1 == null ? ""  : iGate1.name,
         iGate1 == null ? '.' : iGate1.value == null ? '.' : iGate1.value ? '1' : '0',
@@ -599,7 +607,7 @@ public class Chip                                                               
   Gate Or      (CharSequence n, Bit...i)      {return FanIn(Operator.Or,            n, i);}
   Gate Nor     (CharSequence n, Bit...i)      {return FanIn(Operator.Nor,           n, i);}
 
-  void distanceToOutput()                                                       // Distance to the nearest output
+  void distanceToNearestOutput()                                                // Distance to the nearest output
    {outputGates.clear();
     for (Gate g : gates.values())                                               // Start at the output gates
      {g.distanceToOutput = null;                                                // Reset distance
@@ -614,7 +622,7 @@ public class Chip                                                               
     Set<String> check = outputGates;                                            // Search backwards from the output gates
     for (int d = 0; d < gates.size() && check.size() > 0; ++d)                  // Set distance to nearest output
      {final TreeSet<String> next = new TreeSet<>();
-      maximumDistance = d;                                                      // Maximum distance from an output == the number of time we actually went around this loop
+      maximumDistanceToNearestOutput = d;                                       // Maximum distance from an output == the number of time we actually went around this loop
 
       final TreeSet<String>   to = new TreeSet<>();                             // Gates at this distance from drives
       distanceToOutput.put(d, to);
@@ -648,7 +656,24 @@ public class Chip                                                               
        }
      }
 
-    //say("Maximum path length", maximumDistance);                              // The maximum distance in the chip - which might give us an idea of the number of steps needed to stabilize it.
+    //say("Maximum path length from nearest output gate:", maximumDistance);
+   }
+
+  int distanceToFurthestOutput()                                                // Distance to the furthest output: loops endlessly when there is a register loop as in class Cpu in Ban.java.
+   {int md = 0;
+    Set<Gate> last = new TreeSet<>();
+    for (Gate o : gates.values()) if (o.op == Operator.Output) last.add(o);     // The first layer is the an output gates because the objective of each set of gates is to produce some output
+
+    for (int d = 0; d < gates.size() && last.size() > 0; ++d)                   // Move away from last layer by looking at the gates driving the gates in the current layer
+     {final TreeSet<Gate> next = new TreeSet<>();                               // Next layer obtained from last layer
+      for (Gate g : last)                                                       // Expand search one level
+       {if (g.iGate1 != null) next.add(g.iGate1);
+        if (g.iGate2 != null) next.add(g.iGate2);
+       }
+      last = next;                                                              // latest layer becomes the new start layer
+      md = d;                                                                   // Maximum distance from an output
+     }
+    return md;                                                                  // We claim that this is the maximum distance in the chip - which should be equivalent to the maximum number of steps needed to stabilize it.
    }
 
 // Simulation                                                                   // Simulate the behavior of the chip
@@ -691,7 +716,8 @@ public class Chip                                                               
      }
 
     printErrors();
-    distanceToOutput();                                                         // Output gates
+    distanceToNearestOutput();                                                  // Distance to nearest output gate
+    // maximumDistance = distanceToFurthestOutput();                               // Distance to furthest output gate
    }
 
   boolean changes()                                                             // Check whether any changes were made
@@ -772,10 +798,6 @@ public class Chip                                                               
   void printExecutionTrace  () {say(executionTrace.print(false));}              // Print execution trace
   void printExecutionSymmary() {say(executionTrace.print(true));}               // Print execution trace summary
 
-// void ok(String expected)                                                      // Confirm execution trace matches expected output
-//  {ok(executionTrace.toString(), expected);
-//  }
-
   class Stop extends RuntimeException                                           // Raise this exception to stop the current simulation
    {private static final long serialVersionUID = 1L;
    }
@@ -800,19 +822,25 @@ public class Chip                                                               
 
     randomizeArray(G);                                                          // To prevent the Zeta problem.  In theory the gate execution order does not matter. "In theory, theory and practice are the same.  In practice they are not".
     atStart();
-
+say("AAAA");
     for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
      {for (Pulse      p : P) p.setState ();                                     // Load all the pulses
       for (Gate       g : G) g.nextValue();                                     // Compute next value for  each gate
       for (Gate       g : G) g.setNextValue();                                  // Compute next value for  each gate
       for (InputUnit  i : I) i.inputUnitAction();                               // Action on each input peripheral affected by a falling edge
       for (OutputUnit o : O) o.outputUnitAction();                              // Action on each output peripheral affected by a falling edge
-      if (executionTrace != null) executionTrace.add();                                             // Trace requested
+      if (executionTrace != null) executionTrace.add();                         // Trace requested
 
       try           {eachStep();}                                               // Routine to do something after each step
       catch(Stop e) {return;}                                                   // Stop was requested during end of step processing
 
-      if (!changes() && (!miss || steps >= minSimulationSteps)) return;         // No changes occurred and we are beyond the minimum simulation time or no such time was set
+      if (!changes() && (!miss || steps >= minSimulationSteps))                 // No changes occurred and we are beyond the minimum simulation time or no such time was set
+       {if (!miss && steps > maximumDistance+2)                                 // Tests that might invalidate the maximum distance theory.
+         {err(steps, maximumDistanceToNearestOutput, maximumDistance);
+         }
+        classifyByDistanceToOutput.put(name, maximumDistance);                  // Track maximum distance by chip name
+        return;
+       }
      }
     if (maxSimulationSteps == null)                                             // Not enough steps available by default
       stop("Out of time after", actualMaxSimulationSteps, "steps");
@@ -828,6 +856,7 @@ public class Chip                                                               
 
   static boolean[]bitStack(int width, long...values)                            // Create a stack of bits
    {final int N = width*values.length;
+    if (width <= 0) stop("Width must be one or more, not", width);
     if (width >= Long.SIZE) stop("Width must be less than", Long.SIZE, "not", width);
     final boolean[]b = new boolean[N];
     for(int i = 0; i<N; ++i) b[i] = (values[i/width] & (1l<<(i % width))) != 0;
@@ -965,6 +994,15 @@ public class Chip                                                               
     final Bits B = bits(name, N);
     final boolean[]b = bitStack(bits, values);                                  // Number as a stack of bits padded to specified width
     for(int i = 1; i <= N; ++i) if (b[i-1]) One(B.b(i)); else Zero(B.b(i));     // Generate constant
+    return B;
+   }
+
+  Bits bits(String name, String value)                                          // Create a bit bus set to a value specified by a string in which a zero represents a zero and anything else represents a one.
+   {final int  N = value.length();
+    final Bits B = bits(name, N);
+    for(int i = 1; i <= N; ++i)
+     {if (value.charAt(i-1) == '0') Zero(B.b(i)); else One(B.b(i));             // Generate constant
+     }
     return B;
    }
 
@@ -1930,20 +1968,50 @@ public class Chip                                                               
    (Bit carry,                                                                  // Carry out gate
     Bits  sum                                                                   // Sum
    )
-   {public Bit  carry() {return carry;}
-    public Bits sum  () {return sum;}
+   {public Bit  carry () {return carry;}
+    public Bits sum   () {return sum;}
+    public void anneal() {carry.anneal(); sum.anneal();}
    }
 
-  BinaryAdd binaryAddOne(String output, Bits in1)                               // Add one to a bit bus - HH
-   {final int  b = in1.bits();                                                  // Number of bits in input number
-    final Bits o = bits(output, b);                                             // Result bits
-    final Bits c = bits(n(output, "carry"), b+1);                               // Carry bits
-    One(c.b(1));                                                                // Initialize carry with 1 (since we are adding 1)
-    for (int i = 1; i <= b; i++)
-     {Xor(o.b(i), in1.b(i), c.b(i));                                            // Sum bit
-      And(c.b(i+1), in1.b(i), c.b(i));                                          // Carry bit
+  BinaryAdd binaryAddRipple(String output, Bits in1, Bits in2)                  // Add two bit buses of the same size to make a bit bus one bit wider
+   {final int b = in1.bits();                                                   // Number of bits in input monotone mask
+    final int B = in2.bits();                                                   // Number of bits in input monotone mask
+    if (b != B) stop("Input bit buses must have the same size, not", b, B);     // Check sizes match
+    final Bits o = bits   (  output,               b);                          // Result bits
+    final Bits c = bits   (n(output, "carry"),     b);                          // Carry bits
+    final Bits C = notBits(n(output, "not_carry"), c);                          // Not of carry bits
+    final Bits n = notBits(n(output, "not_in1"), in1);                          // Not of input 1
+    final Bits N = notBits(n(output, "not_in2"), in2);                          // Not of input 2
+    Xor(o.b(1), in1.b(1), in2.b(1));                                            // Low order bit has no carry in
+    And(c.b(1), in1.b(1), in2.b(1));                                            // Low order bit carry out
+    n.b(1).anneal(); N.b(1).anneal(); C.b(b).anneal();                          // These bits are not needed, but get defined, so we anneal them off to prevent error messages
+// #  c 1 2  R C
+// 1  0 0 0  0 0
+// 2  0 0 1  1 0                                                                // We only need 1 bits so do not define a full bus as we would have to anneal a lot of unused gates which would be wasteful.
+// 3  0 1 0  1 0
+// 4  0 1 1  0 1
+// 5  1 0 0  1 0
+// 6  1 0 1  0 1
+// 7  1 1 0  0 1
+// 8  1 1 1  1 1
+    final String R = n(output, "result"), K = n(output, "carry");               // Result bit bus name
+    final Bits i = in1;                                                         // Input 1
+    final Bits I = in2;                                                         // Input 2
+    for (int j = 2; j <= b; j++)                                                // Create the remaining bits of the shifted result
+     {Gate r2 = And(n(j, 2, R), C.b(j-1), n.b(j), I.b(j));                      // Result
+      Gate r3 = And(n(j, 3, R), C.b(j-1), i.b(j), N.b(j));
+      Gate r5 = And(n(j, 5, R), c.b(j-1), n.b(j), N.b(j));
+      Gate r8 = And(n(j, 8, R), c.b(j-1), i.b(j), I.b(j));
+      Or(o.b(j), r2, r3, r5, r8);
+
+      Gate c4 = And(n(j, 4, K), C.b(j-1), i.b(j), I.b(j));                      // Carry
+      Gate c6 = And(n(j, 6, K), c.b(j-1), n.b(j), I.b(j));
+      Gate c7 = And(n(j, 7, K), c.b(j-1), i.b(j), N.b(j));
+      Gate c8 = And(n(j, 8, K), c.b(j-1), i.b(j), I.b(j));
+      Or(c.b(j), c4, c6, c7, c8);
      }
-    return new BinaryAdd(c.b(b+1), o);                                          // Carry out of the highest bit, result
+
+    return new BinaryAdd(c.b(b), o);                                            // Carry out of the highest bit, result
    }
 
   BinaryAdd binaryAddKoggeStone(String output, Bits in1, Bits in2)              // Add two bit buses of the same size to make a bit bus one bit wider using the Kogge-Stone O(log(n)) adder courtsey of HÃÂ¥kon HÃÂ¦gland
@@ -1986,14 +2054,20 @@ public class Chip                                                               
     return new BinaryAdd(C[B], o);                                              // Carry out of the highest bit, result
   }
 
-  BinaryAdd binaryAddBrentKung(String output, Bits in1, Bits in2)              // Add two bit buses of the same size to make a bit bus one bit wider using the Brent-Kung O(log(n)) adder
+  BinaryAdd binaryAddBrentKung(String output, Bits in1, Bits in2)               // Add two bit buses of the same size to make a bit bus one bit wider using the Brent-Kung O(log(n)) adder
    {in1.sameSize(in2);                                                          // Check bits to be added have the same size
     final int B = in1.bits();                                                   // Number of bits of first input
     final Gate[][]P = new Gate[B][B];                                           // Matrix of propagate gates
     final Gate[][]G = new Gate[B][B];                                           // Matrix of generate gates
+
+    final boolean[][]pSet = new boolean[B][B];                                  // Track usage of internal gates so we can anneal unused ones
+    final boolean[][]pUse = new boolean[B][B];
+    final boolean[][]gSet = new boolean[B][B];
+    final boolean[][]gUse = new boolean[B][B];
+
     for (int i = 1; i <= B; i++)                                                // Initialize the propagate and generate bits
-     {P[i-1][i-1] = Xor(n(i, output, "P"), in1.b(i), in2.b(i));
-      G[i-1][i-1] = And(n(i, output, "G"), in1.b(i), in2.b(i));
+     {P[i-1][i-1] = Xor(n(i, output, "P"), in1.b(i), in2.b(i)); pSet[i-1][i-1] = true;
+      G[i-1][i-1] = And(n(i, output, "G"), in1.b(i), in2.b(i)); gSet[i-1][i-1] = true;
      }
 
     for (int d = 1; d < B; d *= 2)                                              // Generate up-sweep tree of propagate and generate signals
@@ -2002,9 +2076,9 @@ public class Chip                                                               
         int m = l + d - 1;                                                      // middle index
         int h = l + 2*d - 1;                                                    // high index
         if (h < B)
-         {final Gate g1 = And(n(l, h, output, "g1"), P[m+1][h], G[l][m]);
-          G[l][h] = Or(n(l, h, output, "G"), G[m+1][h], g1);
-          P[l][h] = And(n(l, h, output, "P"), P[m+1][h], P[l][m]);
+         {final Gate g1 = And(n(l, h, output, "g1"), P[m+1][h], G[l][m]);   pUse[m+1][h] = gUse[l][m]   = true;
+          G[l][h] = Or (n(l, h, output, "G"), G[m+1][h], g1);               gSet[l][h]   = gUse[m+1][h] = true;
+          P[l][h] = And(n(l, h, output, "P"), P[m+1][h], P[l][m]);          pSet[l][h]   = true; pUse[m+1][h] = pUse[l][m] = true;
          }
        }
      }
@@ -2014,24 +2088,32 @@ public class Chip                                                               
        {boolean found = false;
         for (int d = q - 1; d >= 0; d--)
          {if (G[0][d] != null && G[d + 1][q] != null)
-           {final Gate g2 = And(n(0, q, output, "g2"), P[d+1][q], G[0][d]);
-            G[0][q] = Or(n(0, q, output, "G"), G[d+1][q], g2);
-            P[0][q] = And(n(0, q, output, "P"), P[d+1][q], P[0][d]);
+           {final Gate g2 = And(n(0, q, output, "g2"), P[d+1][q], G[0][d]); pUse[d+1][q] = true; gUse[0][d]   = true;
+            G[0][q] = Or (n(0, q, output, "G"), G[d+1][q], g2);             gSet[0][q]   = true; gUse[d+1][q] = true;
+            P[0][q] = And(n(0, q, output, "P"), P[d+1][q], P[0][d]);        pSet[0][q]   = true; pUse[d+1][q] = pUse[0][d] = true;
             found = true;
             break;
            }
          }
-        if (!found)                                                            // This should never happen!
+        if (!found)                                                             // This should never happen!
          {final String error = String.format("Not able to compute G[0][%d] from previous values", q);
           stop(error);
          }
        }
      }
+
+    for   (int i = 1; i <= B; i++)                                              // Anneal gates set but not used
+     {for (int j = 1; j <= B; j++)
+       {if (pSet[i-1][j-1] && !pUse[i-1][j-1]) P[i-1][j-1].anneal();
+        if (gSet[i-1][j-1] && !gUse[i-1][j-1]) G[i-1][j-1].anneal();
+       }
+     }
+
     final Gate[]C = new Gate[B+1];                                              // Arrays of names of bits
     C[0] = Zero(n(0, output, "carry"));                                         // First carry is always zero
-    for (int i = 1; i < (B+1); i++)
-     {Gate ci = And(n(i, output, "ci"), P[0][i-1], C[i-1]);
-      C[i] = Or(n(i, output, "carry"), G[0][i-1], ci);
+    for (int i = 1; i <= B; i++)
+     {Gate ci = And(n(i, output, "ci"),    P[0][i-1], C[i-1]);  pUse[0][i-1] = true;
+      C[i]    = Or (n(i, output, "carry"), G[0][i-1], ci);      gUse[0][i-1] = true;
      }
 
     final Bits o = bits(output, B);                                             // Result bits
@@ -2044,11 +2126,22 @@ public class Chip                                                               
   }
 
   BinaryAdd binaryAdd(String output, Bits in1, Bits in2)                        // Default adder
-   {return binaryAddKoggeStone(output, in1, in2);
+   {in1.sameSize(in2);
+    return binaryAddBrentKung(output, in1, in2);
    }
 
   BinaryAdd binaryAdd(String output, Bits in1, int in2)                         // Add a constant to a bit bus
    {return binaryAdd(output, in1, bits(n(output, "constant"), in1.bits(), in2));
+   }
+
+  BinaryAdd binarySubtract(String output, Bits in1, Bits in2)                   // Default adder
+   {in1.sameSize(in2);                                                          // Check bits to be added have the same size
+    final Bits m = binaryTwosComplement(n(output, "subtract"), in2);            // Twos complement of subtrahend
+    return binaryAdd(output, in1, in2);
+   }
+
+  BinaryAdd binarySubtract(String output, Bits in1, int in2)                    // Subtract a number by adding its negative because it is faster in twis complement arithmetic becuase it avoids the need to add one at rune time
+   {return binaryAdd(output, in1, bits(n(output, "constant"), in1.bits(), -in2));
    }
 
   Bits binaryTwosComplement(String output, Bits in)                             // Form the binary twos complement of a number
@@ -2071,7 +2164,7 @@ public class Chip                                                               
    {return binaryTCAdd(output, in1, bits(n(output, "in2"), in1.bits(), in2));
    }
 
-  Bits binaryTCSubtract(String output, Bits in1, Bits in2)                      // Twos complement subtraction
+  Bits binaryTCSubtract(String output, Bits in1, Bits in2)                      // Twos complement subtraction - twice as slow as addi5tion becuase of the need to twos complement the number to be subtracted
    {in1.sameSize(in2);                                                          // Check bits to be added have the same size
     final Bits        m = binaryTwosComplement(n(output, "subtract"), in2);     // Twos complement of subtrahend
     final BinaryAdd sub = binaryAdd(output, in1, m);                            // Effect the subtraction
@@ -2080,7 +2173,7 @@ public class Chip                                                               
    }
 
   Bits binaryTCSubtract(String output, Bits in1, int in2)                       // Twos complement subtraction of an immediate value
-   {return binaryTCSubtract(output, in1, bits(n(output, "in2"),in1.bits(),in2));
+   {return binaryTCAdd(output, in1, bits(n(output, "in2"),in1.bits(), -in2));   // Subtraction is twice as expensive as addition because of twos complementing requiring the addition of one.
    }
 
 // #   1 2 c   R
@@ -2690,7 +2783,7 @@ public class Chip                                                               
 
     final int sx =  2 * gsx, sy = 2 * gsy;                                      // Size of gate
 
-    layoutX = sx * (2 + maximumDistance);                                       // X dimension of chip with a bit of border
+    layoutX = sx * (2 + maximumDistanceToNearestOutput);                        // X dimension of chip with a bit of border
     layoutY = sy * (2 + countAtMostCountedDistance);                            // Y dimension of chip with a bit of border
 
     compileChip();
@@ -3210,7 +3303,7 @@ public class Chip                                                               
         p.push("    my $Y = "       + w.finish.y                       +";");
         p.push("    my $s = \""     + w.sourceGate.name              +"\";");
         p.push("    my $t = \""     + w.targetGate.name              +"\";");
-        p.push("    push @debug, sprintf(\"Wire         %4d %4d %4d %4d %4d  %32s=>%s\", $x, $y, $X, $Y, $L, $s, $t) if $debug;");
+        p.push("    push @debug, sprintf(\"Wire         %4d %4d %4d %4d %4d  %32.32s=>%s\", $x, $y, $X, $Y, $L, $s, $t) if $debug;");
         p.push("    my $xy = [$x,$y, $x+1,$y, $x+1,$y+1, $x,$y+1];");
         p.push("    my $XY = [$X,$Y, $X+1,$Y, $X+1,$Y+1, $X,$Y+1];");
 
@@ -3420,6 +3513,17 @@ public class Chip                                                               
       }
     }
 
+   static void distanceSummary()                                                // List the chips in maximum distance order
+    {final TreeMap<Integer, Stack<String>> ils = new TreeMap<>();
+     for (Map.Entry<String, Integer> si : classifyByDistanceToOutput.entrySet())
+      {ils.computeIfAbsent(si.getValue(), k -> new Stack<>()).push(si.getKey());
+      }
+
+     for (Map.Entry<Integer, Stack<String>> i : ils.entrySet())
+      {for (String s : i.getValue()) sayf("%4d  %s", i.getKey(), s);
+      }
+    }
+
 //D1 Logging                                                                    // Logging and tracing
 
 //D2 Traceback                                                                  // Trace back so we know where we are
@@ -3522,8 +3626,13 @@ public class Chip                                                               
 
 //D2 Printing                                                                   // Print log messages
 
+  static void sayf(String format, Object...O)                                   // Say something under the control of a format string
+   {System.err.println(String.format(format, O));
+    return;
+   }
+
   static void say(Object...O)                                                   // Say something
-   {final StringBuilder b = new StringBuilder();
+   {final StringBuilder b = new StringBuilder();                                // Print as a series of whitespace separated items
     for (int i = 0; i <  O.length; ++i)
      {final Object o = O[i];
       final String s = o.toString();
@@ -3543,7 +3652,6 @@ public class Chip                                                               
     b.append('\n');
     return b;
    }
-
 
   static void ddd(Object...O)                                                   // Debug something
    {final int W = 10;                                                           // Width of traceback
@@ -4048,7 +4156,7 @@ public class Chip                                                               
    }
 
   static void test_compare_gt()
-   {for (int B = 2; B <= 4; ++B)
+   {for (int B = 2; B <= 5; ++B)
      {int B2 = powerTwo(B);
       for   (int i = 0; i < B2; ++i)
        {for (int j = 0; j < B2; ++j)
@@ -4082,6 +4190,18 @@ public class Chip                                                               
          }
        }
      }
+   }
+
+  static void test_compare_lt_wide()
+   {if (!github_actions) return;
+    Chip c = chip();
+    Bits a = c.bits("a", "0".repeat(29)+"1".repeat(27));
+    Bits b = c.bits("b", "0".repeat(28)+"1".repeat(28));
+    Bit  o = c.compareLt("o", a, b).anneal();
+    Bit  O = c.compareLt("O", b, a).anneal();
+    c.simulate();
+    o.ok(true);
+    O.ok(false);
    }
 
   static void test_choose_from_two_words()
@@ -4560,7 +4680,7 @@ Step  p
     c.simulationSteps(2*D);
     c.simulate();
     r.ok(A);
-    ok(c.maximumDistance, D);
+    ok(c.maximumDistanceToNearestOutput, D);
     //c.printExecutionTrace(); stop();
    }
   static void test_shift()
@@ -4574,6 +4694,21 @@ Step  p
     ou.ok(6);
     oU.ok(7);
     od.ok(1);
+   }
+
+  static void test_binary_add_ripple()
+   {int B = 3;
+    Chip c = new Chip(); // {void eachStep(){say(steps);}};
+    Bits i = c.bits("i", B, 2);
+    Bits j = c.bits("j", B, 2);
+    BinaryAdd a = c.binaryAddRipple("ij",  i, j);
+    a.anneal();
+    c.simulationSteps(0, 30);
+    c.simulate();
+    a.sum.ok(4);
+    a.carry.ok(false);
+    ok(c.steps, 18);
+    //say("steps=", c.steps, "distance=", c.maximumDistance);
    }
 
   static void test_binary_add_kogge_stone()
@@ -4617,41 +4752,75 @@ Step  p
    }
 
   static void test_binary_add_brent_kung_vs_kogge_stone()
-   {say("          BrentKung  KogStone   BrentKung  KogStone");
-    say("Bits____  Steps      Steps      Distance   Distance");
-    for (int B = 2; B <= 32; B *=2)
-     {int N = -2;
-      Chip      k  = chip();
-      Bits      kn = k.bits("n", B, N);
-      Bits      km = k.bits("m", B, N);
-      BinaryAdd ka = k.binaryAddBrentKung("ka", kn, km);
-      ka.sum.anneal(); ka.carry.anneal();
-      k.simulate   ();
+   {say("             STEPS________________________   DISTANCE_____________________");
+    say("Bits____     BrentKung  KogStone  Ripple__   BrentKung  KogStone  Ripple__");
+    //for (int B = 2; B < 32; B++)
+    for (int B = 6; B <= 6; B++)
+     {final int M = powerTwo(B-1)-1, N = -powerTwo(B-1);
+      Chip      b  = chip();
+      Bits      bn = b.bits("n", B, M);
+      Bits      bm = b.bits("m", B, N);
+      BinaryAdd ba = b.binaryAddBrentKung("ba", bn, bm);
+      ba.anneal();
+      b.simulate   ();
 
-      Chip       r = chip();
-      Bits      rn = r.bits("n", B, N);
+      Chip      k  = chip();
+      Bits      kn = k.bits("n", B, M);
+      Bits      km = k.bits("m", B, N);
+      BinaryAdd ka = k.binaryAddKoggeStone("ka", kn, km);
+      ka.anneal();
+      k.simulate  ();
+
+      Chip      r  = chip();
+      Bits      rn = r.bits("n", B, M);
       Bits      rm = r.bits("m", B, N);
-      BinaryAdd ra = r.binaryAddKoggeStone("ra", rn, rm);
-      ra.sum.anneal(); ra.carry.anneal();
+      BinaryAdd ra = r.binaryAddRipple("ra", rn, rm);
+      ra.anneal();
+      r.simulationSteps(0, 300);
       r.simulate  ();
+
+      Integer bcarry = ba.carry.value() ? 1 : 0;
+      Integer bsum   = ba.sum.Int() + bcarry* 2^(B+1);
+
       Integer kcarry = ka.carry.value() ? 1 : 0;
-      Integer ksum = ka.sum.Int() + kcarry* 2^(B+1);
+      Integer ksum   = ka.sum.Int() + kcarry* 2^(B+1);
+
       Integer rcarry = ra.carry.value() ? 1 : 0;
-      Integer rsum = ra.sum.Int() + rcarry* 2^(B+1);
-      Chip.ok(ksum, rsum);
-      say(String.format("%8d   %8d  %8d    %8d  %8d", B, k.steps, r.steps, k.maximumDistance, r.maximumDistance));
+      Integer rsum   = ra.sum.Int() + rcarry* 2^(B+1);
+
+      ok(bsum, ksum);
+      ok(bsum, rsum);
+      say(String.format("%8d      %8d  %8d  %8d    %8d  %8d  %8d", B,
+        b.steps, k.steps, r.steps,
+        b.maximumDistance, k.maximumDistance, r.maximumDistance));
      }
    }
 
   static void test_binary_add_constant()
-   {final int B = 4;
-    for (int i = 0; i < B; i++)
+   {final int B = 4, L = powerTwo(B);
+    for (int i = -B; i <= 2*B; i++)
      {Chip      c = chip();
-      Bits      p = c.bits     ("p", B, i);
-      BinaryAdd a = c.binaryAdd("a", p, i);
+      Bits      p = c.bits     ("p", B, -B);
+      BinaryAdd a = c.binaryAdd("a", p,  i);
       a.sum.anneal(); a.carry.anneal();
-                      c.simulate ();
-      a.sum.ok(2*i); a.carry.ok(false);
+      c.simulate();
+      final int s = -B + i, e = s < 0 ? L + s : s;
+      a.sum.ok(e);
+      a.carry.ok(i < 0 || i >= B);
+     }
+   }
+
+  static void test_binary_subtract_constant()
+   {final int B = 4, L = powerTwo(B);
+    for (int i = -B; i <= 2*B; i++)
+     {Chip      c = chip();
+      Bits      p = c.bits          ("p", B, B);
+      BinaryAdd a = c.binarySubtract("a", p, i);
+      a.sum.anneal(); a.carry.anneal();
+      c.simulate();
+      final int s = B - i, e = s < 0 ? L + s : s;
+      a.sum.ok(e);
+      a.carry.ok(i > 0 && i <= B);
      }
    }
 
@@ -4672,8 +4841,8 @@ Step  p
     C.simulate();
     O.ok(A);
 
-    ok(C.steps           == 4);
-    ok(C.maximumDistance == 2);
+    ok(C.steps                          == 4);
+    ok(C.maximumDistanceToNearestOutput == 2);
     //C.printExecutionTrace();
     C.executionTrace.ok("""
 Step  i     o     O
@@ -4745,8 +4914,6 @@ Step  i     o     O
     Timer t = timer();
     C.simulate();
     ok(t.seconds() < 2d);
-
-    ok(C.maximumDistance, D);
 
     //stop(fa.decimal());
     fa.ok(null, null, null, 0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233);
@@ -5381,6 +5548,7 @@ Step  o     e
     test_compare_eq();
     test_compare_gt();
     test_compare_lt();
+    test_compare_lt_wide();
     test_choose_from_two_words();
     test_enable_word();
     test_enable_word_equal();
@@ -5391,7 +5559,9 @@ Step  o     e
     test_delay_bits();
     test_shift();
     test_binary_add_kogge_stone();
+    test_binary_add_brent_kung();
     test_binary_add_constant();
+    test_binary_subtract_constant();
     test_btree_node();
     test_btree_leaf_compare();
     test_Btree();
@@ -5432,6 +5602,7 @@ Step  o     e
   static void newTests()                                                        // Tests being worked on
    {oldTests();
     test_binary_add_brent_kung_vs_kogge_stone();
+    distanceSummary();                                                          // Report chips by maximum distance within chip
    }
 
   public static void main(String[] args)                                        // Test if called as a program
