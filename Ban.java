@@ -483,8 +483,8 @@ final public class Ban extends Chip                                             
     final Bits     decode = C.bits("decode", XLEN, instruction);                // Instruction to decode and execute
     final RV32I         R = rv32i(C, "a", decode, pc, x);                       // Decode and execute the instruction
     for (int i = 1; i < XLEN; i++) R.X[i].anneal();                             // Anneal the outputs
-    R.PC.anneal(); R.m.anneal();                                                // Pritn teh chip and  it will tell you the longest path in it as presumably we will not need more than that many steps
-    C.simulationSteps(145);                                                      // Was 61 with ripple adder
+    R.PC.anneal(); R.m.anneal();                                                // Print the chip and it will tell you the longest path in it as presumably we will not need more than that many steps
+    C.simulationSteps(73);       // -72 +74  Longest: 129                       // Was 61 with ripple adder
     C.simulate();
     return R;
    }
@@ -568,7 +568,7 @@ targetRegister: 00010
   static void test_fibonacci()                                                  // Implement memory operations in Risc V cpu producing Fibonacci numbers
    {Cpu c = new Cpu(64, 0xa00193, 0x393, 0x213, 0x100293, 0x438a23, 0x200093, 0x400133, 0x73, 0x520333, 0x28233, 0x302b3, 0x138393, 0xfe33c8e3, 0xb3, 0x73)
      {public void run()                                                         // Run the simulation
-       {simulationSteps(1000*N);                                                // Simulation steps: we need to set it to something, but on the other and the code has an eCall to exit so we do not have to be accurate just big enough.
+       {simulationSteps(200*numberOfStepsPerInstruction);                        // Simulation steps: we need to set it to something, but on the other and the code has an eCall to exit so we do not have to be accurate just big enough.
         simulate();
         ok(stdout.toString(), "[0, 1, 1, 2, 3, 5, 8, 13, 21, 34]");
         ok(memory[20], 0 );
@@ -665,26 +665,24 @@ targetRegister: 00010
     test_decode_lh();
     test_decode_i31();
     test_decode_i33();
-    //test_fibonacci();
-    //test_bubble_sort();
-    //test_insertion_sort();
-    //test_up();
-    //test_down();
-    //test_down_break();
+    test_fibonacci();
+    test_bubble_sort();
+    test_insertion_sort();
+    test_up();
+    test_down();
+    test_down_break();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    //test_insertion_sort();
-    //test_fibonacci();
-    //test_decode_addi();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
    {if (args.length > 0 && args[0].equals("compile")) System.exit(0);           // Do a syntax check
     try                                                                         // Get a traceback in a format clickable in Geany if something goes wrong to speed up debugging.
-     {//if (github_actions) oldTests(); else newTests();                          // Tests to run
-      Chip.testSummary();
+     {if (github_actions) oldTests(); else newTests();                          // Tests to run
+      distanceSummary();
+      testSummary();
      }
     catch(Exception e)                                                          // Get a traceback in a format clickable in Geany
      {System.err.println(Chip.fullTraceBack(e));
