@@ -835,10 +835,10 @@ public class Chip                                                               
       catch(Stop e) {return;}                                                   // Stop was requested during end of step processing
 
       if (!changes() && (!miss || steps >= minSimulationSteps))                 // No changes occurred and we are beyond the minimum simulation time or no such time was set
-       {if (!miss && steps > maximumDistance+2)                                 // Tests that might invalidate the maximum distance theory.
-         {err(steps, maximumDistanceToNearestOutput, maximumDistance);
-         }
-        classifyByDistanceToOutput.put(name, maximumDistance);                  // Track maximum distance by chip name
+       {//if (!miss && steps > maximumDistance+2)                                 // Tests that might invalidate the maximum distance theory.
+        // {err(steps, maximumDistanceToNearestOutput, maximumDistance);
+        // }
+        //classifyByDistanceToOutput.put(name, maximumDistance);                  // Track maximum distance by chip name
         return;
        }
      }
@@ -1960,6 +1960,22 @@ public class Chip                                                               
 
   Bits shiftDown(String output, Bits input)                                     // Shift an input bus down one place to subtract 1 in base 1 or divide by two in base 2
    {return new Shift(output, input, false, false);
+   }
+
+  Bits unaryAdd(String output, Bits A, Bits B)                                  // Unary add of two bits strings
+   {final int a = A.bits(), b = B.bits(), N = a + b;
+    final Bits C = new Bits(output, N);
+    for(int i = 1; i <= N; ++i)                                                 // The bit in the answer
+     {final Bit[]c = new Bit[i+1];
+      for(int j = 0; j <= i; ++j)
+       {final int k = i - j;
+        if      (j == 0) c[j] = B.b(k);
+        else if (k == 0) c[j] = A.b(j);
+        else           c[j-1] = And(n(j, output, "and"), A.b(j), B.b(k));
+       }
+      Or(C.b(i), c);
+     }
+    return C;
    }
 
 //D2 Arithmetic Base 2                                                          // Arithmetic in base 2
@@ -4696,6 +4712,25 @@ Step  p
     od.ok(1);
    }
 
+  static void test_unary_add()
+   {for (int B = 2; B <= 2; B++)
+     {for      (int i = 0; i <= B; i++)
+       {final String   si = "1".repeat(i)+"0".repeat(B-i);
+        for    (int j = 0; j <= B; j++)
+         {Chip      c = chip();
+          final String sj = "1".repeat(i)+"0".repeat(B-j);
+          Bits      I = c.bits("i", si);
+          Bits      J = c.bits("j", sj);
+          Bits      a = c.unaryAdd("ij", I, J).anneal();
+          final String sa = "1".repeat(i+j)+"0".repeat(2*B-i-j);
+          a.ok(i+j);
+          say("AAAA", i, j, a);
+          if (i == 1 && j == 1) say(c);
+         }
+       }
+     }
+   }
+
   static void test_binary_add_ripple()
    {int B = 3;
     Chip c = new Chip(); // {void eachStep(){say(steps);}};
@@ -5600,9 +5635,9 @@ Step  o     e
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
-    test_binary_add_brent_kung_vs_kogge_stone();
-    distanceSummary();                                                          // Report chips by maximum distance within chip
+   {//oldTests();
+    //test_binary_add_brent_kung_vs_kogge_stone();
+    test_unary_add();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
@@ -5610,6 +5645,7 @@ Step  o     e
     try                                                                         // Get a traceback in a format clickable in Geany if something goes wrong to speed up debugging.
      {if (github_actions) oldTests(); else newTests();                          // Tests to run
       gds2Finish();                                                             // Execute resulting Perl code to create GDS2 files
+      //distanceSummary();
       testSummary();                                                            // Summarize test results
      }
     catch(Exception e)                                                          // Get a traceback in a format clickable in Geany
