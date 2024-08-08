@@ -822,7 +822,7 @@ public class Chip                                                               
 
     randomizeArray(G);                                                          // To prevent the Zeta problem.  In theory the gate execution order does not matter. "In theory, theory and practice are the same.  In practice they are not".
     atStart();
-say("AAAA");
+
     for (steps = 1; steps <= actualMaxSimulationSteps; ++steps)                 // Steps in time
      {for (Pulse      p : P) p.setState ();                                     // Load all the pulses
       for (Gate       g : G) g.nextValue();                                     // Compute next value for  each gate
