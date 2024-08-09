@@ -1962,18 +1962,41 @@ public class Chip                                                               
    {return new Shift(output, input, false, false);
    }
 
+/*
+12345678
+1100     a
+1110     b
+11111000 c
+
+c1 = (a1 | b1)
+c2 = (a2 | b2) | (a1 & b1)
+c3 = (a3 | b3) | (a1 & b2) | (a2 & b1)
+c4 = (a4 | b4) | (a1 & b3) | (a2 & b2) | (a3 & b1)
+c5 =             (a1 & b4) | (a2 & b3) | (a3 & b2) | (a4 & b1)
+c6 =                         (a2 & b4) | (a3 & b3) | (a4 & b2)
+c7 =                                     (a3 & b4) | (a4 & b3)
+c8 =                                                 (a4 & b4)
+*/
+
   Bits unaryAdd(String output, Bits A, Bits B)                                  // Unary add of two bits strings
    {final int a = A.bits(), b = B.bits(), N = a + b;
+    A.sameSize(B);
     final Bits C = new Bits(output, N);
     for(int i = 1; i <= N; ++i)                                                 // The bit in the answer
-     {final Bit[]c = new Bit[i+1];
-      for(int j = 0; j <= i; ++j)
-       {final int k = i - j;
-        if      (j == 0) c[j] = B.b(k);
-        else if (k == 0) c[j] = A.b(j);
-        else           c[j-1] = And(n(j, output, "and"), A.b(j), B.b(k));
+     {final Stack<Bit> c = new Stack<>();
+      if (i <= a) c.push(Or(n(i, output, "or"), A.b(i), B.b(i)));
+      for  (int j = 1; j <= a; ++j)
+       {for(int k = 1; k <= b; ++k)
+         {if (j + k == i) c.push(And(n(j, k, output, "and"), A.b(j), B.b(k)));
+         }
        }
-      Or(C.b(i), c);
+      if      (c.size() == 0) {}
+      else if (c.size() == 1) Continue(C.b(i), c.firstElement());
+      else
+       {final Bit[]cc = new Bit[c.size()];
+        for (int j = 0; j < c.size(); j++) cc[j] = c.elementAt(j);
+        Or(C.b(i), cc);
+       }
      }
     return C;
    }
@@ -3463,6 +3486,9 @@ public class Chip                                                               
     return b.substring(b.length() - width);
    }
 
+  static String   ones(int n) {return "1".repeat(n);}                           // A string of ones
+  static String zeroes(int n) {return "0".repeat(n);}                           // A string of zeroes
+
 //D2 Numeric routines                                                           // Numeric routines
 
   static int max(int n, int...rest)                                             // Maximum of some numbers
@@ -4712,20 +4738,28 @@ Step  p
     od.ok(1);
    }
 
+  static void test_bits_string()
+   {Chip   c = chip();
+    String s = ones(2)+zeroes(2);
+    Bits   i = c.bits("i", s).anneal();
+    c.simulate();
+    ok(i, zeroes(2)+ones(2));
+   }
+
   static void test_unary_add()
-   {for (int B = 2; B <= 2; B++)
+   {for (int B = 1; B <= 4; B++)
      {for      (int i = 0; i <= B; i++)
-       {final String   si = "1".repeat(i)+"0".repeat(B-i);
+       {final String si = ones(i)+zeroes(B-i);
         for    (int j = 0; j <= B; j++)
          {Chip      c = chip();
-          final String sj = "1".repeat(i)+"0".repeat(B-j);
+          final String sj = ones(j)+zeroes(B-j);
           Bits      I = c.bits("i", si);
           Bits      J = c.bits("j", sj);
           Bits      a = c.unaryAdd("ij", I, J).anneal();
-          final String sa = "1".repeat(i+j)+"0".repeat(2*B-i-j);
-          a.ok(i+j);
-          say("AAAA", i, j, a);
-          if (i == 1 && j == 1) say(c);
+          final String A = zeroes(2*B-i-j)+ones(i+j);
+          c.simulate();
+          //say("AAAA", I, J, A, a);
+          ok(a, A);
          }
        }
      }
@@ -5593,6 +5627,8 @@ Step  o     e
     test_check_in_int();
     test_delay_bits();
     test_shift();
+    test_bits_string();
+    test_unary_add();
     test_binary_add_kogge_stone();
     test_binary_add_brent_kung();
     test_binary_add_constant();
@@ -5635,9 +5671,7 @@ Step  o     e
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    //test_binary_add_brent_kung_vs_kogge_stone();
-    test_unary_add();
+   {oldTests();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
