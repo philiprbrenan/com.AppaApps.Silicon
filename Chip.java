@@ -5660,12 +5660,16 @@ Step  o     e
     test_check_in_int();
     test_delay_bits();
     test_shift();
+
     test_bits_string();
     test_unary_add();
+    test_count_bits();
+
     test_binary_add_kogge_stone();
     test_binary_add_brent_kung();
     test_binary_add_constant();
     test_binary_subtract_constant();
+
     test_btree_node();
     test_btree_leaf_compare();
     test_Btree();
