@@ -2001,6 +2001,23 @@ c8 =                                                 (a4 & b4)
     return C;
    }
 
+  Bits countBits(String output, Bits B)                                         // Returns a unary number with the count of the bits in a string
+   {final int N = B.bits(), L = logTwo(N);
+    if (N != powerTwo(L)) stop("N must be a power of two, not:", N);
+    Bits[][]C = new Bits[N][];
+    C[0] = new Bits[N];
+    for(int i = 1; i <= N; ++i)                                                 // Convert N bits to array of N*1 bits
+     {C[0][i-1] = new SubBitBus(n(0, i, output, "bits"), B, i, 1);
+     }
+    for(int i = 1, n = N >> 1; i <= L; ++i, n >>= 1)                            // Sum in successive layers
+     {C[i] = new Bits[n];
+      for(int j = 1; j <= C[i-1].length; j += 2)                                // Next layer
+       {C[i][j>>1] = unaryAdd(n(i, j, output, "bits"), C[i-1][j-1], C[i-1][j]);
+       }
+     }
+    return C[L][0];
+   }
+
 //D2 Arithmetic Base 2                                                          // Arithmetic in base 2
 
   record BinaryAdd                                                              // Results of a binary add
@@ -4746,6 +4763,22 @@ Step  p
     ok(i, zeroes(2)+ones(2));
    }
 
+  static void test_count_bits(int a, int A, int b, int B)
+   {Chip   c = chip();
+    String s = ones(a)+zeroes(A)+ones(b)+zeroes(B);
+    Bits   i = c.bits("i", s);
+    Bits   n = c.countBits("n", i).anneal();
+    c.simulate();
+    ok(n,  zeroes(A+B)+ones(a+b));
+   }
+
+  static void test_count_bits()
+   {test_count_bits(1,1,3,3);
+    test_count_bits(1,2,2,3);
+    test_count_bits(3,1,1,3);
+    test_count_bits(4,0,2,2);
+   }
+
   static void test_unary_add()
    {for (int B = 1; B <= 4; B++)
      {for      (int i = 0; i <= B; i++)
@@ -5671,7 +5704,8 @@ Step  o     e
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
+    test_count_bits();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
