@@ -79,7 +79,7 @@ jobs:
 
     strategy:
       matrix:
-        task: [Chip, RiscV, Ban, Mjaf, Unary, Stuck]
+        task: [Ban, Big, Chip, Mjaf, RiscV, Stuck, Unary]
 
     steps:
     - uses: actions/checkout\@v3
@@ -117,6 +117,11 @@ jobs:
       if: matrix.task == 'Ban'
       run: |
         java -cp Classes $c/Ban
+
+    - name: Test Big
+      if: matrix.task == 'Big'
+      run: |
+        java -cp Classes $c/Big
 
     - name: Test Unary
       if: matrix.task == 'Unary'
