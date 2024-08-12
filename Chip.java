@@ -2001,21 +2001,21 @@ c8 =                                                 (a4 & b4)
     return C;
    }
 
-  Bits countBits(String output, Bits B)                                         // Returns a unary number with the count of the bits in a string
+  Bits countBits(String output, Bits B)                                         // Returns a unary number with the count of the bits in a word of bits.
    {final int N = B.bits(), L = logTwo(N);
-    if (N != powerTwo(L)) stop("N must be a power of two, not:", N);
-    Bits[][]C = new Bits[N][];
+    if (N != powerTwo(L)) stop("Width must be a power of two, not:", N);
+    Bits[][]C = new Bits[N][];                                                  // Layers of additions, each layer containing N bits
     C[0] = new Bits[N];
     for(int i = 1; i <= N; ++i)                                                 // Convert N bits to array of N*1 bits
      {C[0][i-1] = new SubBitBus(n(0, i, output, "bits"), B, i, 1);
      }
-    for(int i = 1, n = N >> 1; i <= L; ++i, n >>= 1)                            // Sum in successive layers
+    for(int i = 1, n = N >> 1; i <= L; ++i, n >>= 1)                            // Sum in successive layers by halving the number of layers and doubling their widths
      {C[i] = new Bits[n];
-      for(int j = 1; j <= C[i-1].length; j += 2)                                // Next layer
+      for(int j = 1; j <= C[i-1].length; j += 2)                                // Sum pairs in previous layer to make an entry in the current layer
        {C[i][j>>1] = unaryAdd(n(i, j, output, "bits"), C[i-1][j-1], C[i-1][j]);
        }
      }
-    return C[L][0];
+    return C[L][0];                                                             // Return the sole entry in the final layer
    }
 
 //D2 Arithmetic Base 2                                                          // Arithmetic in base 2
@@ -4770,6 +4770,7 @@ Step  p
     Bits   n = c.countBits("n", i).anneal();
     c.simulate();
     ok(n,  zeroes(A+B)+ones(a+b));
+    //say(c);
    }
 
   static void test_count_bits()
@@ -5708,13 +5709,12 @@ Step  o     e
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_count_bits();
+   {oldTests();
+    //test_count_bits();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {if (args.length > 0 && args[0].equals("compile")) System.exit(0);           // Do a syntax check
-    try                                                                         // Get a traceback in a format clickable in Geany if something goes wrong to speed up debugging.
+   {try                                                                         // Get a traceback in a format clickable in Geany if something goes wrong to speed up debugging.
      {if (github_actions) oldTests(); else newTests();                          // Tests to run
       gds2Finish();                                                             // Execute resulting Perl code to create GDS2 files
       //distanceSummary();
