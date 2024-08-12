@@ -2115,8 +2115,7 @@ Offs  Wide  Size    Field name
    }
 
   public static void main(String[] args)                                        // Test if called as a program
-   {if (args.length > 0 && args[0].equals("compile")) System.exit(0);           // Do a syntax check
-    try                                                                         // Get a traceback in a format clickable in Geany if something goes wrong to speed up debugging.
+   {try                                                                         // Get a traceback in a format clickable in Geany if something goes wrong to speed up debugging.
      {if (github_actions) oldTests(); else newTests();                          // Tests to run
       Chip.testSummary();
      }
