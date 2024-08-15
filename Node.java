@@ -284,7 +284,7 @@ final public class Node extends RiscV                                           
 //D1 Define a node
 
   static MemoryLayout defineLeaf(int keys, int bits)                            // Define a layout representing a node - an interior node of the tree
-   {if (keys % 2 == 0) stop("Keys must be odd, not", keys);
+   {if (keys % 2 == 1) stop("Keys in leaf must be even, not", keys);
     RiscV      r = new RiscV();
     Variable   k = r.variable ("key",      bits);                               // Keys
     Variable   d = r.variable ("data",     bits);                               // Data corresponding to each key
@@ -297,7 +297,7 @@ final public class Node extends RiscV                                           
    }
 
   static MemoryLayout defineNode(int keys, int bits)                            // Define a layout representing a node - an interior node of the tree
-   {if (keys % 2 == 0) stop("Keys must be odd, not", keys);
+   {if (keys % 2 == 0) stop("Keys in node must be odd, not", keys);
     RiscV      r = new RiscV();
     Variable   k = r.variable ("key",      bits);                               // Keys
     Variable   n = r.variable ("next",     bits);                               // Next nodes in lower layer
@@ -406,8 +406,8 @@ final public class Node extends RiscV                                           
    }
 
   static void test_defineLeaf()                                                 // Test define a leaf
-   {final MemoryLayout s = defineLeaf(5, 4);
-    ok(s.width, 45);
+   {final MemoryLayout s = defineLeaf(6, 4);
+    ok(s.width, 54);
    }
 
   static void test_defineNode()                                                 // Test define a leaf
