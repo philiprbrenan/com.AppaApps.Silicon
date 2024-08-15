@@ -509,11 +509,11 @@ final public class Node extends RiscV                                           
     test_cmp();
     test_defineLeaf();
     test_defineNode();
+    test_uniAdd();
    }
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    test_uniAdd();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
