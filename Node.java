@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Big machine
+// Node machine driven by a RiscV machine
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout digital a binary tree on a silicon chip.
@@ -8,17 +8,17 @@ import java.util.Stack;
 
 //D1 Construct                                                                  // Construct a Risc V program and execute it
 
-final public class Big extends RiscV                                            // Emulate the big machine that will be driven by a small Risc V machine to perform the vector instructions needed to build and maintain a binary tree
+final public class Node extends RiscV                                           // Emulate the Node Machine that will be driven by a small Risc V machine to perform the vector instructions needed to build and maintain a binary tree
  {final Lane    []     lanes;                                                   // The lanes of execution
   final Register[] registers;                                                   // The registers
   final Register[] registersSaved;                                              // Save the registers before executing an operation
   boolean overflow;                                                             // Integer addition overflowed
   boolean lte, gte;                                                             // Integer addition overflowed
 
-  enum Op {nop, add, sub, inc, dec, shiftLeft, shiftRight,                      // Possible operations performed by the big machine
+  enum Op {nop, add, sub, inc, dec, shiftLeft, shiftRight,                      // Possible operations performed by the Node Machine
     shiftRightArithmetic;}
                                                                                 // Comparison was less than or equal, greater than or equal
-  Big(int Registers, int Width, int Lanes)                                      // Create the big machine as a specified number of registers of specified width with a specified number of lanes
+  Node(int Registers, int Width, int Lanes)                                     // Create the Node Machine as a specified number of registers of specified width with a specified number of lanes
    {registers      = new Register[Registers];
     registersSaved = new Register[Registers];
     lanes     = new Lane[Lanes];
@@ -171,7 +171,7 @@ final public class Big extends RiscV                                            
    {target.inc();
    }
 
-  void execute()                                                                // Execute one step of the big machine
+  void execute()                                                                // Execute one step of the Node Machine
    {for (int i = 0; i < registers.length; i++)
      {registersSaved[i] = registers[i].clone();
      }
@@ -188,7 +188,7 @@ final public class Big extends RiscV                                            
    }
 
   static void test_add()                                                        // Test parallel addition
-   {Big b = new Big(8, 4, 4);
+   {Node b = new Node(8, 4, 4);
     b.clearLanes();
     b.registers[1].set("0111");
     b.registers[2].set("0001");
@@ -204,7 +204,6 @@ final public class Big extends RiscV                                            
     b.lanes[1].execute = true;
 
     b.execute();
-say("AAAA", b.registers[3]);
     ok(b.registers[3].eq("1000"));
     ok(b.registers[4].eq("0110"));
 
