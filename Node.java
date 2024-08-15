@@ -99,7 +99,9 @@ final public class Node extends RiscV                                           
      {final String bs = reduceString(BitString);                                // Edit input string down to 0 and 1's
       final int b = bs.length(), v = width();
       if (b > v) stop("Too long", b, v);
-      for (int i = 0; i < b; i++) if (value[i] != (bs.charAt(b-i-1) != '0')) return false;
+      for (int i = 0; i < b; i++)
+       {if (value[i] != (bs.charAt(b-i-1) != '0')) return false;
+       }
       return true;
      }
 
@@ -228,16 +230,18 @@ final public class Node extends RiscV                                           
      {registersSaved[i] = registers[i].clone();
      }
 
-    for (Lane l: lanes)
-     {if (!l.execute) continue;
-      switch(l.op)
-       {case add -> {add(registers[l.target], registersSaved[l.source1], registersSaved[l.source2]);}
-        case sub -> {sub(registers[l.target], registersSaved[l.source1], registersSaved[l.source2]);}
-        case inc -> {inc(registers[l.target]);}
-        case dec -> {dec(registers[l.target]);}
-        case sll -> {sll(registers[l.target], registersSaved[l.source1], registersSaved[l.source2]);}
-        case slr -> {slr(registers[l.target], registersSaved[l.source1], registersSaved[l.source2]);}
-        case sar -> {sar(registers[l.target], registersSaved[l.source1], registersSaved[l.source2]);}
+    for (Lane l: lanes)                                                         // Execute enabled lanes
+     {if (!l.execute) continue;                                                 // Not enabled
+      final Register[]r = registers;
+      final Register[]s = registersSaved;
+      switch(l.op)                                                              // Choose operation
+       {case add -> {add(r[l.target], s[l.source1], s[l.source2]);}
+        case sub -> {sub(r[l.target], s[l.source1], s[l.source2]);}
+        case inc -> {inc(r[l.target]);}
+        case dec -> {dec(r[l.target]);}
+        case sll -> {sll(r[l.target], s[l.source1], s[l.source2]);}
+        case slr -> {slr(r[l.target], s[l.source1], s[l.source2]);}
+        case sar -> {sar(r[l.target], s[l.source1], s[l.source2]);}
         default  -> {stop("Implementation needed for", l.op);}
        }
      }
