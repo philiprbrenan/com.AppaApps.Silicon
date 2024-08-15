@@ -1026,20 +1026,20 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
   static abstract class MemoryLayout                                            // Variable/Array/Structure definition.
    {String name;                                                                // Name of field
     int at;                                                                     // Offset of variable either from start of memory or from start of a structure
-    int bytes;                                                                  // Number of bytes in field
+    int width;                                                                  // Number of width in field
     int depth;                                                                  // Depth of field
     MemoryLayout up;                                                            // Chain to containing field
     Stack<MemoryLayout> fields;                                                 // Fields in structure
 
     MemoryLayout(String Name)       {name  = Name;}
-    MemoryLayout bytes(int Bytes)   {bytes = Bytes; return this;}
+    MemoryLayout width(int Width)   {width = Width; return this;}
 
     abstract void layout(int at, int depth, MemoryLayout ml);                   // Layout this field
     void layout() {fields = new Stack<>(); layout(0, 0, this);}                 // Layout the fields in the structure defined by this field
     String indent() {return "  ".repeat(depth);}                                // Indentation
 
     public String toString()                                                    // Print the memory layout header
-     {return String.format("%4d  %4d        %s  %s", at, bytes, indent(), name);
+     {return String.format("%4d  %4d        %s  %s", at, width, indent(), name);
      }
 
     public String print()                                                       // Walk the field list printing the memory layout headers
@@ -1066,7 +1066,7 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
    }
 
   static class Variable extends MemoryLayout                                    // Variable
-   {Variable(String name, int Bytes) {super(name); bytes(Bytes);}
+   {Variable(String name, int Width) {super(name); width(Width);}
     void layout(int At, int Depth, MemoryLayout ml)
      {at = At; depth = Depth; ml.fields.push(this);
      }
@@ -1081,18 +1081,18 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
      }
     Array    size(int Size)             {size    = Size;    return this;}       // Set the size of the array
     Array element(MemoryLayout Element) {element = Element; return this;}       // The type of the element in the array
-    int at(int i)                       {return at+i*element.bytes;}             // Offset of this array element in the structure
+    int at(int i)                       {return at+i*element.width;}             // Offset of this array element in the structure
 
     void layout(int At, int Depth, MemoryLayout ml)                             // Compile this variable so that the size, width and byte fields are correct
      {at = At; depth = Depth; ml.fields.push(this);
       element.layout(at, Depth+1, ml);
       element.up = this;                                                        // Chain up
-      bytes = size * element.bytes;
+      width = size * element.width;
      }
 
     public String toString()                                                    // Print the field
      {return String.format("%4d  %4d  %4d  %s  %s",
-                            at, bytes, size, indent(), name);
+                            at, width, size, indent(), name);
      }
    }
 
@@ -1113,19 +1113,19 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
     void layout(int at, int Depth, MemoryLayout ml)                             // Compile this variable so that the size, width and byte fields are correct
      {int w = 0;
-      bytes = 0;
+      width = 0;
       depth = Depth;
       ml.fields.push(this);
       for(MemoryLayout v : subStack)                                            // Layout sub structure
-       {v.at = at+bytes;
+       {v.at = at+width;
         v.layout(v.at, Depth+1, ml);
-        bytes += v.bytes;
+        width += v.width;
        }
      }
    }
 
-  Variable  variable (String name, int bytes)                    {return new Variable (name, bytes);}
-  Array     array    (String name, MemoryLayout   ml, int bytes) {return new Array    (name, ml, bytes);}
+  Variable  variable (String name, int width)                    {return new Variable (name, width);}
+  Array     array    (String name, MemoryLayout   ml, int width) {return new Array    (name, ml, width);}
   Structure structure(String name, MemoryLayout...ml)            {return new Structure(name, ml);}
 
 //D1 Structured programming                                                     // Structured programming features.
