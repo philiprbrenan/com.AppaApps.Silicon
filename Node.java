@@ -13,8 +13,9 @@ final public class Node extends RiscV                                           
   final Register[] registers;                                                   // The registers
   final Register[] registersSaved;                                              // Save the registers before executing an operation
 
-  enum Op {nop, add, sub, inc, dec, sll, slr, sar, le, ge};                     // Possible operations performed by the Node Machine
-                                                                                // Comparison was less than or equal, greater than or equal
+  enum Op {nop, add, sub, inc, dec, sll, slr, sar, le, ge,                      // Possible operations performed by the Node Machine
+    uniAdd, uniSub, uniLe, uniGe};                                              // Unary arithmetic
+
   Node(int Registers, int Width, int Lanes)                                     // Create the Node Machine as a specified number of registers of specified width with a specified number of lanes
    {registers      = new Register[Registers];
     registersSaved = new Register[Registers];
@@ -103,13 +104,52 @@ final public class Node extends RiscV                                           
       return true;
      }
 
+//D1 Unary Arithmetic                                                           // Unary Arithmetic on values like "00011" (2) and "00111" (3) to get "11111" (5)
+
+    int uniIntValue()                                                           // Value of a register interpreted as a unary value
+     {for (int i = 0, w = width(); i < w; i++) if (!value[i]) return i;
+      return width();
+     }
+
+    Register uniAdd(Register Source1, Register Source2)                         // Add the specified source registers together and store in the target register using unary arithmetic
+     {final Register S1 = Source1, S2 = Source2;
+      final int s1 = S1.uniIntValue(), s2 = S2.uniIntValue(), s = s1 + s2;      // Convert to binary and add
+      final int o = min(width(), s), z = width() - o;                           // Number of ones and zeroes in the sum
+      set("0".repeat(z)+"1".repeat(o));                                         // Set the result
+      return this;
+     }
+
+    Register uniSub(Register Source1, Register Source2)                         // Subtract the unary value in the second source from the first source and store in the target register using unary arithmetic
+     {final Register S1 = Source1, S2 = Source2;
+      final int s1 = S1.uniIntValue(), s2 = S2.uniIntValue(), s = s1 - s2;      // Convert to binary and add
+      final int o = max(0, s), z = width() - o;                                 // Number of ones and zeroes in the sum
+      set("0".repeat(z)+"1".repeat(o));                                         // Set the result
+      return this;
+     }
+
+    Register uniLe(Register Source1, Register Source2)                          // Set the target register to "1" if the first source register is less than or equal than to the second source register else "0"
+     {final Register S1 = Source1, S2 = Source2;
+      final int s1 = S1.uniIntValue(), s2 = S2.uniIntValue();                   // Convert to binary
+      set(s1 <= s2 ? "1" : "");
+      return this;
+     }
+
+    Register uniGe(Register Source1, Register Source2)                          // Set the target register to "1" if the first source register is greater than or equal to the second source register else "0"
+     {final Register S1 = Source1, S2 = Source2;
+      final int s1 = S1.uniIntValue(), s2 = S2.uniIntValue();                   // Convert to binary
+      set(s1 >= s2 ? "1" : "");
+      return this;
+     }
+
+//D1 Binary Arithmetic                                                          // Two's complement binary arithmetic
+
     int intValue()                                                              // Get upto the first 31 bits of a register as an integer
      {int v = 0;
       for (int i = 0, w = width(); i < w; i++) v += value[i] ? powerTwo(i) : 0;
       return v;
      }
 
-    Register add(Register Source1, Register Source2)                            // Add the specified source registers together and store in this register
+    Register add(Register Source1, Register Source2)                            // Add the specified source registers together and store in the target register
      {final Register S1 = Source1, S2 = Source2;
       boolean c = false;
       for (int i = 0, w = width(); i < w; i++)
@@ -257,6 +297,22 @@ final public class Node extends RiscV                                           
   void inc(Register target) {target.inc();}                                     // Increment the target
   void dec(Register target) {target.dec();}                                     // Decrement the target
 
+  void uniAdd(Register target, Register source1, Register source2)              // Add two source registers and store in target using unary arithmetic
+   {target.uniAdd(source1, source2);
+   }
+
+  void uniSub(Register target, Register source1, Register source2)              // Subtract two source registers and store in target using unary arithmetic
+   {target.uniSub(source1, source2);
+   }
+
+  void uniLe(Register target, Register source1, Register source2)               // Compare source 1 to source 2 and set target to 1 if source 1 <= source 2 else 0 using unary aritmetic
+   {target.uniLe(source1, source2);
+   }
+
+  void uniGe(Register target, Register source1, Register source2)               // Compare source 1 to source 2 and set target to 1 if source 1 >= source 2 else 0 using unary aritmetic
+   {target.uniGe(source1, source2);
+   }
+
   void execute()                                                                // Execute one step of the Node Machine
    {for (int i = 0; i < registers.length; i++)
      {registersSaved[i] = registers[i].clone();
@@ -276,6 +332,10 @@ final public class Node extends RiscV                                           
         case sar -> {sar(r[l.target], s[l.source1], s[l.source2]);}
         case le  -> {le (r[l.target], s[l.source1], s[l.source2]);}
         case ge  -> {ge (r[l.target], s[l.source1], s[l.source2]);}
+        case uniAdd -> {uniAdd(r[l.target], s[l.source1], s[l.source2]);}
+        case uniSub -> {uniSub(r[l.target], s[l.source1], s[l.source2]);}
+        case uniLe  -> {uniLe (r[l.target], s[l.source1], s[l.source2]);}
+        case uniGe  -> {uniGe (r[l.target], s[l.source1], s[l.source2]);}
         default  -> {stop("Implementation needed for", l.op);}
        }
      }
@@ -340,6 +400,32 @@ final public class Node extends RiscV                                           
     b.execute();
     ok(b.registers[3].eq("1001"));
     ok(b.registers[4].eq("0101"));
+   }
+
+  static void test_uniAdd()
+   {Node b = new Node(8, 8, 4);
+    b.clearLanes();
+    b.registers[1].set("0000_0111");
+    b.registers[2].set("0000_0011");
+    b.lanes[0].source1 = 1;
+    b.lanes[0].source2 = 2;
+    b.lanes[0].target  = 3;
+    b.lanes[0].op      = Op.uniAdd;
+    b.lanes[0].execute = true;
+    b.execute();
+    ok(b.registers[3].eq("0001_1111"));
+
+    b.lanes[0].op      = Op.uniSub;
+    b.execute();
+    ok(b.registers[3].eq("0000_0001"));
+
+    b.lanes[0].op      = Op.uniLe;
+    b.execute();
+    ok(b.registers[3].eq("0"));
+
+    b.lanes[0].op      = Op.uniGe;
+    b.execute();
+    ok(b.registers[3].eq("1"));
    }
 
   static void test_sll()                                                        // Test shift logical left
@@ -426,7 +512,8 @@ final public class Node extends RiscV                                           
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
+    test_uniAdd();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
