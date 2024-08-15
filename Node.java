@@ -15,8 +15,7 @@ final public class Node extends RiscV                                           
   boolean overflow;                                                             // Integer addition overflowed
   boolean lte, gte;                                                             // Integer addition overflowed
 
-  enum Op {nop, add, sub, inc, dec, shiftLeft, shiftRight,                      // Possible operations performed by the Node Machine
-    shiftRightArithmetic;}
+  enum Op {nop, add, sub, inc, dec, sll, slr, sar};                             // Possible operations performed by the Node Machine
                                                                                 // Comparison was less than or equal, greater than or equal
   Node(int Registers, int Width, int Lanes)                                     // Create the Node Machine as a specified number of registers of specified width with a specified number of lanes
    {registers      = new Register[Registers];
@@ -104,13 +103,19 @@ final public class Node extends RiscV                                           
       return true;
      }
 
+    int intValue()                                                              // Get upto the first 31 bits of a register as an integer
+     {int v = 0;
+      for (int i = 0, w = width(); i < w; i++) v += value[i] ? powerTwo(i) : 0;
+      return v;
+     }
+
     Register add(Register Source1, Register Source2)                            // Add the specified source registers together and store in this register
      {final Register S1 = Source1, S2 = Source2;
       boolean c = false;
       for (int i = 0, w = width(); i < w; i++)
        {final boolean s1 = S1.value[i], s2 = S2.value[i];
-        value[i] = (c && s1 &&  s2) ||
-                   (c && !s1 && !s2) || (!c && s1 && !s2) || (!c && !s1 &&  s2);
+        value[i] = (c &&  s1 &&  s2) ||
+                   (c && !s1 && !s2) || (!c && s1 && !s2) || (!c && !s1 && s2);
         c = (c && s1) || (c && s2) || (s1 & s2);
        }
       return this;
@@ -126,6 +131,17 @@ final public class Node extends RiscV                                           
       return this;
      }
 
+    Register dec()                                                              // Decrement a register
+     {boolean c = false;
+      for (int i = 0, w = width(); i < w; i++)
+       {final boolean t = value[i], s = true;
+        value[i] = (c &&  t &&  s) ||
+                   (c && !t && !s) || (!c && t && !s) || (!c && !t && s);
+        c = (c && t) || (c && s) || (t & s);
+       }
+      return this;
+     }
+
     Register twosComplement()                                                   // Twos complement of a register
      {for (int i = 0, w = width(); i < w; i++) value[i] = !value[i];            // Ones complement
       inc();                                                                    // Twos complement
@@ -137,6 +153,31 @@ final public class Node extends RiscV                                           
       set(S2);
       twosComplement();
       add(Source1, this);
+      return this;
+     }
+
+    Register sll(Register Source1, Register Source2)                            // Shift left source 1 by the amount in source 2  and save in target
+     {final Register S1 = Source1, S2 = Source2;
+      final int s = S2.intValue();
+      zero();
+      for (int i = 0, w = width() - s; i < w; i++) value[i+s] = S1.value[i];
+      return this;
+     }
+
+    Register slr(Register Source1, Register Source2)                            // Shift right source 1 by the amount in source 2  and save in target
+     {final Register S1 = Source1, S2 = Source2;
+      final int s = S2.intValue();
+      zero();
+      for (int i = s, w = width(); i < w; i++) value[i-s] = S1.value[i];
+      return this;
+     }
+
+    Register sar(Register Source1, Register Source2)                            // Shift arithmetic right source 1 by the amount in source 2  and save in target
+     {final Register S1 = Source1, S2 = Source2;
+      final int s = S2.intValue();
+      zero();
+      for (int i = s, w = width(); i < w; i++) value[i-s]   = S1.value[i];      // Shift
+      for (int i = 0, w = width(); i < s; i++) value[w-i-1] = S1.value[w-1];    // Shift sign bit
       return this;
      }
 
@@ -167,9 +208,20 @@ final public class Node extends RiscV                                           
    {target.sub(source1, source2);
    }
 
-  void inc(Register target)                                                     // Increment the target
-   {target.inc();
+  void sll(Register target, Register source1, Register source2)                 // Shift left logical source1 by source2 filling in with zeroes and save in target
+   {target.sll(source1, source2);
    }
+
+  void slr(Register target, Register source1, Register source2)                 // Shift right logical source1 by source2 filling in with zeroes and save in target
+   {target.slr(source1, source2);
+   }
+
+  void sar(Register target, Register source1, Register source2)                 // Shift arithmetic right source1 by source2 filling in with sign bit and save in target
+   {target.sar(source1, source2);
+   }
+
+  void inc(Register target) {target.inc();}                                     // Increment the target
+  void dec(Register target) {target.dec();}                                     // Decrement the target
 
   void execute()                                                                // Execute one step of the Node Machine
    {for (int i = 0; i < registers.length; i++)
@@ -182,6 +234,10 @@ final public class Node extends RiscV                                           
        {case add -> {add(registers[l.target], registersSaved[l.source1], registersSaved[l.source2]);}
         case sub -> {sub(registers[l.target], registersSaved[l.source1], registersSaved[l.source2]);}
         case inc -> {inc(registers[l.target]);}
+        case dec -> {dec(registers[l.target]);}
+        case sll -> {sll(registers[l.target], registersSaved[l.source1], registersSaved[l.source2]);}
+        case slr -> {slr(registers[l.target], registersSaved[l.source1], registersSaved[l.source2]);}
+        case sar -> {sar(registers[l.target], registersSaved[l.source1], registersSaved[l.source2]);}
         default  -> {stop("Implementation needed for", l.op);}
        }
      }
@@ -210,12 +266,60 @@ final public class Node extends RiscV                                           
     b.clearLanes();
     b.lanes[0].op      = Op.inc;
     b.lanes[0].execute = true;
+    b.lanes[1].op      = Op.dec;
+    b.lanes[1].execute = true;
     b.execute();
     ok(b.registers[3].eq("1001"));
+    ok(b.registers[4].eq("0101"));
+   }
+
+  static void test_sll()                                                        // Test shift logical left
+   {Node b = new Node(8, 4, 4);
+    b.clearLanes();
+    b.registers[1].set("0101");
+    b.registers[2].set("0011");
+    b.lanes[0].source1 = 1;
+    b.lanes[0].source2 = 2;
+    b.lanes[0].target  = 3;
+    b.lanes[0].op      = Op.sll;
+    b.lanes[0].execute = true;
+    b.execute();
+    ok(b.registers[3].eq("1000"));
+   }
+
+  static void test_slr()                                                        // Test shift logical right
+   {Node b = new Node(8, 4, 4);
+    b.clearLanes();
+    b.registers[1].set("0101");
+    b.registers[2].set("0010");
+    b.lanes[0].source1 = 1;
+    b.lanes[0].source2 = 2;
+    b.lanes[0].target  = 3;
+    b.lanes[0].op      = Op.slr;
+    b.lanes[0].execute = true;
+    b.execute();
+    ok(b.registers[3].eq("0001"));
+   }
+
+  static void test_sar()                                                        // Test shift arithmetic right
+   {Node b = new Node(8, 4, 4);
+    b.clearLanes();
+    b.registers[1].set("1101");
+    b.registers[2].set("0010");
+    b.lanes[0].source1 = 1;
+    b.lanes[0].source2 = 2;
+    b.lanes[0].target  = 3;
+    b.lanes[0].op      = Op.sar;
+    b.lanes[0].execute = true;
+    b.execute();
+    ok(b.registers[3].eq("1111"));
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_add();
+    test_sll();
+    test_slr();
+    test_sar();
    }
 
   static void newTests()                                                        // Tests being worked on
