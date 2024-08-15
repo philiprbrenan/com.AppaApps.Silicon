@@ -12,10 +12,8 @@ final public class Node extends RiscV                                           
  {final Lane    []     lanes;                                                   // The lanes of execution
   final Register[] registers;                                                   // The registers
   final Register[] registersSaved;                                              // Save the registers before executing an operation
-  boolean overflow;                                                             // Integer addition overflowed
-  boolean lte, gte;                                                             // Integer addition overflowed
 
-  enum Op {nop, add, sub, inc, dec, sll, slr, sar};                             // Possible operations performed by the Node Machine
+  enum Op {nop, add, sub, inc, dec, sll, slr, sar, le, ge};                     // Possible operations performed by the Node Machine
                                                                                 // Comparison was less than or equal, greater than or equal
   Node(int Registers, int Width, int Lanes)                                     // Create the Node Machine as a specified number of registers of specified width with a specified number of lanes
    {registers      = new Register[Registers];
@@ -183,6 +181,32 @@ final public class Node extends RiscV                                           
       return this;
      }
 
+    Register le(Register Source1, Register Source2)                             // Compare source 1 to source 2 and set target to 1 if source 1 <= source 2 else 0
+     {final Register S1 = Source1, S2 = Source2;
+      zero();
+      for (int i = width()-1; i >= 0; i--)                                      // Each bit starting with most significant
+       {if (S1.value[i] == S2.value[i]) continue;                               // Equal on bits at this index
+        value[0] = S2.value[i];                                                 // Less than
+        return this;
+       }
+
+      value[0] = true;                                                          // Equal on all bits
+      return this;
+     }
+
+    Register ge(Register Source1, Register Source2)                             // Compare source 1 to source 2 and set target to 1 if source 1 >= source 2 else 0
+     {final Register S1 = Source1, S2 = Source2;
+      zero();
+      for (int i = width()-1; i >= 0; i--)                                      // Each bit starting with most significant
+       {if (S1.value[i] == S2.value[i]) continue;                               // Equal on bits at this index
+        value[0] = S1.value[i];                                                 // Greater than
+        return this;
+       }
+
+      value[0] = true;                                                          // Equal on all bits
+      return this;
+     }
+
     public Register clone()                                                     // Clone a register
      {final Register r = new Register(name, value.length);
       for (int i = 0; i < value.length; i++) r.value[i] = value[i];
@@ -222,6 +246,14 @@ final public class Node extends RiscV                                           
    {target.sar(source1, source2);
    }
 
+  void le(Register target, Register source1, Register source2)                  // Compare source 1 to source 2 and set target to 1 if source 1 <= source 2 else 0
+   {target.le(source1, source2);
+   }
+
+  void ge(Register target, Register source1, Register source2)                  // Compare source 1 to source 2 and set target to 1 if source 1 >= source 2 else 0
+   {target.ge(source1, source2);
+   }
+
   void inc(Register target) {target.inc();}                                     // Increment the target
   void dec(Register target) {target.dec();}                                     // Decrement the target
 
@@ -242,6 +274,8 @@ final public class Node extends RiscV                                           
         case sll -> {sll(r[l.target], s[l.source1], s[l.source2]);}
         case slr -> {slr(r[l.target], s[l.source1], s[l.source2]);}
         case sar -> {sar(r[l.target], s[l.source1], s[l.source2]);}
+        case le  -> {le (r[l.target], s[l.source1], s[l.source2]);}
+        case ge  -> {ge (r[l.target], s[l.source1], s[l.source2]);}
         default  -> {stop("Implementation needed for", l.op);}
        }
      }
@@ -350,6 +384,27 @@ final public class Node extends RiscV                                           
     ok(b.registers[3].eq("1111"));
    }
 
+  static void test_cmp()                                                        // Compare
+   {Node b = new Node(8, 4, 4);
+    b.clearLanes();
+    b.registers[1].set("1101");
+    b.registers[2].set("0010");
+    b.lanes[0].source1 = 1;
+    b.lanes[0].source2 = 2;
+    b.lanes[0].target  = 3;
+    b.lanes[0].op      = Op.le;
+    b.lanes[0].execute = true;
+
+    b.lanes[0].duplicate(1);
+    b.lanes[1].target  = 4;
+    b.lanes[1].op      = Op.ge;
+    b.lanes[1].execute = true;
+
+    b.execute();
+    ok(b.registers[3].eq("0000"));
+    ok(b.registers[4].eq("0001"));
+   }
+
   static void test_defineLeaf()                                                 // Test define a leaf
    {final MemoryLayout s = defineLeaf(5, 4);
     ok(s.width, 45);
@@ -365,6 +420,7 @@ final public class Node extends RiscV                                           
     test_sll();
     test_slr();
     test_sar();
+    test_cmp();
     test_defineLeaf();
     test_defineNode();
    }
