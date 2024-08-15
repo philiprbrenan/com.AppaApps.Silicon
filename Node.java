@@ -243,6 +243,37 @@ final public class Node extends RiscV                                           
      }
    }
 
+//D1 Define a node
+
+  static MemoryLayout defineLeaf(int keys, int bits)                            // Define a layout representing a node - an interior node of the tree
+   {if (keys % 2 == 0) stop("Keys must be odd, not", keys);
+    RiscV      r = new RiscV();
+    Variable   k = r.variable ("key",      bits);                               // Keys
+    Variable   d = r.variable ("data",     bits);                               // Data corresponding to each key
+    Variable   F = r.variable ("full",     keys);                               // A unary number that indicates how full the node is
+    Array      K = r.array    ("keys",  k, keys);                               // Array of keys
+    Array      D = r.array    ("datas", d, keys);                               // Array of matching data matching each key
+    Structure  s = r.structure("leaf",  K, D, F);                               // Definition of a leaf
+    s.layout();
+    return s;
+   }
+
+  static MemoryLayout defineNode(int keys, int bits)                            // Define a layout representing a node - an interior node of the tree
+   {if (keys % 2 == 0) stop("Keys must be odd, not", keys);
+    RiscV      r = new RiscV();
+    Variable   k = r.variable ("key",      bits);                               // Keys
+    Variable   n = r.variable ("next",     bits);                               // Next nodes in lower layer
+    Variable   T = r.variable ("top",      bits);                               // Top next node to lower layer
+    Variable   F = r.variable ("full",     keys);                               // A unary number that indicates how full the node is
+    Array      K = r.array    ("keys",  k, keys);                               // Array of keys
+    Array      N = r.array    ("nexts", n, keys);                               // Array of corresponding nexts all of which are less than or equal to the corresponding keys
+    Structure  s = r.structure("node",  K, N, T, F);
+    s.layout();
+    return s;
+   }
+
+//D1 Tests
+
   static void test_add()                                                        // Test parallel addition
    {Node b = new Node(8, 4, 4);
     b.clearLanes();
@@ -315,11 +346,23 @@ final public class Node extends RiscV                                           
     ok(b.registers[3].eq("1111"));
    }
 
+  static void test_defineLeaf()                                                 // Test define a leaf
+   {final MemoryLayout s = defineLeaf(5, 4);
+    ok(s.width, 45);
+   }
+
+  static void test_defineNode()                                                 // Test define a leaf
+   {final MemoryLayout s = defineNode(5, 4);
+    ok(s.width, 49);
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_add();
     test_sll();
     test_slr();
     test_sar();
+    test_defineLeaf();
+    test_defineNode();
    }
 
   static void newTests()                                                        // Tests being worked on
