@@ -18,6 +18,7 @@ class Stuck<Type> extends Chip implements Iterable<Type>                        
    }
 
   static Stuck<Integer> stuck(int max) {return new Stuck<Integer>(max);}        // Create a stuck stack
+  void clear() {u.set(0);}                                                      // Clear a stuck stack
 
   public Stuck<Type> clone()                                                    // Clone a stuck stack
    {final int N = u.max();
@@ -224,10 +225,20 @@ class Stuck<Type> extends Chip implements Iterable<Type>                        
     ok(b.toString().equals("1, 2, 3, 4"));
    }
 
+  static void test_clear()
+   {var s = stuck(4);                ok(s.size(), 0);
+    s.push(1); s.ok("Stuck(1)");     ok(s.size(), 1);
+    s.push(2); s.ok("Stuck(1, 2)");  ok(s.size(), 2);
+    s.clear(); ok(s.isEmpty());
+    s.push(3); s.ok("Stuck(3)");     ok(s.size(), 1);
+    s.push(4); s.ok("Stuck(3, 4)");  ok(s.size(), 2);
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_action();
     test_push_shift();
     test_insert_remove();
+    test_clear();
     test_search();
     test_iterate_zero();
     test_iterate();
