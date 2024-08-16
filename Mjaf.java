@@ -17,7 +17,7 @@ package com.AppaApps.Silicon;                                                   
 //                 The eye of heaven lights thy face for me,
 //                 Nor shall death brag thou wander'st in his shade,
 //                 When these lines being read bring life to thee!
-import java.util.Stack;
+import java.util.*;
 
 class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys and matching number of data elements because data is not transferred to the parent on fission  which simplifies deletions with complicating insertions.
  {final int maxKeysPerLeaf;                                                     // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
@@ -482,20 +482,22 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 //D1 Memory                                                                     // Preallocated memory for branches and leaves
 
   class NodeStack                                                               // Memory for branches and leaves
-   {final Stack<Node<Key>> nodes = new Stack<>();                               // All the branches and leaves
-    Integer max = null, min = null;                                             // Statistics
+   {final LinkedList<Node<Key>> nodes = new LinkedList<>();                     // All the branches and leaves
+    Integer size = 0, max = null, min = null;                                   // Statistics
 
     void release(Node<Key> n)                                                   // Release a branch
-     {nodes.push(n);
-      final int m = nodes.size();
+     {nodes.add(n);
+      ++size;
+      final int m = size;
       if (max == null) max = m; else max = max(max, m);
      }
 
     Node<Key> recycle()                                                         // Recycle a node
-     {if (nodes.size() == 0) stop("No more memory for branches/leaves");
-      final int m = nodes.size() - 1;
+     {if (size == 0) stop("No more memory for branches/leaves");
+      final int m = size - 1;
       if (min == null) min = m; else min = min(min, m);
-      final Node<Key> n = nodes.pop();
+      final Node<Key> n = nodes.removeFirst();
+      --size;
       return n;
      }
 
@@ -515,7 +517,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
      }
 
     public String toString()                                                    // Print statistics
-     {return String.format("Nodes min: %4d, current: %4d, max: %4d", min, nodes.size(), max);
+     {return String.format("Nodes min: %4d, current: %4d, max: %4d", min, size, max);
      }
    }
 
@@ -752,8 +754,6 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
    {final long[]r = random_array();
     var m = mjaf(4, r.length);
     for (int i = 0; i < r.length; ++i) m.put(r[i], (long)i);
-    say("Delete at start");
-    say(m.nodes);
     for (int i = 0; i < r.length; ++i)
      {var a = m.delete(r[i]);
       ok(a, (long)i);
@@ -1331,7 +1331,11 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
   static void test_delete_reverse()
    {final long[]r = random_array();
     var m = mjaf(4, r.length);
+    say("Delete at start");
+    say(m.nodes);
     for (int i = 0; i < r.length; ++i) m.put(r[i], (long)i);
+    say("Delete after load");
+    say(m.nodes);
     for (int i = r.length-1; i >= 0; --i)
      {ok(m.delete(r[i]), (long)i);
       if (false)                                                                // Write case statement to check deletions
@@ -1917,8 +1921,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
-    //test_delete_reverse();
+   {//oldTests();
+    test_delete_reverse();
     //test_delete();
    }
 
