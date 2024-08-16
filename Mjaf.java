@@ -22,8 +22,8 @@ import java.util.Stack;
 class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys and matching number of data elements because data is not transferred to the parent on fission  which simplifies deletions with complicating insertions.
  {final int maxKeysPerLeaf;                                                     // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
   final int maxKeysPerBranch;                                                   // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
-  final Stack<Branch> branches = new Stack<>();                                 // All the branch nodes - this is our memory allocation scheme
-  final Stack<Leaf  > leaves   = new Stack<>();                                 // All the leaf nodes
+  final BranchStack branches = new BranchStack();                               // All the branch nodes - this is our memory allocation scheme
+  final LeafStack     leaves = new LeafStack();                                 // All the leaf nodes
 
 //D1 Construction                                                               // Create a Btree from nodes which can be branches or leaves.  The data associated with the Btree is stored only in the leaves opposite the keys
 
@@ -45,8 +45,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     maxKeysPerLeaf   = N;
     maxKeysPerBranch = N-1;
     final int L = size * (N-1) / N, B = size - L;                               // Leaves and branches
-    for (int i = 0; i < L; i++) leaves  .push(new Leaf());                      // Pre allocate leaves
-    for (int i = 0; i < B; i++) branches.push(new Branch());                    // Pre allocate branches
+    for (int i = 0; i < L; i++) leaves  .release(new Leaf());                   // Pre allocate leaves
+    for (int i = 0; i < B; i++) branches.release(new Branch());                 // Pre allocate branches
    }
 
   Mjaf() {this(4, 1000);}                                                       // Define a Btree with a minimal maximum number of keys per node
@@ -180,13 +180,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     void ok(String expected) {Mjaf.ok(toString(), expected);}                   // Check leaf
    } // Branch
 
-  Branch branch(Node<Key> node)                                                 // Create a new branch
-   {if (branches.size() == 0) stop("No more branches");
-    final Branch b = branches.pop();
-    b.topNode = node;                                                           // Initialize top node
-    b.keyNames.clear(); b.nextLevel.clear();                                    // Initialize branch keys and next
-    return b;
-   }
+  Branch branch(Node<Key> node) {return branches.recycle(node);}                // Create a new branch
+
 
   class Leaf extends Node<Key>                                                  // Create a new leaf
    {final Stuck<Data> dataValues;                                               // Data associated with each key
@@ -268,10 +263,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
      }
    } // Leaf
 
-  Leaf leaf()                                                                   // Create an empty leaf
-   {if (leaves.size() == 0) stop("No more leaves");
-    return leaves.pop();
-   }
+  Leaf leaf() {return leaves.recycle();}                                        // Create an empty leaf
+
 
 //D1 Search                                                                     // Find a key, data pair
 
@@ -491,6 +484,45 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
      }
     b.topNode.printHorizontally(S, 1, false);
     return joinStrings(S);
+   }
+
+//D1 Memory                                                                     // Preallocated memory for branches and leaves
+
+  class BranchStack                                                             // Memory for branches
+   {final Stack<Branch> branches = new Stack<>();                               // All the branches
+    Integer max = null, min = null;                                             // Instrumentation
+
+    void release(Branch p)                                                      // Release a branch
+     {if (max == null) max = 0; else ++max;
+      branches.push(p);
+     }
+
+    Branch recycle(Node<Key> node)                                              // Recycle a branch
+     {final int m = branches.size() - 1;
+      if (min == null) min = m; else min = min(min, m);
+      final Branch b = branches.pop();
+      b.topNode = node;                                                         // Initialize top node
+      b.keyNames.clear(); b.nextLevel.clear();                                  // Initialize branch keys and next
+      return b;
+     }
+   }
+
+  class LeafStack                                                               // Memory for leaves
+   {final Stack<Leaf> leaves = new Stack<>();                                   // All the leaves
+    Integer max = null, min = null;                                             // Instrumentation
+
+    void release(Leaf l)                                                        // Release a leaf
+     {if (max == null) max = 0; else ++max;
+      leaves.push(l);
+     }
+
+    Leaf recycle()                                                              // Recycle a leaf
+     {final int m = leaves.size() - 1;
+      if (min == null) min = m; else min = min(min, m);
+      final Leaf l = leaves.pop();
+      l.keyNames.clear(); l.dataValues.clear();                                 // Initialize leaves keys and data
+      return l;
+     }
    }
 
 //D0 Tests                                                                      // Test the BTree
