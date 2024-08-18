@@ -5,7 +5,7 @@
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
 
 class Unary extends Chip                                                        // Unary arithmetic
- {final boolean[]u;                                                             // The unary number
+ {final boolean[]u;                                                             // The unary number.  00111 == 3
 
 //D1 Construction                                                               // Create a unary number
 
@@ -33,13 +33,13 @@ class Unary extends Chip                                                        
   void set(int n)                                                               // Set the unary number
    {if (n <= u.length)
      {for (int i = 0; i < u.length; i++) u[i] = false;
-      u[n] = true;
+      for (int i = 0; i < n;        i++) u[i] = true;
      }
     else stop(n, "too big");
    }
 
   int get()                                                                     // Get the unary number
-   {for (int i = 0; i < u.length; i++) if (u[i]) return i;
+   {for (int i = 0; i < u.length; i++) if (!u[i]) return i;
     return 0;
    }
 
