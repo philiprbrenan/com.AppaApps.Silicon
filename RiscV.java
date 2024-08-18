@@ -1038,6 +1038,31 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     void layout() {fields = new Stack<>(); layout(0, 0, this);}                 // Layout the fields in the structure defined by this field
     String indent() {return "  ".repeat(depth);}                                // Indentation
 
+    String cleanBoolean(String content)                                         // Clean a string representing a boolean number.
+     {return content.replaceAll("\\.", "0").replaceAll("[^01]", "");            // Translate '.' to 0 and then remove everything that is not 0 or 1
+     }
+
+    void set(Boolean[]target, int targetOffset, String content)                 // Offset in target memory to bemoved to described by this memory layout
+     {final String c = cleanBoolean(content);                                   // Clean the input boolean string
+      final int l = c.length(), L = l - 1;
+      if (l != width)
+        stop("Width of string does not math width of target", width, l);
+      for (int i = 0; i < width; i++) target[at+i] = content.charAt(L-i) == '1';// Load the specified string into memory
+     }
+
+    String get(Boolean[]memory, int offset)                                     // Create a string describing memory
+     {final StringBuilder b = new StringBuilder();
+      for (int i = 0; i < width; i++) b.append(memory[at+i] ? '1' : '.');
+      return b.reverse().toString();
+     }
+
+    void copy(Boolean[]target, int targetOffset,                                // Copy memory from source location to the target location described by this memory layout. Offset in target memory to bemoved to described by this memory layout
+              Boolean[]source, int sourceOffset,  MemoryLayout sourceLayout)    // Offset in source memory to be moved from described by a memory layout
+     {if (width != sourceLayout.width)
+        stop("Source and target widths differ", width, sourceLayout.width);
+      for (int i = 0; i < width; i++) target[at+i] = source[sourceLayout.at+i];
+     }
+
     public String toString()                                                    // Print the memory layout header
      {return String.format("%4d  %4d        %s  %s", at, width, indent(), name);
      }
@@ -1045,7 +1070,7 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     public String print()                                                       // Walk the field list printing the memory layout headers
      {if (fields == null) return "";                                            // The structure has not been laid out
       final StringBuilder b = new StringBuilder();
-      b.append(String.format("%4s  %4s  %4s    %s", "Offs", "Wide", "Size", "Field name\n"));
+      b.append(String.format("%4s  %4s  %4s    %s", "  At", "Wide", "Size", "Field name\n"));
       for(MemoryLayout m : fields) b.append(""+m+"\n");                         // Print all the fields in the structure layout
       return b.toString();
      }
@@ -2098,7 +2123,7 @@ Registers  :  x3=11 x4=22
     Structure T  = r.structure("outer",  s1, s2, u3);
     T.layout();
     ok(T.print(), """
-Offs  Wide  Size    Field name
+  At  Wide  Size    Field name
    0    64          outer
    0    28            inner1
    0     4              a1
@@ -2120,6 +2145,12 @@ Offs  Wide  Size    Field name
     ok(T.getFieldDef("outer.inner1.C1.c1").at,  8);
     ok(T.getFieldDef("outer.inner2.C2.c2").at, 36);
     ok(C2.at(2), 40);
+
+    final Boolean[]m = new Boolean[100];
+       b2.set(m, 0,  "11..");
+    ok(b2.get(m, 0), "11..");
+    b1.copy(m, 0,  m, 0, b2);
+    ok(b1.get(m, 0), "11..");
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
