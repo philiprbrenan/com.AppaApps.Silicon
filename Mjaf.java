@@ -383,66 +383,61 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     Node<Key> P = root;                                                         // We now know that the root is a branch
 
     for    (int i = 0; i < 999; ++i)                                            // Step down through tree to find the required leaf, splitting as we go
-     {if (P instanceof Branch)                                                  // Stepped to a branch
-       {final Branch p = (Branch)P;
-        for(int j = 0; j < p.size()-1; ++j)                                     // See if any pair under this node can be merged
-         {final Node<Key> A = p.nextLevel.elementAt(j);
-          final Node<Key> B = p.nextLevel.elementAt(j+1);
-          if (A instanceof Leaf)
-           {final Leaf a = (Leaf)A, b = (Leaf)B;
-            final boolean m = a.joinableLeaves(b);                              // Can we merge the two leaves
-            if (m)                                                              // Merge the two leaves
-             {a.joinLeaf(b);
-              p.keyNames.removeElementAt(j);
-              p.nextLevel.removeElementAt(j+1);
-             }
-           }
-          else                                                                  // Merge two branches
-           {final Branch a = (Branch)A, b = (Branch)B;
-            final boolean m = a.joinableBranches(b);                            // Can we merge the two branches
-            if (m)                                                              // Merge the two branches
-             {final Key k = p.keyNames.removeElementAt(j);
-              a.joinBranch(b, k);
-              p.nextLevel.removeElementAt(j+1);
-             }
+     {if (!(P instanceof Branch)) break;                                        // Stepped to a branch
+      final Branch p = (Branch)P;
+      for(int j = 0; j < p.size()-1; ++j)                                     // See if any pair under this node can be merged
+       {final Node<Key> A = p.nextLevel.elementAt(j);
+        final Node<Key> B = p.nextLevel.elementAt(j+1);
+        if (A instanceof Leaf)
+         {final Leaf a = (Leaf)A, b = (Leaf)B;
+          final boolean m = a.joinableLeaves(b);                              // Can we merge the two leaves
+          if (m)                                                              // Merge the two leaves
+           {a.joinLeaf(b);
+            p.keyNames.removeElementAt(j);
+            p.nextLevel.removeElementAt(j+1);
            }
          }
-
-        if (p.size() > 0)                                                       // Check last pair
-         {final Node<Key> A = p.nextLevel.lastElement();
-          if (A instanceof Leaf)
-           {final Leaf a = (Leaf)A, b = (Leaf)p.topNode;
-            final boolean j = a.joinableLeaves(b);                              // Can we merge the two leaves
-            if (j)                                                              // Merge the two leaves
-             {a.joinLeaf(b);
-              p.keyNames.pop();
-              p.nextLevel.pop();
-              p.topNode = a;
-             }
-           }
-          else                                                                  // Merge two branches
-           {final Branch a = (Branch)A, b = (Branch)p.topNode;
-            final boolean j = a.joinableBranches(b);                            // Can we merge the last two branches
-            if (j)                                                              // Merge the last two branches
-             {final Key k = p.keyNames.pop();
-              a.joinBranch(b, k);
-              p.nextLevel.pop();
-              p.topNode = a;
-             }
+        else                                                                  // Merge two branches
+         {final Branch a = (Branch)A, b = (Branch)B;
+          final boolean m = a.joinableBranches(b);                            // Can we merge the two branches
+          if (m)                                                              // Merge the two branches
+           {final Key k = p.keyNames.removeElementAt(j);
+            a.joinBranch(b, k);
+            p.nextLevel.removeElementAt(j+1);
            }
          }
-        P = p.findFirstGreaterOrEqual(keyName);                                 // Find key position in branch
-        continue;
        }
 
-      --keyDataStored;                                                          // Remove one entry
-      final int  F = P.findIndexOfKey(keyName);                                 // Key is known to be present
-             P .keyNames  .removeElementAt(F);
-      ((Leaf)P).dataValues.removeElementAt(F);
-      return foundData;
+      if (p.size() > 0)                                                       // Check last pair
+       {final Node<Key> A = p.nextLevel.lastElement();
+        if (A instanceof Leaf)
+         {final Leaf a = (Leaf)A, b = (Leaf)p.topNode;
+          final boolean j = a.joinableLeaves(b);                              // Can we merge the two leaves
+          if (j)                                                              // Merge the two leaves
+           {a.joinLeaf(b);
+            p.keyNames.pop();
+            p.nextLevel.pop();
+            p.topNode = a;
+           }
+         }
+        else                                                                  // Merge two branches
+         {final Branch a = (Branch)A, b = (Branch)p.topNode;
+          final boolean j = a.joinableBranches(b);                            // Can we merge the last two branches
+          if (j)                                                              // Merge the last two branches
+           {final Key k = p.keyNames.pop();
+            a.joinBranch(b, k);
+            p.nextLevel.pop();
+            p.topNode = a;
+           }
+         }
+       }
+      P = p.findFirstGreaterOrEqual(keyName);                                 // Find key position in branch
      }
-    stop("Should not reach here");
-    return null;
+    --keyDataStored;                                                          // Remove one entry
+    final int  F = P.findIndexOfKey(keyName);                                 // Key is known to be present
+           P .keyNames  .removeElementAt(F);
+    ((Leaf)P).dataValues.removeElementAt(F);
+    return foundData;
    } // delete
 
 //D1 Print                                                                      // Print a tree
