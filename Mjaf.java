@@ -80,32 +80,6 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 
     boolean branchIsFull() {return nextLevel.isFull();}                         // Node should be split
 
-    int findFirstGreaterOrEqual(Key keyName)                                    // Find first key which is greater an the search key. The result is 1 based, a result of zero means all the keys were less than or equal than the search key
-     {final int N = size();                                                     // Number of keys currently in node
-      for (int i = 0; i < N; i++)                                               // Check each key
-       {final Key k = keyNames.elementAt(i);                                    // Key
-        final boolean l = lessThanOrEqual(keyName, k);                          // Compare current key with search key
-        if (l) return i + 1;                                                    // Current key is greater than or equal to the search key
-       }
-      return 0;
-     }
-
-    void putBranch(Key keyName, Node<Key> putNode)                              // Insert a new node into a branch
-     {final int N = nextLevel.size();                                           // Number of keys currently in node
-      if (N >= maxKeysPerLeaf) stop("Too many keys in Branch");
-      for (int i = 0; i < N; i++)                                               // Check each key
-       {final Key k = keyNames.elementAt(i);                                    // Key
-        final boolean l = lessThanOrEqual(keyName, k);                          // Compare current key with search key
-        if (l)                                                                  // Insert new key in order
-         {keyNames .insertElementAt(keyName, i);
-          nextLevel.insertElementAt(putNode, i);
-          return;
-         }
-       }
-      keyNames .push(keyName);                                                  // Either the leaf is empty or the new key is greater than every existing key
-      nextLevel.push(putNode);
-     }
-
     void splitRoot()                                                            // Split the root
      {if (branchIsFull())
        {final Key    k = splitKey();
@@ -153,6 +127,32 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
         nextLevel.push(n);
        }
       nodes.release(Join);
+     }
+
+    Node<Key> findFirstGreaterOrEqual(Key keyName)                              // Find first key which is greater an the search key. The result is 1 based, a result of zero means all the keys were less than or equal than the search key
+     {final int N = size();                                                     // Number of keys currently in node
+      for (int i = 0; i < N; i++)                                               // Check each key
+       {final Key k = keyNames.elementAt(i);                                    // Key
+        final boolean l = lessThanOrEqual(keyName, k);                          // Compare current key with search key
+        if (l) return nextLevel.elementAt(i);                                   // Current key is greater than or equal to the search key
+       }
+      return topNode;
+     }
+
+    void putBranch(Key keyName, Node<Key> putNode)                              // Insert a new node into a branch
+     {final int N = nextLevel.size();                                           // Number of keys currently in node
+      if (N >= maxKeysPerLeaf) stop("Too many keys in Branch");
+      for (int i = 0; i < N; i++)                                               // Check each key
+       {final Key k = keyNames.elementAt(i);                                    // Key
+        final boolean l = lessThanOrEqual(keyName, k);                          // Compare current key with search key
+        if (l)                                                                  // Insert new key in order
+         {keyNames .insertElementAt(keyName, i);
+          nextLevel.insertElementAt(putNode, i);
+          return;
+         }
+       }
+      keyNames .push(keyName);                                                  // Either the leaf is empty or the new key is greater than every existing key
+      nextLevel.push(putNode);
      }
 
     public String toString()                                                    // Print branch
@@ -275,17 +275,15 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 
   Data find(Key keyName)                                                        // Find a the data associated with a key
    {if (root == null) return null;                                              // Empty tree
-    Node<Key> n = root;                                                         // Root of tree
-    for(int i = 0; i < 999 && n != null; ++i)                                   // Step down through tree up to some reasonable limit
-     {if (!(n instanceof Branch)) break;                                        // Stepped to a leaf
-      final Branch b = (Branch)n;
-      final int    g = b.findFirstGreaterOrEqual(keyName);                      // Position of key
-      n = g == 0 ? b.topNode : b.nextLevel.elementAt(g-1);
+    Node<Key> q = root;                                                         // Root of tree
+    for(int i = 0; i < 999 && q != null; ++i)                                   // Step down through tree up to some reasonable limit
+     {if (!(q instanceof Branch)) break;                                        // Stepped to a leaf
+      q = ((Branch)q).findFirstGreaterOrEqual(keyName);                         // Position of key
      }
 
-    final int f = n.findIndexOfKey(keyName);                                    // We have arrived at a leaf
+    final int f = q.findIndexOfKey(keyName);                                    // We have arrived at a leaf
     if (f == -1) return null;                                                   // Key not found
-    return ((Leaf)n).dataValues.elementAt(f);                                   // Data associated with key in leaf
+    return ((Leaf)q).dataValues.elementAt(f);                                   // Data associated with key in leaf
    }
 
 //D1 Insertion                                                                  // Insert keys and data into the Btree
@@ -301,8 +299,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
      {if (!((Leaf)root).leafIsFull()) ((Leaf)root).putLeaf(keyName, dataValue);
       else                                                                      // Insert into root as a leaf which is full
        {final Leaf   l = ((Leaf)root).splitLeaf();                              // New left hand side of root
-        final Branch b = branch(root);                                          // New root with old root to right
         final Key    k = l.splitKey();                                          // Splitting key
+        final Branch b = branch(root);                                          // New root with old root to right
         b.putBranch(k, l);                                                      // Insert left hand node all of whose elements are less than the first element of what was the root
         final Leaf f = l.lessThanOrEqual(keyName, k) ? l : (Leaf)root;          // Choose leaf
         f.putLeaf(keyName, dataValue);                                          // Place in leaf
@@ -316,18 +314,17 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 
     for(int i = 0; i < 999; ++i)                                                // Step down through tree to find the required leaf, splitting as we go
      {if (!(q instanceof Branch)) break;                                        // Stepped to a branch
-      final Branch qb = ((Branch)q);
-      if (qb.branchIsFull())                                                    // Split the branch because it is full and we might need to insert below it requiring a slot in this node
-       {final Key    k = qb.splitKey();
-        final Branch l = qb.splitBranch();
-        p.putBranch(k, l);
+
+      if (((Branch)q).branchIsFull())                                           // Split the branch because it is full and we might need to insert below it requiring a slot in this node
+       {final Key    k = q.splitKey();                                          // Splitting key
+        final Branch l = ((Branch)q).splitBranch();                             // New lower node
+        p.putBranch(k, l);                                                      // Place splitting key in parent
         ((Branch)root).splitRoot();                                             // Root might need to be split to re-establish the invariants at start of loop
-        q = p = (Branch)root;                                                   // Root might have changed after prior split
+        if (q.lessThanOrEqual(keyName, k)) q = l;                               // Position on lower node if search key is less than splitting key
        }
-      else
-       {final int g = qb.findFirstGreaterOrEqual(keyName);
-        p = qb; q = g == 0 ? qb.topNode : qb.nextLevel.elementAt(g-1);
-       }
+
+      p = (Branch)q;                                                            // Step parent down
+      q = p.findFirstGreaterOrEqual(keyName);                                   // The node does not need splitting
      }
 
     final Leaf l = (Leaf)q;
@@ -434,16 +431,14 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
              }
            }
          }
-        final int g = p.findFirstGreaterOrEqual(keyName);                       // Find key position in branch
-        P = g == 0 ? p.topNode : p.nextLevel.elementAt(g-1);
+        P = p.findFirstGreaterOrEqual(keyName);                                 // Find key position in branch
         continue;
        }
 
       --keyDataStored;                                                          // Remove one entry
-      final Leaf l = (Leaf)P;                                                   // Reached a leaf
-      final int  F = l.findIndexOfKey(keyName);                                 // Key is known to be present
-      l.keyNames  .removeElementAt(F);
-      l.dataValues.removeElementAt(F);
+      final int  F = P.findIndexOfKey(keyName);                                 // Key is known to be present
+             P .keyNames  .removeElementAt(F);
+      ((Leaf)P).dataValues.removeElementAt(F);
       return foundData;
      }
     stop("Should not reach here");
