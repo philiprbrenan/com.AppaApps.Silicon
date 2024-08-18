@@ -217,8 +217,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       if (f < 1)         stop("First", f, "too small");
       final Leaf l = leaf();
       for (int i = 0; i < f; i++)                                               // Transfer keys and data
-       {final Key k = keyNames  .removeElementAt(0);                            // Current key
-        final Data d = dataValues.removeElementAt(0);                           // Current key
+       {final Key  k = keyNames  .removeElementAt(0);                           // Current key
+        final Data d = dataValues.removeElementAt(0);                           // Current data
         l.keyNames  .push(k);                                                   // Transfer keys
         l.dataValues.push(d);                                                   // Transfer data
        }
@@ -282,8 +282,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
      }
 
     final int f = q.findIndexOfKey(keyName);                                    // We have arrived at a leaf
-    if (f == -1) return null;                                                   // Key not found
-    return ((Leaf)q).dataValues.elementAt(f);                                   // Data associated with key in leaf
+    return f == -1 ? null : ((Leaf)q).dataValues.elementAt(f);                  // Key not found or data associated with key in leaf
    }
 
 //D1 Insertion                                                                  // Insert keys and data into the Btree
@@ -296,7 +295,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
      }
 
     if (root instanceof Leaf)                                                   // Insert into root as a leaf
-     {if (!((Leaf)root).leafIsFull()) ((Leaf)root).putLeaf(keyName, dataValue);
+     {if (!((Leaf)root).leafIsFull()) ((Leaf)root).putLeaf(keyName, dataValue); // Still room in the root while it is is a leaf
       else                                                                      // Insert into root as a leaf which is full
        {final Leaf   l = ((Leaf)root).splitLeaf();                              // New left hand side of root
         final Key    k = l.splitKey();                                          // Splitting key
@@ -360,9 +359,9 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     if (root.size() == 1)                                                       // If the root is a branch and only has one key so we might be able to merge its children
      {final Branch r = (Branch)root;
       final Node<Key> A = r.nextLevel.firstElement();
-      final Node<Key> B = r.topNode;
+
       if (A instanceof Leaf)
-       {final Leaf    a = (Leaf)A, b = (Leaf)B;
+       {final Leaf    a = (Leaf)A, b = (Leaf)(r.topNode);
         final boolean j = a.joinableLeaves(b);                                  // Can we merge the two leaves
         if (j)                                                                  // Merge the two leaves
          {a.joinLeaf(b);
@@ -370,7 +369,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
          }
        }
       else                                                                      // Merge two branches under root
-       {final Branch  a = (Branch)A, b = (Branch)B;
+       {final Branch  a = (Branch)A, b = (Branch)(r.topNode);
         final boolean j = a.joinableBranches(b);                                // Can we merge the two branches
         if (j)                                                                  // Merge the two branches
          {final Key k = r.keyNames.firstElement();
@@ -385,22 +384,22 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     for    (int i = 0; i < 999; ++i)                                            // Step down through tree to find the required leaf, splitting as we go
      {if (!(P instanceof Branch)) break;                                        // Stepped to a branch
       final Branch p = (Branch)P;
-      for(int j = 0; j < p.size()-1; ++j)                                     // See if any pair under this node can be merged
+      for(int j = 0; j < p.size()-1; ++j)                                       // See if any pair under this node can be merged
        {final Node<Key> A = p.nextLevel.elementAt(j);
         final Node<Key> B = p.nextLevel.elementAt(j+1);
         if (A instanceof Leaf)
          {final Leaf a = (Leaf)A, b = (Leaf)B;
-          final boolean m = a.joinableLeaves(b);                              // Can we merge the two leaves
-          if (m)                                                              // Merge the two leaves
+          final boolean m = a.joinableLeaves(b);                                // Can we merge the two leaves
+          if (m)                                                                // Merge the two leaves
            {a.joinLeaf(b);
-            p.keyNames.removeElementAt(j);
+            p.keyNames .removeElementAt(j);
             p.nextLevel.removeElementAt(j+1);
            }
          }
-        else                                                                  // Merge two branches
+        else                                                                    // Merge two branches
          {final Branch a = (Branch)A, b = (Branch)B;
-          final boolean m = a.joinableBranches(b);                            // Can we merge the two branches
-          if (m)                                                              // Merge the two branches
+          final boolean m = a.joinableBranches(b);                              // Can we merge the two branches
+          if (m)                                                                // Merge the two branches
            {final Key k = p.keyNames.removeElementAt(j);
             a.joinBranch(b, k);
             p.nextLevel.removeElementAt(j+1);
@@ -408,22 +407,22 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
          }
        }
 
-      if (p.size() > 0)                                                       // Check last pair
+      if (p.size() > 0)                                                         // Check last pair
        {final Node<Key> A = p.nextLevel.lastElement();
         if (A instanceof Leaf)
          {final Leaf a = (Leaf)A, b = (Leaf)p.topNode;
-          final boolean j = a.joinableLeaves(b);                              // Can we merge the two leaves
-          if (j)                                                              // Merge the two leaves
+          final boolean j = a.joinableLeaves(b);                                // Can we merge the two leaves
+          if (j)                                                                // Merge the two leaves
            {a.joinLeaf(b);
-            p.keyNames.pop();
+            p.keyNames .pop();
             p.nextLevel.pop();
             p.topNode = a;
            }
          }
-        else                                                                  // Merge two branches
+        else                                                                    // Merge two branches
          {final Branch a = (Branch)A, b = (Branch)p.topNode;
-          final boolean j = a.joinableBranches(b);                            // Can we merge the last two branches
-          if (j)                                                              // Merge the last two branches
+          final boolean j = a.joinableBranches(b);                              // Can we merge the last two branches
+          if (j)                                                                // Merge the last two branches
            {final Key k = p.keyNames.pop();
             a.joinBranch(b, k);
             p.nextLevel.pop();
@@ -431,10 +430,10 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
            }
          }
        }
-      P = p.findFirstGreaterOrEqual(keyName);                                 // Find key position in branch
+      P = p.findFirstGreaterOrEqual(keyName);                                   // Find key position in branch
      }
-    --keyDataStored;                                                          // Remove one entry
-    final int  F = P.findIndexOfKey(keyName);                                 // Key is known to be present
+    --keyDataStored;                                                            // Remove one entry  - we are on a leaf andf the entry is known to exist
+    final int  F = P.findIndexOfKey(keyName);                                   // Key is known to be present
            P .keyNames  .removeElementAt(F);
     ((Leaf)P).dataValues.removeElementAt(F);
     return foundData;
@@ -1327,11 +1326,11 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
   static void test_delete_reverse()
    {final long[]r = random_array();
     var m = mjaf(4, r.length);
-    say("Delete at start");
-    say(m.nodes);
+    //say("Delete at start");
+    //say(m.nodes);
     for (int i = 0; i < r.length; ++i) m.put(r[i], (long)i);
-    say("Delete after load");
-    say(m.nodes);
+    //say("Delete after load");
+    //say(m.nodes);
     for (int i = r.length-1; i >= 0; --i)
      {ok(m.delete(r[i]), (long)i);
       if (false)                                                                // Write case statement to check deletions
@@ -1896,8 +1895,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 """);
        }
      }
-    say("Statistics for delete");
-    say(m.nodes);
+    //say("Statistics for delete");
+    //say(m.nodes);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
