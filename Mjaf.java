@@ -274,87 +274,75 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 //D1 Search                                                                     // Find a key, data pair
 
   Data find(Key keyName)                                                        // Find a the data associated with a key
-   {if (root == null) return null;                                              // Empty tree
-    for(Node<Key> n = root; n != null;)                                         // Step down through tree
-     {if (n instanceof Branch)                                                  // Stepped to a branch
-       {final Branch b = (Branch)n;
-        final int    g = b.findFirstGreaterOrEqual(keyName);
-        n = g == 0 ? b.topNode : b.nextLevel.elementAt(g-1);
-       }
-      else                                                                      // Stepped to a leaf
-       {final int f = n.findIndexOfKey(keyName);
-        if (f == -1) return null;
-        final Leaf l = (Leaf)n;
-        return l.dataValues.elementAt(f);
-       }
+   {Node<Key> n = root;                                                         // Root of tree
+    for(int i = 0; i < 999 && n != null; ++i)                                   // Step down through tree up to some reasonable limit
+     {if (!(n instanceof Branch)) break;                                        // Stepped to a leaf
+      final Branch b = (Branch)n;
+      final int    g = b.findFirstGreaterOrEqual(keyName);                      // Position of key
+      n = g == 0 ? b.topNode : b.nextLevel.elementAt(g-1);
      }
-    return null;                                                                // Key not found
+
+    final int f = n.findIndexOfKey(keyName);                                    // We have arrived at a leaf
+    if (f == -1) return null;                                                   // Key not found
+    return ((Leaf)n).dataValues.elementAt(f);
    }
 
 //D1 Insertion                                                                  // Insert keys and data into the Btree
 
   void put(Key keyName, Data dataValue)                                         // Insert a new key, data pair into the Btree
    {if (root == null)
-     {final Leaf l = leaf();
-      root = l;
-      l.putLeaf(keyName, dataValue);
+     {root = leaf();
+      ((Leaf)root).putLeaf(keyName, dataValue);
       return;
      }
 
     if (root instanceof Leaf)                                                   // Insert into root as a leaf
-     {final Leaf r = (Leaf)root;
-      if (!r.leafIsFull())
-       {r.putLeaf(keyName, dataValue);
+     {if (!((Leaf)root).leafIsFull())
+       {((Leaf)root).putLeaf(keyName, dataValue);
         return;
        }
       else                                                                      // Insert into root as a leaf which is full
-       {final Leaf   l = r.splitLeaf();                                         // New left hand side of root
+       {final Leaf   l = ((Leaf)root).splitLeaf();                              // New left hand side of root
         final Branch b = branch(root);                                          // New root with old root to right
         final Key    k = l.splitKey();                                          // Splitting key
         b.putBranch(k, l);                                                      // Insert left hand node all of whose elements are less than the first element of what was the root
-        root = b;
+        final Leaf f = l.lessThanOrEqual(keyName, k) ? l : (Leaf)root;          // Choose leaf
+        f.putLeaf(keyName, dataValue);                                          // Place in leaf
+        root = b;                                                               // The root now has just one entry in it - the splitting eky
+        return;
        }
      }
-
-    else if (root instanceof Branch) ((Branch)root).splitRoot();                // Split full root which is a branch not a leaf
+    else ((Branch)root).splitRoot();                                            // Split full root which is a branch not a leaf
 
     Branch p = (Branch)root; Node<Key> q = p;                                   // The root has already been split so the parent child relationship will be established
 
     for(int i = 0; i < 999; ++i)                                                // Step down through tree to find the required leaf, splitting as we go
-     {if (q instanceof Branch)                                                  // Stepped to a branch
-       {final Branch  qb = (Branch)q;
-        if (qb.branchIsFull())                                                  // Split the branch because it is full and we might need to insert below it requiring a slot in this node
-         {final Key    k = qb.splitKey();
-          final Branch l = qb.splitBranch();
-          p.putBranch(k, l);
-          ((Branch)root).splitRoot();                                           // Root might need to be split to re-establish the invariants at start of loop
-          q = p = (Branch)root;                                                 // Root might have changed after prior split
-          continue;
-         }
-
-        final int g = qb.findFirstGreaterOrEqual(keyName);
+     {if (!(q instanceof Branch)) break;                                        // Stepped to a branch
+      final Branch qb = ((Branch)q);
+      if (qb.branchIsFull())                                                    // Split the branch because it is full and we might need to insert below it requiring a slot in this node
+       {final Key    k = qb.splitKey();
+        final Branch l = qb.splitBranch();
+        p.putBranch(k, l);
+        ((Branch)root).splitRoot();                                             // Root might need to be split to re-establish the invariants at start of loop
+        q = p = (Branch)root;                                                   // Root might have changed after prior split
+       }
+      else
+       {final int g = qb.findFirstGreaterOrEqual(keyName);
         p = qb; q = g == 0 ? qb.topNode : qb.nextLevel.elementAt(g-1);
-        continue;                                                               // Continue to step down
        }
-
-      final Leaf l = (Leaf)q;
-      final int  g = l.findIndexOfKey(keyName);                                 // Locate index of key
-      if (g != -1)                                                              // Key already present in leaf
-       {l.dataValues.setElementAt(dataValue, g);
-        return;                                                                 // Data replaced at key
-       }
-
-      if (l.leafIsFull())                                                       // Split the node because it is full and we might need to insert below it requiring a slot in this node
-       {final Key  k = l.splitKey();
-        final Leaf e = l.splitLeaf();
-        p.putBranch(k, e);
-        if (p.lessThanOrEqual(keyName, k)) e.putLeaf(keyName, dataValue);       // Insert key in the appropriate split leaf
-        else                               l.putLeaf(keyName, dataValue);
-        return;
-       }
-      l.putLeaf(keyName, dataValue);                                            // On a leaf that is not full so we can insert directly
-      return;                                                                   // Key, data pair replaced
      }
+
+    final Leaf l = (Leaf)q;
+    final int  g = l.findIndexOfKey(keyName);                                   // Locate index of key
+    if (g != -1) l.dataValues.setElementAt(dataValue, g);                       // Key already present in leaf
+    else if (l.leafIsFull())                                                    // Split the node because it is full and we might need to insert below it requiring a slot in this node
+     {final Key  k = l.splitKey();
+      final Leaf e = l.splitLeaf();
+      p.putBranch(k, e);
+      if (p.lessThanOrEqual(keyName, k)) e.putLeaf(keyName, dataValue);         // Insert key in the appropriate split leaf
+      else                               l.putLeaf(keyName, dataValue);
+     }
+    else l.putLeaf(keyName, dataValue);                                         // On a leaf that is not full so we can insert directly
    } // put
 
 //D1 Deletion                                                                   // Delete a key from a Btree
@@ -427,9 +415,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 
         if (p.size() > 0)                                                       // Check last pair
          {final Node<Key> A = p.nextLevel.lastElement();
-          final Node<Key> B = p.topNode;
           if (A instanceof Leaf)
-           {final Leaf a = (Leaf)A, b = (Leaf)B;
+           {final Leaf a = (Leaf)A, b = (Leaf)p.topNode;
             final boolean j = a.joinableLeaves(b);                              // Can we merge the two leaves
             if (j)                                                              // Merge the two leaves
              {a.joinLeaf(b);
@@ -439,7 +426,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
              }
            }
           else                                                                  // Merge two branches
-           {final Branch a = (Branch)A, b = (Branch)B;
+           {final Branch a = (Branch)A, b = (Branch)p.topNode;
             final boolean j = a.joinableBranches(b);                            // Can we merge the last two branches
             if (j)                                                              // Merge the last two branches
              {final Key k = p.keyNames.pop();
@@ -1942,9 +1929,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_delete_reverse();
-    //test_delete();
+   {oldTests();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
