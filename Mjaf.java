@@ -274,7 +274,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 //D1 Search                                                                     // Find a key, data pair
 
   Data find(Key keyName)                                                        // Find a the data associated with a key
-   {Node<Key> n = root;                                                         // Root of tree
+   {if (root == null) return null;                                              // Empty tree
+    Node<Key> n = root;                                                         // Root of tree
     for(int i = 0; i < 999 && n != null; ++i)                                   // Step down through tree up to some reasonable limit
      {if (!(n instanceof Branch)) break;                                        // Stepped to a leaf
       final Branch b = (Branch)n;
@@ -284,7 +285,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 
     final int f = n.findIndexOfKey(keyName);                                    // We have arrived at a leaf
     if (f == -1) return null;                                                   // Key not found
-    return ((Leaf)n).dataValues.elementAt(f);
+    return ((Leaf)n).dataValues.elementAt(f);                                   // Data associated with key in leaf
    }
 
 //D1 Insertion                                                                  // Insert keys and data into the Btree
@@ -297,10 +298,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
      }
 
     if (root instanceof Leaf)                                                   // Insert into root as a leaf
-     {if (!((Leaf)root).leafIsFull())
-       {((Leaf)root).putLeaf(keyName, dataValue);
-        return;
-       }
+     {if (!((Leaf)root).leafIsFull()) ((Leaf)root).putLeaf(keyName, dataValue);
       else                                                                      // Insert into root as a leaf which is full
        {final Leaf   l = ((Leaf)root).splitLeaf();                              // New left hand side of root
         final Branch b = branch(root);                                          // New root with old root to right
@@ -309,8 +307,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
         final Leaf f = l.lessThanOrEqual(keyName, k) ? l : (Leaf)root;          // Choose leaf
         f.putLeaf(keyName, dataValue);                                          // Place in leaf
         root = b;                                                               // The root now has just one entry in it - the splitting eky
-        return;
        }
+      return;
      }
     else ((Branch)root).splitRoot();                                            // Split full root which is a branch not a leaf
 
