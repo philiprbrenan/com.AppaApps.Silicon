@@ -1124,9 +1124,36 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
      }
    }
 
+  static class Union extends MemoryLayout                                       // Union of structures laid out in memory
+   {final Map<String,MemoryLayout> subMap   = new TreeMap<>();                  // Unique variables contained inside this variable
+
+    Union(String Name, MemoryLayout...Fields)                                   // Fields in the union
+     {super(Name);
+      for (int i = 0; i < Fields.length; ++i)                                   // Each field in this union
+       {final MemoryLayout s = Fields[i];
+        s.up = this;                                                            // Chain up to containing structure
+        if (subMap.containsKey(s.name)) stop(name, "already contains", s.name);
+        subMap.put (s.name, s);                                                 // Add as a sub structure by name
+       }
+     }
+
+    void layout(int at, int Depth, MemoryLayout ml)                             // Compile this variable so that the size, width and byte fields are correct
+     {int w = 0;
+      width = 0;
+      depth = Depth;
+      ml.fields.push(this);
+      for(MemoryLayout v : subMap.values())                                     // Find largest substructure
+       {v.at = at;
+        v.layout(v.at, Depth+1, ml);
+        width = max(width, v.width);                                            // Space occupied is determined by largest element of union
+       }
+     }
+   }
+
   Variable  variable (String name, int width)                    {return new Variable (name, width);}
   Array     array    (String name, MemoryLayout   ml, int width) {return new Array    (name, ml, width);}
   Structure structure(String name, MemoryLayout...ml)            {return new Structure(name, ml);}
+  Union     union    (String name, MemoryLayout...ml)            {return new Union    (name, ml);}
 
 //D1 Structured programming                                                     // Structured programming features.
 
@@ -2047,23 +2074,32 @@ Registers  :  x3=11 x4=22
 
   static void test_variable()
    {RiscV      r = new RiscV();
+
     Variable  a1 = r.variable ("a1", 4);
     Variable  b1 = r.variable ("b1", 4);
     Variable  c1 = r.variable ("c1", 2);
     Array     C1 = r.array    ("C1", c1, 10);
     Structure s1 = r.structure("inner1", a1, b1, C1);
+
     Variable  a2 = r.variable ("a2", 4);
     Variable  b2 = r.variable ("b2", 4);
     Variable  c2 = r.variable ("c2", 2);
     Array     C2 = r.array    ("C2", c2, 10);
     Structure s2 = r.structure("inner2", a2, b2, C2);
-    Array     A1 = r.array    ("Array1", s1, 2);
-    Array     A2 = r.array    ("Array2", s2, 2);
-    Structure T  = r.structure("outer", s1, s2);
+
+    Variable  a3 = r.variable ("a3",  8);
+    Variable  b3 = r.variable ("b3",  8);
+    Variable  c3 = r.variable ("c3",  2);
+    Array     C3 = r.array    ("C3", c3, 4);
+    Union     u3 = r.union    ("inner3", a3, b3, C3);
+
+    Array     A1 = r.array    ("Array1", s1,  2);
+    Array     A2 = r.array    ("Array2", s2,  2);
+    Structure T  = r.structure("outer",  s1, s2, u3);
     T.layout();
     ok(T.print(), """
 Offs  Wide  Size    Field name
-   0    56          outer
+   0    64          outer
    0    28            inner1
    0     4              a1
    4     4              b1
@@ -2074,6 +2110,11 @@ Offs  Wide  Size    Field name
   32     4              b2
   36    20    10        C2
   36     2                c2
+  56     8            inner3
+  56     8     4        C3
+  56     2                c3
+  56     8              a3
+  56     8              b3
 """);
 
     ok(T.getFieldDef("outer.inner1.C1.c1").at,  8);
