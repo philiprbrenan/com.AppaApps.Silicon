@@ -1039,7 +1039,7 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     String indent() {return "  ".repeat(depth);}                                // Indentation
 
     String cleanBoolean(String content)                                         // Clean a string representing a boolean number.
-     {return content.replaceAll("\\.", "0").replaceAll("[^01]", "");            // Translate '.' to 0 and then remove everything that is not 0 or 1
+     {return content.replaceAll("[^.01]", "");                                  // Translate '.' to 0 and then remove everything that is not 0 or 1
      }
 
     void set(Boolean[]target, int targetOffset, String content)                 // Offset in target memory to bemoved to described by this memory layout
@@ -1047,12 +1047,17 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
       final int l = c.length(), L = l - 1;
       if (l != width)
         stop("Width of string does not math width of target", width, l);
-      for (int i = 0; i < width; i++) target[at+i] = content.charAt(L-i) == '1';// Load the specified string into memory
+      for (int i = 0; i < width; i++) target[at+i] =                            // Load the specified string into memory
+        content.charAt(L-i) == '1' ? true  :
+        content.charAt(L-i) == '0' ? false : null;
      }
 
     String get(Boolean[]memory, int offset)                                     // Create a string describing memory
      {final StringBuilder b = new StringBuilder();
-      for (int i = 0; i < width; i++) b.append(memory[at+i] ? '1' : '.');
+      for (int i = 0; i < width; i++)
+       {final Boolean m = memory[at+i];
+        b.append(m == null ? '.' : m ? '1' : '0');
+       }
       return b.reverse().toString();
      }
 
@@ -2147,10 +2152,10 @@ Registers  :  x3=11 x4=22
     ok(C2.at(2), 40);
 
     final Boolean[]m = new Boolean[100];
-       b2.set(m, 0,  "11..");
-    ok(b2.get(m, 0), "11..");
+       b2.set(m, 0,  "1100");
+    ok(b2.get(m, 0), "1100");
     b1.copy(m, 0,  m, 0, b2);
-    ok(b1.get(m, 0), "11..");
+    ok(b1.get(m, 0), "1100");
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
