@@ -1052,13 +1052,23 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
         content.charAt(L-i) == '0' ? false : null;
      }
 
-    String get(Boolean[]memory, int offset)                                     // Create a string describing memory
+    String get(Boolean[]memory, int offset)                                     // Get a string describing bits in memory
      {final StringBuilder b = new StringBuilder();
       for (int i = 0; i < width; i++)
        {final Boolean m = memory[at+i];
         b.append(m == null ? '.' : m ? '1' : '0');
        }
       return b.reverse().toString();
+     }
+
+    Integer getInt(Boolean[]memory, int offset)                                 // Get the value of memory as an integer
+     {int v = 0;
+      for (int i = 0; i < width; i++)
+       {final Boolean m = memory[at+i];
+        if (m == null) return null;
+        if  (m) v += 1<<i;
+       }
+      return v;
      }
 
     void copy(Boolean[]target, int targetOffset,                                // Copy memory from source location to the target location described by this memory layout. Offset in target memory to bemoved to described by this memory layout
@@ -2152,10 +2162,12 @@ Registers  :  x3=11 x4=22
     ok(C2.at(2), 40);
 
     final Boolean[]m = new Boolean[100];
-       b2.set(m, 0,  "1100");
-    ok(b2.get(m, 0), "1100");
-    b1.copy(m, 0,  m, 0, b2);
-    ok(b1.get(m, 0), "1100");
+       b2.set     (m, 0,  "1100");
+    ok(b2.get     (m, 0), "1100");
+    b1.copy       (m, 0,  m, 0, b2);
+    ok(b1.get     (m, 0), "1100");
+    ok(b1.getInt  (m, 0), 12);
+
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
