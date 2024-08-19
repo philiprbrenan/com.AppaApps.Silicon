@@ -66,7 +66,7 @@ Use a [mask](https://en.wikipedia.org/wiki/Integrated_circuit_layout) to choose 
 
 ## Btree Node Compare
 
-Locate the [data](https://en.wikipedia.org/wiki/Data) associated with a key in the node of a [B-Tree](https://en.wikipedia.org/wiki/B-tree): 
+Locate the [data](https://en.wikipedia.org/wiki/Data) associated with a [database key](https://en.wikipedia.org/wiki/Key%E2%80%93value_database) in the node of a [B-Tree](https://en.wikipedia.org/wiki/B-tree): 
 ![Btree Leaf Compare](images/BtreeLeafCompare.png)
 
 ## Btree
