@@ -19,7 +19,7 @@ package com.AppaApps.Silicon;                                                   
 //                 When these lines being read bring life to thee!
 import java.util.Stack;                                                         // Used only for printing trees which is not something that will happen on the chip
 
-class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys and matching number of data elements because data is not transferred to the parent on fission  which simplifies deletions with complicating insertions.
+class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys and matching number of data elements because data is not transferred to the parent on fission  which simplifies deletions with complicating insertions.
  {final int maxKeysPerLeaf;                                                     // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
   final int maxKeysPerBranch;                                                   // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
   final NodeStack nodes = new NodeStack();                                      // All the branch nodes - this is our memory allocation scheme
@@ -48,7 +48,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 
   int nodesCreated = 0;                                                         // Number of nodes created
 
-  abstract class Node<Key extends Comparable<Key>>                              // A branch or a leaf: an interior or exterior node.
+  abstract class Node<Key extends Comparable<Key>>                              // A branch or a leaf: an interior or exterior node. Comparable so we can place them in a tree or set by node number.
+    implements Comparable<Node<Key>>
    {final Stuck<Key> keyNames;                                                  // Names of the keys in this branch or leaf
     final int nodeNumber = ++nodesCreated;                                      // Number of this node
     Node<Key> next = null;                                                      // Linked list of free nodes
@@ -66,6 +67,10 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
 
     abstract void printHorizontally(Stack<StringBuilder>S, int l, boolean d);   // Print horizontally
     void traverse(Stack<Node<Key>>S) {S.push(this);}                            // Traverse tree placing all its nodes on a stack
+    public int compareTo(Node<Key> B)                                           // make it possible to orde nodes
+     {final Integer a = nodeNumber, b = B.nodeNumber;
+      return a.compareTo(b);
+     }
    }
 
   Stack<Node<Key>> traverse()                                                   // Traverse tree placing all its nodes on a stack
@@ -190,6 +195,15 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       for (int i = 0; i < size(); i++) nextLevel.elementAt(i).traverse(S);
       topNode.traverse(S);
      }
+
+    class Layout
+     {Variable nextLevel = variable ("nextLevel", 4);
+      Variable  b1 = variable ("b1", 4);
+      Variable  c1 = variable ("c1", 2);
+      Array     C1 = array    ("C1", c1, 10);
+      Structure s1 = structure("inner1", b1, C1);
+    }
+
    } // Branch
 
   Branch branch(Node<Key> node) {return nodes.recycleBranch(node);}             // Create a new branch
