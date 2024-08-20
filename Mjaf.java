@@ -65,6 +65,13 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     void ok(String expected) {Mjaf.ok(toString(), expected);}                   // Check node is as expected
 
     abstract void printHorizontally(Stack<StringBuilder>S, int l, boolean d);   // Print horizontally
+    void traverse(Stack<Node<Key>>S) {S.push(this);}                            // Traverse tree placing all its nodes on a stack
+   }
+
+  Stack<Node<Key>> traverse()                                                   // Traverse tree placing all its nodes on a stack
+   {final Stack<Node<Key>> S = new Stack<>();
+    if (root != null) root.traverse(S);
+    return S;
    }
 
   class Branch extends Node<Key>                                                // A branch node directs the search to the appropriate leaf
@@ -177,6 +184,12 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
      }
 
     void ok(String expected) {Mjaf.ok(toString(), expected);}                   // Check leaf
+
+    void traverse(Stack<Node<Key>>S)                                            // Traverse tree placing all its nodes on a stack
+     {super.traverse(S);
+      for (int i = 0; i < size(); i++) nextLevel.elementAt(i).traverse(S);
+      topNode.traverse(S);
+     }
    } // Branch
 
   Branch branch(Node<Key> node) {return nodes.recycleBranch(node);}             // Create a new branch
@@ -266,6 +279,10 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
      {padStrings(S, level);
       S.elementAt(level).append(debug ? toString() : shortString());
       padStrings(S, level);
+     }
+
+    void traverse(Stack<Node<Key>>S)                                            // Traverse tree placing all its nodes on a stack
+     {super.traverse(S);
      }
    } // Leaf
 
@@ -508,7 +525,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
       final int m = size - 1;
       if (min == null) min = m; else min = min(min, m);
       final Node<Key> n = nodesFreeList; nodesFreeList = n.next;                // Remove node from free list
-      --size;
+      --size; n.next = null;                                                    // Clear free list entry
       return n;
      }
 
@@ -1906,6 +1923,18 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     //say(m.nodes);
    }
 
+  static void test_save()
+   {final int N = 10;
+    var m = mjaf(4, N<<1);
+    for (long i = 0; i < N; i++) m.put(i, i<<1);
+    var nodes = m.traverse();
+    ok(nodes.elementAt(0) instanceof Mjaf.Branch);
+    ok(nodes.elementAt(1) instanceof Mjaf.Leaf);
+    ok(nodes.elementAt(2) instanceof Mjaf.Leaf);
+    ok(nodes.elementAt(3) instanceof Mjaf.Leaf);
+    //say(m.printHorizontally());
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_create();
     test_leaf_split();
@@ -1920,10 +1949,12 @@ class Mjaf<Key extends Comparable<Key>, Data> extends Chip                      
     test_insert_random();
     test_delete();
     test_delete_reverse();
+    test_save();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
+    test_save();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
