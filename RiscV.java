@@ -2,7 +2,6 @@
 // Execute Risc V machine code. Little endian RV32I.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
-// Make it possible to automatically compare the results of RiscV with Ban.
 package com.AppaApps.Silicon;                                                   // Design, emulate and layout digital a binary tree on a silicon chip.
 /*
 A beginning is the time for taking the most delicate care that the balances are
@@ -1038,10 +1037,6 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     void layout() {fields = new Stack<>(); layout(0, 0, this);}                 // Layout the fields in the structure defined by this field
     String indent() {return "  ".repeat(depth);}                                // Indentation
 
-    String cleanBoolean(String content)                                         // Clean a string representing a boolean number.
-     {return content.replaceAll("[^.01]", "");                                  // Translate '.' to 0 and then remove everything that is not 0 or 1
-     }
-
     void set(Boolean[]target, int targetOffset, String content)                 // Offset in target memory to bemoved to described by this memory layout
      {final String c = cleanBoolean(content);                                   // Clean the input boolean string
       final int l = c.length(), L = l - 1;
@@ -1396,6 +1391,31 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
   void set(Register a, int n) {addi(a, x0, n);}                                 // Set a register
   void inc(Register a) {addi(a, a, +1);}                                        // Increment a register
   void dec(Register a) {addi(a, a, -1);}                                        // Decrement a register
+
+//D1 Boolean strings                                                            // Boolean strings are used to represent key and data values
+
+  static String cleanBoolean(String content)                                    // Clean a string representing a boolean number.
+   {return content.replaceAll("[^.01]", "");                                    // Translate '.' to 0 and then remove everything that is not 0 or 1
+   }
+
+  static String cleanBoolean(String content, int length)                        // Clean a string representing a boolean number and left pad with zeroes to the specified length
+   {final String b = cleanBoolean(content);
+    if (length > b.length()) return "0".repeat(length-b.length())+b;
+    if (length < b.length()) return b.substring(b.length()-length);
+    return b;
+   }
+
+  static String toBitString(int N)                                              // Convert to bit string
+   {final StringBuilder b = new StringBuilder();
+    for (int i = 0; i < 31; i++) b.append((N & (1<<i)) == 0 ? '0' : '1');
+    return b.reverse().toString();
+   }
+
+  static String toBitString(long N)                                             // Convert to bit string
+   {final StringBuilder b = new StringBuilder();
+    for (int i = 0; i < 63; i++) b.append((N & (1<<i)) == 0 ? '0' : '1');
+    return b.reverse().toString();
+   }
 
 //D0
 
