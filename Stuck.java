@@ -1,30 +1,55 @@
 //------------------------------------------------------------------------------
-// A fixed size stack of ordered keys controlled by a unary number.
+// A fixed size stack of ordered bit keys controlled by a unary number.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
 
 import java.util.*;
 
-class Stuck<Type> extends Chip implements Iterable<Type>                        // Stuck: a fixed size stack controlled by a unary number. The unary number zero indicates an empty stuck stack.
+class Stuck extends Chip implements Iterable<Stuck.Element>                     // Stuck: a fixed size stack controlled by a unary number. The unary number zero indicates an empty stuck stack.
  {final Unary u;                                                                // The unary number that controls the stuck stack
-  final Object[]s;                                                              // The stuck stack
+  final Element[]s;                                                             // The stuck stack
+  final int max;                                                                // The maximum number of entries in the stuck stack.
+  final int width;                                                              // The width of each object in the stuck in bits
 
 //D1 Construction                                                               // Create a stuck stack
 
-  Stuck(int Max)                                                                // Create the stuck stack
-   {u = new Unary(Max);                                                         // Create the unary number that indicates the top of the stuck stack
-    s = new Object[Max];                                                        // The stuck stack
+  Stuck(int Max, int Width)                                                     // Create the stuck stack
+   {max = Max; width = Width;
+    u = new Unary(Max);                                                         // Create the unary number that indicates the top of the stuck stack
+    s = new Element[Max];                                                       // The stuck stack
    }
 
-  static Stuck<Integer> stuck(int max) {return new Stuck<Integer>(max);}        // Create a stuck stack
+  static Stuck stuck(int max, int width) {return new Stuck(max, width);}        // Create a stuck stack
+
   void clear() {u.set(0);}                                                      // Clear a stuck stack
 
-  public Stuck<Type> clone()                                                    // Clone a stuck stack
-   {final int N = u.max();
-    final Stuck<Type> t = new Stuck<>(N);
-    for (int i = 0; i < N; i++) t.s[i] = s[i];                                  // Clone stuck stack
+  public Stuck clone()                                                          // Clone a stuck stack
+   {final Stuck t = new Stuck(max, width);                                      // Create new stuck
+    for (int i = 0; i < max; i++) t.s[i] = s[i];                                // Clone stuck stack
     return t;
+   }
+
+  class Element                                                                 // An element of the stack
+   {final boolean[]data;
+    Element(boolean[]Data)                                                      // Elements from array of bits
+     {if (Data.length != width) stop("Width of element is", Data.length, "not", width);
+      data = new boolean[width];
+      for (int i = 0; i < width; i++) data[i] = Data[i];
+     }
+    Element(int Data)                                                           // Element from integer
+     {data = new boolean[width];
+      for (int i = 0; i < width; i++) data[i] = (Data & (1<<i)) != 0;
+     }
+    public String toString()                                                    // Convert to string
+     {int v = 0;
+      for (int i = 0; i < width; i++) v += data[i] ? 1<<i : 0;
+      return ""+v;
+     }
+    public boolean equals(Element e)                                            // Compare two bnit strings for equality
+     {for (int i = 0; i < width; i++) if (data[i] != e.data[i]) return false;
+      return true;
+     }
    }
 
 //D1 Characteristics                                                            // Characteristics of the stuck stack
@@ -38,30 +63,30 @@ class Stuck<Type> extends Chip implements Iterable<Type>                        
 
 //D1 Actions                                                                    // Place and remove data to/from stuck stack
 
-  void push(Type i)                                                             // Push an element onto the stuck stack
+  void push(Element i)                                                          // Push an element onto the stuck stack
    {if (!u.canInc()) stop("Stuck is full");
     s[size()] = i;
     u.inc();
    }
 
-  @SuppressWarnings("unchecked")
-  Type pop()                                                                    // Pop an element from the stuck stack
+  void push(int data) {push(new Element(data));}                                // Push an element onto the stuck stack
+
+  Element pop()                                                                 // Pop an element from the stuck stack
    {if (!u.canDec()) stop("Stuck is empty");
     u.dec();
-    return (Type)s[size()];
+    return s[size()];
    }
 
-  @SuppressWarnings("unchecked")
-  Type shift()                                                                  // Shift an element from the stuck stack
+  Element shift()                                                               // Shift an element from the stuck stack
    {if (!u.canDec()) stop("Stuck is empty");
-    Type r = (Type)s[0];
+    Element r = s[0];
     final int N = size();
     for (int i = 0; i < N-1; i++) s[i] = s[i+1];
     u.dec();
     return r;
    }
 
-  void unshift(Type i)                                                          // Unshift an element from the stuck stack
+  void unshift(Element i)                                                       // Unshift an element from the stuck stack
    {if (!u.canInc()) stop("Stuck is full");
     final int N = size();
     for (int j = N; j > 0; j--) s[j] = s[j-1];
@@ -69,19 +94,20 @@ class Stuck<Type> extends Chip implements Iterable<Type>                        
     u.inc();
    }
 
-  @SuppressWarnings("unchecked")
-  Type removeElementAt(int i)                                                   // Remove the element at 0 based index i and shift the elements above down one position
+  void unshift(int data) {unshift(new Element(data));}                          // Unshift an element onto the stuck stack
+
+  Element removeElementAt(int i)                                                // Remove the element at 0 based index i and shift the elements above down one position
    {if (!u.canDec()) stop("Stuck is empty");
     final int N = size();
     if (i > N) stop("Too far up");
     if (i < 0) stop("Too far down");
-    Type r = (Type)s[i];
+    final Element r = s[i];
     for (int j = i; j < N-1; j++) s[j] = s[j+1];
     u.dec();
     return r;
    }
 
-  void insertElementAt(Type e, int i)                                           // Insert an element at the indicated 0-based index after moving the elements above up one position
+  void insertElementAt(Element e, int i)                                        // Insert an element at the indicated 0-based index after moving the elements above up one position
    {final int N = size();
     if (!u.canInc()) stop("Stuck is full");
     if (i > N) stop("Too far up");
@@ -91,49 +117,47 @@ class Stuck<Type> extends Chip implements Iterable<Type>                        
     u.inc();
    }
 
-  @SuppressWarnings("unchecked")
-  Type elementAt(int i)                                                         // Get the element at a specified index
+  void insertElementAt(int e, int i) {insertElementAt(new Element(e), i);}      // Insert an element at the indicated 0-based index after moving the elements above up one position
+
+  Element elementAt(int i)                                                      // Get the element at a specified index
    {final int N = size();
     if (i >= N) stop("Too far up");
     if (i <  0) stop("Too far down");
-    return (Type)s[i];
+    return s[i];
    }
 
-  void setElementAt(Type e, int i)                                              // Set the value of the indexed location to the specified element
+  void setElementAt(Element e, int i)                                           // Set the value of the indexed location to the specified element
    {final int N = size();
     if (i >  N) stop("Too far up");
     if (i <  0) stop("Too far down");
     s[i] = e;
    }
 
-  @SuppressWarnings("unchecked")
-  Type firstElement() {return elementAt(0);}                                    // Get the value of the first element
-  Type  lastElement() {return elementAt(size()-1);}                             // Get the value of the last element
+  void setElementAt(int e, int i) {setElementAt(new Element(e), i);}            // Insert an element at the indicated 0-based index after moving the elements above up one position
+
+  Element firstElement() {return elementAt(0);}                                 // Get the value of the first element
+  Element  lastElement() {return elementAt(size()-1);}                          // Get the value of the last element
 
 //D1 Search                                                                     // Search a stuck stack.
 
-  public int indexOf(Type keyToFind)                                            // Return 0 based index of the indicated key else -1 if the key is not present in the stuck stack.
+  public int indexOf(Element keyToFind)                                         // Return 0 based index of the indicated key else -1 if the key is not present in the stuck stack.
    {final int N = size();
     for (int i = 0; i < N; i++) if (keyToFind.equals(s[i])) return i;
     return -1;                                                                  // Not found
    }
 
+  public int indexOf(int keyToFind) {return indexOf(new Element(keyToFind));}   // Return 0 based index of the indicated key else -1 if the key is not present in the stuck stack.
+
 //D1 Iterate                                                                    // Iterate a stuck stack
 
-  public Iterator<Type> iterator() {return new Iterate<Type>();}                // Create an iterator for the stuck stack
+  public Iterator<Element> iterator() {return new ElementIterator();}           //
 
-  class Iterate<Type> implements Iterator<Type>
-   {int nextElement = 0;                                                        // Iterate the stuck stack
+  class ElementIterator implements Iterator<Element>
+   {int nextElement = 0;
 
     public boolean hasNext() {return nextElement < size();}                     // Another element to iterate
 
-    @SuppressWarnings("unchecked")
-    public Type next()                                                          // Next element to iterate
-     {if (!hasNext()) throw new NoSuchElementException();
-      Type e = (Type)s[nextElement];
-      nextElement = nextElement + 1;
-      return e;
-     }
+    public Element next() {return s[nextElement++];}
    }
 
 //D1 Print                                                                      // Print a stuck stack
@@ -150,8 +174,12 @@ class Stuck<Type> extends Chip implements Iterable<Type>                        
 //D0 Tests                                                                      // Test stuck stack
 
   static void test_action()
-   {var s = stuck(4);
-    s.push(1); s.push(2); s.push(3); s.ok("Stuck(1, 2, 3)");
+   {var s = stuck(4, 4);
+    s.push(1);
+    s.push(2);
+    s.push(3);
+    s.ok("Stuck(1, 2, 3)");
+
     var a = s.pop();                 s.ok("Stuck(1, 2)");       ok(a, 3);
     s.unshift(3);                    s.ok("Stuck(3, 1, 2)");
     var b = s.shift();               s.ok("Stuck(1, 2)");       ok(b, 3);
@@ -171,7 +199,7 @@ class Stuck<Type> extends Chip implements Iterable<Type>                        
    }
 
   static void test_push_shift()
-   {var s = stuck(4);                                           ok(s.size(), 0); ok(s.isEmpty());
+   {var s = stuck(4, 4);                                        ok(s.size(), 0); ok(s.isEmpty());
     s.push(1);                       s.ok("Stuck(1)");          ok(s.size(), 1);
     s.push(2);                       s.ok("Stuck(1, 2)");       ok(s.size(), 2);
     s.push(3);                       s.ok("Stuck(1, 2, 3)");    ok(s.size(), 3);
@@ -185,7 +213,7 @@ class Stuck<Type> extends Chip implements Iterable<Type>                        
    }
 
   static void test_insert_remove()
-   {var s = stuck(4);                s.ok("Stuck()");           ok(s.size(), 0); ok(s.isEmpty());
+   {var s = stuck(4, 4);             s.ok("Stuck()");           ok(s.size(), 0); ok(s.isEmpty());
     s.insertElementAt(1, 0);         s.ok("Stuck(1)");          ok(s.size(), 1);
     s.insertElementAt(2, 1);         s.ok("Stuck(1, 2)");       ok(s.size(), 2);
     s.insertElementAt(3, 2);         s.ok("Stuck(1, 2, 3)");    ok(s.size(), 3);
@@ -198,7 +226,7 @@ class Stuck<Type> extends Chip implements Iterable<Type>                        
 
   static void test_search()
    {final int N = 4;
-    var s = stuck(N);
+    var s = stuck(N, 4);
     for (int i = 1; i <= N; i++) s.push(i);
     s.ok("Stuck(1, 2, 3, 4)");
     ok(s.indexOf(0), -1);
@@ -207,26 +235,26 @@ class Stuck<Type> extends Chip implements Iterable<Type>                        
 
   static void test_iterate_zero()
    {final int N = 4;
-    var s = stuck(N);
+    var s = stuck(N, 4);
     final StringBuilder b = new StringBuilder();
-    for (Integer i : s) b.append(""+i+", ");
+    for (Element i : s) b.append(""+i+", ");
     if (b.length() > 0) b.setLength(b.length()-2);
     ok(b.toString().equals(""));
    }
 
   static void test_iterate()
    {final int N = 4;
-    var s = stuck(N);
+    var s = stuck(N, 4);
     for (int i = 1; i <= N; i++) s.push(i);
     s.ok("Stuck(1, 2, 3, 4)");
     final StringBuilder b = new StringBuilder();
-    for (Integer i : s) b.append(""+i+", ");
+    for (Element i : s) b.append(""+i+", ");
     if (b.length() > 0) b.setLength(b.length()-2);
     ok(b.toString().equals("1, 2, 3, 4"));
    }
 
   static void test_clear()
-   {var s = stuck(4);                ok(s.size(), 0);
+   {var s = stuck(4, 4);             ok(s.size(), 0);
     s.push(1); s.ok("Stuck(1)");     ok(s.size(), 1);
     s.push(2); s.ok("Stuck(1, 2)");  ok(s.size(), 2);
     s.clear(); ok(s.isEmpty());
