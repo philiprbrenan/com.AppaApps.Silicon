@@ -64,6 +64,12 @@ class Mjaf extends RiscV                                                       /
       for (int i = 0; i < w; i++) bits[i] = b.charAt(bitsPerKey-i-1) == '1';
      }
 
+    void set(boolean[]Bits)                                                     // Set a bit string from a character string
+     {final int w = size(), b = bits.length;
+      if (b != w) stop("Bits have length", b, "but need", w);
+      for (int i = 0; i < w; i++) bits[i] = Bits[i];
+     }
+
     public int compareTo(BitString B)                                           // Compare two but strings
      {final int a = size(), b = B.size();
       if (a != b) stop("Bit strings have different sizes", a, b);
@@ -84,36 +90,40 @@ class Mjaf extends RiscV                                                       /
 
   class Key extends BitString                                                   // Definition of a key
    {Key() {super(bitsPerKey);}
-    Key(String Bits) {this(); set(Bits);}
-    Key(int    Bits) {this(); set(toBitString(Bits));}
-    Key(long   Bits) {this(); set(toBitString(Bits));}
+    Key(String     Bits)   {this(); set(Bits);}
+    Key(boolean[]  Bits)   {this(); set(Bits);}
+    Key(int        Bits)   {this(); set(toBitString(Bits));}
+    Key(long       Bits)   {this(); set(toBitString(Bits));}
    }
-  Key key(String Bits) {return new Key(Bits);}
-  Key key(int    Bits) {return new Key(Bits);}
-  Key key(long   Bits) {return new Key(Bits);}
+  Key key(String   Bits) {return new Key(Bits);}
+  Key key(boolean[]Bits) {return new Key(Bits);}
+  Key key(int      Bits) {return new Key(Bits);}
+  Key key(long     Bits) {return new Key(Bits);}
 
   class Data extends BitString                                                  // Definition of data associated with a key
    {Data() {super(bitsPerData);}
-    Data(String Bits) {this(); set(Bits);}
-    Data(int    Bits) {this(); set(toBitString(Bits));}
-    Data(long   Bits) {this(); set(toBitString(Bits));}
+    Data(String   Bits) {this(); set(Bits);}
+    Data(boolean[]Bits) {this(); set(Bits);}
+    Data(int      Bits) {this(); set(toBitString(Bits));}
+    Data(long     Bits) {this(); set(toBitString(Bits));}
    }
-  Data data(String Bits) {return new Data(Bits);}
-  Data data(int    Bits) {return new Data(Bits);}
-  Data data(long   Bits) {return new Data(Bits);}
+  Data data(String   Bits) {return new Data(Bits);}
+  Data data(boolean[]Bits) {return new Data(Bits);}
+  Data data(int      Bits) {return new Data(Bits);}
+  Data data(long     Bits) {return new Data(Bits);}
 
   abstract class Node implements Comparable<Node>                               // A branch or a leaf: an interior or exterior node. Comparable so we can place them in a tree or set by node number.
-   {final Stuck<Key> keyNames;                                                  // Names of the keys in this branch or leaf
+   {final Stuck keyNames;                                                       // Names of the keys in this branch or leaf
     final int nodeNumber = ++nodesCreated;                                      // Number of this node
     Node next = null;                                                           // Linked list of free nodes
 
-    Node(int N) {keyNames = new Stuck<Key>(N);}                                 // Create a node
+    Node(int N) {keyNames = new Stuck(N, bitsPerKey);}                          // Create a node
 
-    int findIndexOfKey     (Key keyToFind) {return keyNames.indexOf(keyToFind);}// Find the one based index of a key in a branch node or zero if not found
+    int findIndexOfKey     (Key keyToFind) {return keyNames.indexOf(keyNames.new Element(keyToFind.bits));}// Find the one based index of a key in a branch node or zero if not found
     boolean lessThanOrEqual(Key a, Key b)  {return a.compareTo(b) <= 0;}        // Define a new Btree of default type with a specified maximum number of keys per node
 
     int splitIdx() {return maxKeysPerBranch >> 1;}                              // Index of splitting key
-    Key splitKey() {return keyNames.elementAt(splitIdx());}                     // Splitting key
+    Key splitKey() {return new Key(keyNames.elementAt(splitIdx()).data);}       // Splitting key
     int size    () {return keyNames.size();}                                    // Number of elements in this leaf
 
     void ok(String expected) {Mjaf.ok(toString(), expected);}                   // Check node is as expected
@@ -133,12 +143,12 @@ class Mjaf extends RiscV                                                       /
    }
 
   class Branch extends Node                                                     // A branch node directs the search to the appropriate leaf
-   {final Stuck<Node> nextLevel;
+   {final Stuck nextLevel;
     Node topNode;
 
     Branch()                                                                    // Create a new branch
      {super(maxKeysPerBranch);
-      nextLevel = new Stuck<Node>(maxKeysPerBranch);                       // The number of keys in a branch is one less than the number of keys in a leaf
+      nextLevel = new Stuck(maxKeysPerBranch, bitsPerKey);                      // The number of keys in a branch is one less than the number of keys in a leaf
      }
 
     void clear() {topNode = null; keyNames.clear(); nextLevel.clear();}         // Initialize branch keys and next
@@ -262,7 +272,7 @@ class Mjaf extends RiscV                                                       /
   Branch branch(Node node) {return nodes.recycleBranch(node);}                  // Create a new branch
 
   class Leaf extends Node                                                       // Create a new leaf
-   {final Stuck<Data> dataValues;                                               // Data associated with each key
+   {final Stuck dataValues;                                                     // Data associated with each key
     Leaf()                                                                      // Data associated with keys in leaf
      {super(maxKeysPerLeaf);
       dataValues = new Stuck<Data>(maxKeysPerLeaf);
@@ -630,7 +640,6 @@ class Mjaf extends RiscV                                                       /
     l.ok("Leaf(1:1, 2:4, 3:6, 4:8, 5:10)");
     ok(l.size(),        5);
     ok(l.findIndexOfKey(m.key(3)), 2);
-stop("AAAA", l);
     ok(l.findIndexOfKey(m.key(9)), -1);
     ok(m.keyDataStored, 5);
    }
