@@ -2156,6 +2156,7 @@ Registers  :  x3=11 x4=22
     Array     A1 = r.array    ("Array1", s1,  2);
     Array     A2 = r.array    ("Array2", s2,  2);
     Structure T  = r.structure("outer",  s1, s2, u3);
+
     T.layout();
     ok(T.print(), """
   At  Wide  Size    Field name
