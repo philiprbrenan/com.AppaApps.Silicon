@@ -19,19 +19,23 @@ package com.AppaApps.Silicon;                                                   
 //                 When these lines being read bring life to thee!
 import java.util.Stack;                                                         // Used only for printing trees which is not something that will happen on the chip
 
-class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys and matching number of data elements because data is not transferred to the parent on fission  which simplifies deletions with complicating insertions.
- {final int maxKeysPerLeaf;                                                     // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
+class Mjaf extends RiscV                                                       // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys and matching number of data elements because data is not transferred to the parent on fission  which simplifies deletions with complicating insertions.
+ {final int bitsPerKey;                                                         // Number of bits in key
+  final int bitsPerData;                                                        // Number of bits in data
+  final int maxKeysPerLeaf;                                                     // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
   final int maxKeysPerBranch;                                                   // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
   final NodeStack nodes = new NodeStack();                                      // All the branch nodes - this is our memory allocation scheme
-  Node<Key> nodesFreeList = null;                                               // Free nodes list
+  Node nodesFreeList = null;                                                    // Free nodes list
 
 //D1 Construction                                                               // Create a Btree from nodes which can be branches or leaves.  The data associated with the Btree is stored only in the leaves opposite the keys
 
-  Node<Key> root;                                                               // The root node of the Btree
+  Node root;                                                                    // The root node of the Btree
   int keyDataStored;                                                            // The number of key, data values stored in the Btree
 
-  Mjaf(int MaxKeysPerLeaf, int size)                                            // Define a Btree with a specified maximum number of keys per leaf.
+  Mjaf(int BitsPerKey, int BitsPerData, int MaxKeysPerLeaf, int size)          // Define a Btree with a specified maximum number of keys per leaf.
    {final int N = MaxKeysPerLeaf;
+    bitsPerKey  = BitsPerKey;
+    bitsPerData = BitsPerData;
     if (N % 2 == 1) stop("# keys per leaf must be even not odd:", N);
     if (N     <= 3) stop("# keys per leaf must be greater than three, not:", N);
     maxKeysPerLeaf   = N;
@@ -39,20 +43,69 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
     for (int i = 0; i < size; i++) nodes.release(new Leaf());                   // Pre allocate leaves as they are bigger than branches
    }
 
-  Mjaf() {this(4, 1000);}                                                       // Define a Btree with a minimal maximum number of keys per node
+  Mjaf() {this(16, 16, 4, 1000);}                                               // Define a Btree with a minimal maximum number of keys per node
 
-  static Mjaf<Long, Long> mjaf()                {return new Mjaf<>();}          // Create a new Btree of default type
-  static Mjaf<Long, Long> mjaf(int m, int size) {return new Mjaf<>(m, size);}   // Define a new Btree of default type with a specified maximum number of keys per node
+  static Mjaf mjaf(int Key, int Data, int MaxKeysPerLeaf, int size)             // Define a Btree with a specified maximum number of keys per leaf.
+   {return new Mjaf(Key, Data, MaxKeysPerLeaf, size);
+   }
 
   int size() {return keyDataStored;}                                            // Number of entries in the tree
 
   int nodesCreated = 0;                                                         // Number of nodes created
 
-  abstract class Node<Key extends Comparable<Key>>                              // A branch or a leaf: an interior or exterior node. Comparable so we can place them in a tree or set by node number.
-    implements Comparable<Node<Key>>
+  class BitString implements Comparable<BitString>                              // Definition of a key or data
+   {final boolean[]bits;                                                        // Value of bit string
+    BitString(int N) {bits = new boolean[N];}                                   // Create bit string
+    int size() {return bits.length;}                                            // Width of bit string
+
+    void set(String Bits)                                                       // Set a bit string from a character string
+     {final  int w = size();
+      final String b = cleanBoolean(Bits, w);
+      for (int i = 0; i < w; i++) bits[i] = b.charAt(bitsPerKey-i-1) == '1';
+     }
+
+    public int compareTo(BitString B)                                           // Compare two but strings
+     {final int a = size(), b = B.size();
+      if (a != b) stop("Bit strings have different sizes", a, b);
+      for (int i = a-1; i >= 0; i--)
+       {if (!bits[i] &&  B.bits[i]) return -1;
+        if ( bits[i] && !B.bits[i]) return +1;
+       }
+      return 0;
+     }
+
+    public int getInt()                                                         // Get the value of a bit string as integer
+     {final int a = size();
+      int v = 0;
+      for (int i = 0; i < a; i++) if (bits[i]) v += 1<<i;
+      return v;
+     }
+   }
+
+  class Key extends BitString                                                   // Definition of a key
+   {Key() {super(bitsPerKey);}
+    Key(String Bits) {this(); set(Bits);}
+    Key(int    Bits) {this(); set(toBitString(Bits));}
+    Key(long   Bits) {this(); set(toBitString(Bits));}
+   }
+  Key key(String Bits) {return new Key(Bits);}
+  Key key(int    Bits) {return new Key(Bits);}
+  Key key(long   Bits) {return new Key(Bits);}
+
+  class Data extends BitString                                                  // Definition of data associated with a key
+   {Data() {super(bitsPerData);}
+    Data(String Bits) {this(); set(Bits);}
+    Data(int    Bits) {this(); set(toBitString(Bits));}
+    Data(long   Bits) {this(); set(toBitString(Bits));}
+   }
+  Data data(String Bits) {return new Data(Bits);}
+  Data data(int    Bits) {return new Data(Bits);}
+  Data data(long   Bits) {return new Data(Bits);}
+
+  abstract class Node implements Comparable<Node>                               // A branch or a leaf: an interior or exterior node. Comparable so we can place them in a tree or set by node number.
    {final Stuck<Key> keyNames;                                                  // Names of the keys in this branch or leaf
     final int nodeNumber = ++nodesCreated;                                      // Number of this node
-    Node<Key> next = null;                                                      // Linked list of free nodes
+    Node next = null;                                                           // Linked list of free nodes
 
     Node(int N) {keyNames = new Stuck<Key>(N);}                                 // Create a node
 
@@ -66,26 +119,26 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
     void ok(String expected) {Mjaf.ok(toString(), expected);}                   // Check node is as expected
 
     abstract void printHorizontally(Stack<StringBuilder>S, int l, boolean d);   // Print horizontally
-    void traverse(Stack<Node<Key>>S) {S.push(this);}                            // Traverse tree placing all its nodes on a stack
-    public int compareTo(Node<Key> B)                                           // make it possible to orde nodes
+    void traverse(Stack<Node>S) {S.push(this);}                                 // Traverse tree placing all its nodes on a stack
+    public int compareTo(Node B)                                                // make it possible to orde nodes
      {final Integer a = nodeNumber, b = B.nodeNumber;
       return a.compareTo(b);
      }
    }
 
-  Stack<Node<Key>> traverse()                                                   // Traverse tree placing all its nodes on a stack
-   {final Stack<Node<Key>> S = new Stack<>();
+  Stack<Node> traverse()                                                        // Traverse tree placing all its nodes on a stack
+   {final Stack<Node> S = new Stack<>();
     if (root != null) root.traverse(S);
     return S;
    }
 
-  class Branch extends Node<Key>                                                // A branch node directs the search to the appropriate leaf
-   {final Stuck<Node<Key>> nextLevel;
-    Node<Key> topNode;
+  class Branch extends Node                                                     // A branch node directs the search to the appropriate leaf
+   {final Stuck<Node> nextLevel;
+    Node topNode;
 
     Branch()                                                                    // Create a new branch
      {super(maxKeysPerBranch);
-      nextLevel = new Stuck<Node<Key>>(maxKeysPerBranch);                       // The number of keys in a branch is one less than the number of keys in a leaf
+      nextLevel = new Stuck<Node>(maxKeysPerBranch);                       // The number of keys in a branch is one less than the number of keys in a leaf
      }
 
     void clear() {topNode = null; keyNames.clear(); nextLevel.clear();}         // Initialize branch keys and next
@@ -105,12 +158,12 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
      {final int K = keyNames.size(), f = splitIdx();                            // Number of keys currently in node
       if (f < K-1) {} else stop("Split", f, "too big for branch of size:", K);
       if (f <   1)         stop("First", f, "too small");
-      final Node<Key> t = nextLevel.elementAt(f);                               // Top mode
+      final Node t = nextLevel.elementAt(f);                               // Top mode
       final Branch    b = branch(t);                                            // Recycle a branch
 
       for (int i = 0; i < f; i++)                                               // Remove first keys from old node to new node
        {final Key       k = keyNames .removeElementAt(0);
-        final Node<Key> n = nextLevel.removeElementAt(0);
+        final Node n = nextLevel.removeElementAt(0);
         b.keyNames .push(k);
         b.nextLevel.push(n);
        }
@@ -134,14 +187,14 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
 
       for (int i = 0; i < J; i++)                                               // Add right hand branch
        {final Key       k = Join.keyNames .elementAt(i);
-        final Node<Key> n = Join.nextLevel.elementAt(i);
+        final Node n = Join.nextLevel.elementAt(i);
         keyNames .push(k);
         nextLevel.push(n);
        }
       nodes.release(Join);
      }
 
-    Node<Key> findFirstGreaterOrEqual(Key keyName)                              // Find first key which is greater an the search key. The result is 1 based, a result of zero means all the keys were less than or equal than the search key
+    Node findFirstGreaterOrEqual(Key keyName)                                   // Find first key which is greater an the search key. The result is 1 based, a result of zero means all the keys were less than or equal than the search key
      {final int N = size();                                                     // Number of keys currently in node
       for (int i = 0; i < N; i++)                                               // Check each key
        {final Key k = keyNames.elementAt(i);                                    // Key
@@ -151,7 +204,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
       return topNode;
      }
 
-    void putBranch(Key keyName, Node<Key> putNode)                              // Insert a new node into a branch
+    void putBranch(Key keyName, Node putNode)                                   // Insert a new node into a branch
      {final int N = nextLevel.size();                                           // Number of keys currently in node
       if (N >= maxKeysPerLeaf) stop("Too many keys in Branch");
       for (int i = 0; i < N; i++)                                               // Check each key
@@ -172,7 +225,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
       final int K = keyNames.size();
 
       for (int i = 0; i < K; i++)                                               // Keys and next level indices
-        s.append(""+keyNames.elementAt(i)+":"+
+        s.append(""+keyNames.elementAt(i).getInt()+":"+
           nextLevel.elementAt(i).nodeNumber+", ");
 
       s.append(""+topNode.nodeNumber+")");
@@ -190,7 +243,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
 
     void ok(String expected) {Mjaf.ok(toString(), expected);}                   // Check leaf
 
-    void traverse(Stack<Node<Key>>S)                                            // Traverse tree placing all its nodes on a stack
+    void traverse(Stack<Node>S)                                            // Traverse tree placing all its nodes on a stack
      {super.traverse(S);
       for (int i = 0; i < size(); i++) nextLevel.elementAt(i).traverse(S);
       topNode.traverse(S);
@@ -206,9 +259,9 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
 
    } // Branch
 
-  Branch branch(Node<Key> node) {return nodes.recycleBranch(node);}             // Create a new branch
+  Branch branch(Node node) {return nodes.recycleBranch(node);}                  // Create a new branch
 
-  class Leaf extends Node<Key>                                                  // Create a new leaf
+  class Leaf extends Node                                                       // Create a new leaf
    {final Stuck<Data> dataValues;                                               // Data associated with each key
     Leaf()                                                                      // Data associated with keys in leaf
      {super(maxKeysPerLeaf);
@@ -275,7 +328,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
       s.append("Leaf(");
       final int K = keyNames.size();
       for  (int i = 0; i < K; i++)
-        s.append(""+keyNames.elementAt(i)+":"+dataValues.elementAt(i)+", ");
+        s.append(""+keyNames.elementAt(i).getInt()+":"+
+                  dataValues.elementAt(i).getInt()+", ");
       if (K > 0) s.setLength(s.length()-2);
       s.append(")");
       return s.toString();
@@ -284,7 +338,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
     public String shortString()                                                 // Print a leaf compactly
      {final StringBuilder s = new StringBuilder();
       final int K = keyNames.size();
-      for  (int i = 0; i < K; i++) s.append(""+keyNames.elementAt(i)+",");
+      for  (int i = 0; i < K; i++) s.append(""+keyNames.elementAt(i).getInt()+",");
       if (K > 0) s.setLength(s.length()-1);
       return s.toString();
      }
@@ -295,7 +349,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
       padStrings(S, level);
      }
 
-    void traverse(Stack<Node<Key>>S)                                            // Traverse tree placing all its nodes on a stack
+    void traverse(Stack<Node>S)                                                 // Traverse tree placing all its nodes on a stack
      {super.traverse(S);
      }
    } // Leaf
@@ -304,9 +358,9 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
 
 //D1 Search                                                                     // Find a key, data pair
 
-  Data find(Key keyName)                                                        // Find a the data associated with a key
+  Data find(Key keyName)                                                   // Find a the data associated with a key
    {if (root == null) return null;                                              // Empty tree
-    Node<Key> q = root;                                                         // Root of tree
+    Node q = root;                                                             // Root of tree
     for(int i = 0; i < 999 && q != null; ++i)                                   // Step down through tree up to some reasonable limit
      {if (!(q instanceof Branch)) break;                                        // Stepped to a leaf
       q = ((Branch)q).findFirstGreaterOrEqual(keyName);                         // Position of key
@@ -323,7 +377,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
       return true;                                                              // Successfully inserted
      }
 
-    Node<Key> q = root;                                                         // Root of tree
+    Node q = root;                                                         // Root of tree
     for(int i = 0; i < 999 && q != null; ++i)                                   // Step down through tree up to some reasonable limit
      {if (!(q instanceof Branch)) break;                                        // Stepped to a leaf
       q = ((Branch)q).findFirstGreaterOrEqual(keyName);                         // Position of key
@@ -356,7 +410,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
      }
     else ((Branch)root).splitRoot();                                            // Split full root which is a branch not a leaf
 
-    Branch p = (Branch)root; Node<Key> q = p;                                   // The root has already been split so the parent child relationship will be established
+    Branch p = (Branch)root; Node q = p;                                   // The root has already been split so the parent child relationship will be established
 
     for(int i = 0; i < 999; ++i)                                                // Step down through tree to find the required leaf, splitting as we go
      {if (!(q instanceof Branch)) break;                                        // Stepped to a branch
@@ -405,7 +459,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
 
     if (root.size() == 1)                                                       // If the root is a branch and only has one key so we might be able to merge its children
      {final Branch r = (Branch)root;
-      final Node<Key> A = r.nextLevel.firstElement();
+      final Node A = r.nextLevel.firstElement();
 
       if (A instanceof Leaf)
        {final Leaf    a = (Leaf)A, b = (Leaf)(r.topNode);
@@ -426,14 +480,14 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
        }
      }
 
-    Node<Key> P = root;                                                         // We now know that the root is a branch
+    Node P = root;                                                         // We now know that the root is a branch
 
     for    (int i = 0; i < 999; ++i)                                            // Step down through tree to find the required leaf, splitting as we go
      {if (!(P instanceof Branch)) break;                                        // Stepped to a branch
       final Branch p = (Branch)P;
       for(int j = 0; j < p.size()-1; ++j)                                       // See if any pair under this node can be merged
-       {final Node<Key> A = p.nextLevel.elementAt(j);
-        final Node<Key> B = p.nextLevel.elementAt(j+1);
+       {final Node A = p.nextLevel.elementAt(j);
+        final Node B = p.nextLevel.elementAt(j+1);
         if (A instanceof Leaf)
          {final Leaf a = (Leaf)A, b = (Leaf)B;
           final boolean m = a.joinableLeaves(b);                                // Can we merge the two leaves
@@ -455,7 +509,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
        }
 
       if (p.size() > 0)                                                         // Check last pair
-       {final Node<Key> A = p.nextLevel.lastElement();
+       {final Node A = p.nextLevel.lastElement();
         if (A instanceof Leaf)
          {final Leaf a = (Leaf)A, b = (Leaf)p.topNode;
           final boolean j = a.joinableLeaves(b);                                // Can we merge the two leaves
@@ -527,23 +581,23 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
   class NodeStack                                                               // Memory for branches and leaves
    {Integer size = 0, max = null, min = null;                                   // Statistics
 
-    void release(Node<Key> n)                                                   // Release a branch
+    void release(Node n)                                                   // Release a branch
      {n.next = nodesFreeList; nodesFreeList = n;                                // Add node to free list
       ++size;
       final int m = size;
       if (max == null) max = m; else max = max(max, m);
      }
 
-    Node<Key> recycle()                                                         // Recycle a node
+    Node recycle()                                                         // Recycle a node
      {if (nodesFreeList == null) stop("No more memory for branches/leaves");
       final int m = size - 1;
       if (min == null) min = m; else min = min(min, m);
-      final Node<Key> n = nodesFreeList; nodesFreeList = n.next;                // Remove node from free list
+      final Node n = nodesFreeList; nodesFreeList = n.next;                // Remove node from free list
       --size; n.next = null;                                                    // Clear free list entry
       return n;
      }
 
-    Branch recycleBranch(Node<Key> node)                                        // Recycle a branch
+    Branch recycleBranch(Node node)                                        // Recycle a branch
      {recycle();
       final Branch b = new Branch();                                            // In Java we have to create a new object
       b.clear();                                                                // Pointless in Java but in assembler we will need to do this
@@ -566,40 +620,41 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
 //D0 Tests                                                                      // Test the BTree
 
   static void test_create()
-   {var m = new Mjaf<Integer,Integer>(6, 5);
+   {var m = mjaf(12, 12, 6, 5);
     var l = m.leaf();
-    l.putLeaf(2,4);
-    l.putLeaf(4,8);
-    l.putLeaf(1,1);
-    l.putLeaf(3,6);
-    l.putLeaf(5,10);
+    l.putLeaf(m.key(2), m.data( 4));
+    l.putLeaf(m.key(4), m.data( 8));
+    l.putLeaf(m.key(1), m.data( 1));
+    l.putLeaf(m.key(3), m.data( 6));
+    l.putLeaf(m.key(5), m.data(10));
     l.ok("Leaf(1:1, 2:4, 3:6, 4:8, 5:10)");
     ok(l.size(),        5);
-    ok(l.findIndexOfKey(3), 2);
-    ok(l.findIndexOfKey(9), -1);
+    ok(l.findIndexOfKey(m.key(3)), 2);
+stop("AAAA", l);
+    ok(l.findIndexOfKey(m.key(9)), -1);
     ok(m.keyDataStored, 5);
    }
 
   static void test_leaf_split()
-   {var m = new Mjaf<Integer,Integer>(6, 5);
+   {var m = mjaf(12, 12, 6, 5);
     var l = m.leaf();
-    l.putLeaf(2,4);
-    l.putLeaf(4,8);
-    l.putLeaf(1,1);
-    l.putLeaf(3,6);
-    l.putLeaf(5,10);
+    l.putLeaf(m.key(2), m.data(4));
+    l.putLeaf(m.key(4), m.data(8));
+    l.putLeaf(m.key(1), m.data(1));
+    l.putLeaf(m.key(3), m.data(6));
+    l.putLeaf(m.key(5), m.data(10));
     l.ok("Leaf(1:1, 2:4, 3:6, 4:8, 5:10)");
    }
 
   static void test_leaf_split_in_half()
-   {var m = new Mjaf<Integer,Integer>(6, 6);
+   {var m = mjaf(12, 12, 6, 5);
     var l = m.leaf();
-    l.putLeaf(2,4);
-    l.putLeaf(4,8);
-    l.putLeaf(1,1);
-    l.putLeaf(3,6);
-    l.putLeaf(5,10);
-    l.putLeaf(6,12);
+    l.putLeaf(m.key(2), m.data(4));
+    l.putLeaf(m.key(4), m.data(8));
+    l.putLeaf(m.key(1), m.data(1));
+    l.putLeaf(m.key(3), m.data(6));
+    l.putLeaf(m.key(5), m.data(10));
+    l.putLeaf(m.key(6), m.data(12));
     l.ok("Leaf(1:1, 2:4, 3:6, 4:8, 5:10, 6:12)");
     var k = l.splitLeaf();
     k.ok("Leaf(1:1, 2:4, 3:6)");
@@ -607,45 +662,45 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
    }
 
   static void test_branch()
-   {var m = new Mjaf<Integer,Integer>(6, 8);
+   {var m = mjaf(12, 12, 6, 8);
     var a = m.leaf();
     var b = m.leaf();
     var c = m.leaf();
     var d = m.leaf();
     var e = m.leaf();
     var f = m.leaf();
-    Mjaf<Integer,Integer>.Branch B = m.branch(f);
-    B.putBranch(1, a); ok(B.branchIsFull(), false);
-    B.putBranch(2, b); ok(B.branchIsFull(), false);
-    B.putBranch(3, c); ok(B.branchIsFull(), false);
-    B.putBranch(4, d); ok(B.branchIsFull(), false);
-    B.putBranch(5, e); ok(B.branchIsFull(), true);
+    Mjaf.Branch B = m.branch(f);
+    B.putBranch(m.key(1), a); ok(B.branchIsFull(), false);
+    B.putBranch(m.key(2), b); ok(B.branchIsFull(), false);
+    B.putBranch(m.key(3), c); ok(B.branchIsFull(), false);
+    B.putBranch(m.key(4), d); ok(B.branchIsFull(), false);
+    B.putBranch(m.key(5), e); ok(B.branchIsFull(), true);
     //B.ok("Branch(1:1, 2:2, 3:3, 4:4, 5:5, 6)");
 
-    ok(B.findIndexOfKey(3), 2);
+    ok(B.findIndexOfKey(m.key(3)), 2);
     ok(B.splitKey(), 3);
     ok(B.size(), 5);
    }
 
   static void test_branch_full()
-   {var m = new Mjaf<Integer,Integer>(6, 8);
+   {var m = mjaf(12, 12, 6, 8);
     var a = m.leaf();
     var b = m.leaf();
     var c = m.leaf();
     var d = m.leaf();
     var e = m.leaf();
     var f = m.leaf();
-    Mjaf<Integer,Integer>.Branch B = m.branch(f);
-    B.putBranch(1, a);
-    B.putBranch(2, b);
-    B.putBranch(3, c);
-    B.putBranch(4, d);
-    B.putBranch(5, e);
+    Mjaf.Branch B = m.branch(f);
+    B.putBranch(m.key(1), a);
+    B.putBranch(m.key(2), b);
+    B.putBranch(m.key(3), c);
+    B.putBranch(m.key(4), d);
+    B.putBranch(m.key(5), e);
     //B.ok("Branch(1:1, 2:2, 3:3, 4:4, 5:5, 6)");
     ok(B.splitKey(), 3);
     ok(B.branchIsFull(), true);
     ok(B.size(), 5);
-    Mjaf<Integer,Integer>.Branch C = B.splitBranch();
+    Mjaf.Branch C = B.splitBranch();
     //C.ok("Branch(1:1, 2:2, 3)");
     //B.ok("Branch(4:4, 5:5, 6)");
    }
@@ -667,7 +722,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
    }
 
   static void test_branch_greater_than_or_equal()
-   {var m = new Mjaf<Integer,Integer>(6, 6);
+   {var m = mjaf(12, 12, 6, 6);
     var a = m.leaf();
     var b = m.leaf();
     var c = m.leaf();
@@ -675,31 +730,31 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
     var e = m.leaf();
     var f = m.leaf();
     var g = m.leaf();
-    Mjaf<Integer,Integer>.Branch B = m.branch(g);
-    B.putBranch(2, a);
-    B.putBranch(4, b);
-    B.putBranch(6, c);
-    B.putBranch(8, d);
-    B.putBranch(10, e);
-    B.putBranch(12, f);
+    Mjaf.Branch B = m.branch(g);
+    B.putBranch(m.key( 2), a);
+    B.putBranch(m.key( 4), b);
+    B.putBranch(m.key( 6), c);
+    B.putBranch(m.key( 8), d);
+    B.putBranch(m.key(10), e);
+    B.putBranch(m.key(12), f);
     B.ok("Branch(2:1, 4:2, 6:3, 8:4, 10:5, 12:6, 7)");
 
-    ok(B.findFirstGreaterOrEqual(4), 2);
-    ok(B.findFirstGreaterOrEqual(3), 2);
-    ok(B.findFirstGreaterOrEqual(2), 1);
+    ok(B.findFirstGreaterOrEqual(m.key(4)), 2);
+    ok(B.findFirstGreaterOrEqual(m.key(3)), 2);
+    ok(B.findFirstGreaterOrEqual(m.key(2)), 1);
    }
 
   static void test_insert(int N, boolean debug, String expected)
-   {var m = mjaf(4, N<<1);
-    for (long i = 0; i < N; i++) m.put(i, i<<1);
+   {var m = mjaf(12, 12, 4, N<<1);
+    for (long i = 0; i < N; i++) m.put(m.key(i), m.data(i<<1));
     if (debug) say(m.printHorizontally());
     ok(m.printHorizontally(), expected);
     if (debug) stop("Debugging stopped");
    }
 
   static void test_insert_reverse(int N, boolean debug, String expected)
-   {var m = mjaf(4, N<<1);
-    for (long i = N; i >= 0; i--) m.put(i, i<<1);
+   {var m = mjaf(12, 12, 4, N<<1);
+    for (long i = N; i >= 0; i--) m.put(m.key(i), m.data(i<<1));
     if (debug) say(m.printHorizontally());
     ok(m.printHorizontally(), expected);
     if (debug) stop("Debugging stopped");
@@ -765,8 +820,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
 
   static void test_insert_random()
    {final long[]r = random_array();
-    var m = mjaf(4, r.length);
-    for (int i = 0; i < r.length; ++i) m.put(r[i], (long)i);
+    var m = mjaf(12, 12, 4, r.length);
+    for (int i = 0; i < r.length; ++i) m.put(m.key(r[i]), m.data(i));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
                                                                                                                                                                                                                                                 511                                                                                                                                                                                                                     |
@@ -775,30 +830,30 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
        27     39        72                   135                                 234                 261           279                     344       358           391                 425               442                         501                      545       560                         611           650                         686                         806           830                         903                             961       987       |
 1,13,27  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298,317   338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
 """);
-    if (github_actions) for (int i = 0; i < r.length; ++i) ok(m.find(r[i]), (long)i);
-    ok(m.find(r.length+1l), null);
+    if (github_actions) for (int i = 0; i < r.length; ++i) ok(m.find(m.key(r[i])), m.data(i));
+    ok(m.find(m.key(r.length+1l)), null);
    }
 
   static void test_find()
    {final int N = 64;
-    var m = mjaf(4, N<<1);
-    for (long i = 0; i < N; i++) m.put(i, i<<1);
-    for (long i = 0; i < N; i++) ok(m.find(i), i+i);
+    var m = mjaf(12, 12, 4, N<<1);
+    for (long i = 0; i < N; i++) m.put    (m.key(i), m.data(i<<1));
+    for (long i = 0; i < N; i++) ok(m.find(m.key(i)), m.data(i+i));
    }
 
   static void test_find_reverse()
    {final int N = 64;
-    var m = mjaf(4, N<<1);
-    for (long i = N; i >= 0; i--) m.put(i, i<<1);
-    for (long i = N; i >= 0; i--) ok(m.find(i), i+i);
+    var m = mjaf(12, 12, 4, N<<1);
+    for (long i = N; i >= 0; i--) m.put    (m.key(i),  m.data(i<<1));
+    for (long i = N; i >= 0; i--) ok(m.find(m.key(i)), m.data(i+i));
    }
 
   static void test_delete()
    {final long[]r = random_array();
-    var m = mjaf(4, r.length);
-    for (int i = 0; i < r.length; ++i) m.put(r[i], (long)i);
+    var m = mjaf(12, 12, 4, r.length);
+    for (int i = 0; i < r.length; ++i) m.put(m.key(r[i]), m.data(i));
     for (int i = 0; i < r.length; ++i)
-     {var a = m.delete(r[i]);
+     {var a = m.delete(m.key(r[i]));
       ok(a, (long)i);
       if (!true)                                                                // Write case statement to check deletions
        {say("        case", i, "-> /*", r[i], "*/ ok(m.printHorizontally(), \"\"\"");
@@ -1369,14 +1424,14 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
 
   static void test_delete_reverse()
    {final long[]r = random_array();
-    var m = mjaf(4, r.length);
+    var m = mjaf(12, 12, 4, r.length);
     //say("Delete at start");
     //say(m.nodes);
-    for (int i = 0; i < r.length; ++i) m.put(r[i], (long)i);
+    for (int i = 0; i < r.length; ++i) m.put(m.key(r[i]), m.data(i));
     //say("Delete after load");
     //say(m.nodes);
     for (int i = r.length-1; i >= 0; --i)
-     {ok(m.delete(r[i]), (long)i);
+     {ok(m.delete(m.key(r[i])), m.data(i));
       if (!true)                                                                 // Write case statement to check deletions
        {say("        case", i, "-> /*", r[i], "*/ ok(m.printHorizontally(), \"\"\"");
         say(m.printHorizontally());
@@ -1939,8 +1994,8 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
 
   static void test_save()
    {final int N = 10;
-    var m = mjaf(4, N<<1);
-    for (long i = 0; i < N; i++) m.put(i, i<<1);
+    var m = mjaf(12, 12, 4, N<<1);
+    for (long i = 0; i < N; i++) m.put(m.key(i), m.data(i<<1));
     var nodes = m.traverse();
     ok(nodes.elementAt(0) instanceof Mjaf.Branch);
     ok(nodes.elementAt(1) instanceof Mjaf.Leaf);
@@ -1967,7 +2022,7 @@ class Mjaf<Key extends Comparable<Key>, Data> extends RiscV                     
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
+   {oldTests();
     test_save();
    }
 
