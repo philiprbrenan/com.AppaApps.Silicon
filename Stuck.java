@@ -17,7 +17,7 @@ class Stuck extends Chip implements Iterable<Stuck.Element>                     
   Stuck(int Max, int Width)                                                     // Create the stuck stack
    {max = Max; width = Width;
     u = new Unary(Max);                                                         // Create the unary number that indicates the top of the stuck stack
-    s = new Element[Max];                                                       // The stuck stack
+    s = new Element[width];                                                     // The stuck stack
    }
 
   static Stuck stuck(int max, int width) {return new Stuck(max, width);}        // Create a stuck stack
@@ -46,10 +46,18 @@ class Stuck extends Chip implements Iterable<Stuck.Element>                     
       for (int i = 0; i < width; i++) v += data[i] ? 1<<i : 0;
       return ""+v;
      }
-    public boolean equals(Element e)                                            // Compare two bnit strings for equality
+    public boolean equals(Element e)                                            // Compare two bit strings for equality
      {for (int i = 0; i < width; i++) if (data[i] != e.data[i]) return false;
       return true;
      }
+    boolean[]bits() {return data;}                                              // Bits in element
+   }
+
+
+  Stack<Boolean> bits()                                                         // Stack of bits representing stuck
+   {Stack<Boolean> b = u.bits();
+    for (int i = 0; i < max; i++) concatBits(b, s[i].data);
+    return b;
    }
 
 //D1 Characteristics                                                            // Characteristics of the stuck stack
@@ -63,12 +71,19 @@ class Stuck extends Chip implements Iterable<Stuck.Element>                     
 
 //D1 Actions                                                                    // Place and remove data to/from stuck stack
 
-  void push(Element i)                                                          // Push an element onto the stuck stack
+  void checkLength(boolean[]bits)                                               // Check the width of the supplied bits
+   {final int b = bits.length;
+    if (b != width) stop("Bits has width", b, "but expected", width);
+   }
+
+  void push(boolean[]bits)                                                      // Push an element onto the stuck stack
    {if (!u.canInc()) stop("Stuck is full");
-    s[size()] = i;
+    checkLength(bits);
+    s[size()] = new Element(bits);
     u.inc();
    }
 
+  void push(Element i) {push(i.data);}                                          // Push an element onto the stuck stack
   void push(int data) {push(new Element(data));}                                // Push an element onto the stuck stack
 
   Element pop()                                                                 // Pop an element from the stuck stack
@@ -86,15 +101,17 @@ class Stuck extends Chip implements Iterable<Stuck.Element>                     
     return r;
    }
 
-  void unshift(Element i)                                                       // Unshift an element from the stuck stack
+  void unshift(boolean[]bits)                                                   // Unshift an element from the stuck stack
    {if (!u.canInc()) stop("Stuck is full");
+    checkLength(bits);
     final int N = size();
     for (int j = N; j > 0; j--) s[j] = s[j-1];
-    s[0] = i;
+    s[0] = new Element(bits);
     u.inc();
    }
 
-  void unshift(int data) {unshift(new Element(data));}                          // Unshift an element onto the stuck stack
+  void unshift(Element i) {unshift(i.data);}                                    // Unshift an element from the stuck stack
+  void unshift(int data)  {unshift(new Element(data));}                         // Unshift an element onto the stuck stack
 
   Element removeElementAt(int i)                                                // Remove the element at 0 based index i and shift the elements above down one position
    {if (!u.canDec()) stop("Stuck is empty");
@@ -107,16 +124,18 @@ class Stuck extends Chip implements Iterable<Stuck.Element>                     
     return r;
    }
 
-  void insertElementAt(Element e, int i)                                        // Insert an element at the indicated 0-based index after moving the elements above up one position
+  void insertElementAt(boolean[]bits, int i)                                    // Insert an element at the indicated 0-based index after moving the elements above up one position
    {final int N = size();
     if (!u.canInc()) stop("Stuck is full");
     if (i > N) stop("Too far up");
     if (i < 0) stop("Too far down");
+    checkLength(bits);
     for (int j = N; j > i; j--) s[j] = s[j-1];
-    s[i] = e;
+    s[i] = new Element(bits);
     u.inc();
    }
 
+  void insertElementAt(Element e, int i) {insertElementAt(e.data, i);}          // Insert an element at the indicated 0-based index after moving the elements above up one position
   void insertElementAt(int e, int i) {insertElementAt(new Element(e), i);}      // Insert an element at the indicated 0-based index after moving the elements above up one position
 
   Element elementAt(int i)                                                      // Get the element at a specified index
@@ -126,13 +145,14 @@ class Stuck extends Chip implements Iterable<Stuck.Element>                     
     return s[i];
    }
 
-  void setElementAt(Element e, int i)                                           // Set the value of the indexed location to the specified element
+  void setElementAt(boolean[]bits, int i)                                       // Set the value of the indexed location to the specified element
    {final int N = size();
     if (i >  N) stop("Too far up");
     if (i <  0) stop("Too far down");
-    s[i] = e;
+    s[i] = new Element(bits);
    }
 
+  void setElementAt(Element e, int i) {setElementAt(e.data, i);}                // Set the value of the indexed location to the specified element
   void setElementAt(int e, int i) {setElementAt(new Element(e), i);}            // Insert an element at the indicated 0-based index after moving the elements above up one position
 
   Element firstElement() {return elementAt(0);}                                 // Get the value of the first element
@@ -140,19 +160,21 @@ class Stuck extends Chip implements Iterable<Stuck.Element>                     
 
 //D1 Search                                                                     // Search a stuck stack.
 
-  public int indexOf(Element keyToFind)                                         // Return 0 based index of the indicated key else -1 if the key is not present in the stuck stack.
+  public int indexOf(boolean[]bits)                                             // Return 0 based index of the indicated key else -1 if the key is not present in the stuck stack.
    {final int N = size();
+    final Element keyToFind = new Element(bits);
     for (int i = 0; i < N; i++) if (keyToFind.equals(s[i])) return i;
     return -1;                                                                  // Not found
    }
 
+  public int indexOf(Element keyToFind) {return indexOf(keyToFind.data);}       // Return 0 based index of the indicated key else -1 if the key is not present in the stuck stack.
   public int indexOf(int keyToFind) {return indexOf(new Element(keyToFind));}   // Return 0 based index of the indicated key else -1 if the key is not present in the stuck stack.
 
 //D1 Iterate                                                                    // Iterate a stuck stack
 
-  public Iterator<Element> iterator() {return new ElementIterator();}           //
+  public Iterator<Element> iterator() {return new ElementIterator();}           // Create an iterator to iterate through the stack
 
-  class ElementIterator implements Iterator<Element>
+  class ElementIterator implements Iterator<Element>                            // Iterator for the stack
    {int nextElement = 0;
 
     public boolean hasNext() {return nextElement < size();}                     // Another element to iterate
