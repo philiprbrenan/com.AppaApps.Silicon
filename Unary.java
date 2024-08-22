@@ -28,6 +28,8 @@ class Unary extends Chip                                                        
 
   void ok(int n) {ok(get(), n);}                                                // Check that a unary number has the expected value
 
+  java.util.Stack<Boolean> bits() {return concatBits(u);}                       // Stack of bits representing this unary number
+
 //D1 Set and get                                                                // Set and get a unary number
 
   void set(int n)                                                               // Set the unary number
