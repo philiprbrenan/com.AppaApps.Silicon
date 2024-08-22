@@ -3496,6 +3496,27 @@ c8 =                                                 (a4 & b4)
 
 //D1 Utility routines                                                           // Utility routines
 
+//D2 Bit routines                                                               // Bit routines
+
+  static Stack<Boolean> concatBits(Stack<Boolean> s, Stack<Boolean> t)          // Concatenate two stacks of bits
+   {final int n = t.size();
+    for (int i = 0; i < n; i++) s.push(t.elementAt(i));
+    return s;
+   }
+
+  static Stack<Boolean> concatBits(Stack<Boolean> s, boolean[]t)                // Concatenate an array to a stack of bits
+   {final int n = t.length;
+    for (int i = 0; i < n; i++) s.push(t[i]);
+    return s;
+   }
+
+  static Stack<Boolean> concatBits(boolean[]t)                                  // Convert an array of bits to a stack of bits
+   {final int n = t.length;
+    final Stack<Boolean> s = new Stack<>();
+    for (int i = 0; i < n; i++) s.push(t[i]);
+    return s;
+   }
+
 //D2 String routines                                                            // String routines
 
   static String binaryString(int n, int width)                                  // Convert a integer to a binary string of specified width
