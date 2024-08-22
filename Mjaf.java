@@ -19,7 +19,7 @@ package com.AppaApps.Silicon;                                                   
 //                 When these lines being read bring life to thee!
 import java.util.Stack;                                                         // Used only for printing trees which is not something that will happen on the chip
 
-class Mjaf extends RiscV                                                       // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys and matching number of data elements because data is not transferred to the parent on fission  which simplifies deletions with complicating insertions.
+class Mjaf extends RiscV                                                        // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys and matching number of data elements because data is not transferred to the parent on fission  which simplifies deletions with complicating insertions.
  {final int bitsPerKey;                                                         // Number of bits in key
   final int bitsPerData;                                                        // Number of bits in data
   final int maxKeysPerLeaf;                                                     // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
@@ -32,7 +32,7 @@ class Mjaf extends RiscV                                                       /
   Node root;                                                                    // The root node of the Btree
   int keyDataStored;                                                            // The number of key, data values stored in the Btree
 
-  Mjaf(int BitsPerKey, int BitsPerData, int MaxKeysPerLeaf, int size)          // Define a Btree with a specified maximum number of keys per leaf.
+  Mjaf(int BitsPerKey, int BitsPerData, int MaxKeysPerLeaf, int size)           // Define a Btree with a specified maximum number of keys per leaf.
    {final int N = MaxKeysPerLeaf;
     bitsPerKey  = BitsPerKey;
     bitsPerData = BitsPerData;
@@ -61,7 +61,7 @@ class Mjaf extends RiscV                                                       /
     void set(String Bits)                                                       // Set a bit string from a character string
      {final  int w = size();
       final String b = cleanBoolean(Bits, w);
-      for (int i = 0; i < w; i++) bits[i] = b.charAt(bitsPerKey-i-1) == '1';
+      for (int i = 0; i < w; i++) bits[i] = b.charAt(w-i-1) == '1';
      }
 
     void set(boolean[]Bits)                                                     // Set a bit string from a character string
@@ -90,27 +90,23 @@ class Mjaf extends RiscV                                                       /
 
   class Key extends BitString                                                   // Definition of a key
    {Key() {super(bitsPerKey);}
-    Key(String     Bits)   {this(); set(Bits);}
-    Key(boolean[]  Bits)   {this(); set(Bits);}
-    Key(int        Bits)   {this(); set(toBitString(Bits));}
-    Key(long       Bits)   {this(); set(toBitString(Bits));}
+    Key(Stuck.Element elem) {this(); set(elem.data);}
+    Key(boolean[]  Bits)    {this(); set(Bits);}
+    Key(long       Bits)    {this(); set(toBitString(Bits));}
    }
-  Key key(String   Bits) {return new Key(Bits);}
-  Key key(boolean[]Bits) {return new Key(Bits);}
-  Key key(int      Bits) {return new Key(Bits);}
-  Key key(long     Bits) {return new Key(Bits);}
+  Key key(Stuck.Element e)  {return new Key(e);}
+  Key key(boolean[]Bits)    {return new Key(Bits);}
+  Key key(long     Bits)    {return new Key(Bits);}
 
   class Data extends BitString                                                  // Definition of data associated with a key
    {Data() {super(bitsPerData);}
-    Data(String   Bits) {this(); set(Bits);}
-    Data(boolean[]Bits) {this(); set(Bits);}
-    Data(int      Bits) {this(); set(toBitString(Bits));}
-    Data(long     Bits) {this(); set(toBitString(Bits));}
+    Data(Stuck.Element elem){this(); set(elem.data);}
+    Data(boolean[]Bits)     {this(); set(Bits);}
+    Data(long     Bits)     {this(); set(toBitString(Bits));}
    }
-  Data data(String   Bits) {return new Data(Bits);}
-  Data data(boolean[]Bits) {return new Data(Bits);}
-  Data data(int      Bits) {return new Data(Bits);}
-  Data data(long     Bits) {return new Data(Bits);}
+  Data data(Stuck.Element e){return new Data(e);}
+  Data data(boolean[]Bits)  {return new Data(Bits);}
+  Data data(long     Bits)  {return new Data(Bits);}
 
   abstract class Node implements Comparable<Node>                               // A branch or a leaf: an interior or exterior node. Comparable so we can place them in a tree or set by node number.
    {final Stuck keyNames;                                                       // Names of the keys in this branch or leaf
@@ -119,11 +115,14 @@ class Mjaf extends RiscV                                                       /
 
     Node(int N) {keyNames = new Stuck(N, bitsPerKey);}                          // Create a node
 
-    int findIndexOfKey     (Key keyToFind) {return keyNames.indexOf(keyNames.new Element(keyToFind.bits));}// Find the one based index of a key in a branch node or zero if not found
     boolean lessThanOrEqual(Key a, Key b)  {return a.compareTo(b) <= 0;}        // Define a new Btree of default type with a specified maximum number of keys per node
 
+    int findIndexOfKey     (Key keyToFind)                                      // Find the one based index of a key in a branch node or zero if not found
+     {return keyNames.indexOf(keyToFind.bits);
+     }
+
     int splitIdx() {return maxKeysPerBranch >> 1;}                              // Index of splitting key
-    Key splitKey() {return new Key(keyNames.elementAt(splitIdx()).data);}       // Splitting key
+    Key splitKey() {return new Key(keyNames.elementAt(splitIdx()));}            // Splitting key
     int size    () {return keyNames.size();}                                    // Number of elements in this leaf
 
     void ok(String expected) {Mjaf.ok(toString(), expected);}                   // Check node is as expected
@@ -143,17 +142,19 @@ class Mjaf extends RiscV                                                       /
    }
 
   class Branch extends Node                                                     // A branch node directs the search to the appropriate leaf
-   {final Stuck nextLevel;
+   {final Stack<Node> nextLevel;                                                // Ultimately this must become a stuck as well
     Node topNode;
 
     Branch()                                                                    // Create a new branch
      {super(maxKeysPerBranch);
-      nextLevel = new Stuck(maxKeysPerBranch, bitsPerKey);                      // The number of keys in a branch is one less than the number of keys in a leaf
+      //nextLevel = new Stuck(maxKeysPerBranch, bitsPerKey);                      // The number of keys in a branch is one less than the number of keys in a leaf
+      nextLevel = new Stack<>();
      }
 
     void clear() {topNode = null; keyNames.clear(); nextLevel.clear();}         // Initialize branch keys and next
 
-    boolean branchIsFull() {return nextLevel.isFull();}                         // Node should be split
+  //boolean branchIsFull() {return nextLevel.isFull();}                         // Node should be split
+    boolean branchIsFull() {return nextLevel.size() >= maxKeysPerBranch;}       // Node should be split
 
     void splitRoot()                                                            // Split the root
      {if (branchIsFull())
@@ -168,12 +169,19 @@ class Mjaf extends RiscV                                                       /
      {final int K = keyNames.size(), f = splitIdx();                            // Number of keys currently in node
       if (f < K-1) {} else stop("Split", f, "too big for branch of size:", K);
       if (f <   1)         stop("First", f, "too small");
-      final Node t = nextLevel.elementAt(f);                               // Top mode
+      final Node t = nextLevel.elementAt(f);                                    // Top mode
       final Branch    b = branch(t);                                            // Recycle a branch
 
+//    for (int i = 0; i < f; i++)                                               // Remove first keys from old node to new node
+//     {final Key  k = key(keyNames .removeElementAt(0).bits());
+//      final Node n = nextLevel.removeElementAt(0);
+//      b.keyNames .push(k);
+//      b.nextLevel.push(n);
+//     }
+
       for (int i = 0; i < f; i++)                                               // Remove first keys from old node to new node
-       {final Key       k = keyNames .removeElementAt(0);
-        final Node n = nextLevel.removeElementAt(0);
+       {final Stuck.Element k = keyNames.removeElementAt(0);
+        final Node          n = nextLevel.firstElement(); nextLevel.removeElementAt(0);
         b.keyNames .push(k);
         b.nextLevel.push(n);
        }
@@ -192,12 +200,12 @@ class Mjaf extends RiscV                                                       /
       if (K + 1 + J > maxKeysPerBranch) stop("Join of branch has too many keys",
           K,"+1+",J, "greater than", maxKeysPerBranch);
 
-      keyNames .push(joinKeyName);                                              // Key to separate two halves
+      keyNames .push(joinKeyName.bits);                                         // Key to separate two halves
       nextLevel.push(topNode); topNode = Join.topNode;                          // Current top node becomes middle of new node
 
       for (int i = 0; i < J; i++)                                               // Add right hand branch
-       {final Key       k = Join.keyNames .elementAt(i);
-        final Node n = Join.nextLevel.elementAt(i);
+       {final Stuck.Element k = Join.keyNames .elementAt(i);
+        final Node          n = Join.nextLevel.elementAt(i);
         keyNames .push(k);
         nextLevel.push(n);
        }
@@ -207,8 +215,8 @@ class Mjaf extends RiscV                                                       /
     Node findFirstGreaterOrEqual(Key keyName)                                   // Find first key which is greater an the search key. The result is 1 based, a result of zero means all the keys were less than or equal than the search key
      {final int N = size();                                                     // Number of keys currently in node
       for (int i = 0; i < N; i++)                                               // Check each key
-       {final Key k = keyNames.elementAt(i);                                    // Key
-        final boolean l = lessThanOrEqual(keyName, k);                          // Compare current key with search key
+       {final Stuck.Element k = keyNames.elementAt(i);                          // Key
+        final boolean l = lessThanOrEqual(keyName, key(k));                     // Compare current key with search key
         if (l) return nextLevel.elementAt(i);                                   // Current key is greater than or equal to the search key
        }
       return topNode;
@@ -218,15 +226,15 @@ class Mjaf extends RiscV                                                       /
      {final int N = nextLevel.size();                                           // Number of keys currently in node
       if (N >= maxKeysPerLeaf) stop("Too many keys in Branch");
       for (int i = 0; i < N; i++)                                               // Check each key
-       {final Key k = keyNames.elementAt(i);                                    // Key
-        final boolean l = lessThanOrEqual(keyName, k);                          // Compare current key with search key
+       {final Stuck.Element k = keyNames.elementAt(i);                          // Key
+        final boolean l = lessThanOrEqual(keyName, key(k));                     // Compare current key with search key
         if (l)                                                                  // Insert new key in order
-         {keyNames .insertElementAt(keyName, i);
+         {keyNames .insertElementAt(keyName.bits, i);
           nextLevel.insertElementAt(putNode, i);
           return;
          }
        }
-      keyNames .push(keyName);                                                  // Either the leaf is empty or the new key is greater than every existing key
+      keyNames .push(keyName.bits);                                             // Either the leaf is empty or the new key is greater than every existing key
       nextLevel.push(putNode);
      }
 
@@ -235,7 +243,7 @@ class Mjaf extends RiscV                                                       /
       final int K = keyNames.size();
 
       for (int i = 0; i < K; i++)                                               // Keys and next level indices
-        s.append(""+keyNames.elementAt(i).getInt()+":"+
+        s.append(""+keyNames.elementAt(i)+":"+
           nextLevel.elementAt(i).nodeNumber+", ");
 
       s.append(""+topNode.nodeNumber+")");
@@ -253,7 +261,7 @@ class Mjaf extends RiscV                                                       /
 
     void ok(String expected) {Mjaf.ok(toString(), expected);}                   // Check leaf
 
-    void traverse(Stack<Node>S)                                            // Traverse tree placing all its nodes on a stack
+    void traverse(Stack<Node>S)                                                 // Traverse tree placing all its nodes on a stack
      {super.traverse(S);
       for (int i = 0; i < size(); i++) nextLevel.elementAt(i).traverse(S);
       topNode.traverse(S);
@@ -275,7 +283,7 @@ class Mjaf extends RiscV                                                       /
    {final Stuck dataValues;                                                     // Data associated with each key
     Leaf()                                                                      // Data associated with keys in leaf
      {super(maxKeysPerLeaf);
-      dataValues = new Stuck<Data>(maxKeysPerLeaf);
+      dataValues = new Stuck(maxKeysPerLeaf, bitsPerData);
      }
 
     void clear() {keyNames.clear(); dataValues.clear();}                        // Clear leaf
@@ -287,17 +295,17 @@ class Mjaf extends RiscV                                                       /
       if (K >= maxKeysPerLeaf) stop("Too many keys in leaf");
 
       for (int i = 0; i < K; i++)
-       {final Key k = keyNames.elementAt(i);                                    // Current key
-        if (lessThanOrEqual(keyName, k))                                        // Insert new key in order
-         {keyNames  .insertElementAt(keyName,   i);
-          dataValues.insertElementAt(dataValue, i);
+       {final Stuck.Element k = keyNames.elementAt(i);                          // Current key
+        if (lessThanOrEqual(keyName, key(k)))                                   // Insert new key in order
+         {keyNames  .insertElementAt(keyName  .bits, i);
+          dataValues.insertElementAt(dataValue.bits, i);
           ++keyDataStored;                                                      // Create a new entry in the leaf
           return;
          }
        }
 
-      keyNames  .push(keyName);                                                 // Either the leaf is empty or the new key is greater than every existing key
-      dataValues.push(dataValue);
+      keyNames  .push(keyName.bits);                                            // Either the leaf is empty or the new key is greater than every existing key
+      dataValues.push(dataValue.bits);
       ++keyDataStored;                                                          // Created a new entry in the leaf
      }
 
@@ -307,8 +315,8 @@ class Mjaf extends RiscV                                                       /
       if (f < 1)         stop("First", f, "too small");
       final Leaf l = leaf();
       for (int i = 0; i < f; i++)                                               // Transfer keys and data
-       {final Key  k = keyNames  .removeElementAt(0);                           // Current key
-        final Data d = dataValues.removeElementAt(0);                           // Current data
+       {final Stuck.Element k = keyNames  .removeElementAt(0);                  // Current key
+        final Stuck.Element d = dataValues.removeElementAt(0);                  // Current data
         l.keyNames  .push(k);                                                   // Transfer keys
         l.dataValues.push(d);                                                   // Transfer data
        }
@@ -325,8 +333,8 @@ class Mjaf extends RiscV                                                       /
         "+", J, "greater than", maxKeysPerLeaf);
 
       for (int i = 0; i < J; i++)
-       {final Key  k = Join.keyNames  .elementAt(i);
-        final Data d = Join.dataValues.elementAt(i);
+       {final Stuck.Element k = Join.keyNames  .elementAt(i);
+        final Stuck.Element d = Join.dataValues.elementAt(i);
         keyNames  .push(k);
         dataValues.push(d);
        }
@@ -338,8 +346,8 @@ class Mjaf extends RiscV                                                       /
       s.append("Leaf(");
       final int K = keyNames.size();
       for  (int i = 0; i < K; i++)
-        s.append(""+keyNames.elementAt(i).getInt()+":"+
-                  dataValues.elementAt(i).getInt()+", ");
+        s.append(""+keyNames.elementAt(i)+":"+
+                  dataValues.elementAt(i)+", ");
       if (K > 0) s.setLength(s.length()-2);
       s.append(")");
       return s.toString();
@@ -348,7 +356,7 @@ class Mjaf extends RiscV                                                       /
     public String shortString()                                                 // Print a leaf compactly
      {final StringBuilder s = new StringBuilder();
       final int K = keyNames.size();
-      for  (int i = 0; i < K; i++) s.append(""+keyNames.elementAt(i).getInt()+",");
+      for  (int i = 0; i < K; i++) s.append(""+keyNames.elementAt(i)+",");
       if (K > 0) s.setLength(s.length()-1);
       return s.toString();
      }
@@ -368,16 +376,16 @@ class Mjaf extends RiscV                                                       /
 
 //D1 Search                                                                     // Find a key, data pair
 
-  Data find(Key keyName)                                                   // Find a the data associated with a key
+  Data find(Key keyName)                                                        // Find a the data associated with a key
    {if (root == null) return null;                                              // Empty tree
-    Node q = root;                                                             // Root of tree
+    Node q = root;                                                              // Root of tree
     for(int i = 0; i < 999 && q != null; ++i)                                   // Step down through tree up to some reasonable limit
      {if (!(q instanceof Branch)) break;                                        // Stepped to a leaf
       q = ((Branch)q).findFirstGreaterOrEqual(keyName);                         // Position of key
      }
 
     final int f = q.findIndexOfKey(keyName);                                    // We have arrived at a leaf
-    return f == -1 ? null : ((Leaf)q).dataValues.elementAt(f);                  // Key not found or data associated with key in leaf
+    return f == -1 ? null : data(((Leaf)q).dataValues.elementAt(f));            // Key not found or data associated with key in leaf
    }
 
   boolean findAndInsert(Key keyName, Data dataValue)                            // Find the leaf for a key and insert the indicated key, data pair into if possible, returning true if the insertion was possible else false.
@@ -387,7 +395,7 @@ class Mjaf extends RiscV                                                       /
       return true;                                                              // Successfully inserted
      }
 
-    Node q = root;                                                         // Root of tree
+    Node q = root;                                                              // Root of tree
     for(int i = 0; i < 999 && q != null; ++i)                                   // Step down through tree up to some reasonable limit
      {if (!(q instanceof Branch)) break;                                        // Stepped to a leaf
       q = ((Branch)q).findFirstGreaterOrEqual(keyName);                         // Position of key
@@ -395,7 +403,7 @@ class Mjaf extends RiscV                                                       /
 
     final int g = q.findIndexOfKey(keyName);                                    // We have arrived at a leaf
     final Leaf l = (Leaf)q;
-    if (g != -1) l.dataValues.setElementAt(dataValue, g);                       // Key already present in leaf
+    if (g != -1) l.dataValues.setElementAt(dataValue.bits, g);                  // Key already present in leaf
     else if (l.leafIsFull()) return false;                                      // There's no room in the leaf so return false
     l.putLeaf(keyName, dataValue);                                              // On a leaf that is not full so we can insert directly
     return true;                                                                // inserted directly
@@ -420,7 +428,7 @@ class Mjaf extends RiscV                                                       /
      }
     else ((Branch)root).splitRoot();                                            // Split full root which is a branch not a leaf
 
-    Branch p = (Branch)root; Node q = p;                                   // The root has already been split so the parent child relationship will be established
+    Branch p = (Branch)root; Node q = p;                                        // The root has already been split so the parent child relationship will be established
 
     for(int i = 0; i < 999; ++i)                                                // Step down through tree to find the required leaf, splitting as we go
      {if (!(q instanceof Branch)) break;                                        // Stepped to a branch
@@ -439,7 +447,7 @@ class Mjaf extends RiscV                                                       /
 
     final Leaf l = (Leaf)q;
     final int  g = l.findIndexOfKey(keyName);                                   // Locate index of key
-    if (g != -1) l.dataValues.setElementAt(dataValue, g);                       // Key already present in leaf
+    if (g != -1) l.dataValues.setElementAt(dataValue.bits, g);                  // Key already present in leaf
     else if (l.leafIsFull())                                                    // Split the node because it is full and we might need to insert below it requiring a slot in this node
      {final Key  k = l.splitKey();
       final Leaf e = l.splitLeaf();
@@ -483,14 +491,14 @@ class Mjaf extends RiscV                                                       /
        {final Branch  a = (Branch)A, b = (Branch)(r.topNode);
         final boolean j = a.joinableBranches(b);                                // Can we merge the two branches
         if (j)                                                                  // Merge the two branches
-         {final Key k = r.keyNames.firstElement();
-          a.joinBranch(b, k);
+         {final Stuck.Element k = r.keyNames.firstElement();
+          a.joinBranch(b, key(k));
           root = a;                                                             // New merged root
          }
        }
      }
 
-    Node P = root;                                                         // We now know that the root is a branch
+    Node P = root;                                                              // We now know that the root is a branch
 
     for    (int i = 0; i < 999; ++i)                                            // Step down through tree to find the required leaf, splitting as we go
      {if (!(P instanceof Branch)) break;                                        // Stepped to a branch
@@ -511,8 +519,8 @@ class Mjaf extends RiscV                                                       /
          {final Branch a = (Branch)A, b = (Branch)B;
           final boolean m = a.joinableBranches(b);                              // Can we merge the two branches
           if (m)                                                                // Merge the two branches
-           {final Key k = p.keyNames.removeElementAt(j);
-            a.joinBranch(b, k);
+           {final Stuck.Element k = p.keyNames.removeElementAt(j);
+            a.joinBranch(b, key(k));
             p.nextLevel.removeElementAt(j+1);
            }
          }
@@ -534,8 +542,8 @@ class Mjaf extends RiscV                                                       /
          {final Branch a = (Branch)A, b = (Branch)p.topNode;
           final boolean j = a.joinableBranches(b);                              // Can we merge the last two branches
           if (j)                                                                // Merge the last two branches
-           {final Key k = p.keyNames.pop();
-            a.joinBranch(b, k);
+           {final Stuck.Element k = p.keyNames.pop();
+            a.joinBranch(b, key(k));
             p.nextLevel.pop();
             p.topNode = a;
            }
@@ -591,23 +599,23 @@ class Mjaf extends RiscV                                                       /
   class NodeStack                                                               // Memory for branches and leaves
    {Integer size = 0, max = null, min = null;                                   // Statistics
 
-    void release(Node n)                                                   // Release a branch
+    void release(Node n)                                                        // Release a branch
      {n.next = nodesFreeList; nodesFreeList = n;                                // Add node to free list
       ++size;
       final int m = size;
       if (max == null) max = m; else max = max(max, m);
      }
 
-    Node recycle()                                                         // Recycle a node
+    Node recycle()                                                              // Recycle a node
      {if (nodesFreeList == null) stop("No more memory for branches/leaves");
       final int m = size - 1;
       if (min == null) min = m; else min = min(min, m);
-      final Node n = nodesFreeList; nodesFreeList = n.next;                // Remove node from free list
+      final Node n = nodesFreeList; nodesFreeList = n.next;                     // Remove node from free list
       --size; n.next = null;                                                    // Clear free list entry
       return n;
      }
 
-    Branch recycleBranch(Node node)                                        // Recycle a branch
+    Branch recycleBranch(Node node)                                             // Recycle a branch
      {recycle();
       final Branch b = new Branch();                                            // In Java we have to create a new object
       b.clear();                                                                // Pointless in Java but in assembler we will need to do this
@@ -630,7 +638,7 @@ class Mjaf extends RiscV                                                       /
 //D0 Tests                                                                      // Test the BTree
 
   static void test_create()
-   {var m = mjaf(12, 12, 6, 5);
+   {var m = mjaf(12, 10, 6, 5);
     var l = m.leaf();
     l.putLeaf(m.key(2), m.data( 4));
     l.putLeaf(m.key(4), m.data( 8));
@@ -687,7 +695,7 @@ class Mjaf extends RiscV                                                       /
     //B.ok("Branch(1:1, 2:2, 3:3, 4:4, 5:5, 6)");
 
     ok(B.findIndexOfKey(m.key(3)), 2);
-    ok(B.splitKey(), 3);
+    ok(B.splitKey().getInt(), 3);
     ok(B.size(), 5);
    }
 
@@ -706,7 +714,7 @@ class Mjaf extends RiscV                                                       /
     B.putBranch(m.key(4), d);
     B.putBranch(m.key(5), e);
     //B.ok("Branch(1:1, 2:2, 3:3, 4:4, 5:5, 6)");
-    ok(B.splitKey(), 3);
+    ok(B.splitKey().getInt(), 3);
     ok(B.branchIsFull(), true);
     ok(B.size(), 5);
     Mjaf.Branch C = B.splitBranch();
@@ -840,21 +848,21 @@ class Mjaf extends RiscV                                                       /
 1,13,27  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298,317   338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
 """);
     if (github_actions) for (int i = 0; i < r.length; ++i) ok(m.find(m.key(r[i])), m.data(i));
-    ok(m.find(m.key(r.length+1l)), null);
+    ok(m.find(m.key(r.length+1l)) == null);
    }
 
   static void test_find()
    {final int N = 64;
     var m = mjaf(12, 12, 4, N<<1);
     for (long i = 0; i < N; i++) m.put    (m.key(i), m.data(i<<1));
-    for (long i = 0; i < N; i++) ok(m.find(m.key(i)), m.data(i+i));
+    for (long i = 0; i < N; i++) ok(m.find(m.key(i)).getInt(), m.data(i+i).getInt());
    }
 
   static void test_find_reverse()
    {final int N = 64;
     var m = mjaf(12, 12, 4, N<<1);
     for (long i = N; i >= 0; i--) m.put    (m.key(i),  m.data(i<<1));
-    for (long i = N; i >= 0; i--) ok(m.find(m.key(i)), m.data(i+i));
+    for (long i = N; i >= 0; i--) ok(m.find(m.key(i)).getInt(), m.data(i+i).getInt());
    }
 
   static void test_delete()
@@ -863,7 +871,7 @@ class Mjaf extends RiscV                                                       /
     for (int i = 0; i < r.length; ++i) m.put(m.key(r[i]), m.data(i));
     for (int i = 0; i < r.length; ++i)
      {var a = m.delete(m.key(r[i]));
-      ok(a, (long)i);
+      ok(a.getInt(), (long)i);
       if (!true)                                                                // Write case statement to check deletions
        {say("        case", i, "-> /*", r[i], "*/ ok(m.printHorizontally(), \"\"\"");
         say(m.printHorizontally());
@@ -1440,7 +1448,7 @@ class Mjaf extends RiscV                                                       /
     //say("Delete after load");
     //say(m.nodes);
     for (int i = r.length-1; i >= 0; --i)
-     {ok(m.delete(m.key(r[i])), m.data(i));
+     {ok(m.delete(m.key(r[i])).getInt(), m.data(i).getInt());
       if (!true)                                                                 // Write case statement to check deletions
        {say("        case", i, "-> /*", r[i], "*/ ok(m.printHorizontally(), \"\"\"");
         say(m.printHorizontally());
@@ -2032,7 +2040,7 @@ class Mjaf extends RiscV                                                       /
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_save();
+    test_find();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
