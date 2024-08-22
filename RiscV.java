@@ -1022,7 +1022,7 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
 //D1 Variables                                                                  // Variables are symbolic names for fixed locations in memory
 
-  static abstract class MemoryLayout                                            // Variable/Array/Structure definition.
+  static abstract class MemoryLayout                                            // Variable/Array/Structure definition. Memory definitions can only be laid out once.
    {String name;                                                                // Name of field
     int at;                                                                     // Offset of variable either from start of memory or from start of a structure
     int width;                                                                  // Number of width in field
