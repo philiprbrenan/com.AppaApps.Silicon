@@ -1098,6 +1098,12 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
        }
       return null;                                                              // No matching path
      }
+    boolean[]memory()                                                           // Create enough memory for this item. The item must be an outermost item
+     {if (at > 0) stop("Layout not outer");
+      final boolean[]b = new boolean[width];
+      for (int i = 0; i < width; i++) b[i] = false;
+      return b;
+     }
     void set(boolean[]memory, boolean[]variable)                                // Set a variable in memory
      {if (variable.length != width) stop("Variable has length", width,
        "but variable has width", variable.length);
