@@ -1098,6 +1098,31 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
        }
       return null;                                                              // No matching path
      }
+    void set(boolean[]memory, boolean[]variable)                                // Set a variable in memory
+     {if (variable.length != width) stop("Variable has length", width,
+       "but variable has width", variable.length);
+      if (at + width >= memory.length) stop("Variable overruns end of memory");
+      for (int i = 0; i < width; i++) memory[at + i] = variable[i];
+     }
+    void set(boolean[]memory, int variable)                                     // Set a variable in memory from an integer
+     {final boolean[]b = new boolean[Integer.SIZE];                             // Bits in an integer
+      final int l = b.length, n = min(width, l);
+      for (int i = 0; i < l; i++) b[i] = false;                                 // Initialize
+      for (int i = 0; i < n; i++) b[i] = (variable & (1<<i)) != 0;              // Convert variable to bits
+      set(memory, b);
+     }
+    boolean[]get(boolean[]memory)                                               // Get a variable from memory as bits
+     {final boolean[]b = new boolean[width];
+      for (int i = 0; i < width; i++) b[i] = memory[at + i];
+      return b;
+     }
+    int getInt(boolean[]memory)                                                 // Get a variable from memory as an integer
+     {final boolean[]b = get(memory);
+      final int n = min(width, b.length);
+      int v = 0;
+      for (int i = 0; i < n; i++) if (b[i]) v &= (1<<i);                        // Convert bits to int
+      return v;
+     }
    }
 
   static class Variable extends MemoryLayout                                    // Variable
@@ -1116,7 +1141,7 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
      }
     Array    size(int Size)             {size    = Size;    return this;}       // Set the size of the array
     Array element(MemoryLayout Element) {element = Element; return this;}       // The type of the element in the array
-    int at(int i)                       {return at+i*element.width;}             // Offset of this array element in the structure
+    int at(int i)                       {return at+i*element.width;}            // Offset of this array element in the structure
 
     void layout(int At, int Depth, MemoryLayout ml)                             // Compile this variable so that the size, width and byte fields are correct
      {at = At; depth = Depth; ml.fields.push(this);
