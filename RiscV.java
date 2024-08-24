@@ -1022,6 +1022,37 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
 //D1 Variables                                                                  // Variables are symbolic names for fixed locations in memory
 
+  static class Memory                                                           // A block of memory
+   {final boolean[]bits;                                                        // Bits comprising the memory
+
+    Memory(int Size)                                                            // Size of memory
+     {bits = new boolean[Size];
+      for (int i = 0; i < Size; i++) bits[i] = false;
+     }
+
+    Memory(int Width, int Variable)                                             // Create a memory of specified width and set it to a specified value from an integer
+     {this(Width);
+      final int n = min(Width, Integer.SIZE);
+      for (int i = 0; i < n; i++) bits[i] = (Variable & (1<<i)) != 0;           // Convert variable to bits
+     }
+
+    int getInt()                                                                // Get a variable from memory as an integer
+     {final int n = size();
+      int v = 0;
+      for (int i = 0; i < n; i++) if (bits[i]) v |= (1<<i);                     // Convert bits to int
+      return v;
+     }
+
+    public String toString()                                                    // Memory as string
+     {final StringBuilder b = new StringBuilder();
+      final int size = size();
+      for (int i = size; i > 0; --i) b.append(bits[i-1] ? '1' : '0');
+      return b.toString();
+     }
+
+    int size() {return bits.length;}                                            // Size of memory
+   }
+
   static abstract class MemoryLayout                                            // Variable/Array/Structure definition. Memory definitions can only be laid out once.
    {String name;                                                                // Name of field
     int at;                                                                     // Offset of variable either from start of memory or from start of a structure
@@ -1098,35 +1129,35 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
        }
       return null;                                                              // No matching path
      }
-    boolean[]memory()                                                           // Create enough memory for this item. The item must be an outermost item
+
+    Memory memory()                                                             // Create enough memory for this item. The item must be an outermost item
      {if (at > 0) stop("Layout not outer");
-      final boolean[]b = new boolean[width];
-      for (int i = 0; i < width; i++) b[i] = false;
-      return b;
+      return new Memory(width);
      }
-    void set(boolean[]memory, boolean[]variable)                                // Set a variable in memory
-     {if (variable.length != width) stop("Variable has length", width,
-       "but variable has width", variable.length);
-      if (at + width >= memory.length) stop("Variable overruns end of memory");
-      for (int i = 0; i < width; i++) memory[at + i] = variable[i];
+
+    void set(Memory memory, Memory variable)                                    // Set a variable in memory
+     {if (variable.size() != width) stop("Variable has length", width,
+       "but variable has width", variable.size());
+      if (at + width >= memory.size()) stop("Variable overruns end of memory");
+      for (int i = 0; i < width; i++) memory.bits[at + i] = variable.bits[i];
      }
-    void set(boolean[]memory, int variable)                                     // Set a variable in memory from an integer
-     {final boolean[]b = new boolean[Integer.SIZE];                             // Bits in an integer
-      final int l = b.length, n = min(width, l);
-      for (int i = 0; i < l; i++) b[i] = false;                                 // Initialize
-      for (int i = 0; i < n; i++) b[i] = (variable & (1<<i)) != 0;              // Convert variable to bits
-      set(memory, b);
+
+    void set(Memory memory, int variable)                                       // Set a variable in memory from an integer
+     {final Memory m = new Memory(width, variable);
+      set(memory, m);
      }
-    boolean[]get(boolean[]memory)                                               // Get a variable from memory as bits
-     {final boolean[]b = new boolean[width];
-      for (int i = 0; i < width; i++) b[i] = memory[at + i];
-      return b;
+
+    Memory get(Memory memory)                                                   // Get a variable from memory as bits
+     {final Memory m = new Memory(width);
+      for (int i = 0; i < width; i++) m.bits[i] = memory.bits[at + i];
+      return m;
      }
-    int getInt(boolean[]memory)                                                 // Get a variable from memory as an integer
-     {final boolean[]b = get(memory);
-      final int n = min(width, b.length);
+
+    int getInt(Memory memory)                                                   // Get a variable from memory as an integer
+     {final Memory m = get(memory);                                             // Memory associated with variable
+      final int n = min(width, Integer.SIZE);
       int v = 0;
-      for (int i = 0; i < n; i++) if (b[i]) v &= (1<<i);                        // Convert bits to int
+      for (int i = 0; i < n; i++) if (m.bits[i]) v |= (1<<i);                   // Convert bits to int
       return v;
      }
    }
@@ -2220,6 +2251,12 @@ Registers  :  x3=11 x4=22
     ok(b1.get     (m, 0), "1100");
     ok(b1.getInt  (m, 0), 12);
 
+    Memory mT = T.memory();
+           a1.set(mT,  5);
+           b1.set(mT, 11);
+    ok(""+mT, "0000000000000000000000000000000000000000000000000000000010110101");
+    ok(a1.getInt(mT),  5);
+    ok(b1.getInt(mT), 11);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
