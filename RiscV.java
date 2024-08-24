@@ -1136,10 +1136,10 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
      }
 
     void set(Memory memory, Memory variable)                                    // Set a variable in memory
-     {if (variable.size() != width) stop("Variable has length", width,
-       "but variable has width", variable.size());
-      if (at + width >= memory.size()) stop("Variable overruns end of memory");
-      for (int i = 0; i < width; i++) memory.bits[at + i] = variable.bits[i];
+     {final int w = width, v = variable.size();
+      if (w != v) stop("Target variable has width", w,
+       "but source variable being assigned has width", v);
+      for (int i = 0; i < w; i++) memory.bits[at + i] = variable.bits[i];
      }
 
     void set(Memory memory, int variable)                                       // Set a variable in memory from an integer
@@ -1190,6 +1190,34 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     public String toString()                                                    // Print the field
      {return String.format("%4d  %4d  %4d  %s  %s",
                             at, width, size, indent(), name);
+     }
+
+    void set(Memory memory, int index, Memory variable)                         // Set an array element in memory
+     {final int w = element.width, v = variable.size(), o = at + index * w;     // Size of an array element, size of the supplied variable used to set the array element,  offset in array in bits
+      if (w != v) stop("Array element has width", w,
+       "but variable being assigned has width", v);
+      for (int i = 0; i < element.width; i++)
+        memory.bits[o + i] = variable.bits[i];                                  // Set bits of array element
+     }
+
+    void set(Memory memory, int index, int variable)                            // Set an array element from an integer
+     {final Memory m = new Memory(element.width, variable);
+      set(memory, index, m);
+     }
+
+    Memory get(Memory memory, int index)                                        // Get an array element from memory as bits
+     {final int w = element.width, o = at + index * w;                          // Size of an array element, size of the supplied variable used to set the array element,  offset in array in bits
+      final Memory m = new Memory(w);
+      for (int i = 0; i < w; i++) m.bits[i] = memory.bits[o + i];               // Copy bits of array element
+      return m;
+     }
+
+    int getInt(Memory memory, int index)                                        // Get an array element from memory as an integer
+     {final Memory m = get(memory, index);                                      // Memory associated with variable
+      final int n = min(element.width, Integer.SIZE);
+      int v = 0;
+      for (int i = 0; i < n; i++) if (m.bits[i]) v |= (1<<i);                   // Convert bits to int
+      return v;
      }
    }
 
@@ -2244,19 +2272,30 @@ Registers  :  x3=11 x4=22
     ok(T.getFieldDef("outer.inner2.C2.c2").at, 36);
     ok(C2.at(2), 40);
 
-    final Boolean[]m = new Boolean[100];
-       b2.set     (m, 0,  "1100");
-    ok(b2.get     (m, 0), "1100");
-    b1.copy       (m, 0,  m, 0, b2);
-    ok(b1.get     (m, 0), "1100");
-    ok(b1.getInt  (m, 0), 12);
+    if (true)                                                                   // Set memory directly
+     {final Boolean[]m = new Boolean[100];
+         b2.set     (m, 0,  "1100");
+      ok(b2.get     (m, 0), "1100");
+      b1.copy       (m, 0,  m, 0, b2);
+      ok(b1.get     (m, 0), "1100");
+      ok(b1.getInt  (m, 0), 12);
+     }
 
-    Memory mT = T.memory();
-           a1.set(mT,  5);
-           b1.set(mT, 11);
-    ok(""+mT, "0000000000000000000000000000000000000000000000000000000010110101");
-    ok(a1.getInt(mT),  5);
-    ok(b1.getInt(mT), 11);
+    if (true)                                                                   // Set variables
+     {Memory m = T.memory();
+             a1.set(m,  5);
+             b1.set(m, 11);
+      ok(""+m, "0000000000000000000000000000000000000000000000000000000010110101");
+      ok(a1.getInt(m),  5);
+      ok(b1.getInt(m), 11);
+     }
+
+    if (true)                                                                   // Set array elements
+     {Memory m = T.memory();
+      for (int i = 0; i < C1.size; i++) C1.set(m, i, i % 4);
+      ok(""+m, "0000000000000000000000000000000000000100111001001110010000000000");
+      for (int i = 0; i < C1.size; i++) ok(C1.getInt(m, i), i % 4);
+     }
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
