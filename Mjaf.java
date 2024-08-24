@@ -594,7 +594,7 @@ class Mjaf extends RiscV                                                        
     return joinStrings(S);
    }
 
-//D1 Memory                                                                     // Preallocated memory for branches and leaves
+//D1 Memory                                                                     // Preallocated memory for branches and leaves to act as memory for the tree
 
   class NodeStack                                                               // Memory for branches and leaves
    {Integer size = 0, max = null, min = null;                                   // Statistics
