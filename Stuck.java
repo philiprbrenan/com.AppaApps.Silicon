@@ -6,7 +6,7 @@ package com.AppaApps.Silicon;                                                   
 
 import java.util.*;
 
-class Stuck extends Chip implements Iterable<Stuck.Element>                     // Stuck: a fixed size stack controlled by a unary number. The unary number zero indicates an empty stuck stack.
+class Stuck extends RiscV implements Iterable<Stuck.Element>                    // Stuck: a fixed size stack controlled by a unary number. The unary number zero indicates an empty stuck stack.
  {final Unary u;                                                                // The unary number that controls the stuck stack
   final Element[]s;                                                             // The stuck stack
   final int max;                                                                // The maximum number of entries in the stuck stack.
@@ -64,10 +64,26 @@ class Stuck extends Chip implements Iterable<Stuck.Element>                     
 
   int size() {return u.get();}                                                  // The current size of the stuck stack
 
-  void ok(String expected) {ok(toString(), expected);}                          // Check the stuck stack
+  public void ok(String expected) {ok(toString(), expected);}                   // Check the stuck stack
 
   boolean isFull()  {return size() >= u.max();}                                 // Check the stuck stack is full
   boolean isEmpty() {return size() <= 0;}                                       // Check the stuck stack is empty
+
+  static class StuckMemoryLayout                                                // Memory layout for a stuck stack
+   {final Variable  unary;                                                      // Current index of the top of the stuck
+    final Variable  element;                                                    // An element of the stuck ,
+    final Array     array;                                                      // The array of elements making the stuck
+    final Structure stuck;                                                      // Structure of the stuck stack
+    StuckMemoryLayout (int max, int width)                                      // Create the a memory layout for a stuck stack of specified size
+     {final RiscV r = new RiscV();
+      unary   = r.variable ("unary",   max);
+      element = r.variable ("element", width);
+      array   = r.array    ("array",   element, max);
+      stuck   = r.structure("stuck",   unary, array);
+      stuck.layout();                                                           // Layout memory
+     }
+    Memory memory() {return stuck.memory();}                                    // Create a memory to hold the stuck stack
+   }
 
 //D1 Actions                                                                    // Place and remove data to/from stuck stack
 
@@ -284,6 +300,16 @@ class Stuck extends Chip implements Iterable<Stuck.Element>                     
     s.push(4); s.ok("Stuck(3, 4)");  ok(s.size(), 2);
    }
 
+  static void test_structure()
+   {StuckMemoryLayout s = new StuckMemoryLayout(4, 4);
+    Memory            m = s.memory();
+    s.unary.set(m, 7);
+    s.array.set(m, 0,  1);
+    s.array.set(m, 1,  3);
+    s.array.set(m, 2,  7);
+    ok(m, "00000111001100010111");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_action();
     test_push_shift();
@@ -292,6 +318,7 @@ class Stuck extends Chip implements Iterable<Stuck.Element>                     
     test_search();
     test_iterate_zero();
     test_iterate();
+    test_structure();
    }
 
   static void newTests()                                                        // Tests being worked on
