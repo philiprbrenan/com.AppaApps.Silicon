@@ -133,7 +133,7 @@ class Mjaf extends RiscV                                                        
      {final Integer a = nodeNumber, b = B.nodeNumber;
       return a.compareTo(b);
      }
-   }
+   }  // Node
 
   Stack<Node> traverse()                                                        // Traverse tree placing all its nodes on a stack
    {final Stack<Node> S = new Stack<>();
