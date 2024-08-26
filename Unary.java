@@ -4,7 +4,7 @@
 //------------------------------------------------------------------------------
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
 
-class Unary extends Chip                                                        // Unary arithmetic
+class Unary extends RiscV                                                       // Unary arithmetic
  {final boolean[]u;                                                             // The unary number.  00111 == 3
 
 //D1 Construction                                                               // Create a unary number
@@ -29,6 +29,16 @@ class Unary extends Chip                                                        
   void ok(int n) {ok(get(), n);}                                                // Check that a unary number has the expected value
 
   java.util.Stack<Boolean> bits() {return concatBits(u);}                       // Stack of bits representing this unary number
+
+  static class UnaryMemoryLayout                                                // Memory layout for a stuck stack
+   {final Variable  unary;                                                      // Current index of the top of the stuck
+    UnaryMemoryLayout(int max)                                                  // Create the a memory layout for a unary number
+     {final RiscV r = new RiscV();
+      unary   = r.variable ("unary",   max);
+      unary.layout();                                                           // Layout memory
+     }
+    Memory memory() {return unary.memory();}                                    // Create a memory to hold the unary number
+   }
 
 //D1 Set and get                                                                // Set and get a unary number
 
