@@ -1027,16 +1027,50 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
     Memory(int Size)                                                            // Size of memory
      {bits = new boolean[Size];
-      for (int i = 0; i < Size; i++) bits[i] = false;
+      zero();
      }
 
-    Memory(int Width, int Variable)                                             // Create a memory of specified width and set it to a specified value from an integer
+    Memory(int Width, int value)                                                // Create a memory of specified width and set it to a specified value from an integer
      {this(Width);
-      final int n = min(Width, Integer.SIZE);
-      for (int i = 0; i < n; i++) bits[i] = (Variable & (1<<i)) != 0;           // Convert variable to bits
+      set(value);
      }
 
-    int getInt()                                                                // Get a variable from memory as an integer
+    void zero()                                                                 // Zero a memory
+     {final int size = bits.length;
+      for (int i = 0; i < size; i++) bits[i] = false;
+     }
+
+    void shiftLeftFillWithZeros(int left)                                       // Shift left filling with zeroes
+     {final int size = bits.length;
+      for (int i = size; i > left; --i) bits[i-1] = bits[i-1-left];
+      for (int i = 0;    i < left; ++i) bits[i] = false;
+     }
+
+    void shiftLeftFillWithOnes(int left)                                        // Shift left filling with ones
+     {final int size = bits.length;
+      for (int i = size; i > left; --i) bits[i-1] = bits[i-1-left];
+      for (int i = 0;    i < left; ++i) bits[i] = true;
+     }
+
+    void shiftRightFillWithZeros(int right)                                     // Shift right filling with zeroes
+     {final int size = bits.length;
+      for (int i = 0; i < size-right;    ++i) bits[i] = bits[i+right];
+      for (int i = size-right; i < size; ++i) bits[i] = false;
+     }
+
+    void shiftRightFillWithSign(int right)                                      // Shift right filling with sign
+     {final int size = bits.length;
+      for (int i = 0; i < size-right;      ++i) bits[i] = bits[i+right];
+      final boolean sign = bits[size-1];
+      for (int i = size-right; i < size-1; ++i) bits[i] = sign;
+     }
+
+    void set(int value)                                                         // Set memory to the value of an integer
+     {final int n = min(size(), Integer.SIZE);
+      for (int i = 0; i < n; i++) bits[i] = (value & (1<<i)) != 0;              // Convert variable to bits
+     }
+
+    int getInt()                                                                // Get memory as an integer
      {final int n = size();
       int v = 0;
       for (int i = 0; i < n; i++) if (bits[i]) v |= (1<<i);                     // Convert bits to int
@@ -1051,6 +1085,19 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
      }
 
     int size() {return bits.length;}                                            // Size of memory
+
+    void set(Memory source, int offset)                                         // Copy source memory into this memory at the specified offset
+     {final int t = size(), s = source.size(), m = min(t, s);
+      if (offset + s > t) stop("Cannot write beyond end of memory");
+      for (int i = 0; i < m; i++) bits[offset+i] = source.bits[i];              // Load the specified string into memory
+     }
+
+    Memory get(int offset, int width)                                           // Get a subs section of this memory
+     {final Memory m = new Memory(width);
+      if (offset + width > size()) stop("Cannot read beyond end of memory");
+      for (int i = 0; i < width; i++) m.bits[i] = bits[offset+i];
+      return m;
+     }
    }
 
   static abstract class MemoryLayout                                            // Variable/Array/Structure definition. Memory definitions can only be laid out once.
@@ -1067,42 +1114,6 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     abstract void layout(int at, int depth, MemoryLayout ml);                   // Layout this field
     void layout() {fields = new Stack<>(); layout(0, 0, this);}                 // Layout the fields in the structure defined by this field
     String indent() {return "  ".repeat(depth);}                                // Indentation
-
-    void set(Boolean[]target, int targetOffset, String content)                 // Offset in target memory to bemoved to described by this memory layout
-     {final String c = cleanBoolean(content);                                   // Clean the input boolean string
-      final int l = c.length(), L = l - 1;
-      if (l != width)
-        stop("Width of string does not math width of target", width, l);
-      for (int i = 0; i < width; i++) target[at+i] =                            // Load the specified string into memory
-        content.charAt(L-i) == '1' ? true  :
-        content.charAt(L-i) == '0' ? false : null;
-     }
-
-    String get(Boolean[]memory, int offset)                                     // Get a string describing bits in memory
-     {final StringBuilder b = new StringBuilder();
-      for (int i = 0; i < width; i++)
-       {final Boolean m = memory[at+i];
-        b.append(m == null ? '.' : m ? '1' : '0');
-       }
-      return b.reverse().toString();
-     }
-
-    Integer getInt(Boolean[]memory, int offset)                                 // Get the value of memory as an integer
-     {int v = 0;
-      for (int i = 0; i < width; i++)
-       {final Boolean m = memory[at+i];
-        if (m == null) return null;
-        if  (m) v += 1<<i;
-       }
-      return v;
-     }
-
-    void copy(Boolean[]target, int targetOffset,                                // Copy memory from source location to the target location described by this memory layout. Offset in target memory to bemoved to described by this memory layout
-              Boolean[]source, int sourceOffset,  MemoryLayout sourceLayout)    // Offset in source memory to be moved from described by a memory layout
-     {if (width != sourceLayout.width)
-        stop("Source and target widths differ", width, sourceLayout.width);
-      for (int i = 0; i < width; i++) target[at+i] = source[sourceLayout.at+i];
-     }
 
     public String toString()                                                    // Print the memory layout header
      {return String.format("%4d  %4d        %s  %s", at, width, indent(), name);
@@ -1135,31 +1146,14 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
       return new Memory(width);
      }
 
-    void set(Memory memory, Memory variable)                                    // Set a variable in memory
-     {final int w = width, v = variable.size();
-      if (w != v) stop("Target variable has width", w,
-       "but source variable being assigned has width", v);
-      for (int i = 0; i < w; i++) memory.bits[at + i] = variable.bits[i];
-     }
-
+    void set(Memory memory, Memory variable) {memory.set(variable, at);}        // Set a variable in memory
     void set(Memory memory, int variable)                                       // Set a variable in memory from an integer
      {final Memory m = new Memory(width, variable);
       set(memory, m);
      }
 
-    Memory get(Memory memory)                                                   // Get a variable from memory as bits
-     {final Memory m = new Memory(width);
-      for (int i = 0; i < width; i++) m.bits[i] = memory.bits[at + i];
-      return m;
-     }
-
-    int getInt(Memory memory)                                                   // Get a variable from memory as an integer
-     {final Memory m = get(memory);                                             // Memory associated with variable
-      final int n = min(width, Integer.SIZE);
-      int v = 0;
-      for (int i = 0; i < n; i++) if (m.bits[i]) v |= (1<<i);                   // Convert bits to int
-      return v;
-     }
+    Memory get(Memory memory) {return memory.get(at, width);}                   // Get a variable from memory as bits
+    int getInt(Memory memory) {return get(memory).getInt();}                    // Get a variable from memory as an integer
    }
 
   static class Variable extends MemoryLayout                                    // Variable
@@ -2273,21 +2267,22 @@ Registers  :  x3=11 x4=22
     ok(C2.at(2), 40);
 
     if (true)                                                                   // Set memory directly
-     {final Boolean[]m = new Boolean[100];
-         b2.set     (m, 0,  "1100");
-      ok(b2.get     (m, 0), "1100");
-      b1.copy       (m, 0,  m, 0, b2);
-      ok(b1.get     (m, 0), "1100");
-      ok(b1.getInt  (m, 0), 12);
-     }
-
-    if (true)                                                                   // Set variables
-     {Memory m = T.memory();
-             a1.set(m,  5);
-             b1.set(m, 11);
-      ok(""+m, "0000000000000000000000000000000000000000000000000000000010110101");
-      ok(a1.getInt(m),  5);
-      ok(b1.getInt(m), 11);
+     {final Memory m = T.memory();
+         b1.set   (m,   1);
+         b2.set   (m,  12);
+      ok(b1.getInt(m),  1);
+      ok(b2.getInt(m), 12);
+      ok(""+m, "0000000000000000000000000000110000000000000000000000000000010000");
+      m.shiftRightFillWithSign(1);
+      ok(""+m, "0000000000000000000000000000011000000000000000000000000000001000");
+      m.shiftLeftFillWithOnes(2);
+      ok(""+m, "0000000000000000000000000001100000000000000000000000000000100011");
+      m.shiftLeftFillWithZeros(2);
+      ok(""+m, "0000000000000000000000000110000000000000000000000000000010001100");
+      m.shiftLeftFillWithZeros(25);
+      ok(""+m, "1100000000000000000000000000000100011000000000000000000000000000");
+      m.shiftRightFillWithSign(2);
+      ok(""+m, "1111000000000000000000000000000001000110000000000000000000000000");
      }
 
     if (true)                                                                   // Set array elements
@@ -2327,7 +2322,7 @@ Registers  :  x3=11 x4=22
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
     test_variable();
    }
 
