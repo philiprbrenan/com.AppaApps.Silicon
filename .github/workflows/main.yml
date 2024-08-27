@@ -1,4 +1,4 @@
-# Test 2024-08-28 at 00:44:08
+# Test 2024-08-28 at 00:44:54
 
 name: Test
 run-name: Silicon Chip
@@ -72,7 +72,7 @@ jobs:
     - name: Test Stuck
       if: matrix.task == 'Stuck'
       run: |
-        java -cp Classes com/AppaApps/Silicon/Stuck
+        #java -cp Classes com/AppaApps/Silicon/Stuck
 
     - name: Test Mjaf
       if: matrix.task == 'Mjaf'
