@@ -6,9 +6,9 @@ package com.AppaApps.Silicon;                                                   
 
 import java.util.*;
 
-class Stuck extends RiscV implements Iterable<Stuck.Element>                    // Stuck: a fixed size stack controlled by a unary number. The unary number zero indicates an empty stuck stack.
- {final Unary u;                                                                // The unary number that controls the stuck stack
-  final Element[]s;                                                             // The stuck stack
+class Stuck extends RiscV                                                       // Stuck: a fixed size stack controlled by a unary number. The unary number zero indicates an empty stuck stack.
+ {final StuckMemoryLayout memoryLayout;                                         // The layout of the stuck stack
+ {final Memory memory;                                                          // The memory of the stuck stack
   final int max;                                                                // The maximum number of entries in the stuck stack.
   final int width;                                                              // The width of each object in the stuck in bits
 
@@ -16,49 +16,13 @@ class Stuck extends RiscV implements Iterable<Stuck.Element>                    
 
   Stuck(int Max, int Width)                                                     // Create the stuck stack
    {max = Max; width = Width;
-    u = new Unary(Max);                                                         // Create the unary number that indicates the top of the stuck stack
-    s = new Element[width];                                                     // The stuck stack
+    memoryLayout = new StuckMemoryLayout("stuck", max, width);                  // The stuck stack layout
+    memory = memoryLayout.memory();                                             // The stuck stack memory
    }
 
   static Stuck stuck(int max, int width) {return new Stuck(max, width);}        // Create a stuck stack
 
-  void clear() {u.set(0);}                                                      // Clear a stuck stack
-
-  public Stuck clone()                                                          // Clone a stuck stack
-   {final Stuck t = new Stuck(max, width);                                      // Create new stuck
-    for (int i = 0; i < max; i++) t.s[i] = s[i];                                // Clone stuck stack
-    return t;
-   }
-
-  class Element                                                                 // An element of the stack
-   {final boolean[]data;
-    Element(boolean[]Data)                                                      // Elements from array of bits
-     {if (Data.length != width) stop("Width of element is", Data.length, "not", width);
-      data = new boolean[width];
-      for (int i = 0; i < width; i++) data[i] = Data[i];
-     }
-    Element(int Data)                                                           // Element from integer
-     {data = new boolean[width];
-      for (int i = 0; i < width; i++) data[i] = (Data & (1<<i)) != 0;
-     }
-    public String toString()                                                    // Convert to string
-     {int v = 0;
-      for (int i = 0; i < width; i++) v += data[i] ? 1<<i : 0;
-      return ""+v;
-     }
-    public boolean equals(Element e)                                            // Compare two bit strings for equality
-     {for (int i = 0; i < width; i++) if (data[i] != e.data[i]) return false;
-      return true;
-     }
-    boolean[]bits() {return data;}                                              // Bits in element
-   }
-
-
-  Stack<Boolean> bits()                                                         // Stack of bits representing stuck
-   {Stack<Boolean> b = u.bits();
-    for (int i = 0; i < max; i++) concatBits(b, s[i].data);
-    return b;
-   }
+  void clear() {memor.set(0);}                                                      // Clear a stuck stack
 
 //D1 Characteristics                                                            // Characteristics of the stuck stack
 
@@ -69,32 +33,27 @@ class Stuck extends RiscV implements Iterable<Stuck.Element>                    
   boolean isFull()  {return size() >= u.max();}                                 // Check the stuck stack is full
   boolean isEmpty() {return size() <= 0;}                                       // Check the stuck stack is empty
 
-  static class StuckMemoryLayout                                                // Memory layout for a stuck stack
-   {final Variable  unary;                                                      // Current index of the top of the stuck
-    final Variable  element;                                                    // An element of the stuck ,
-    final Array     array;                                                      // The array of elements making the stuck
-    final Structure stuck;                                                      // Structure of the stuck stack
-    StuckMemoryLayout (int max, int width)                                      // Create the a memory layout for a stuck stack of specified size
-     {final RiscV r = new RiscV();
-      unary   = r.variable ("unary",   max);
-      element = r.variable ("element", width);
-      array   = r.array    ("array",   element, max);
-      stuck   = r.structure("stuck",   unary, array);
-      stuck.layout();                                                           // Layout memory
+  static class StuckMemoryLayout extends Structure                              // Memory layout for a stuck stack
+   {final Variable unary;                                                       // Unary vector to show used positions in stuck stack
+    final Variable element;                                                     // Element on stuck stack
+    final Array    array;                                                       // Array of elements implementing the stuck stack
+
+    StuckMemoryLayout(String name)                                              // Create the a memory layout for a unary number
+     {super(name);                                                              // Unary vector to show used positions in stuck stack
+      unary   = new Variable("unary",   max);                                   // Unary vector to show used positions in stuck stack
+      element = new Variable("element", width);                                 // Element on stuck stack
+      array   = new Array   ("array",   element, max);                          // Array of elements implementing the stuck stack
+      addField(unary);                                                          // Add the unary indicator
+      addField(array);                                                          // Add the array
+      layout();                                                                 // Layout memory
      }
-    Memory memory() {return stuck.memory();}                                    // Create a memory to hold the stuck stack
    }
 
 //D1 Actions                                                                    // Place and remove data to/from stuck stack
 
-  void checkLength(boolean[]bits)                                               // Check the width of the supplied bits
-   {final int b = bits.length;
-    if (b != width) stop("Bits has width", b, "but expected", width);
-   }
-
-  void push(boolean[]bits)                                                      // Push an element onto the stuck stack
+  void push(Memory element)                                                     // Push an element onto the stuck stack
    {if (!u.canInc()) stop("Stuck is full");
-    checkLength(bits);
+    new MemoryLayout("").checkLength(bits);
     s[size()] = new Element(bits);
     u.inc();
    }
