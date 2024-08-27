@@ -1092,11 +1092,37 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
       for (int i = 0; i < m; i++) bits[offset+i] = source.bits[i];              // Load the specified string into memory
      }
 
-    Memory get(int offset, int width)                                           // Get a subs section of this memory
+    Memory get(int offset, int width)                                           // Get a sub section of this memory
      {final Memory m = new Memory(width);
       if (offset + width > size()) stop("Cannot read beyond end of memory");
       for (int i = 0; i < width; i++) m.bits[i] = bits[offset+i];
       return m;
+     }
+
+    int countLeadingZeros()                                                     // Count leading zeros
+     {int c = 0;
+      for (int i = size(); i > 0; --i) if (bits[i-1]) return c; else ++c;
+      return c;
+     }
+
+    int countLeadingOnes()                                                      // Count leading ones
+     {int c = 0;
+      for (int i = size(); i > 0; --i) if (!bits[i-1]) return c; else ++c;
+      return c;
+     }
+
+    int countTrailingZeros()                                                    // Count trailing zeros
+     {final int n = size();
+      int c = 0;
+      for (int i = 0; i < n; ++i) if (bits[i]) return c; else ++c;
+      return c;
+     }
+
+    int countTrailingOnes()                                                     // Count trailing ones
+     {final int n = size();
+      int c = 0;
+      for (int i = 0; i < n; ++i) if (!bits[i]) return c; else ++c;
+      return c;
      }
    }
 
@@ -1106,13 +1132,16 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     int width;                                                                  // Number of width in field
     int depth;                                                                  // Depth of field
     MemoryLayout up;                                                            // Chain to containing field
-    Stack<MemoryLayout> fields;                                                 // Fields in structure
+    Stack<MemoryLayout> fields;                                                 // Fields in the super structure in the order they appear in the memory layout. Only relevant in the outer most layout == the super structure,  where it is used for printing the structure and locating sub structures.
 
     MemoryLayout(String Name)       {name  = Name;}
     MemoryLayout width(int Width)   {width = Width; return this;}
 
-    abstract void layout(int at, int depth, MemoryLayout ml);                   // Layout this field
+    abstract void layout(int at, int depth, MemoryLayout superStructure);       // Layout this field within the super structure.
     void layout() {fields = new Stack<>(); layout(0, 0, this);}                 // Layout the fields in the structure defined by this field
+
+    abstract void position(int at);                                             // Reposition array elements to take account of the index applied to the array
+
     String indent() {return "  ".repeat(depth);}                                // Indentation
 
     public String toString()                                                    // Print the memory layout header
@@ -1133,7 +1162,7 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
       for (MemoryLayout m : fields)                                             // Each field in structure
        {MemoryLayout p = m;                                                     // Start at this field and try to match the path
         boolean found = true;
-        for(int q = names.length; q > 0 && p != null && found; --q, p = p.up)   // Back track through anmes
+        for(int q = names.length; q > 0 && p != null && found; --q, p = p.up)   // Back track through names
          {found = p.name.equals(names[q-1]);                                    // Check path matches
          }
         if (found) return m;                                                    // Return this field if its path matches
@@ -1154,17 +1183,26 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
     Memory get(Memory memory) {return memory.get(at, width);}                   // Get a variable from memory as bits
     int getInt(Memory memory) {return get(memory).getInt();}                    // Get a variable from memory as an integer
+
+    void checkLength(Memory memory)                                             // Check that the memory can accommodate the memory layout
+     {final int w = at + width, m = memory.size();
+      if (w >= m) stop("Variable beyond the end of memory", w, m);
+     }
    }
 
   static class Variable extends MemoryLayout                                    // Variable
-   {Variable(String name, int Width) {super(name); width(Width);}
-    void layout(int At, int Depth, MemoryLayout ml)
-     {at = At; depth = Depth; ml.fields.push(this);
+   {Variable(String name, int Width)
+     {super(name); width(Width);
      }
+    void layout(int At, int Depth, MemoryLayout superStructure)
+     {at = At; depth = Depth; superStructure.fields.push(this);
+     }
+    void position(int At) {at = At;}
    }
 
   static class Array extends MemoryLayout                                       // Array definition.
    {int size;                                                                   // Dimension of array
+    int index = 0;                                                              // Index of array element to access
     MemoryLayout element;                                                       // The elements of this array
     Array(String Name, MemoryLayout Element, int Size)
      {super(Name);
@@ -1174,19 +1212,22 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
     Array element(MemoryLayout Element) {element = Element; return this;}       // The type of the element in the array
     int at(int i)                       {return at+i*element.width;}            // Offset of this array element in the structure
 
-    void layout(int At, int Depth, MemoryLayout ml)                             // Compile this variable so that the size, width and byte fields are correct
-     {at = At; depth = Depth; ml.fields.push(this);
-      element.layout(at, Depth+1, ml);
+    void layout(int At, int Depth, MemoryLayout superStructure)                 // Compile this variable so that the size, width and byte fields are correct
+     {at = At; depth = Depth; superStructure.fields.push(this);
+      element.layout(at, Depth+1, superStructure);
       element.up = this;                                                        // Chain up
       width = size * element.width;
      }
+    void position(int At) {at = At; element.position(at + index * element.width);}
 
     public String toString()                                                    // Print the field
      {return String.format("%4d  %4d  %4d  %s  %s",
                             at, width, size, indent(), name);
      }
 
-    void set(Memory memory, int index, Memory variable)                         // Set an array element in memory
+    void setIndex(int Index) {index = Index; position(at);}                     // Sets the index for the current array element allowing us to set and get this element and all its sub elements.
+
+/*  void set(Memory memory, int index, Memory variable)                         // Set an array element in memory
      {final int w = element.width, v = variable.size(), o = at + index * w;     // Size of an array element, size of the supplied variable used to set the array element,  offset in array in bits
       if (w != v) stop("Array element has width", w,
        "but variable being assigned has width", v);
@@ -1213,6 +1254,7 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
       for (int i = 0; i < n; i++) if (m.bits[i]) v |= (1<<i);                   // Convert bits to int
       return v;
      }
+*/
    }
 
   static class Structure extends MemoryLayout                                   // Structure laid out in memory
@@ -1221,30 +1263,42 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
 
     Structure(String Name, MemoryLayout...Fields)                               // Fields in the structure
      {super(Name);
-      for (int i = 0; i < Fields.length; ++i)                                   // Each field in this structure
-       {final MemoryLayout s = Fields[i];
-        s.up = this;                                                            // Chain up to containing structure
-        if (subMap.containsKey(s.name)) stop(name, "already contains", s.name);
-        subMap  .put (s.name, s);                                               // Add as a sub structure by name
-        subStack.push(s);                                                       // Add as a sub structure in order
-       }
+      for (int i = 0; i < Fields.length; ++i) addField(Fields[i]);              // Each field in this structure
      }
 
-    void layout(int at, int Depth, MemoryLayout ml)                             // Compile this variable so that the size, width and byte fields are correct
+    void addField(MemoryLayout Field)                                           // Add additional fields
+     {Field.up = this;                                                          // Chain up to containing structure
+      if (subMap.containsKey(Field.name))
+       {stop("Structure already contains field with this name", name, Field.name);
+       }
+     subMap.put (Field.name, Field);                                            // Add as a sub structure by name
+     subStack.push(Field);                                                      // Add as a sub structure in order
+     }
+
+    void layout(int at, int Depth, MemoryLayout superStructure)                 // Compile this variable so that the size, width and byte fields are correct
      {int w = 0;
       width = 0;
       depth = Depth;
-      ml.fields.push(this);
+      superStructure.fields.push(this);
       for(MemoryLayout v : subStack)                                            // Layout sub structure
        {v.at = at+width;
-        v.layout(v.at, Depth+1, ml);
+        v.layout(v.at, Depth+1, superStructure);
         width += v.width;
+       }
+     }
+
+    void position(int At)                                                       // Reposition this structure to allow access to array elements via an index
+     {at = At;
+      int w = 0;
+      for(MemoryLayout v : subStack)                                            // Layout sub structure
+       {v.position(v.at = at+w);
+        w += v.width;
        }
      }
    }
 
   static class Union extends MemoryLayout                                       // Union of structures laid out in memory
-   {final Map<String,MemoryLayout> subMap   = new TreeMap<>();                  // Unique variables contained inside this variable
+   {final Map<String,MemoryLayout> subMap = new TreeMap<>();                    // Unique variables contained inside this variable
 
     Union(String Name, MemoryLayout...Fields)                                   // Fields in the union
      {super(Name);
@@ -1256,16 +1310,21 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
        }
      }
 
-    void layout(int at, int Depth, MemoryLayout ml)                             // Compile this variable so that the size, width and byte fields are correct
+    void layout(int at, int Depth, MemoryLayout superStructure)                 // Compile this variable so that the size, width and byte fields are correct
      {int w = 0;
       width = 0;
       depth = Depth;
-      ml.fields.push(this);
+      superStructure.fields.push(this);
       for(MemoryLayout v : subMap.values())                                     // Find largest substructure
        {v.at = at;
-        v.layout(v.at, Depth+1, ml);
+        v.layout(v.at, Depth+1, superStructure);
         width = max(width, v.width);                                            // Space occupied is determined by largest element of union
        }
+     }
+
+    void position(int At)                                                       // Position elemenst of this union to allow arrays to access their elements by an index
+     {at = At;
+      for(MemoryLayout v : subMap.values()) {v.position(at);}
      }
    }
 
@@ -2242,6 +2301,7 @@ Registers  :  x3=11 x4=22
     Structure T  = r.structure("outer",  s1, s2, u3);
 
     T.layout();
+    T.layout();                                                                 // Layout multiple times is ok
     ok(T.print(), """
   At  Wide  Size    Field name
    0    64          outer
@@ -2272,6 +2332,7 @@ Registers  :  x3=11 x4=22
          b2.set   (m,  12);
       ok(b1.getInt(m),  1);
       ok(b2.getInt(m), 12);
+
       ok(""+m, "0000000000000000000000000000110000000000000000000000000000010000");
       m.shiftRightFillWithSign(1);
       ok(""+m, "0000000000000000000000000000011000000000000000000000000000001000");
@@ -2283,14 +2344,53 @@ Registers  :  x3=11 x4=22
       ok(""+m, "1100000000000000000000000000000100011000000000000000000000000000");
       m.shiftRightFillWithSign(2);
       ok(""+m, "1111000000000000000000000000000001000110000000000000000000000000");
+      ok(m.countLeadingOnes  (),  4);
+      ok(m.countTrailingZeros(), 25);
      }
 
     if (true)                                                                   // Set array elements
      {Memory m = T.memory();
-      for (int i = 0; i < C1.size; i++) C1.set(m, i, i % 4);
+      for (int i = 0; i < C1.size; i++)
+       {C1.setIndex(i);
+        c1.set(m, i % 4);
+       }
       ok(""+m, "0000000000000000000000000000000000000100111001001110010000000000");
-      for (int i = 0; i < C1.size; i++) ok(C1.getInt(m, i), i % 4);
      }
+   }
+
+  static void test_double_array()
+   {RiscV     r = new RiscV();
+
+    Variable  a = r.variable ("a", 2);
+    Variable  b = r.variable ("b", 3);
+    Variable  c = r.variable ("c", 2);
+    Structure s = r.structure("s", a, b, c);
+    Array     A = r.array    ("A", s, 4);
+    Array     B = r.array    ("B", A, 3);
+
+    B.layout();
+say(B.print());
+    ok(B.print(), """
+  At  Wide  Size    Field name
+   0    84     3    B
+   0    28     4      A
+   0     7              s
+   0     2                a
+   2     3                b
+   5     2                c
+""");
+
+    Memory m = B.memory();
+    for   (int i = 0; i < B.size; i++)
+     {B.setIndex(i);
+      for (int j = 0; j < A.size; j++)
+       {A.setIndex(j);
+        a.set(m, 1);
+        b.set(m, 3);
+        c.set(m, 1);
+       }
+     }
+    ok(""+m, "010110101011010101101010110101011010101101010110101011010101101010110101011010101101");
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -2324,6 +2424,7 @@ Registers  :  x3=11 x4=22
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
     test_variable();
+    test_double_array();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
