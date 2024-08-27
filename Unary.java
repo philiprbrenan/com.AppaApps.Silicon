@@ -5,13 +5,14 @@
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
 
 class Unary extends RiscV                                                       // Unary arithmetic
- {final boolean[]u;                                                             // The unary number.  00111 == 3
+ {final UnaryMemoryLayout memoryLayout;                                         // Memory for unary number
+  final Memory memory;                                                          // Memory for unary number
 
 //D1 Construction                                                               // Create a unary number
 
   Unary(int Max)                                                                // Create a unary number
-   {u = new boolean[Max+1];                                                     // Create the unary number
-    for (int i = 0; i < Max; i++) u[i] = false;                                 // Zero the unary number
+   {memoryLayout = new UnaryMemoryLayout(name, Max);                            // Memory for unary number
+    memory = memoryLayout.memory();                                             // Memory for unary number
    }
 
   static Unary unary(int max) {return new Unary(max);}                          // Create a unary number
@@ -24,36 +25,28 @@ class Unary extends RiscV                                                       
 
   public Unary clone() {return unary(max(), get());}                            // Clone a unary number
 
-  int max() {return u.length-1;}                                                // The maximum value of the unary number
+  int max() {return memory.size();}                                             // The maximum value of the unary number
 
   void ok(int n) {ok(get(), n);}                                                // Check that a unary number has the expected value
 
-  java.util.Stack<Boolean> bits() {return concatBits(u);}                       // Stack of bits representing this unary number
-
-  static class UnaryMemoryLayout                                                // Memory layout for a stuck stack
-   {final Variable  unary;                                                      // Current index of the top of the stuck
-    UnaryMemoryLayout(int max)                                                  // Create the a memory layout for a unary number
-     {final RiscV r = new RiscV();
-      unary   = r.variable ("unary",   max);
-      unary.layout();                                                           // Layout memory
+  static class UnaryMemoryLayout extends Variable                               // Memory layout for a stuck stack
+   {UnaryMemoryLayout(String name, int max)                                     // Create the a memory layout for a unary number
+     {super(name, max);
+      layout();                                                                 // Layout memory
      }
-    Memory memory() {return unary.memory();}                                    // Create a memory to hold the unary number
    }
 
 //D1 Set and get                                                                // Set and get a unary number
 
   void set(int n)                                                               // Set the unary number
-   {if (n <= u.length)
-     {for (int i = 0; i < u.length; i++) u[i] = false;
-      for (int i = 0; i < n;        i++) u[i] = true;
+   {if (n >= 0 && n <= max())
+     {memory.zero();
+      if (n > 0) memory.shiftLeftFillWithOnes(n);
      }
-    else stop(n, "too big");
+    else stop(n, "too big or negative");
    }
 
-  int get()                                                                     // Get the unary number
-   {for (int i = 0; i < u.length; i++) if (!u[i]) return i;
-    return 0;
-   }
+  int get() {return memory.countTrailingOnes();}                                // Get the unary number
 
 //D1 Arithmetic                                                                 // Arithmetic using unary numbers
 
@@ -61,15 +54,13 @@ class Unary extends RiscV                                                       
   boolean canDec() {return get() > 0;}                                          // Can we decrement the unary number
 
   void inc()                                                                    // Increment the unary number
-   {final int n = get();
-    if (!canInc()) stop(n, "is too big to be incremented");
-    set(n+1);
+   {if (!canInc()) stop(memory.getInt(), "is too big to be incremented");
+    memory.shiftLeftFillWithOnes(1);
    }
 
   void dec()                                                                    // Decrement the unary number
-   {final int n = get();
-    if (!canDec()) stop(n, "is too small to be decremented");
-    set(n-1);
+   {if (!canDec()) stop(memory.getInt(), "is too small to be decremented");
+    memory.shiftRightFillWithSign(1);
    }
 
 //D1 Print                                                                      // Print a unary number
@@ -85,8 +76,7 @@ class Unary extends RiscV                                                       
     u.set(21); u.inc(); u.ok(22);
     u.set(23); u.dec(); u.ok(22);
     u.set(31); ok( u.canInc());
-    u.set(32);
-    ok(!u.canInc());
+    u.set(32); ok(!u.canInc());
 
     u.set(1);  ok( u.canDec());
     u.set(0);  ok(!u.canDec());
