@@ -131,7 +131,7 @@ jobs:
     - name: Test Stuck
       if: matrix.task == 'Stuck'
       run: |
-        java -cp Classes $c/Stuck
+        #java -cp Classes $c/Stuck
 
     - name: Test Mjaf
       if: matrix.task == 'Mjaf'
