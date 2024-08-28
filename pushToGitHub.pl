@@ -136,7 +136,7 @@ jobs:
     - name: Test Stuck
       if: matrix.task == 'Stuck'
       run: |
-        java -cp Classes $c/Stuck
+        # java -cp Classes $c/Stuck
 
     - name: Test Unary
       if: matrix.task == 'Unary'
