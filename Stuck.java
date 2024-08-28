@@ -7,8 +7,8 @@ package com.AppaApps.Silicon;                                                   
 import java.util.*;
 
 class Stuck extends RiscV                                                       // Stuck: a fixed size stack controlled by a unary number. The unary number zero indicates an empty stuck stack.
- {final StuckMemoryLayout memoryLayout;                                         // The layout of the stuck stack
- {final Memory memory;                                                          // The memory of the stuck stack
+ {StuckMemoryLayout memoryLayout;                                               // The layout of the stuck stack
+  Memory memory;                                                                // The memory of the stuck stack
   final int max;                                                                // The maximum number of entries in the stuck stack.
   final int width;                                                              // The width of each object in the stuck in bits
 
@@ -16,33 +16,35 @@ class Stuck extends RiscV                                                       
 
   Stuck(int Max, int Width)                                                     // Create the stuck stack
    {max = Max; width = Width;
-    memoryLayout = new StuckMemoryLayout("stuck", max, width);                  // The stuck stack layout
+    memoryLayout = new StuckMemoryLayout("stuck");                              // The stuck stack layout
     memory = memoryLayout.memory();                                             // The stuck stack memory
    }
 
   static Stuck stuck(int max, int width) {return new Stuck(max, width);}        // Create a stuck stack
 
-  void clear() {memor.set(0);}                                                      // Clear a stuck stack
+  void clear() {memory.set(0);}                                                 // Clear a stuck stack
 
 //D1 Characteristics                                                            // Characteristics of the stuck stack
 
-  int size() {return u.get();}                                                  // The current size of the stuck stack
+  int size()                                                                    // The current size of the stuck stack
+   {return memoryLayout.unary.get(memory).countTrailingOnes();
+   }
 
   public void ok(String expected) {ok(toString(), expected);}                   // Check the stuck stack
 
-  boolean isFull()  {return size() >= u.max();}                                 // Check the stuck stack is full
+  boolean isFull()  {return size() >= max;}                                     // Check the stuck stack is full
   boolean isEmpty() {return size() <= 0;}                                       // Check the stuck stack is empty
 
-  static class StuckMemoryLayout extends Structure                              // Memory layout for a stuck stack
+  class StuckMemoryLayout extends Structure                              // Memory layout for a stuck stack
    {final Variable unary;                                                       // Unary vector to show used positions in stuck stack
-    final Variable element;                                                     // Element on stuck stack
-    final Array    array;                                                       // Array of elements implementing the stuck stack
+    final Variable Memory;                                                     // Memory on stuck stack
+    final Array    array;                                                       // Array of Memorys implementing the stuck stack
 
     StuckMemoryLayout(String name)                                              // Create the a memory layout for a unary number
      {super(name);                                                              // Unary vector to show used positions in stuck stack
       unary   = new Variable("unary",   max);                                   // Unary vector to show used positions in stuck stack
-      element = new Variable("element", width);                                 // Element on stuck stack
-      array   = new Array   ("array",   element, max);                          // Array of elements implementing the stuck stack
+      Memory = new Variable("Memory", width);                                 // Memory on stuck stack
+      array   = new Array   ("array",   Memory, max);                          // Array of Memorys implementing the stuck stack
       addField(unary);                                                          // Add the unary indicator
       addField(array);                                                          // Add the array
       layout();                                                                 // Layout memory
@@ -51,110 +53,110 @@ class Stuck extends RiscV                                                       
 
 //D1 Actions                                                                    // Place and remove data to/from stuck stack
 
-  void push(Memory element)                                                     // Push an element onto the stuck stack
+  void push(Memory Memory)                                                     // Push an Memory onto the stuck stack
    {if (!u.canInc()) stop("Stuck is full");
     new MemoryLayout("").checkLength(bits);
-    s[size()] = new Element(bits);
+    s[size()] = new Memory(bits);
     u.inc();
    }
 
-  void push(Element i) {push(i.data);}                                          // Push an element onto the stuck stack
-  void push(int data) {push(new Element(data));}                                // Push an element onto the stuck stack
+  void push(Memory i) {push(i.data);}                                          // Push an Memory onto the stuck stack
+  void push(int data) {push(new Memory(data));}                                // Push an Memory onto the stuck stack
 
-  Element pop()                                                                 // Pop an element from the stuck stack
+  Memory pop()                                                                 // Pop an Memory from the stuck stack
    {if (!u.canDec()) stop("Stuck is empty");
     u.dec();
     return s[size()];
    }
 
-  Element shift()                                                               // Shift an element from the stuck stack
+  Memory shift()                                                               // Shift an Memory from the stuck stack
    {if (!u.canDec()) stop("Stuck is empty");
-    Element r = s[0];
+    Memory r = s[0];
     final int N = size();
     for (int i = 0; i < N-1; i++) s[i] = s[i+1];
     u.dec();
     return r;
    }
 
-  void unshift(boolean[]bits)                                                   // Unshift an element from the stuck stack
+  void unshift(boolean[]bits)                                                   // Unshift an Memory from the stuck stack
    {if (!u.canInc()) stop("Stuck is full");
     checkLength(bits);
     final int N = size();
     for (int j = N; j > 0; j--) s[j] = s[j-1];
-    s[0] = new Element(bits);
+    s[0] = new Memory(bits);
     u.inc();
    }
 
-  void unshift(Element i) {unshift(i.data);}                                    // Unshift an element from the stuck stack
-  void unshift(int data)  {unshift(new Element(data));}                         // Unshift an element onto the stuck stack
+  void unshift(Memory i) {unshift(i.data);}                                    // Unshift an Memory from the stuck stack
+  void unshift(int data)  {unshift(new Memory(data));}                         // Unshift an Memory onto the stuck stack
 
-  Element removeElementAt(int i)                                                // Remove the element at 0 based index i and shift the elements above down one position
+  Memory removeElementAt(int i)                                                // Remove the Memory at 0 based index i and shift the Memorys above down one position
    {if (!u.canDec()) stop("Stuck is empty");
     final int N = size();
     if (i > N) stop("Too far up");
     if (i < 0) stop("Too far down");
-    final Element r = s[i];
+    final Memory r = s[i];
     for (int j = i; j < N-1; j++) s[j] = s[j+1];
     u.dec();
     return r;
    }
 
-  void insertElementAt(boolean[]bits, int i)                                    // Insert an element at the indicated 0-based index after moving the elements above up one position
+  void insertElementAt(boolean[]bits, int i)                                    // Insert an Memory at the indicated 0-based index after moving the Memorys above up one position
    {final int N = size();
     if (!u.canInc()) stop("Stuck is full");
     if (i > N) stop("Too far up");
     if (i < 0) stop("Too far down");
     checkLength(bits);
     for (int j = N; j > i; j--) s[j] = s[j-1];
-    s[i] = new Element(bits);
+    s[i] = new Memory(bits);
     u.inc();
    }
 
-  void insertElementAt(Element e, int i) {insertElementAt(e.data, i);}          // Insert an element at the indicated 0-based index after moving the elements above up one position
-  void insertElementAt(int e, int i) {insertElementAt(new Element(e), i);}      // Insert an element at the indicated 0-based index after moving the elements above up one position
+  void insertElementAt(Memory e, int i) {insertElementAt(e.data, i);}          // Insert an Memory at the indicated 0-based index after moving the Memorys above up one position
+  void insertElementAt(int e, int i) {insertElementAt(new Memory(e), i);}      // Insert an Memory at the indicated 0-based index after moving the Memorys above up one position
 
-  Element elementAt(int i)                                                      // Get the element at a specified index
+  Memory MemoryAt(int i)                                                      // Get the Memory at a specified index
    {final int N = size();
     if (i >= N) stop("Too far up");
     if (i <  0) stop("Too far down");
     return s[i];
    }
 
-  void setElementAt(boolean[]bits, int i)                                       // Set the value of the indexed location to the specified element
+  void setMemoryAt(boolean[]bits, int i)                                       // Set the value of the indexed location to the specified Memory
    {final int N = size();
     if (i >  N) stop("Too far up");
     if (i <  0) stop("Too far down");
-    s[i] = new Element(bits);
+    s[i] = new Memory(bits);
    }
 
-  void setElementAt(Element e, int i) {setElementAt(e.data, i);}                // Set the value of the indexed location to the specified element
-  void setElementAt(int e, int i) {setElementAt(new Element(e), i);}            // Insert an element at the indicated 0-based index after moving the elements above up one position
+  void setMemoryAt(Memory e, int i) {setMemoryAt(e.data, i);}                // Set the value of the indexed location to the specified Memory
+  void setMemoryAt(int e, int i) {setMemoryAt(new Memory(e), i);}            // Insert an Memory at the indicated 0-based index after moving the Memorys above up one position
 
-  Element firstElement() {return elementAt(0);}                                 // Get the value of the first element
-  Element  lastElement() {return elementAt(size()-1);}                          // Get the value of the last element
+  Memory firstMemory() {return MemoryAt(0);}                                 // Get the value of the first Memory
+  Memory  lastMemory() {return MemoryAt(size()-1);}                          // Get the value of the last Memory
 
 //D1 Search                                                                     // Search a stuck stack.
 
   public int indexOf(boolean[]bits)                                             // Return 0 based index of the indicated key else -1 if the key is not present in the stuck stack.
    {final int N = size();
-    final Element keyToFind = new Element(bits);
+    final Memory keyToFind = new Memory(bits);
     for (int i = 0; i < N; i++) if (keyToFind.equals(s[i])) return i;
     return -1;                                                                  // Not found
    }
 
-  public int indexOf(Element keyToFind) {return indexOf(keyToFind.data);}       // Return 0 based index of the indicated key else -1 if the key is not present in the stuck stack.
-  public int indexOf(int keyToFind) {return indexOf(new Element(keyToFind));}   // Return 0 based index of the indicated key else -1 if the key is not present in the stuck stack.
+  public int indexOf(Memory keyToFind) {return indexOf(keyToFind.data);}       // Return 0 based index of the indicated key else -1 if the key is not present in the stuck stack.
+  public int indexOf(int keyToFind) {return indexOf(new Memory(keyToFind));}   // Return 0 based index of the indicated key else -1 if the key is not present in the stuck stack.
 
 //D1 Iterate                                                                    // Iterate a stuck stack
 
-  public Iterator<Element> iterator() {return new ElementIterator();}           // Create an iterator to iterate through the stack
+  public Iterator<Memory> iterator() {return new MemoryIterator();}           // Create an iterator to iterate through the stack
 
-  class ElementIterator implements Iterator<Element>                            // Iterator for the stack
-   {int nextElement = 0;
+  class MemoryIterator implements Iterator<Memory>                            // Iterator for the stack
+   {int nextMemory = 0;
 
-    public boolean hasNext() {return nextElement < size();}                     // Another element to iterate
+    public boolean hasNext() {return nextMemory < size();}                     // Another Memory to iterate
 
-    public Element next() {return s[nextElement++];}
+    public Memory next() {return s[nextMemory++];}
    }
 
 //D1 Print                                                                      // Print a stuck stack
@@ -187,10 +189,10 @@ class Stuck extends RiscV                                                       
     var d = s.removeElementAt(2);    s.ok("Stuck(1, 2)");       ok(d, 3);
     s.insertElementAt(3, 0);         s.ok("Stuck(3, 1, 2)");
     var e = s.removeElementAt(0);    s.ok("Stuck(1, 2)");       ok(e, 3);
-    var f = s.elementAt(0);          ok(f, 1);
-    var g = s.elementAt(1);          ok(g, 2);
-    s.setElementAt(4, 1);            s.ok("Stuck(1, 4)");
-    s.setElementAt(2, 0);            s.ok("Stuck(2, 4)");
+    var f = s.MemoryAt(0);          ok(f, 1);
+    var g = s.MemoryAt(1);          ok(g, 2);
+    s.setMemoryAt(4, 1);            s.ok("Stuck(1, 4)");
+    s.setMemoryAt(2, 0);            s.ok("Stuck(2, 4)");
     s.removeElementAt(0);            s.ok("Stuck(4)");          ok(!s.isEmpty());
     s.removeElementAt(0);            s.ok("Stuck()");           ok( s.isEmpty());
    }
@@ -201,8 +203,8 @@ class Stuck extends RiscV                                                       
     s.push(2);                       s.ok("Stuck(1, 2)");       ok(s.size(), 2);
     s.push(3);                       s.ok("Stuck(1, 2, 3)");    ok(s.size(), 3);
     s.push(4);                       s.ok("Stuck(1, 2, 3, 4)"); ok(s.size(), 4);
-    var f = s.firstElement();                                   ok(f, 1);
-    var l = s.lastElement();                                    ok(l, 4);
+    var f = s.firstMemory();                                   ok(f, 1);
+    var l = s.lastMemory();                                    ok(l, 4);
     var a = s.shift();               s.ok("Stuck(2, 3, 4)");    ok(s.size(), 3); ok(a, 1);
     var b = s.shift();               s.ok("Stuck(3, 4)");       ok(s.size(), 2); ok(b, 2);
     var c = s.shift();               s.ok("Stuck(4)");          ok(s.size(), 1); ok(c, 3);
@@ -234,7 +236,7 @@ class Stuck extends RiscV                                                       
    {final int N = 4;
     var s = stuck(N, 4);
     final StringBuilder b = new StringBuilder();
-    for (Element i : s) b.append(""+i+", ");
+    for (Memory i : s) b.append(""+i+", ");
     if (b.length() > 0) b.setLength(b.length()-2);
     ok(b.toString().equals(""));
    }
@@ -245,7 +247,7 @@ class Stuck extends RiscV                                                       
     for (int i = 1; i <= N; i++) s.push(i);
     s.ok("Stuck(1, 2, 3, 4)");
     final StringBuilder b = new StringBuilder();
-    for (Element i : s) b.append(""+i+", ");
+    for (Memory i : s) b.append(""+i+", ");
     if (b.length() > 0) b.setLength(b.length()-2);
     ok(b.toString().equals("1, 2, 3, 4"));
    }
