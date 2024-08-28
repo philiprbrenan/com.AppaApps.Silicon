@@ -1,4 +1,4 @@
-# Test 2024-08-28 at 00:44:54
+# Test 2024-08-28 at 02:38:06
 
 name: Test
 run-name: Silicon Chip
@@ -20,7 +20,7 @@ jobs:
 
     strategy:
       matrix:
-        task: [Ban, Chip, Mjaf, Node, RiscV, Stuck, Unary]
+        task: [Ban, Chip, Memory, Mjaf, Node, RiscV, Stuck, Unary]
 
     steps:
     - uses: actions/checkout@v3
@@ -49,35 +49,40 @@ jobs:
       run: |
         javac -g -d Classes -cp Classes `find com/AppaApps/Silicon -name "*.java"`
 
-    - name: Test Risc V
-      if: matrix.task == 'RiscV'
-      run: |
-        java -cp Classes com/AppaApps/Silicon/RiscV
-
     - name: Test Ban
       if: matrix.task == 'Ban'
       run: |
         java -cp Classes com/AppaApps/Silicon/Ban
+
+    - name: Test Memory
+      if: matrix.task == 'Memory'
+      run: |
+        java -cp Classes com/AppaApps/Silicon/Mjaf
+
+    - name: Test Mjaf
+      if: matrix.task == 'Mjaf'
+      run: |
+        java -cp Classes com/AppaApps/Silicon/Mjaf
 
     - name: Test Big
       if: matrix.task == 'Node'
       run: |
         java -cp Classes com/AppaApps/Silicon/Node
 
-    - name: Test Unary
-      if: matrix.task == 'Unary'
+    - name: Test Risc V
+      if: matrix.task == 'RiscV'
       run: |
-        java -cp Classes com/AppaApps/Silicon/Unary
+        java -cp Classes com/AppaApps/Silicon/RiscV
 
     - name: Test Stuck
       if: matrix.task == 'Stuck'
       run: |
-        #java -cp Classes com/AppaApps/Silicon/Stuck
+        java -cp Classes com/AppaApps/Silicon/Stuck
 
-    - name: Test Mjaf
-      if: matrix.task == 'Mjaf'
+    - name: Test Unary
+      if: matrix.task == 'Unary'
       run: |
-        java -cp Classes com/AppaApps/Silicon/Mjaf
+        java -cp Classes com/AppaApps/Silicon/Unary
 
     - name: Cpan
       if: matrix.task == 'Chip'
