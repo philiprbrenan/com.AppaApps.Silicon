@@ -7,9 +7,13 @@ package com.AppaApps.Silicon;                                                   
 class Memory extends Chip                                                       // Bit memory
  {final boolean[]bits;                                                          // Bits comprising the memory
 
-  Memory(int Size)                                                              // Size of memory
+  Memory(int Size)                                                              // Create main memory
    {bits = new boolean[Size];
     zero();
+   }
+
+  Memory(Memory memory)                                                         // Create memory within the main memory
+   {bits = memory.bits;
    }
 
   Memory(int Width, int value)                                                  // Create a memory of specified width and set it to a specified value from an integer
@@ -25,30 +29,30 @@ class Memory extends Chip                                                       
   boolean get(int i) {return     bits[i];}                                      // Get a bit
 
   void zero()                                                                   // Zero a memory
-   {final int size = bits.length;
+   {final int size = size();
     for (int i = 0; i < size; i++) set(i, false);
    }
 
   void shiftLeftFillWithZeros(int left)                                         // Shift left filling with zeroes
-   {final int size = bits.length;
+   {final int size = size();
     for (int i = size; i > left; --i) set(i-1, get(i-1-left));
     for (int i = 0;    i < left; ++i) set(i,   false);
    }
 
   void shiftLeftFillWithOnes(int left)                                          // Shift left filling with ones
-   {final int size = bits.length;
+   {final int size = size();
     for (int i = size; i > left; --i) set(i-1, get(i-1-left));
     for (int i = 0;    i < left; ++i) set(i,   true);
    }
 
   void shiftRightFillWithZeros(int right)                                       // Shift right filling with zeroes
-   {final int size = bits.length;
+   {final int size = size();
     for (int i = 0; i < size-right;    ++i) set(i, get(i+right));
     for (int i = size-right; i < size; ++i) set(i, false);
    }
 
   void shiftRightFillWithSign(int right)                                        // Shift right filling with sign
-   {final int size = bits.length;
+   {final int size = size();
     for (int i = 0; i < size-right;      ++i) set(i, get(i+right));
     final boolean sign = get(size-1);
     for (int i = size-right; i < size-1; ++i) set(i, sign);
@@ -114,6 +118,32 @@ class Memory extends Chip                                                       
     return c;
    }
 
+  class Sub extends Memory                                                      // Sub memory - a part of a larger memory rebased to zero
+   {final int start;                                                            // Start of memory in larger memory
+    final int width;                                                            // Width of memory
+    Sub(int Start, int Width)                                                   // Create sub memory from main memory
+     {super(Memory.this);                                                       // Main memory
+      if (Start + Width < 0) stop("Sub memory extends before start of main memory");
+      if (Start + Width > Memory.this.size()) stop("Sub memory extends beyond end of main memory");
+      start = Start;  width = Width;
+     }
+    boolean get(int i)                                                          // Get a bit from a sub memory
+     {if (i > width) stop("Trying to read beyond end of sub memory", i, width);
+      if (i < 0)     stop("Trying to read before start of sub memory", i);
+      return Memory.this.get(i + start);
+     }
+    void set(int i, boolean b)                                                  // Set a bit in a sub memory
+     {if (i > width) stop("Trying to write beyond end of sub memory", i, width);
+      if (i < 0)     stop("Trying to write before start of sub memory", i);
+      Memory.this.set(i + start, b);
+     }
+    int size() {return width;}                                                  // Width of sub memory
+   }
+
+  Sub sub(int start, int width)                                                 // Create a sub memory
+   {return new Sub(start, width);
+   }
+
 //D0                                                                            // Tests
 
   static void test_memory()
@@ -135,22 +165,46 @@ class Memory extends Chip                                                       
     ok(m.countTrailingZeros(), 2);
    }
 
+  static void test_memory_sub()
+   {Memory m = memory(110);                                                     // Main memory
+    for (int i = 1; i < 11; i++)
+     {m.shiftLeftFillWithOnes(i);
+      m.shiftLeftFillWithZeros(i);
+     }
+    m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011111111110000000000");
+
+    final Memory.Sub s = m.sub(10, 10);                                         // Sub memory
+    s.shiftRightFillWithZeros(2);
+    m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000000111111110000000000");
+    s.shiftLeftFillWithOnes(1);
+    m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000001111111110000000000");
+    s.shiftLeftFillWithZeros(1);
+    m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011111111100000000000");
+    ok(s.countLeadingOnes  (), 9);
+    ok(s.countTrailingZeros(), 1);
+
+    final Memory.Sub S = s.sub(4, 2);                                           // Sub sub memory
+    S.zero();
+    m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011110011100000000000");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_memory();
+    test_memory_sub();
    }
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    test_memory();
+    test_memory_sub();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
    {try                                                                         // Get a traceback in a format clickable in Geany if something goes wrong to speed up debugging.
      {if (github_actions) oldTests(); else newTests();                          // Tests to run
-      Chip.testSummary();
+      testSummary();
      }
     catch(Exception e)                                                          // Get a traceback in a format clickable in Geany
-     {System.err.println(Chip.fullTraceBack(e));
+     {System.err.println(fullTraceBack(e));
      }
    }
  }
