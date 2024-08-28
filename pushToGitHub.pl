@@ -79,7 +79,7 @@ jobs:
 
     strategy:
       matrix:
-        task: [Ban, Chip, Mjaf, Node, RiscV, Stuck, Unary]
+        task: [Ban, Chip, Memory, Mjaf, Node, RiscV, Stuck, Unary]
 
     steps:
     - uses: actions/checkout\@v3
@@ -108,35 +108,40 @@ jobs:
       run: |
         javac -g -d Classes -cp Classes `find $c -name "*.java"`
 
-    - name: Test Risc V
-      if: matrix.task == 'RiscV'
-      run: |
-        java -cp Classes $c/RiscV
-
     - name: Test Ban
       if: matrix.task == 'Ban'
       run: |
         java -cp Classes $c/Ban
+
+    - name: Test Memory
+      if: matrix.task == 'Memory'
+      run: |
+        java -cp Classes $c/Mjaf
+
+    - name: Test Mjaf
+      if: matrix.task == 'Mjaf'
+      run: |
+        java -cp Classes $c/Mjaf
 
     - name: Test Big
       if: matrix.task == 'Node'
       run: |
         java -cp Classes $c/Node
 
-    - name: Test Unary
-      if: matrix.task == 'Unary'
+    - name: Test Risc V
+      if: matrix.task == 'RiscV'
       run: |
-        java -cp Classes $c/Unary
+        java -cp Classes $c/RiscV
 
     - name: Test Stuck
       if: matrix.task == 'Stuck'
       run: |
-        #java -cp Classes $c/Stuck
+        java -cp Classes $c/Stuck
 
-    - name: Test Mjaf
-      if: matrix.task == 'Mjaf'
+    - name: Test Unary
+      if: matrix.task == 'Unary'
       run: |
-        java -cp Classes $c/Mjaf
+        java -cp Classes $c/Unary
 
     - name: Cpan
       if: matrix.task == 'Chip'
