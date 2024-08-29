@@ -5,12 +5,13 @@
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
 
 class Unary extends RiscV                                                       // Unary arithmetic
- {final int max;                                                                // Maximum size of unary number
+ {final Layout layout;                                                          // Layout of memory used by a unary number
+  final int max;                                                                // Maximum size of unary number
   final java.util.Stack<Memory> memory = new java.util.Stack<>();               // A memory containing a unary number
 
 //D1 Construction                                                               // Create a unary number
 
-  Unary(int Max) {max = Max; memory();}                                         // Create a unary number of specified size
+  Unary(int Max) {max = Max; memory(); layout = new Layout("unary");}           // Create a unary number of specified size
 
   static Unary unary(int max) {return new Unary(max);}                          // Create a unary number od=f specified size
 
@@ -31,6 +32,13 @@ class Unary extends RiscV                                                       
   int max() {return max;}                                                       // The maximum value of the unary number
 
   void ok(int n) {ok(get(), n);}                                                // Check that a unary number has the expected value
+
+  class Layout extends Variable                                                 // Memory layout for a stuck stack
+   {Layout(String name)                                                         // Create the a memory layout for a unary number
+     {super(name, max);
+      layout();                                                                 // Layout memory
+     }
+   }
 
 //D1 Set and get                                                                // Set and get a unary number
 
