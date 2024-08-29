@@ -20,9 +20,12 @@ class Stuck extends RiscV                                                       
     memory = memoryLayout.memory();                                             // The stuck stack memory
    }
 
+  void memoryLayout(StuckMemoryLayout ml) {memoryLayout = ml;}                  // Assign a memory layout for this stuck stack
+  void memory      (Memory Memory)        {memory = Memory;}                    // Assign some memory for a unary number
+
   static Stuck stuck(int max, int width) {return new Stuck(max, width);}        // Create a stuck stack
 
-  void clear() {memory.set(0);}                                                 // Clear a stuck stack
+  void clear() {memory.zero();}                                                 // Clear a stuck stack
 
 //D1 Characteristics                                                            // Characteristics of the stuck stack
 
