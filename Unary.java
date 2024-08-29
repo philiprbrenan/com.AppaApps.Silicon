@@ -10,7 +10,7 @@ class Unary extends RiscV                                                       
 
 //D1 Construction                                                               // Create a unary number
 
-  Unary(int Max) {max = Max;}                                                   // Create a unary number of specified size
+  Unary(int Max) {max = Max; memory();}                                         // Create a unary number of specified size
 
   static Unary unary(int max) {return new Unary(max);}                          // Create a unary number od=f specified size
 
@@ -68,7 +68,6 @@ class Unary extends RiscV                                                       
 
   static void test_unary()
    {Unary  u = unary(32);
-           u.memory();
            u.set(4);
            u.memory();
                u.ok(0);
@@ -85,7 +84,6 @@ class Unary extends RiscV                                                       
 
   static void test_preset()
    {Unary  u = unary(4);
-           u.memory();
     u.set(1); u.ok(1);
     u.dec();  u.ok(0); ok( u.canInc());
     u.inc();  u.ok(1); ok( u.canInc());
