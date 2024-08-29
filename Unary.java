@@ -6,6 +6,7 @@ package com.AppaApps.Silicon;                                                   
 
 class Unary extends RiscV                                                       // Unary arithmetic
  {final int max;                                                                // Maximum size of unary number
+  Memory memory;                                                                // A memory containing a unary number
 
 //D1 Construction                                                               // Create a unary number
 
@@ -13,76 +14,74 @@ class Unary extends RiscV                                                       
 
   static Unary unary(int max) {return new Unary(max);}                          // Create a unary number
 
-  Memory memory() {return new Memory(max);}                                     // Create somememory for a unary number
+  void memory() {memory = new Memory(max);}                                     // Create some memory for a unary number
+
+  void memory(Memory Memory)                                                    // Set memory for a unary number
+   {final int m = Memory.size();
+    if (m != max)
+      stop("Memory size is different from expected", m, "but expected", max);
+    memory = Memory;
+   }
 
   int max() {return max;}                                                       // The maximum value of the unary number
 
-  void ok(Memory memory, int n) {ok(get(memory), n);}                           // Check that a unary number has the expected value
+  void ok(int n) {ok(get(), n);}                                                // Check that a unary number has the expected value
 
 //D1 Set and get                                                                // Set and get a unary number
 
-  void checkMemory(Memory memory)                                               // Set the unary number
-   {final int m = memory.size();
-    if (m != max)
-      stop("Memory size is different from expected", m, "but expected", max);
-   }
-
-  void set(Memory memory, int n)                                                // Set the unary number
-   {checkMemory(memory);
-    memory.zero();
+  void set(int n)                                                               // Set the unary number
+   {memory.zero();
     if (n > 0) memory.shiftLeftFillWithOnes(n);
    }
 
-  int get(Memory memory)                                                        // Get the unary number
-   {checkMemory(memory);
-    return memory.countTrailingOnes();
+  int get()                                                                     // Get the unary number
+   {return memory.countTrailingOnes();
    }
 
 //D1 Arithmetic                                                                 // Arithmetic using unary numbers
 
-  boolean canInc(Memory memory) {return get(memory) < max();}                   // Can we increment the unary number
-  boolean canDec(Memory memory) {return get(memory) > 0;}                       // Can we decrement the unary number
+  boolean canInc() {return get() < max();}                                      // Can we increment the unary number
+  boolean canDec() {return get() > 0;}                                          // Can we decrement the unary number
 
-  void inc(Memory memory)                                                       // Increment the unary number
-   {if (!canInc(memory)) stop(memory.getInt(), "is too big to be incremented");
+  void inc()                                                                    // Increment the unary number
+   {if (!canInc()) stop(memory.getInt(), "is too big to be incremented");
     memory.shiftLeftFillWithOnes(1);
    }
 
-  void dec(Memory memory)                                                       // Decrement the unary number
-   {if (!canDec(memory)) stop(memory.getInt(), "is too small to be decremented");
+  void dec()                                                                    // Decrement the unary number
+   {if (!canDec()) stop(memory.getInt(), "is too small to be decremented");
     memory.shiftRightFillWithSign(1);
    }
 
 //D1 Print                                                                      // Print a unary number
 
-  String toString(Memory memory) {return ""+get(memory);}                       // Print a unary number
+  public String toString() {return ""+get();}                                   // Print a unary number
 
 //D0 Tests                                                                      // Test unary numbers
 
   static void test_unary()
    {Unary  u = unary(32);
-    Memory m = u.memory();
+           u.memory();
+               u.ok(0);
+    u.inc();   u.ok(1);
+    u.set(21); u.inc(); u.ok(22);
+    u.set(23); u.dec(); u.ok(22);
+    u.set(31); ok( u.canInc());
+    u.set(32); ok(!u.canInc());
 
-                  u.ok(m, 0);
-    u.inc(m);     u.ok(m, 1);
-    u.set(m, 21); u.inc(m); u.ok(m, 22);
-    u.set(m, 23); u.dec(m); u.ok(m, 22);
-    u.set(m, 31); ok( u.canInc(m));
-    u.set(m, 32); ok(!u.canInc(m));
-
-    u.set(m, 1);  ok( u.canDec(m));
-    u.set(m, 0);  ok(!u.canDec(m));
+    u.set( 1); ok( u.canDec());
+    u.set( 0); ok(!u.canDec());
    }
 
   static void test_preset()
    {Unary  u = unary(4);
-    Memory m = u.memory();
-    u.set(m, 1); u.ok(m, 1);
-    u.dec(m); u.ok(m, 0); ok( u.canInc(m));
-    u.inc(m); u.ok(m, 1); ok( u.canInc(m));
-    u.inc(m); u.ok(m, 2); ok( u.canInc(m));
-    u.inc(m); u.ok(m, 3); ok( u.canInc(m));
-    u.inc(m); u.ok(m, 4); ok(!u.canInc(m));
+           u.memory();
+    u.set(1); u.ok(1);
+    u.dec();  u.ok(0); ok( u.canInc());
+    u.inc();  u.ok(1); ok( u.canInc());
+    u.inc();  u.ok(2); ok( u.canInc());
+    u.inc();  u.ok(3); ok( u.canInc());
+    u.inc();  u.ok(4); ok(!u.canInc());
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
