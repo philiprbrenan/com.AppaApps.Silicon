@@ -6,21 +6,26 @@ package com.AppaApps.Silicon;                                                   
 
 class Unary extends RiscV                                                       // Unary arithmetic
  {final int max;                                                                // Maximum size of unary number
-  Memory memory;                                                                // A memory containing a unary number
+  final java.util.Stack<Memory> memory = new java.util.Stack<>();               // A memory containing a unary number
 
 //D1 Construction                                                               // Create a unary number
 
-  Unary(int Max) {max = Max;}                                                   // Create a unary number
+  Unary(int Max) {max = Max;}                                                   // Create a unary number of specified size
 
-  static Unary unary(int max) {return new Unary(max);}                          // Create a unary number
+  static Unary unary(int max) {return new Unary(max);}                          // Create a unary number od=f specified size
 
-  void memory() {memory = new Memory(max);}                                     // Create some memory for a unary number
+  void memory() {memory(new Memory(max));}                                      // Assign some memory for a unary number
 
   void memory(Memory Memory)                                                    // Set memory for a unary number
    {final int m = Memory.size();
     if (m != max)
       stop("Memory size is different from expected", m, "but expected", max);
-    memory = Memory;
+    memory.push(Memory);
+   }
+
+  void memoryPop()                                                              // Pop the current memory to restore the previous memory
+   {if (memory.size() == 0) stop("Memory stack underflow");
+    memory.pop();
    }
 
   int max() {return max;}                                                       // The maximum value of the unary number
@@ -30,12 +35,12 @@ class Unary extends RiscV                                                       
 //D1 Set and get                                                                // Set and get a unary number
 
   void set(int n)                                                               // Set the unary number
-   {memory.zero();
-    if (n > 0) memory.shiftLeftFillWithOnes(n);
+   {memory.lastElement().zero();
+    if (n > 0) memory.lastElement().shiftLeftFillWithOnes(n);
    }
 
   int get()                                                                     // Get the unary number
-   {return memory.countTrailingOnes();
+   {return memory.lastElement().countTrailingOnes();
    }
 
 //D1 Arithmetic                                                                 // Arithmetic using unary numbers
@@ -44,13 +49,15 @@ class Unary extends RiscV                                                       
   boolean canDec() {return get() > 0;}                                          // Can we decrement the unary number
 
   void inc()                                                                    // Increment the unary number
-   {if (!canInc()) stop(memory.getInt(), "is too big to be incremented");
-    memory.shiftLeftFillWithOnes(1);
+   {if (!canInc()) stop(memory.lastElement().getInt(), "is too big to be incremented");
+    memory.lastElement().shiftLeftFillWithOnes(1);
    }
 
   void dec()                                                                    // Decrement the unary number
-   {if (!canDec()) stop(memory.getInt(), "is too small to be decremented");
-    memory.shiftRightFillWithSign(1);
+   {if (!canDec())
+     {stop(memory.lastElement().getInt(), "is too small to be decremented");
+     }
+    memory.lastElement().shiftRightFillWithSign(1);
    }
 
 //D1 Print                                                                      // Print a unary number
@@ -62,6 +69,8 @@ class Unary extends RiscV                                                       
   static void test_unary()
    {Unary  u = unary(32);
            u.memory();
+           u.set(4);
+           u.memory();
                u.ok(0);
     u.inc();   u.ok(1);
     u.set(21); u.inc(); u.ok(22);
@@ -71,6 +80,7 @@ class Unary extends RiscV                                                       
 
     u.set( 1); ok( u.canDec());
     u.set( 0); ok(!u.canDec());
+    u.memoryPop(); u.ok(4);
    }
 
   static void test_preset()
