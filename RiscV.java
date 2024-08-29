@@ -1077,8 +1077,9 @@ ebreak Environment Break       I 1110011 0x0 imm=0x1 Transfer control to debug
       set(memory, m);
      }
 
-    Memory get(Memory memory) {return memory.get(at, width);}                   // Get a variable from memory as bits
+    Memory get(Memory memory) {return memory.get(at, width);}                   // Get a variable from memory as copied bits
     int getInt(Memory memory) {return get(memory).getInt();}                    // Get a variable from memory as an integer
+    Memory.Sub subMemory(Memory memory) {return memory.sub(at, width);}         // Get a variable from memory as sub memory
 
     void checkLength(Memory memory)                                             // Check that the memory can accommodate the memory layout
      {final int w = at + width, m = memory.size();
@@ -2229,17 +2230,17 @@ Registers  :  x3=11 x4=22
       ok(b1.getInt(m),  1);
       ok(b2.getInt(m), 12);
 
-      ok(""+m, "0000000000000000000000000000110000000000000000000000000000010000");
+      m.ok("0000000000000000000000000000110000000000000000000000000000010000");
       m.shiftRightFillWithSign(1);
-      ok(""+m, "0000000000000000000000000000011000000000000000000000000000001000");
+      m.ok("0000000000000000000000000000011000000000000000000000000000001000");
       m.shiftLeftFillWithOnes(2);
-      ok(""+m, "0000000000000000000000000001100000000000000000000000000000100011");
+      m.ok("0000000000000000000000000001100000000000000000000000000000100011");
       m.shiftLeftFillWithZeros(2);
-      ok(""+m, "0000000000000000000000000110000000000000000000000000000010001100");
+      m.ok("0000000000000000000000000110000000000000000000000000000010001100");
       m.shiftLeftFillWithZeros(25);
-      ok(""+m, "1100000000000000000000000000000100011000000000000000000000000000");
+      m.ok("1100000000000000000000000000000100011000000000000000000000000000");
       m.shiftRightFillWithSign(2);
-      ok(""+m, "1111000000000000000000000000000001000110000000000000000000000000");
+      m.ok("1111000000000000000000000000000001000110000000000000000000000000");
       ok(m.countLeadingOnes  (),  4);
       ok(m.countTrailingZeros(), 25);
      }
@@ -2286,7 +2287,41 @@ say(B.print());
         c.set(m, 1);
        }
      }
-    ok(""+m, "010110101011010101101010110101011010101101010110101011010101101010110101011010101101");
+    m.ok("010110101011010101101010110101011010101101010110101011010101101010110101011010101101");
+   }
+
+  static void test_sub_variable()
+   {RiscV     r = new RiscV();
+
+    Variable  a = r.variable ("a", 2);
+    Variable  b = r.variable ("b", 3);
+    Variable  c = r.variable ("c", 2);
+    Structure s = r.structure("s", a, b, c);
+
+    s.layout();
+    ok(s.print(), """
+  At  Wide  Size    Field name
+   0     7          s
+   0     2            a
+   2     3            b
+   5     2            c
+""");
+
+    Memory m = s.memory();
+    a.set(m, 1);
+    b.set(m, 2);
+    c.set(m, 3);
+    Memory A = a.subMemory(m);
+    Memory B = b.subMemory(m);
+    Memory C = c.subMemory(m);
+    Memory S = s.subMemory(m);
+    A.ok("01");
+    B.ok("010");
+    C.ok("11");
+    S.ok("1101001");
+    B.set(7);
+    B.ok("111");
+    S.ok("1111101");
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -2315,12 +2350,12 @@ say(B.print());
     test_down_break();
     test_set_inc_dec();
     test_variable();
+    test_double_array();
    }
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    test_variable();
-    test_double_array();
+    test_sub_variable();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
