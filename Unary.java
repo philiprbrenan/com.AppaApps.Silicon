@@ -5,91 +5,84 @@
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
 
 class Unary extends RiscV                                                       // Unary arithmetic
- {final UnaryMemoryLayout memoryLayout;                                         // Memory for unary number
-  final Memory memory;                                                          // Memory for unary number
+ {final int max;                                                                // Maximum size of unary number
 
 //D1 Construction                                                               // Create a unary number
 
-  Unary(int Max)                                                                // Create a unary number
-   {memoryLayout = new UnaryMemoryLayout(name, Max);                            // Memory for unary number
-    memory = memoryLayout.memory();                                             // Memory for unary number
-   }
+  Unary(int Max) {max = Max;}                                                   // Create a unary number
 
   static Unary unary(int max) {return new Unary(max);}                          // Create a unary number
 
-  static Unary unary(int max, int value)                                        // Create a unary number set to a specified value
-   {final Unary u = new Unary(max);
-    u.set(value);
-    return u;
-   }
+  Memory memory() {return new Memory(max);}                                     // Create somememory for a unary number
 
-  public Unary clone() {return unary(max(), get());}                            // Clone a unary number
+  int max() {return max;}                                                       // The maximum value of the unary number
 
-  int max() {return memory.size();}                                             // The maximum value of the unary number
-
-  void ok(int n) {ok(get(), n);}                                                // Check that a unary number has the expected value
-
-  static class UnaryMemoryLayout extends Variable                               // Memory layout for a stuck stack
-   {UnaryMemoryLayout(String name, int max)                                     // Create the a memory layout for a unary number
-     {super(name, max);
-      layout();                                                                 // Layout memory
-     }
-   }
+  void ok(Memory memory, int n) {ok(get(memory), n);}                           // Check that a unary number has the expected value
 
 //D1 Set and get                                                                // Set and get a unary number
 
-  void set(int n)                                                               // Set the unary number
-   {if (n >= 0 && n <= max())
-     {memory.zero();
-      if (n > 0) memory.shiftLeftFillWithOnes(n);
-     }
-    else stop(n, "too big or negative");
+  void checkMemory(Memory memory)                                               // Set the unary number
+   {final int m = memory.size();
+    if (m != max)
+      stop("Memory size is different from expected", m, "but expected", max);
    }
 
-  int get() {return memory.countTrailingOnes();}                                // Get the unary number
+  void set(Memory memory, int n)                                                // Set the unary number
+   {checkMemory(memory);
+    memory.zero();
+    if (n > 0) memory.shiftLeftFillWithOnes(n);
+   }
+
+  int get(Memory memory)                                                        // Get the unary number
+   {checkMemory(memory);
+    return memory.countTrailingOnes();
+   }
 
 //D1 Arithmetic                                                                 // Arithmetic using unary numbers
 
-  boolean canInc() {return get() < max();}                                      // Can we increment the unary number
-  boolean canDec() {return get() > 0;}                                          // Can we decrement the unary number
+  boolean canInc(Memory memory) {return get(memory) < max();}                   // Can we increment the unary number
+  boolean canDec(Memory memory) {return get(memory) > 0;}                       // Can we decrement the unary number
 
-  void inc()                                                                    // Increment the unary number
-   {if (!canInc()) stop(memory.getInt(), "is too big to be incremented");
+  void inc(Memory memory)                                                       // Increment the unary number
+   {if (!canInc(memory)) stop(memory.getInt(), "is too big to be incremented");
     memory.shiftLeftFillWithOnes(1);
    }
 
-  void dec()                                                                    // Decrement the unary number
-   {if (!canDec()) stop(memory.getInt(), "is too small to be decremented");
+  void dec(Memory memory)                                                       // Decrement the unary number
+   {if (!canDec(memory)) stop(memory.getInt(), "is too small to be decremented");
     memory.shiftRightFillWithSign(1);
    }
 
 //D1 Print                                                                      // Print a unary number
 
-  public String toString() {return ""+get();}                                   // Print a unary number
+  String toString(Memory memory) {return ""+get(memory);}                       // Print a unary number
 
 //D0 Tests                                                                      // Test unary numbers
 
   static void test_unary()
-   {var u = unary(32);
-               u.ok(0);
-    u.inc();   u.ok(1);
-    u.set(21); u.inc(); u.ok(22);
-    u.set(23); u.dec(); u.ok(22);
-    u.set(31); ok( u.canInc());
-    u.set(32); ok(!u.canInc());
+   {Unary  u = unary(32);
+    Memory m = u.memory();
 
-    u.set(1);  ok( u.canDec());
-    u.set(0);  ok(!u.canDec());
+                  u.ok(m, 0);
+    u.inc(m);     u.ok(m, 1);
+    u.set(m, 21); u.inc(m); u.ok(m, 22);
+    u.set(m, 23); u.dec(m); u.ok(m, 22);
+    u.set(m, 31); ok( u.canInc(m));
+    u.set(m, 32); ok(!u.canInc(m));
+
+    u.set(m, 1);  ok( u.canDec(m));
+    u.set(m, 0);  ok(!u.canDec(m));
    }
 
   static void test_preset()
-   {var u = unary(4, 1);
-             u.ok(1);
-    u.dec(); u.ok(0); ok( u.canInc());
-    u.inc(); u.ok(1); ok( u.canInc());
-    u.inc(); u.ok(2); ok( u.canInc());
-    u.inc(); u.ok(3); ok( u.canInc());
-    u.inc(); u.ok(4); ok(!u.canInc());
+   {Unary  u = unary(4);
+    Memory m = u.memory();
+    u.set(m, 1); u.ok(m, 1);
+    u.dec(m); u.ok(m, 0); ok( u.canInc(m));
+    u.inc(m); u.ok(m, 1); ok( u.canInc(m));
+    u.inc(m); u.ok(m, 2); ok( u.canInc(m));
+    u.inc(m); u.ok(m, 3); ok( u.canInc(m));
+    u.inc(m); u.ok(m, 4); ok(!u.canInc(m));
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
