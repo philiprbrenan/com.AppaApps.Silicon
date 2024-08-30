@@ -85,6 +85,8 @@ class Memory extends Chip                                                       
     for (int i = 0; i < m; i++) set(offset+i, source.get(i));                   // Load the specified string into memory
    }
 
+  void set(Memory source) {set(source, 0);}                                     // Set memory from source
+
   Memory get(int offset, int width)                                             // Get a sub section of this memory
    {final Memory m = new Memory(width);
     if (offset + width > size()) stop("Cannot read beyond end of memory");
@@ -188,14 +190,30 @@ class Memory extends Chip                                                       
     m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011110011100000000000");
    }
 
+  static void test_memory_set_from_memory()
+   {Memory m = memory(8);
+    m.shiftLeftFillWithOnes (2);
+    m.shiftLeftFillWithZeros(2);
+    m.shiftLeftFillWithOnes (2);
+    m.shiftLeftFillWithZeros(2);
+    Memory M = memory(16);
+    m.ok("11001100");
+    M.ok("0000000000000000");
+    Memory s = M.sub((M.size() - m.size())/2, m.size());
+    s.set(m);
+    s.ok("11001100");
+    M.ok("0000110011000000");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_memory();
     test_memory_sub();
+    test_memory_set_from_memory();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_memory_sub();
+   {oldTests();
+    test_memory_set_from_memory();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
