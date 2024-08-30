@@ -1,4 +1,4 @@
-# Test 2024-08-29 at 03:04:00
+# Test 2024-08-30 at 03:59:01
 
 name: Test
 run-name: Silicon Chip
@@ -20,7 +20,7 @@ jobs:
 
     strategy:
       matrix:
-        task: [Ban, Chip, Memory, Mjaf, Node, RiscV, Stuck, Unary]
+        task: [Ban, Chip, Memory, MemoryLayout, Mjaf, Node, RiscV, Stuck, Unary]
 
     steps:
     - uses: actions/checkout@v3
@@ -57,7 +57,12 @@ jobs:
     - name: Test Memory
       if: matrix.task == 'Memory'
       run: |
-        java -cp Classes com/AppaApps/Silicon/Mjaf
+        java -cp Classes com/AppaApps/Silicon/Memory
+
+    - name: Test MemoryLayout
+      if: matrix.task == 'MemoryLayout'
+      run: |
+        java -cp Classes com/AppaApps/Silicon/MemoryLayout
 
     - name: Test Mjaf
       if: matrix.task == 'Mjaf'
