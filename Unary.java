@@ -13,18 +13,18 @@ class Unary extends RiscV                                                       
 
   Unary(int Max) {max = Max; memory(); layout = new Layout("unary");}           // Create a unary number of specified size
 
-  static Unary unary(int max) {return new Unary(max);}                          // Create a unary number od=f specified size
+  static Unary unary(int max) {return new Unary(max);}                          // Create a unary number of specified size
 
-  void memory() {memory(new Memory(max));}                                      // Assign some memory for a unary number
+  void memory() {memoryOpen(new Memory(max));}                                  // Assign some memory for a unary number
 
-  void memory(Memory Memory)                                                    // Set memory for a unary number
+  void memoryOpen(Memory Memory)                                                // Set memory for a unary number
    {final int m = Memory.size();
     if (m != max)
-      stop("Memory size is different from expected", m, "but expected", max);
+      stop("Memory size is different from expected", max, "but got", m);
     memory.push(Memory);
    }
 
-  void memoryPop()                                                              // Pop the current memory to restore the previous memory
+  void memoryClose()                                                            // Pop the current memory to restore the previous memory
    {if (memory.size() == 0) stop("Memory stack underflow");
     memory.pop();
    }
@@ -87,7 +87,7 @@ class Unary extends RiscV                                                       
 
     u.set( 1); ok( u.canDec());
     u.set( 0); ok(!u.canDec());
-    u.memoryPop(); u.ok(4);
+    u.memoryClose(); u.ok(4);
    }
 
   static void test_preset()
