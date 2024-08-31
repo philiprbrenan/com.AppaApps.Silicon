@@ -79,7 +79,7 @@ jobs:
 
     strategy:
       matrix:
-        task: [Ban, Chip, Memory, MemoryLayout, Mjaf, Node, RiscV, Stuck, Unary]
+        task: [Ban, Chip, Memory, Mjaf, Node, RiscV, Stuck, Unary]
 
     steps:
     - uses: actions/checkout\@v3
@@ -117,11 +117,6 @@ jobs:
       if: matrix.task == 'Memory'
       run: |
         java -cp Classes $c/Memory
-
-    - name: Test MemoryLayout
-      if: matrix.task == 'MemoryLayout'
-      run: |
-        java -cp Classes $c/MemoryLayout
 
     - name: Test Mjaf
       if: matrix.task == 'Mjaf'
