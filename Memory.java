@@ -34,6 +34,8 @@ class Memory extends Chip                                                       
 
   void ok(String expected) {Chip.ok(toString(), expected);}                     // Check memory is as expected
 
+  int size() {return bits.length;}                                              // Size of memory
+
   void    set(int i, boolean b) {bits[i] = b;}                                  // Set a bit in memory
   boolean get(int i) {return     bits[i];}                                      // Get a bit in memory
 
@@ -43,8 +45,6 @@ class Memory extends Chip                                                       
     for (int i = size; i > 0; --i) b.append(get(i-1) ? '1' : '0');
     return b.toString();
    }
-
-  int size() {return bits.length;}                                              // Size of memory
 
   void set(Memory source, int offset)                                           // Copy source memory into this memory at the specified offset
    {final int t = size(), s = source.size(), m = min(t, s);
@@ -222,6 +222,7 @@ class Memory extends Chip                                                       
     void set(Memory memory, Memory variable)                                    // Set a variable in memory
      {memory.set(variable, at);
      }
+
     void set(Memory memory, int variable)                                       // Set a variable in memory from an integer
      {final Memory m = new Memory(width, null);
       m.set(variable);
@@ -230,6 +231,7 @@ class Memory extends Chip                                                       
 
     Memory get(Memory memory) {return memory.get(at, width);}                   // Get a variable from memory as copied bits
     int getInt(Memory memory) {return get(memory).getInt();}                    // Get a variable from memory as an integer
+
     Memory.Sub subMemory(Memory memory) {return memory.sub(at, width);}         // Get a variable from memory as sub memory
 
     abstract Layout duplicate(int At);                                          // Duplicate an element of this layout so we can modify it safely
@@ -263,14 +265,14 @@ class Memory extends Chip                                                       
      {super(Name);
       size(Size).element(Element);
      }
-    Array    size(int Size)             {size    = Size;    return this;}       // Set the size of the array
+    Array    size(int Size)       {size    = Size;    return this;}             // Set the size of the array
     Array element(Layout Element) {element = Element; return this;}             // The type of the element in the array
-    int at(int i)                       {return at+i*element.width;}            // Offset of this array element in the structure
+    int at(int i)                 {return at+i*element.width;}                  // Offset of this array element in the structure
 
     void layout(int At, int Depth, Layout superStructure)                       // Compile this variable so that the size, width and byte fields are correct
      {at = At; depth = Depth; superStructure.fields.push(this);
       element.layout(at, Depth+1, superStructure);
-      element.up = this;                                                        // Chain up
+      element.up = this;                                                        // Chain up to containing parent layout
       width = size * element.width;
      }
 
@@ -313,8 +315,7 @@ class Memory extends Chip                                                       
      }
 
     void layout(int at, int Depth, Layout superStructure)                       // Compile this variable so that the size, width and byte fields are correct
-     {int w = 0;
-      width = 0;
+     {width = 0;
       depth = Depth;
       superStructure.fields.push(this);
       for(Layout v : subStack)                                                  // Layout sub structure
@@ -360,8 +361,7 @@ class Memory extends Chip                                                       
      }
 
     void layout(int at, int Depth, Layout superStructure)                       // Compile this variable so that the size, width and byte fields are correct
-     {int w = 0;
-      width = 0;
+     {width = 0;
       depth = Depth;
       superStructure.fields.push(this);
       for(Layout v : subMap.values())                                           // Find largest substructure
@@ -402,11 +402,11 @@ class Memory extends Chip                                                       
      {m.shiftLeftFillWithOnes(i);
       m.shiftLeftFillWithZeros(i);
      }
-                                     ok(m, "10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011111111110000000000");
-    m.shiftRightFillWithSign(1);     ok(m, "11011001110001111000011111000001111110000001111111000000011111111000000001111111110000000001111111111000000000");
-    m.shiftRightFillWithZeros(1);    ok(m, "01101100111000111100001111100000111111000000111111100000001111111100000000111111111000000000111111111100000000");
-    m.shiftLeftFillWithOnes(8);      ok(m, "11100011110000111110000011111100000011111110000000111111110000000011111111100000000011111111110000000011111111");
-    m.shiftLeftFillWithZeros(2);     ok(m, "10001111000011111000001111110000001111111000000011111111000000001111111110000000001111111111000000001111111100");
+                                     m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011111111110000000000");
+    m.shiftRightFillWithSign(1);     m.ok("11011001110001111000011111000001111110000001111111000000011111111000000001111111110000000001111111111000000000");
+    m.shiftRightFillWithZeros(1);    m.ok("01101100111000111100001111100000111111000000111111100000001111111100000000111111111000000000111111111100000000");
+    m.shiftLeftFillWithOnes(8);      m.ok("11100011110000111110000011111100000011111110000000111111110000000011111111100000000011111111110000000011111111");
+    m.shiftLeftFillWithZeros(2);     m.ok("10001111000011111000001111110000001111111000000011111111000000001111111110000000001111111111000000001111111100");
     ok(m.countLeadingOnes  (), 1);
     ok(m.countTrailingZeros(), 2);
    }
@@ -436,12 +436,10 @@ class Memory extends Chip                                                       
     m.shiftLeftFillWithOnes (2);
     m.shiftLeftFillWithZeros(2);
     Memory M = memory(16, null);
-    m.ok("11001100");
-    M.ok("0000000000000000");
+    m.ok("11001100"); M.ok("0000000000000000");
     Memory s = M.sub((M.size() - m.size())/2, m.size());
     s.set(m);
-    s.ok("11001100");
-    M.ok("0000110011000000");
+    s.ok("11001100"); M.ok("0000110011000000");
    }
 
 //D0 Tests                                                                      // Tests
