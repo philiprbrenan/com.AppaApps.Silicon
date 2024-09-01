@@ -1,13 +1,17 @@
 //------------------------------------------------------------------------------
-// Basic
+// Bit memory described by a layout.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
 
 import java.util.*;
-
-class Memory extends Chip                                                       // Bit memory
- {final Layout mainLayout;                                                      // Layout associated with memory
+/*
+The mind commands the body and it obeys. The mind orders itself and meets
+resistance. The mentat must overcome this resistance with logic. Lady Jessica -
+Dune - Frank Herbert 1965.
+*/
+class Memory extends Chip                                                       // Bit memory described by a layout.
+ {final Layout mainLayout;                                                      // Layout of memory
   final boolean[]bits;                                                          // Bits comprising the memory
 
   Memory(int Size, Layout Layout)                                               // Create main memory with attached layout to describe its structure
@@ -16,29 +20,47 @@ class Memory extends Chip                                                       
     mainLayout = Layout;
    }
 
-  Memory(int Size)                                                              // Create main memory with no layout specified
-   {bits = new boolean[Size];
-    zero();
-    mainLayout = null;
-   }
+  Memory(int Size) {this(Size, null);}                                          // Create main memory with no layout specified
 
   Memory(Memory memory)                                                         // Shallow clone of a memory so we can reference part of it as a new memory without physically having to create the sub part
    {bits = memory.bits;
     mainLayout = memory.layout();
    }
 
-  Memory(int Width, int value)                                                  // Create a memory of specified width and set it to a specified value from an integer
-   {this(Width);
-    set(value);
-   }
+  Memory(int Width, int value) {this(Width); set(value);}                       // Create a memory of specified width and set it to a specified value from an integer
 
   static Memory memory(int size) {return new Memory(size);}                     // Create memory
+
   Layout layout() {return mainLayout;}                                          // Make the layout field overridable
 
   void ok(String expected) {Chip.ok(toString(), expected);}                     // Check memory is as expected
 
   void    set(int i, boolean b) {bits[i] = b;}                                  // Set a bit in memory
   boolean get(int i) {return     bits[i];}                                      // Get a bit in memory
+
+  public String toString()                                                      // Memory as string
+   {final StringBuilder b = new StringBuilder();
+    final int size = size();
+    for (int i = size; i > 0; --i) b.append(get(i-1) ? '1' : '0');
+    return b.toString();
+   }
+
+  int size() {return bits.length;}                                              // Size of memory
+
+  void set(Memory source, int offset)                                           // Copy source memory into this memory at the specified offset
+   {final int t = size(), s = source.size(), m = min(t, s);
+    if (offset + s > t) stop("Cannot write beyond end of memory");
+    for (int i = 0; i < m; i++) set(offset+i, source.get(i));                   // Load the specified string into memory
+   }
+
+  void set(Memory source) {set(source, 0);}                                     // Set memory from source
+
+  Memory get(int offset, int width)                                             // Get a sub section of this memory
+   {final Memory m = new Memory(width);
+    if (offset + width > size()) stop("Cannot read beyond end of memory");
+    for (int i = 0; i < width; i++) m.set(i, get(offset+i));
+    return m;
+   }
 
   void zero()                                                                   // Zero a memory
    {final int size = size();
@@ -82,30 +104,6 @@ class Memory extends Chip                                                       
     return v;
    }
 
-  public String toString()                                                      // Memory as string
-   {final StringBuilder b = new StringBuilder();
-    final int size = size();
-    for (int i = size; i > 0; --i) b.append(get(i-1) ? '1' : '0');
-    return b.toString();
-   }
-
-  int size() {return bits.length;}                                              // Size of memory
-
-  void set(Memory source, int offset)                                           // Copy source memory into this memory at the specified offset
-   {final int t = size(), s = source.size(), m = min(t, s);
-    if (offset + s > t) stop("Cannot write beyond end of memory");
-    for (int i = 0; i < m; i++) set(offset+i, source.get(i));                   // Load the specified string into memory
-   }
-
-  void set(Memory source) {set(source, 0);}                                     // Set memory from source
-
-  Memory get(int offset, int width)                                             // Get a sub section of this memory
-   {final Memory m = new Memory(width);
-    if (offset + width > size()) stop("Cannot read beyond end of memory");
-    for (int i = 0; i < width; i++) m.set(i, get(offset+i));
-    return m;
-   }
-
   int countLeadingZeros()                                                       // Count leading zeros
    {int c = 0;
     for (int i = size(); i > 0; --i) if (get(i-1)) return c; else ++c;
@@ -132,33 +130,40 @@ class Memory extends Chip                                                       
     return c;
    }
 
+// D2 Sub Memory                                                                // A sub memory provides access to a part of the full memory.  A sub memory can be mapped by a sub structure.
+
   class Sub extends Memory                                                      // Sub memory - a part of a larger memory rebased to zero
    {final int start;                                                            // Start of sub memory in larger memory
     final int width;                                                            // Width of sub memory
     Layout subLayout;                                                           // Layout of sub memory
+
     Sub(int Start, int Width)                                                   // Access part of the main memory as a sub memory
      {super(Memory.this);                                                       // Main memory
       if (Start + Width < 0) stop("Sub memory extends before start of main memory");
       if (Start + Width > Memory.this.size()) stop("Sub memory extends beyond end of main memory");
       start = Start;  width = Width; subLayout = null;
      }
+
     Sub(Layout Layout)                                                          // Access part of the main memory as a sub memory with the specified layout
      {super(Memory.this);                                                       // Main memory
       start = Layout.at; width = Layout.width;                                  // Position in main memory
       subLayout = Layout.duplicate();
      }
+
     Layout layout() {return subLayout;}                                         // Make the layout field overridable
+    int    size  () {return width;}                                             // Width of sub memory
+
     boolean get(int i)                                                          // Get a bit from a sub memory
      {if (i > width) stop("Trying to read beyond end of sub memory", i, width);
       if (i < 0)     stop("Trying to read before start of sub memory", i);
       return Memory.this.get(i + start);
      }
+
     void set(int i, boolean b)                                                  // Set a bit in a sub memory
      {if (i > width) stop("Trying to write beyond end of sub memory", i, width);
       if (i < 0)     stop("Trying to write before start of sub memory", i);
       Memory.this.set(i + start, b);
      }
-    int size() {return width;}                                                  // Width of sub memory
    }
 
   Sub sub(int start, int width) {return new Sub(start, width);}                 // Create a sub memory
@@ -174,22 +179,19 @@ class Memory extends Chip                                                       
     Layout up;                                                                  // Chain to containing field
     final Stack<Layout> fields = new Stack<>();                                 // Fields in the super structure in the order they appear in the memory layout. Only relevant in the outer most layout == the super structure,  where it is used for printing the structure and locating sub structures.
 
-    Layout(String Name) {name  = Name; fields();}                               // Create a new named memory layout
+    Layout(String Name) {name = Name;}                                          // Create a new named memory layout
     Layout()            {this(null);}                                           // Create a new unnamed memory layout
-
-    void fields() {}                                                            // Create these fields
 
     Layout width(int Width)   {width = Width; return this;}
 
-    abstract void layout(int at, int depth, Layout superStructure);             // Layout this field within the super structure.
+    abstract void layout  (int at, int depth, Layout superStructure);           // Layout this field within the super structure.
+             void position(int At) {at = At;}                                   // Reposition array elements to take account of the index applied to the array
 
     Memory layout()
      {fields.clear();
       layout(0, 0, this);
       return new Memory(width, this);
      }
-
-    void position(int At) {at = At;}                                            // Reposition array elements to take account of the index applied to the array
 
     String indent() {return "  ".repeat(depth);}                                // Indentation
 
@@ -231,12 +233,8 @@ class Memory extends Chip                                                       
     int getInt(Memory memory) {return get(memory).getInt();}                    // Get a variable from memory as an integer
     Memory.Sub subMemory(Memory memory) {return memory.sub(at, width);}         // Get a variable from memory as sub memory
 
-    void checkLength(Memory memory)                                             // Check that the memory can accommodate the memory layout
-     {final int w = at + width, m = memory.size();
-      if (w >= m) stop("Variable beyond the end of memory", w, m);
-     }
-
     abstract Layout duplicate(int At);                                          // Duplicate an element of this layout so we can modify it safely
+
     Layout duplicate()                                                          // Duplicate a set of nested layouts rebasing their start point to zero
      {final Layout l = duplicate(at);
       l.layout();
@@ -248,7 +246,7 @@ class Memory extends Chip                                                       
    {Variable(String name, int Width)
      {super(name); width(Width);
      }
-    void layout(int At, int Depth, Layout superStructure)
+    void layout(int At, int Depth, Layout superStructure)                       // Layout the variable in the structure
      {at = At; depth = Depth; superStructure.fields.push(this);
      }
     Layout duplicate(int At)                                                    // Duplicate a variable so we can modify it safely
@@ -306,8 +304,8 @@ class Memory extends Chip                                                       
       if (subMap.containsKey(Field.name))
        {stop("Structure already contains field with this name", name, Field.name);
        }
-     subMap.put (Field.name, Field);                                            // Add as a sub structure by name
-     subStack.push(Field);                                                      // Add as a sub structure in order
+      subMap.put (Field.name, Field);                                           // Add as a sub structure by name
+      subStack.push(Field);                                                     // Add as a sub structure in order
      }
 
     void layout(int at, int Depth, Layout superStructure)                       // Compile this variable so that the size, width and byte fields are correct
@@ -330,6 +328,7 @@ class Memory extends Chip                                                       
         w += v.width;
        }
      }
+
     Layout duplicate(int At)                                                    // Duplicate a structure so we can modify it safely
      {final Structure s = new Structure(name);
       s.width = width; s.at = at - At; s.depth = depth;
@@ -631,7 +630,6 @@ class Memory extends Chip                                                       
     Variable  element = new Variable("element", N);
     Array     array   = new Array   ("array",  element, N);
     array.layout();
-say(array.print());
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
