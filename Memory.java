@@ -180,12 +180,11 @@ class Memory extends Chip                                                       
     final Stack<Layout> fields = new Stack<>();                                 // Fields in the super structure in the order they appear in the memory layout. Only relevant in the outer most layout == the super structure,  where it is used for printing the structure and locating sub structures.
 
     Layout(String Name) {name = Name;}                                          // Create a new named memory layout
-    Layout()            {this(null);}                                           // Create a new unnamed memory layout
 
-    Layout width(int Width)   {width = Width; return this;}
+    Layout width   (int Width) {width = Width; return this;}                    // Set width or layout once it is known
+    Layout position(int At)    {at    = At;    return this;}                    // Reposition array elements to take account of the index applied to the array
 
     abstract void layout  (int at, int depth, Layout superStructure);           // Layout this field within the super structure.
-             void position(int At) {at = At;}                                   // Reposition array elements to take account of the index applied to the array
 
     Memory layout()
      {fields.clear();
@@ -274,7 +273,12 @@ class Memory extends Chip                                                       
       element.up = this;                                                        // Chain up
       width = size * element.width;
      }
-    void position(int At) {at = At; element.position(at + index * element.width);}
+
+    Layout position(int At)                                                     // Reposition an array
+     {at = At;
+      element.position(at + index * element.width);
+      return this;
+     }
 
     public String toString()                                                    // Print the field
      {return String.format("%4d  %4d  %4d  %s  %s",
@@ -320,13 +324,14 @@ class Memory extends Chip                                                       
        }
      }
 
-    void position(int At)                                                       // Reposition this structure to allow access to array elements via an index
+    Layout position(int At)                                                       // Reposition this structure to allow access to array elements via an index
      {at = At;
       int w = 0;
       for(Layout v : subStack)                                                  // Layout sub structure
        {v.position(v.at = at+w);
         w += v.width;
        }
+      return this;
      }
 
     Layout duplicate(int At)                                                    // Duplicate a structure so we can modify it safely
@@ -366,9 +371,10 @@ class Memory extends Chip                                                       
        }
      }
 
-    void position(int At)                                                       // Position elements of this union to allow arrays to access their elements by an index
+    Layout position(int At)                                                     // Position elements of this union to allow arrays to access their elements by an index
      {at = At;
       for(Layout v : subMap.values()) {v.position(at);}
+      return this;
      }
 
     Layout duplicate(int At)                                                    // Duplicate a union so we can modify it safely
@@ -396,15 +402,11 @@ class Memory extends Chip                                                       
      {m.shiftLeftFillWithOnes(i);
       m.shiftLeftFillWithZeros(i);
      }
-    ok(m, "10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011111111110000000000");
-    m.shiftRightFillWithSign(1);
-    ok(m, "11011001110001111000011111000001111110000001111111000000011111111000000001111111110000000001111111111000000000");
-    m.shiftRightFillWithZeros(1);
-    ok(m, "01101100111000111100001111100000111111000000111111100000001111111100000000111111111000000000111111111100000000");
-    m.shiftLeftFillWithOnes(8);
-    ok(m, "11100011110000111110000011111100000011111110000000111111110000000011111111100000000011111111110000000011111111");
-    m.shiftLeftFillWithZeros(2);
-    ok(m, "10001111000011111000001111110000001111111000000011111111000000001111111110000000001111111111000000001111111100");
+                                     ok(m, "10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011111111110000000000");
+    m.shiftRightFillWithSign(1);     ok(m, "11011001110001111000011111000001111110000001111111000000011111111000000001111111110000000001111111111000000000");
+    m.shiftRightFillWithZeros(1);    ok(m, "01101100111000111100001111100000111111000000111111100000001111111100000000111111111000000000111111111100000000");
+    m.shiftLeftFillWithOnes(8);      ok(m, "11100011110000111110000011111100000011111110000000111111110000000011111111100000000011111111110000000011111111");
+    m.shiftLeftFillWithZeros(2);     ok(m, "10001111000011111000001111110000001111111000000011111111000000001111111110000000001111111111000000001111111100");
     ok(m.countLeadingOnes  (), 1);
     ok(m.countTrailingZeros(), 2);
    }
@@ -414,22 +416,17 @@ class Memory extends Chip                                                       
     for (int i = 1; i < 11; i++)
      {m.shiftLeftFillWithOnes(i);
       m.shiftLeftFillWithZeros(i);
-     }
-    m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011111111110000000000");
+     }                               m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011111111110000000000");
 
     final Memory.Sub s = m.sub(10, 10);                                         // Sub memory
-    s.shiftRightFillWithZeros(2);
-    m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000000111111110000000000");
-    s.shiftLeftFillWithOnes(1);
-    m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000001111111110000000000");
-    s.shiftLeftFillWithZeros(1);
-    m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011111111100000000000");
+    s.shiftRightFillWithZeros(2);    m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000000111111110000000000");
+    s.shiftLeftFillWithOnes(1);      m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000001111111110000000000");
+    s.shiftLeftFillWithZeros(1);     m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011111111100000000000");
     ok(s.countLeadingOnes  (), 9);
     ok(s.countTrailingZeros(), 1);
 
     final Memory.Sub S = s.sub(4, 2);                                           // Sub sub memory
-    S.zero();
-    m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011110011100000000000");
+    S.zero();                        m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011110011100000000000");
    }
 
   static void test_memory_set_from_memory()
@@ -514,17 +511,12 @@ class Memory extends Chip                                                       
       ok(b1.getInt(m),  1);
       ok(b2.getInt(m), 12);
 
-      m.ok("0000000000000000000000000000110000000000000000000000000000010000");
-      m.shiftRightFillWithSign(1);
-      m.ok("0000000000000000000000000000011000000000000000000000000000001000");
-      m.shiftLeftFillWithOnes(2);
-      m.ok("0000000000000000000000000001100000000000000000000000000000100011");
-      m.shiftLeftFillWithZeros(2);
-      m.ok("0000000000000000000000000110000000000000000000000000000010001100");
-      m.shiftLeftFillWithZeros(25);
-      m.ok("1100000000000000000000000000000100011000000000000000000000000000");
-      m.shiftRightFillWithSign(2);
-      m.ok("1111000000000000000000000000000001000110000000000000000000000000");
+                                     m.ok("0000000000000000000000000000110000000000000000000000000000010000");
+      m.shiftRightFillWithSign(1);   m.ok("0000000000000000000000000000011000000000000000000000000000001000");
+      m.shiftLeftFillWithOnes(2);    m.ok("0000000000000000000000000001100000000000000000000000000000100011");
+      m.shiftLeftFillWithZeros(2);   m.ok("0000000000000000000000000110000000000000000000000000000010001100");
+      m.shiftLeftFillWithZeros(25);  m.ok("1100000000000000000000000000000100011000000000000000000000000000");
+      m.shiftRightFillWithSign(2);   m.ok("1111000000000000000000000000000001000110000000000000000000000000");
       ok(m.countLeadingOnes  (),  4);
       ok(m.countTrailingZeros(), 25);
 
