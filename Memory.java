@@ -7,8 +7,8 @@ package com.AppaApps.Silicon;                                                   
 import java.util.*;
 /*
 The mind commands the body and it obeys. The mind orders itself and meets
-resistance. The mentat must overcome this resistance with logic. Lady Jessica -
-Dune - Frank Herbert 1965.
+resistance. The mentat must overcome this resistance with logic.
+Lady Jessica - Dune - Frank Herbert - 1965.
 */
 class Memory extends Chip                                                       // Bit memory described by a layout.
  {final Layout mainLayout;                                                      // Layout of memory
@@ -20,16 +20,12 @@ class Memory extends Chip                                                       
     mainLayout = Layout;
    }
 
-  Memory(int Size) {this(Size, null);}                                          // Create main memory with no layout specified
-
   Memory(Memory memory)                                                         // Shallow clone of a memory so we can reference part of it as a new memory without physically having to create the sub part
    {bits = memory.bits;
     mainLayout = memory.layout();
    }
 
-  Memory(int Width, int value) {this(Width); set(value);}                       // Create a memory of specified width and set it to a specified value from an integer
-
-  static Memory memory(int size) {return new Memory(size);}                     // Create memory
+  static Memory memory(int size) {return new Memory(size, null);}                     // Create memory
 
   Layout layout() {return mainLayout;}                                          // Make the layout field overridable
 
@@ -56,7 +52,7 @@ class Memory extends Chip                                                       
   void set(Memory source) {set(source, 0);}                                     // Set memory from source
 
   Memory get(int offset, int width)                                             // Get a sub section of this memory
-   {final Memory m = new Memory(width);
+   {final Memory m = new Memory(width, null);
     if (offset + width > size()) stop("Cannot read beyond end of memory");
     for (int i = 0; i < width; i++) m.set(i, get(offset+i));
     return m;
@@ -224,7 +220,8 @@ class Memory extends Chip                                                       
      {memory.set(variable, at);
      }
     void set(Memory memory, int variable)                                       // Set a variable in memory from an integer
-     {final Memory m = new Memory(width, variable);
+     {final Memory m = new Memory(width, null);
+      m.set(variable);
       set(memory, m);
      }
 
@@ -324,7 +321,7 @@ class Memory extends Chip                                                       
        }
      }
 
-    Layout position(int At)                                                       // Reposition this structure to allow access to array elements via an index
+    Layout position(int At)                                                     // Reposition this structure to allow access to array elements via an index
      {at = At;
       int w = 0;
       for(Layout v : subStack)                                                  // Layout sub structure
