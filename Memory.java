@@ -20,12 +20,15 @@ class Memory extends Chip                                                       
     mainLayout = Layout;
    }
 
-  Memory(Memory memory)                                                         // Shallow clone of a memory so we can reference part of it as a new memory without physically having to create the sub part
+  Memory(Memory memory)                                                         // Deep copy of a memory so we can reference part of it as a new memory without physically having to create the sub part
    {bits = memory.bits;
-    mainLayout = memory.layout();
+    final Layout l = memory.mainLayout;
+    mainLayout = l != null ? l.duplicate() : null;
    }
 
-  static Memory memory(int size) {return new Memory(size, null);}                     // Create memory
+  static Memory memory(int size, Layout Layout)                                 // Create memory
+   {return new Memory(size, Layout);
+   }
 
   Layout layout() {return mainLayout;}                                          // Make the layout field overridable
 
@@ -394,7 +397,7 @@ class Memory extends Chip                                                       
 //D0                                                                            // Tests
 
   static void test_memory()
-   {Memory m = memory(110);
+   {Memory m = memory(110, null);
     for (int i = 1; i < 11; i++)
      {m.shiftLeftFillWithOnes(i);
       m.shiftLeftFillWithZeros(i);
@@ -409,7 +412,7 @@ class Memory extends Chip                                                       
    }
 
   static void test_memory_sub()
-   {Memory m = memory(110);                                                     // Main memory
+   {Memory m = memory(110, null);                                                     // Main memory
     for (int i = 1; i < 11; i++)
      {m.shiftLeftFillWithOnes(i);
       m.shiftLeftFillWithZeros(i);
@@ -427,12 +430,12 @@ class Memory extends Chip                                                       
    }
 
   static void test_memory_set_from_memory()
-   {Memory m = memory(8);
+   {Memory m = memory(8, null);
     m.shiftLeftFillWithOnes (2);
     m.shiftLeftFillWithZeros(2);
     m.shiftLeftFillWithOnes (2);
     m.shiftLeftFillWithZeros(2);
-    Memory M = memory(16);
+    Memory M = memory(16, null);
     m.ok("11001100");
     M.ok("0000000000000000");
     Memory s = M.sub((M.size() - m.size())/2, m.size());
