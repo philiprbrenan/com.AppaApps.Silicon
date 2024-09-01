@@ -137,7 +137,7 @@ class Memory extends Chip                                                       
     Layout subLayout;                                                           // Layout of sub memory
 
     Sub(int Start, int Width)                                                   // Access part of the main memory as a sub memory
-     {super(Memory.this);                                                       // Main memory
+     {super(Memory.this);                                                       // Clone access to main memory
       if (Start + Width < 0) stop("Sub memory extends before start of main memory");
       if (Start + Width > Memory.this.size()) stop("Sub memory extends beyond end of main memory");
       start = Start;  width = Width; subLayout = null;
@@ -176,6 +176,8 @@ class Memory extends Chip                                                       
     int width;                                                                  // Number of width in field
     int depth;                                                                  // Depth of field
     Layout up;                                                                  // Chain to containing field
+    Layout superStructure;                                                      // Containing super structure
+    Memory memory;                                                              // Memory created from this layout
     final Stack<Layout> fields = new Stack<>();                                 // Fields in the super structure in the order they appear in the memory layout. Only relevant in the outer most layout == the super structure,  where it is used for printing the structure and locating sub structures.
 
     Layout(String Name) {name = Name;}                                          // Create a new named memory layout
@@ -188,7 +190,10 @@ class Memory extends Chip                                                       
     Memory layout()
      {fields.clear();
       layout(0, 0, this);
-      return new Memory(width, this);
+      for(Layout l : fields) l.superStructure = this;                           // Locate the super structure containing this field
+      memory = new Memory(width, this);
+      for(Layout l : fields) l.memory = memory;                                 // Locate the super structure containing this field
+      return memory;
      }
 
     String indent() {return "  ".repeat(depth);}                                // Indentation
@@ -240,6 +245,18 @@ class Memory extends Chip                                                       
      {final Layout l = duplicate(at);
       l.layout();
       return l;
+     }
+
+    void set(int source) {set(memory, source);}                                 // Set this variable from the supplied constant
+
+    void set(Variable source)                                                   // Set this variable from the supplied variable
+     {if (width != source.width) stop("Variables have different widths", width, source.width);
+      final Memory.Sub vm = source.memory.new Sub(source.at, source.width);     // Refer to memory containing source variable
+      memory.set(vm, at);                                                       // Set memory for this variable from memory reffered to by source variable
+     }
+
+    void ok(int expected)                                                       // Check the value of a variable
+     {Chip.ok(getInt(memory), expected);
      }
    }
 
@@ -613,6 +630,42 @@ class Memory extends Chip                                                       
     S.ok("1111101");
    }
 
+  static void test_variable_assign()
+   {Variable  a = variable ("a", 2);
+    Variable  b = variable ("b", 3);
+    Variable  c = variable ("c", 2);
+    Structure s = structure("s", a, b, c);
+
+    s.layout();
+    Structure S = (Structure)s.duplicate();
+
+    ok(s.print(), """
+  At  Wide  Size    Field name
+   0     7          s
+   0     2            a
+   2     3            b
+   5     2            c
+""");
+
+    ok(S.print(), """
+  At  Wide  Size    Field name
+   0     7          s
+   0     2            a
+   2     3            b
+   5     2            c
+""");
+
+    Variable sb = (Variable)s.getFieldDef("b");
+    Variable Sb = (Variable)S.getFieldDef("b");
+    sb.set(5);  sb.ok(5);
+    Sb.set(0);  Sb.ok(0);
+    Sb.set(sb); Sb.ok(5);
+    say("AAAA", sb.superStructure.memory);
+    say("BBBB", Sb.superStructure.memory);
+    s.set(65);
+    say("AAAA", s.memory);
+   }
+
   static void test_array()
    {final int N       = 4;
 
@@ -633,7 +686,7 @@ class Memory extends Chip                                                       
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_variable();
+    test_variable_assign();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
