@@ -185,7 +185,7 @@ class Memory extends Chip                                                       
     Layout width   (int Width) {width = Width; return this;}                    // Set width or layout once it is known
     Layout position(int At)    {at    = At;    return this;}                    // Reposition array elements to take account of the index applied to the array
 
-    abstract void layout  (int at, int depth, Layout superStructure);           // Layout this field within the super structure.
+    abstract void layout(int at, int depth, Layout superStructure);             // Layout this field within the super structure.
 
     Memory layout()
      {fields.clear();
@@ -209,24 +209,24 @@ class Memory extends Chip                                                       
      {return String.format("%4d  %4d        %s  %s", at, width, indent(), name);
      }
 
-    public String print()                                                       // Walk the field list printing the memory layout headers
+    String print()                                                              // Walk the field list printing the memory layout headers
      {if (fields == null) return "";                                            // The structure has not been laid out
       final StringBuilder b = new StringBuilder();
-      b.append(String.format("%4s  %4s  %4s    %s", "  At", "Wide", "Size", "Field name\n"));
+      b.append(String.format("%4s  %4s  %4s    %s",
+                             "  At", "Wide", "Size", "Field name\n"));
       for(Layout l : fields) b.append(""+l.printEntry()+"\n");                  // Print all the fields in the structure layout
       return b.toString();
      }
 
-    Layout getFieldDef(String path)                                             // Path to field
+    Layout getField(String path)                                                // Path to field
      {final String[]names = path.split("\\.");                                  // Split path
       if (fields == null) return null;                                          // Not compiled
-      for (Layout m : fields)                                                   // Each field in structure
+      search: for (Layout m : fields)                                           // Each field in structure
        {Layout p = m;                                                           // Start at this field and try to match the path
-        boolean found = true;
-        for(int q = names.length; q > 0 && p != null && found; --q, p = p.up)   // Back track through names
-         {found = p.name.equals(names[q-1]);                                    // Check path matches
+        for(int q = names.length; q > 0 && p != null; --q, p = p.up)            // Back track through names
+         {if (!p.name.equals(names[q-1])) continue search;                      // Check path matches
          }
-        if (found) return m;                                                    // Return this field if its path matches
+        return m;                                                               // Return this field if its path matches
        }
       return null;                                                              // No matching path
      }
@@ -247,7 +247,7 @@ class Memory extends Chip                                                       
      }
 
     Memory get(Memory memory) {return memory.get(at, width);}                   // Get a variable from memory as copied bits
-    int getInt(Memory memory) {return get(memory).getInt();}                    // Get a variable from memory as an integer
+    int get() {return get(memory).getInt();}                                    // Get a variable from memory as an integer
 
     Memory.Sub subMemory(Memory memory) {return memory.sub(at, width);}         // Get a variable from memory as sub memory
 
@@ -259,8 +259,6 @@ class Memory extends Chip                                                       
       return l;
      }
 
-    int get() {return get(memory).getInt();}                                    // Get a variable from memory as an integer
-
     void set(int source) {set(memory, source);}                                 // Set this variable from the supplied constant
     void set(Variable source)                                                   // Set this variable from the supplied variable
      {if (width != source.width) stop("Variables have different widths", width, source.width);
@@ -268,9 +266,7 @@ class Memory extends Chip                                                       
       memory.set(vm, at);                                                       // Set memory for this variable from memory reffered to by source variable
      }
 
-    void ok(int expected)                                                       // Check the value of a variable
-     {Chip.ok(getInt(memory), expected);
-     }
+    void ok(int expected) {Chip.ok(get(), expected);}                           // Check the value of a variable
    }
 
   static class Variable extends Layout                                          // Variable
@@ -383,12 +379,14 @@ class Memory extends Chip                                                       
 
     Union(String Name, Layout...Fields)                                         // Fields in the union
      {super(Name);
-      for (int i = 0; i < Fields.length; ++i)                                   // Each field in this union
-       {final Layout s = Fields[i];
-        s.up = this;                                                            // Chain up to containing structure
-        if (subMap.containsKey(s.name)) stop(name, "already contains", s.name);
-        subMap.put (s.name, s);                                                 // Add as a sub structure by name
-       }
+      for (int i = 0; i < Fields.length; ++i) addField(Fields[i]);              // Each field in this union
+     }
+
+    void addField(Layout Field)                                                 // Add a field to the union
+     {final String n = Field.name;
+      Field.up = this;                                                          // Chain up to containing structure
+      if (subMap.containsKey(n)) stop(name, "already contains", n);
+      subMap.put (n, Field);                                                    // Add as a sub structure by name
      }
 
     void layout(int at, int Depth, Layout superStructure)                       // Compile this variable so that the size, width and byte fields are correct
@@ -529,16 +527,16 @@ class Memory extends Chip                                                       
    0     8            b3
 """);
 
-    ok(T.getFieldDef("outer.inner1.C1.c1").at,  8);
-    ok(T.getFieldDef("outer.inner2.C2.c2").at, 36);
+    ok(T.getField("outer.inner1.C1.c1").at,  8);
+    ok(T.getField("outer.inner2.C2.c2").at, 36);
     ok(C2.at(2), 40);
 
     if (true)                                                                   // Set memory directly
      {final Memory m = T.layout();
          b1.set   (m,   1);
          b2.set   (m,  12);
-      ok(b1.getInt(m),  1);
-      ok(b2.getInt(m), 12);
+      ok(b1.get(),  1);
+      ok(b2.get(), 12);
 
                                      m.ok("0000000000000000000000000000110000000000000000000000000000010000");
       m.shiftRightFillWithSign(1);   m.ok("0000000000000000000000000000011000000000000000000000000000001000");
@@ -553,7 +551,7 @@ class Memory extends Chip                                                       
       final Memory n = m.sub(s2);
       m.ok("1111000000000000000000000000000001000110000000000000000000000000");
       n.ok(        "0000000000000000000000000100");
-      n.layout().getFieldDef("inner2.b2").set(n, 3);
+      n.layout().getField("inner2.b2").set(n, 3);
       m.ok("1111000000000000000000000000001101000110000000000000000000000000");
       n.ok(        "0000000000000000000000110100");
      }
@@ -669,8 +667,8 @@ class Memory extends Chip                                                       
    5     2            c
 """);
 
-    Variable sb = (Variable)s.getFieldDef("b");
-    Variable Sb = (Variable)S.getFieldDef("b");
+    Variable sb = (Variable)s.getField("b");
+    Variable Sb = (Variable)S.getField("b");
     sb.set(5);  sb.ok(5);
     Sb.set(0);  Sb.ok(0);
     Sb.set(sb); Sb.ok(5);
@@ -688,17 +686,17 @@ class Memory extends Chip                                                       
     array.setIndex(1);
     element.set(3);
     ok(element.get(), 3);
-    ok(element.get(), ((Variable)array.getFieldDef("element")).get());
+    ok(element.get(), ((Variable)array.getField("element")).get());
 
     Array a = (Array)array.duplicate(); a.shareMemory(array);
     array.setIndex(2);
     ok(element.get(), 0);
-    ok(element.get(), ((Variable)array.getFieldDef("element")).get());
-    ok(((Variable)a.getFieldDef("element")).get(), 3);
+    ok(element.get(), ((Variable)array.getField("element")).get());
+    ok(((Variable)a.getField("element")).get(), 3);
 
     Array b = (Array)array.duplicate(); b.shareMemory(array);
     ok(b, "0000000000110000");
-    b.getFieldDef("element").set((Variable)a.getFieldDef("element"));
+    b.getField("element").set((Variable)a.getField("element"));
     ok(b, "0000001100110000");
    }
 
