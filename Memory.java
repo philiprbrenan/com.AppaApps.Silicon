@@ -259,7 +259,7 @@ class Memory extends Chip                                                       
       return l;
      }
 
-    int getInt() {err("RRRR", at, width, memory);return get(memory).getInt();}                                 // Get a variable from memory as an integer
+    int get() {return get(memory).getInt();}                                    // Get a variable from memory as an integer
 
     void set(int source) {set(memory, source);}                                 // Set this variable from the supplied constant
     void set(Variable source)                                                   // Set this variable from the supplied variable
@@ -687,29 +687,19 @@ class Memory extends Chip                                                       
               array.layout();
     array.setIndex(1);
     element.set(3);
-    ok(element.getInt(), 3);
-    ok(element.getInt(), ((Variable)array.getFieldDef("element")).getInt());
+    ok(element.get(), 3);
+    ok(element.get(), ((Variable)array.getFieldDef("element")).get());
 
-    Array a = (Array)array.duplicate(); a.memory = array.memory;
+    Array a = (Array)array.duplicate(); a.shareMemory(array);
     array.setIndex(2);
-    ok(element.getInt(), 0);
-    ok(element.getInt(), ((Variable)array.getFieldDef("element")).getInt());
-    say("AAA2", array, element.getInt(), ((Variable)array.getFieldDef("element")).at);
-    say("AAA3", a,     '_',              ((Variable)a    .getFieldDef("element")).at);
-say("PPPPArray", array);
-say("PPPPAAAAA", a);
-say("PPPPBBBB", ((Variable)a.getFieldDef("element")).memory);
-say("QQQQQQQQQ", ((Variable)a.getFieldDef("element")).getInt());
+    ok(element.get(), 0);
+    ok(element.get(), ((Variable)array.getFieldDef("element")).get());
+    ok(((Variable)a.getFieldDef("element")).get(), 3);
 
-
-    Array b = (Array)array.duplicate(); b.memory = array.memory;
-    say(array.index, array.at);
-    Variable va = (Variable)a.getFieldDef("element");
-    say("BBBB", va.getInt(va.memory));
-    say(a.index, a.at);
-    say(b.index, b.at);
+    Array b = (Array)array.duplicate(); b.shareMemory(array);
+    ok(b, "0000000000110000");
     b.getFieldDef("element").set((Variable)a.getFieldDef("element"));
-    say(b);
+    ok(b, "0000001100110000");
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
