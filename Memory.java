@@ -20,7 +20,7 @@ class Memory extends Chip                                                       
     mainLayout = Layout;
    }
 
-  Memory(Memory memory)                                                         // Deep copy of a memory so we can reference part of it as a new memory without physically having to create the sub part
+  Memory(Memory memory)                                                         // Deep copy of layout of a memory so we can adjust array positions
    {bits = memory.bits;
     final Layout l = memory.mainLayout;
     mainLayout = l != null ? l.duplicate() : null;
@@ -41,8 +41,7 @@ class Memory extends Chip                                                       
 
   public String toString()                                                      // Memory as string
    {final StringBuilder b = new StringBuilder();
-    final int size = size();
-    for (int i = size; i > 0; --i) b.append(get(i-1) ? '1' : '0');
+    for (int i = size(); i > 0; --i) b.append(get(i-1) ? '1' : '0');
     return b.toString();
    }
 
@@ -67,15 +66,13 @@ class Memory extends Chip                                                       
    }
 
   void shiftLeftFillWithZeros(int left)                                         // Shift left filling with zeroes
-   {final int size = size();
-    for (int i = size; i > left; --i) set(i-1, get(i-1-left));
-    for (int i = 0;    i < left; ++i) set(i,   false);
+   {for (int i = size(); i > left; --i) set(i-1, get(i-1-left));
+    for (int i = 0;      i < left; ++i) set(i,   false);
    }
 
   void shiftLeftFillWithOnes(int left)                                          // Shift left filling with ones
-   {final int size = size();
-    for (int i = size; i > left; --i) set(i-1, get(i-1-left));
-    for (int i = 0;    i < left; ++i) set(i,   true);
+   {for (int i = size(); i > left; --i) set(i-1, get(i-1-left));
+    for (int i = 0;      i < left; ++i) set(i,   true);
    }
 
   void shiftRightFillWithZeros(int right)                                       // Shift right filling with zeroes
@@ -96,7 +93,7 @@ class Memory extends Chip                                                       
     for (int i = 0; i < n; i++) set(i, (value & (1<<i)) != 0);                  // Convert variable to bits
    }
 
-  int getInt()                                                                  // Get memory as an integer
+  int get()                                                                     // Get memory as an integer
    {final int n = size();
     int v = 0;
     for (int i = 0; i < n; i++) if (get(i)) v |= (1<<i);                        // Convert bits to int
@@ -117,16 +114,14 @@ class Memory extends Chip                                                       
 
   int countTrailingZeros()                                                      // Count trailing zeros
    {final int n = size();
-    int c = 0;
-    for (int i = 0; i < n; ++i) if (get(i)) return c; else ++c;
-    return c;
+    for (int i = 0; i < n; ++i) if (get(i)) return i;
+    return n;
    }
 
   int countTrailingOnes()                                                       // Count trailing ones
    {final int n = size();
-    int c = 0;
-    for (int i = 0; i < n; ++i) if (!get(i)) return c; else ++c;
-    return c;
+    for (int i = 0; i < n; ++i) if (!get(i)) return i;
+    return n;
    }
 
 // D2 Sub Memory                                                                // A sub memory provides access to a part of the full memory.  A sub memory can be mapped by a sub structure.
@@ -140,13 +135,13 @@ class Memory extends Chip                                                       
      {super(Memory.this);                                                       // Clone access to main memory
       if (Start + Width < 0) stop("Sub memory extends before start of main memory");
       if (Start + Width > Memory.this.size()) stop("Sub memory extends beyond end of main memory");
-      start = Start;  width = Width; subLayout = null;
+      start = Start; width = Width; subLayout = null;
      }
 
     Sub(Layout Layout)                                                          // Access part of the main memory as a sub memory with the specified layout
      {super(Memory.this);                                                       // Main memory
       start = Layout.at; width = Layout.width;                                  // Position in main memory
-      subLayout = Layout.duplicate();
+      subLayout = Layout.duplicate();                                           // Duplicate
      }
 
     Layout layout() {return subLayout;}                                         // Make the layout field overridable
@@ -187,7 +182,7 @@ class Memory extends Chip                                                       
 
     abstract void layout(int at, int depth, Layout superStructure);             // Layout this field within the super structure.
 
-    Memory layout()
+    Memory layout()                                                             // Layout the structure based on the fields that describe it
      {fields.clear();
       layout(0, 0, this);
       for(Layout l : fields) l.superStructure = this;                           // Locate the super structure containing this field
@@ -247,7 +242,7 @@ class Memory extends Chip                                                       
      }
 
     Memory get(Memory memory) {return memory.get(at, width);}                   // Get a variable from memory as copied bits
-    int get() {return get(memory).getInt();}                                    // Get a variable from memory as an integer
+    int get() {return get(memory).get();}                                       // Get a variable from memory as an integer
 
     Memory.Sub subMemory(Memory memory) {return memory.sub(at, width);}         // Get a variable from memory as sub memory
 
@@ -261,7 +256,8 @@ class Memory extends Chip                                                       
 
     void set(int source) {set(memory, source);}                                 // Set this variable from the supplied constant
     void set(Variable source)                                                   // Set this variable from the supplied variable
-     {if (width != source.width) stop("Variables have different widths", width, source.width);
+     {if (width != source.width)
+        stop("Variables have different widths", width, source.width);
       final Memory.Sub vm = source.memory.new Sub(source.at, source.width);     // Refer to memory containing source variable
       memory.set(vm, at);                                                       // Set memory for this variable from memory reffered to by source variable
      }
@@ -291,6 +287,7 @@ class Memory extends Chip                                                       
      {super(Name);
       size(Size).element(Element);
      }
+
     Array    size(int Size)       {size    = Size;    return this;}             // Set the size of the array
     Array element(Layout Element) {element = Element; return this;}             // The type of the element in the array
     int at(int i)                 {return at+i*element.width;}                  // Offset of this array element in the structure
@@ -335,7 +332,8 @@ class Memory extends Chip                                                       
     void addField(Layout Field)                                                 // Add additional fields
      {Field.up = this;                                                          // Chain up to containing structure
       if (subMap.containsKey(Field.name))
-       {stop("Structure already contains field with this name", name, Field.name);
+       {stop("Structure already contains field with this name",
+             name, Field.name);
        }
       subMap.put (Field.name, Field);                                           // Add as a sub structure by name
       subStack.push(Field);                                                     // Add as a sub structure in order
@@ -402,7 +400,7 @@ class Memory extends Chip                                                       
 
     Layout position(int At)                                                     // Position elements of this union to allow arrays to access their elements by an index
      {at = At;
-      for(Layout v : subMap.values()) {v.position(at);}
+      for(Layout v : subMap.values()) v.position(at);
       return this;
      }
 
@@ -441,7 +439,7 @@ class Memory extends Chip                                                       
    }
 
   static void test_memory_sub()
-   {Memory m = memory(110, null);                                                     // Main memory
+   {Memory m = memory(110, null);                                               // Main memory
     for (int i = 1; i < 11; i++)
      {m.shiftLeftFillWithOnes(i);
       m.shiftLeftFillWithZeros(i);
@@ -694,10 +692,8 @@ class Memory extends Chip                                                       
     ok(element.get(), ((Variable)array.getField("element")).get());
     ok(((Variable)a.getField("element")).get(), 3);
 
-    Array b = (Array)array.duplicate(); b.shareMemory(array);
-    ok(b, "0000000000110000");
-    b.getField("element").set((Variable)a.getField("element"));
-    ok(b, "0000001100110000");
+    Array b = (Array)array.duplicate(); b.shareMemory(array);   ok(b, "0000000000110000");
+    b.getField("element").set((Variable)a.getField("element")); ok(b, "0000001100110000");
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
