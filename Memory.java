@@ -196,9 +196,16 @@ class Memory extends Chip                                                       
       return memory;
      }
 
+    void sameSize(Layout layout)                                                // Check that two layouts have the same size
+     {if (width != layout.width) stop("Layouts have different widths",
+        width, layout.width);
+     }
+
     String indent() {return "  ".repeat(depth);}                                // Indentation
 
-    public String toString()                                                    // Print the memory layout header
+    public String toString() {return memory.toString();}                        // Print the memory for the layout
+
+    String printEntry()                                                         // Print the memory layout header
      {return String.format("%4d  %4d        %s  %s", at, width, indent(), name);
      }
 
@@ -206,7 +213,7 @@ class Memory extends Chip                                                       
      {if (fields == null) return "";                                            // The structure has not been laid out
       final StringBuilder b = new StringBuilder();
       b.append(String.format("%4s  %4s  %4s    %s", "  At", "Wide", "Size", "Field name\n"));
-      for(Layout m : fields) b.append(""+m+"\n");                               // Print all the fields in the structure layout
+      for(Layout l : fields) b.append(""+l.printEntry()+"\n");                  // Print all the fields in the structure layout
       return b.toString();
      }
 
@@ -222,6 +229,11 @@ class Memory extends Chip                                                       
         if (found) return m;                                                    // Return this field if its path matches
        }
       return null;                                                              // No matching path
+     }
+
+    void shareMemory(Layout layout)                                             // Use the memory of the specified layout as long as it is the same size
+     {sameSize(layout);                                                         // Make sure the two layouts are the same size
+      for (Layout l : fields) l.memory = layout.memory;                         // Set each field to use the new memory
      }
 
     void set(Memory memory, Memory variable)                                    // Set a variable in memory
@@ -247,8 +259,9 @@ class Memory extends Chip                                                       
       return l;
      }
 
-    void set(int source) {set(memory, source);}                                 // Set this variable from the supplied constant
+    int getInt() {err("RRRR", at, width, memory);return get(memory).getInt();}                                 // Get a variable from memory as an integer
 
+    void set(int source) {set(memory, source);}                                 // Set this variable from the supplied constant
     void set(Variable source)                                                   // Set this variable from the supplied variable
      {if (width != source.width) stop("Variables have different widths", width, source.width);
       final Memory.Sub vm = source.memory.new Sub(source.at, source.width);     // Refer to memory containing source variable
@@ -287,8 +300,9 @@ class Memory extends Chip                                                       
     int at(int i)                 {return at+i*element.width;}                  // Offset of this array element in the structure
 
     void layout(int At, int Depth, Layout superStructure)                       // Compile this variable so that the size, width and byte fields are correct
-     {at = At; depth = Depth; superStructure.fields.push(this);
-      element.layout(at, Depth+1, superStructure);
+     {depth = Depth; superStructure.fields.push(this);                          // Relative to super structure
+      element.layout(At, Depth+1, superStructure);                              // Layout sub structure
+      position(at);                                                             // Position on index
       element.up = this;                                                        // Chain up to containing parent layout
       width = size * element.width;
      }
@@ -299,7 +313,7 @@ class Memory extends Chip                                                       
       return this;
      }
 
-    public String toString()                                                    // Print the field
+    String printEntry()                                                         // Print the field
      {return String.format("%4d  %4d  %4d  %s  %s",
                             at, width, size, indent(), name);
      }
@@ -308,7 +322,7 @@ class Memory extends Chip                                                       
 
     Layout duplicate(int At)                                                    // Duplicate an array so we can modify it safely
      {final Array a = new Array(name, element.duplicate(), size);
-      a.width = width; a.at = at - At; a.depth = depth;
+      a.width = width; a.at = at - At; a.depth = depth; a.index = index;
       return a;
      }
    }
@@ -660,19 +674,42 @@ class Memory extends Chip                                                       
     sb.set(5);  sb.ok(5);
     Sb.set(0);  Sb.ok(0);
     Sb.set(sb); Sb.ok(5);
-    say("AAAA", sb.superStructure.memory);
-    say("BBBB", Sb.superStructure.memory);
-    s.set(65);
-    say("AAAA", s.memory);
+    s.set(65);  s.ok(65);
+              a.ok(1); b.ok(0); c.ok(2);
+    a.set(c); a.ok(2); b.ok(0); c.ok(2);
    }
 
   static void test_array()
    {final int N       = 4;
 
-    Variable  unary   = new Variable("unary",   N);
     Variable  element = new Variable("element", N);
     Array     array   = new Array   ("array",  element, N);
-    array.layout();
+              array.layout();
+    array.setIndex(1);
+    element.set(3);
+    ok(element.getInt(), 3);
+    ok(element.getInt(), ((Variable)array.getFieldDef("element")).getInt());
+
+    Array a = (Array)array.duplicate(); a.memory = array.memory;
+    array.setIndex(2);
+    ok(element.getInt(), 0);
+    ok(element.getInt(), ((Variable)array.getFieldDef("element")).getInt());
+    say("AAA2", array, element.getInt(), ((Variable)array.getFieldDef("element")).at);
+    say("AAA3", a,     '_',              ((Variable)a    .getFieldDef("element")).at);
+say("PPPPArray", array);
+say("PPPPAAAAA", a);
+say("PPPPBBBB", ((Variable)a.getFieldDef("element")).memory);
+say("QQQQQQQQQ", ((Variable)a.getFieldDef("element")).getInt());
+
+
+    Array b = (Array)array.duplicate(); b.memory = array.memory;
+    say(array.index, array.at);
+    Variable va = (Variable)a.getFieldDef("element");
+    say("BBBB", va.getInt(va.memory));
+    say(a.index, a.at);
+    say(b.index, b.at);
+    b.getFieldDef("element").set((Variable)a.getFieldDef("element"));
+    say(b);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -682,11 +719,12 @@ class Memory extends Chip                                                       
     test_variable();
     test_double_array();
     test_sub_variable();
+    test_variable_assign();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_variable_assign();
+    test_array();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
