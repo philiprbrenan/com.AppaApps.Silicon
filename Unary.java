@@ -4,100 +4,92 @@
 //------------------------------------------------------------------------------
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
 
-class Unary extends RiscV                                                       // Unary arithmetic
- {final Layout layout;                                                          // Layout of memory used by a unary number
-  final int max;                                                                // Maximum size of unary number
-  final java.util.Stack<Memory> memory = new java.util.Stack<>();               // A memory containing a unary number
+class Unary extends Chip                                                        // Unary arithmetic
+ {final int max;                                                                // Maximum size of unary number
 
 //D1 Construction                                                               // Create a unary number
 
-  Unary(int Max) {max = Max; memory(); layout = new Layout("unary");}           // Create a unary number of specified size
+  Unary(int Max) {max = Max;}                                                   // Create a unary number of specified size
 
   static Unary unary(int max) {return new Unary(max);}                          // Create a unary number of specified size
 
-  void memory() {memoryOpen(new Memory(max));}                                  // Assign some memory for a unary number
-
-  void memoryOpen(Memory Memory)                                                // Set memory for a unary number
-   {final int m = Memory.size();
-    if (m != max)
-      stop("Memory size is different from expected", max, "but got", m);
-    memory.push(Memory);
-   }
-
-  void memoryClose()                                                            // Pop the current memory to restore the previous memory
-   {if (memory.size() == 0) stop("Memory stack underflow");
-    memory.pop();
-   }
-
   int max() {return max;}                                                       // The maximum value of the unary number
 
-  void ok(int n) {ok(get(), n);}                                                // Check that a unary number has the expected value
+  void ok(Memory.Layout ml, int n) {ml.ok(n);}                                  // Check that a unary number has the expected value
 
-  class Layout extends Variable                                                 // Memory layout for a stuck stack
+  class Layout extends Memory.Variable                                          // Memory layout for a stuck stack
    {Layout(String name)                                                         // Create the a memory layout for a unary number
      {super(name, max);
-      layout();                                                                 // Layout memory
+      layout();                                                                 // Layout memory.  If this layout is contained in another layout, then laying out that layout will make this layout refer the the memory of the containing layout.  The memory being supplied here is useful only when this lay out is used by itself.
      }
    }
 
 //D1 Set and get                                                                // Set and get a unary number
 
-  void set(int n)                                                               // Set the unary number
-   {memory.lastElement().zero();
-    if (n > 0) memory.lastElement().shiftLeftFillWithOnes(n);
+  void set(Memory.Layout ml, int n)                                             // Set the unary number
+   {ml.memory.zero();
+    if (n > 0) ml.memory.shiftLeftFillWithOnes(n);
    }
 
-  int get()                                                                     // Get the unary number
-   {return memory.lastElement().countTrailingOnes();
+  int get(Memory.Layout ml)                                                     // Get the unary number
+   {return ml.memory.countTrailingOnes();
    }
 
 //D1 Arithmetic                                                                 // Arithmetic using unary numbers
 
-  boolean canInc() {return get() < max();}                                      // Can we increment the unary number
-  boolean canDec() {return get() > 0;}                                          // Can we decrement the unary number
+  boolean canInc(Memory.Layout ml) {return get(ml) < max();}                    // Can we increment the unary number
+  boolean canDec(Memory.Layout ml) {return get(ml) > 0;}                        // Can we decrement the unary number
 
-  void inc()                                                                    // Increment the unary number
-   {if (!canInc()) stop(memory.lastElement().getInt(), "is too big to be incremented");
-    memory.lastElement().shiftLeftFillWithOnes(1);
+  void inc(Memory.Layout ml)                                                    // Increment the unary number
+   {if (!canInc(ml)) stop(ml.get(), "Unary number is too big to be incremented");
+    ml.memory.shiftLeftFillWithOnes(1);
    }
 
-  void dec()                                                                    // Decrement the unary number
-   {if (!canDec())
-     {stop(memory.lastElement().getInt(), "is too small to be decremented");
+  void dec(Memory.Layout ml)                                                    // Decrement the unary number
+   {if (!canDec(ml))
+     {stop(ml.get(), "Unary number is too small to be decremented");
      }
-    memory.lastElement().shiftRightFillWithSign(1);
+    ml.memory.shiftRightFillWithSign(1);
    }
 
 //D1 Print                                                                      // Print a unary number
 
-  public String toString() {return ""+get();}                                   // Print a unary number
+  public String toString(Memory.Layout ml) {return ""+get(ml);}                 // Print a unary number
 
 //D0 Tests                                                                      // Test unary numbers
 
   static void test_unary()
-   {Unary  u = unary(32);
-           u.set(4);
-           u.memory();
-               u.ok(0);
-    u.inc();   u.ok(1);
-    u.set(21); u.inc(); u.ok(22);
-    u.set(23); u.dec(); u.ok(22);
-    u.set(31); ok( u.canInc());
-    u.set(32); ok(!u.canInc());
+   {Unary         u = unary(32);
+    Memory.Layout l = u.new Layout("Unary");
+                 u.set(l,  0);
+                  u.ok(l,  0);
+    u.inc(l);     u.ok(l,  1);
+    u.inc(l);     u.ok(l,  3);
+    u.inc(l);     u.ok(l,  7);
+    u.inc(l);     u.ok(l, 15);
+    u.set(l, 21);
+    u.inc(l);
+    u.ok(l, (1<<22)-1);
+    u.set(l, 23);
+    u.dec(l);
+    u.ok(l, (1<<22)-1);
+    u.set(l, 31); ok( u.canInc(l));
+    u.set(l, 32); ok(!u.canInc(l));
 
-    u.set( 1); ok( u.canDec());
-    u.set( 0); ok(!u.canDec());
-    u.memoryClose(); u.ok(4);
+    u.set(l, 1); ok( u.canDec(l));
+    u.set(l, 0); ok(!u.canDec(l));
+    u.ok(l, 0);
    }
 
   static void test_preset()
-   {Unary  u = unary(4);
-    u.set(1); u.ok(1);
-    u.dec();  u.ok(0); ok( u.canInc());
-    u.inc();  u.ok(1); ok( u.canInc());
-    u.inc();  u.ok(2); ok( u.canInc());
-    u.inc();  u.ok(3); ok( u.canInc());
-    u.inc();  u.ok(4); ok(!u.canInc());
+   {Unary         u = unary(4);
+    Memory.Layout l = u.new Layout("Unary");
+    u.set(l, 1); u.ok(l, 1);
+    u.dec(l);  u.ok(l,  0); ok( u.canInc(l));
+    u.inc(l);  u.ok(l,  1); ok( u.canInc(l));
+    u.inc(l);  u.ok(l,  3); ok( u.canInc(l));
+    u.inc(l);  u.ok(l,  7); ok( u.canInc(l));
+    u.inc(l);  u.ok(l, 15); ok(!u.canInc(l));
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
