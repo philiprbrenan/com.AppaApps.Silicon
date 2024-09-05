@@ -2,7 +2,7 @@
 // Unary arithmetic using boolean arrays.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
-package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
+package com.AppaApps.Silicon;                                                   // Design, simulate and layout a binary tree on a silicon chip.
 
 class Unary extends Chip                                                        // Unary arithmetic
  {final int max;                                                                // Maximum size of unary number
