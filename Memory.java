@@ -2,7 +2,7 @@
 // Bit memory described by a layout.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
-package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
+package com.AppaApps.Silicon;                                                   // Design, simulate and layout a binary tree on a silicon chip.
 
 import java.util.*;
 /*
@@ -24,7 +24,7 @@ class Memory extends Chip                                                       
     return m;
    }
 
-  Memory memory(int At, int Width)                                              // Create memory within memory
+  Memory memory(int At, int Width)                                              // Address memory within memory
    {final Memory m = new Memory();
     m.bits  = bits;
     m.at    = at + At;
@@ -657,7 +657,6 @@ class Memory extends Chip                                                       
    0    16     4    array
    8     4            element
 """);
-
 
     Variable A = (Variable)(a.getField("element"));
     Variable B = (Variable)(b.getField("element"));
