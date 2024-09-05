@@ -11,34 +11,52 @@ resistance. The mentat must overcome this resistance with logic.
 Lady Jessica - Dune - Frank Herbert - 1965.
 */
 class Memory extends Chip                                                       // Bit memory described by a layout.
- {final Layout mainLayout;                                                      // Layout of memory
-  final boolean[]bits;                                                          // Bits comprising the memory
+ {boolean[]bits     = null;                                                     // Bits comprising the memory
+  Layout mainLayout = null;                                                     // Layout of memory
+  int at            = 0 ;                                                       // Position of memory in bits
+  int width         = 0;                                                        // Number of bits in memory
 
-  Memory(int Size, Layout Layout)                                               // Create main memory with attached layout to describe its structure
-   {bits = new boolean[Size];
-    zero();
-    mainLayout = Layout;
+  Memory duplicateMemory()                                                      // Deep copy of layout of a memory so we can adjust array positions
+   {final Memory m = new Memory();
+    m.bits = bits;
+    if (mainLayout != null) m.mainLayout = mainLayout.duplicate();
+    return m;
    }
 
-  Memory(Memory memory)                                                         // Deep copy of layout of a memory so we can adjust array positions
-   {bits = memory.bits;
-    mainLayout = memory.mainLayout;
-//    final Layout l = memory.mainLayout;
-//    mainLayout = l != null ? l.duplicate() : null;
+  static Memory memory(int size)                                                // Create memory of specified size
+   {final Memory m = new Memory();
+    m.bits = new boolean[size];
+    for (int i = 0; i < size; i++) m.bits[i] = false;
+    m.width = size;
+    return m;
    }
 
-  static Memory memory(int size, Layout Layout)                                 // Create memory
-   {return new Memory(size, Layout);
+  Memory memory(int At, int Width)                                              // Create memory within memory
+   {final Memory m = new Memory();
+    m.bits  = bits;
+    m.at    = at + At;
+    m.width = Width;
+    return m;
    }
 
-  Layout layout() {return mainLayout;}                                          // Make the layout field overridable
+  int at()        {return at;}                                                  // Position of field in memory
+  int size()      {return width;}                                               // Size of the memory
+
+  boolean get(int i)                                                            // Get a bit from memory
+   {final int w = size(), a = at();
+    if (i > w) stop("Trying to read beyond end of memory",   i, w);
+    if (i < 0) stop("Trying to read before start of memory", i);
+    return bits[a + i];
+   }
+
+  void set(int i, boolean b)                                                    // Set a bit in memory
+   {final int w = size(), a = at();
+    if (i > w) stop("Trying to write beyond end of memory",   i, w);
+    if (i < 0) stop("Trying to write before start of memory", i);
+    bits[a + i] = b;
+   }
 
   void ok(String expected) {Chip.ok(toString(), expected);}                     // Check memory is as expected
-
-  int size() {return bits.length;}                                              // Size of memory
-
-  void    set(int i, boolean b) {bits[i] = b;}                                  // Set a bit in memory
-  boolean get(int i) {return     bits[i];}                                      // Get a bit in memory
 
   public String toString()                                                      // Memory as string
    {final StringBuilder b = new StringBuilder();
@@ -54,12 +72,9 @@ class Memory extends Chip                                                       
 
   void set(Memory source) {set(source, 0);}                                     // Set memory from source
 
-  Memory get(int offset, int width)                                             // Get a sub section of this memory
-   {final Memory m = new Memory(width, null);
-    if (offset + width > size()) stop("Cannot read beyond end of memory");
-    for (int i = 0; i < width; i++) m.set(i, get(offset+i));
-    return m;
-   }
+//  Memory get(int At, int Width)                                                 // Get a sub section of this memory
+//   {return memory(At, Width);
+//   }
 
   void zero()                                                                   // Zero a memory
    {final int size = size();
@@ -127,54 +142,13 @@ class Memory extends Chip                                                       
 
 // D2 Sub Memory                                                                // A sub memory provides access to a part of the full memory.  A sub memory can be mapped by a sub structure.
 
-  class Sub extends Memory                                                      // Sub memory - a part of a larger memory rebased to zero
-   {final int start;                                                            // Start of sub memory in larger memory
-    final int width;                                                            // Width of sub memory
-    Layout subLayout;                                                           // Layout of sub memory
-
-    Sub(int Start, int Width)                                                   // Access part of the main memory as a sub memory
-     {super(Memory.this);                                                       // Clone access to main memory
-      if (Start + Width < 0) stop("Sub memory extends before start of main memory");
-      if (Start + Width > Memory.this.size()) stop("Sub memory extends beyond end of main memory");
-      start = Start; width = Width; subLayout = null;
-     }
-
-    Sub(Layout Layout)                                                          // Access part of the main memory as a sub memory with the specified layout
-     {super(Memory.this);                                                       // Main memory
-      start = Layout.at; width = Layout.width;                                  // Position in main memory
-      subLayout = Layout.duplicate();                                           // Duplicate
-     }
-
-    Layout layout() {return subLayout;}                                         // Make the layout field overridable
-    int    size  () {return width;}                                             // Width of sub memory
-
-    boolean get(int i)                                                          // Get a bit from a sub memory
-     {if (i > width) stop("Trying to read beyond end of sub memory", i, width);
-      if (i < 0)     stop("Trying to read before start of sub memory", i);
-      return Memory.this.get(i + start);
-     }
-
-    void set(int i, boolean b)                                                  // Set a bit in a sub memory
-     {if (i > width) stop("Trying to write beyond end of sub memory", i, width);
-      if (i < 0)     stop("Trying to write before start of sub memory", i);
-      Memory.this.set(i + start, b);
-     }
-   }
-
-  Sub sub(int start, int width) {return new Sub(start, width);}                 // Create a sub memory
-  Sub sub(Layout layout)        {return new Sub(layout);}                       // Create a sub memory with a specified layout
-
-//D1 Layouts                                                                    // Layout memory as variables, arrays, structures, unions
-
-  abstract static class Layout                                                  // Variable/Array/Structure definition. Memory definitions can only be laid out once.
+  abstract static class Layout extends Memory                                   // Variable/Array/Structure definition. Memory definitions can only be laid out once.
    {final String name;                                                          // Name of field
     int at;                                                                     // Offset of variable either from start of memory or from start of a structure
     int width;                                                                  // Number of width in field
     int depth;                                                                  // Depth of field
     Layout up;                                                                  // Chain to containing field
     Layout superStructure;                                                      // Containing super structure
-    Memory memory;                                                              // Memory containing the superstructure that contains this layout
-    Memory.Sub subMemory;                                                       // Sub sset of memory occupied by this layout
     final Stack<Layout> fields = new Stack<>();                                 // Fields in the super structure in the order they appear in the memory layout. Only relevant in the outer most layout == the super structure,  where it is used for printing the structure and locating sub structures.
 
     Layout(String Name) {name = Name;}                                          // Create a new named memory layout
@@ -182,18 +156,47 @@ class Memory extends Chip                                                       
     Layout width   (int Width) {width = Width; return this;}                    // Set width or layout once it is known
     Layout position(int At)    {at    = At;    return this;}                    // Reposition array elements to take account of the index applied to the array
 
+    void isSuperStructure()                                                     // Test whether this layout is a super structure containing all the other layouts
+     {if (superStructure != this) stop("Not a super structure");
+     }
+
+    void isSubStructure()                                                       // Test whether this layout is a sub structure contained in a super structure
+     {if (superStructure == this) stop("Not a sub structure");
+     }
+
     abstract void layout(int at, int depth, Layout superStructure);             // Layout this field within the super structure.
 
-    Memory layout()                                                             // Layout the structure based on the fields that describe it
+    int size() {return width;}                                                  // Width of sub memory
+
+    Memory mainMemory()                                                         // Create main memory with attached layout to describe its structure
+     {if (up != null) stop("Not an outermost layout");
+      final Memory m = new Memory();
+      m.bits = new boolean[size()];
+      m.zero();
+      m.mainLayout = this;
+      m.width = size();
+      return m;
+     }
+
+    Memory subMemory()                                                          // Create main memory with attached layout to describe its structure
+     {if (up == null) stop("Not an inner layout");
+      final Memory m = new Memory();
+      m.bits = superStructure.bits;
+      m.mainLayout = superStructure;
+      m.at    = at();
+      m.width = size();
+      return m;
+     }
+
+//D1 Layouts                                                                    // Layout memory as variables, arrays, structures, unions
+
+    Layout layout()                                                             // Layout the structure based on the fields that describe it
      {fields.clear();
       layout(0, 0, this);
+      bits = new boolean[width];
       for(Layout l : fields) l.superStructure = this;                           // Locate the super structure containing this field
-      memory = new Memory(width, this);
-      for(Layout l : fields)                                                    // Update memory of each field in the structure
-       {l.memory = memory;                                                      // Locate the super structure containing this field
-        l.subMemory = memory.sub(l.at, l.width);                                // The part of the memory occupied by this layout. If this memory stands by itself, this will be the same as the main memory, but if this is a sub structure in a larger superstructure than this it will be just a part of that memory.
-       }
-      return memory;
+      for(Layout l : fields) l.bits           = this.bits;                      // Locate the bits containing this layout element
+      return this;
      }
 
     void sameSize(Layout layout)                                                // Check that two layouts have the same size
@@ -202,8 +205,6 @@ class Memory extends Chip                                                       
      }
 
     String indent() {return "  ".repeat(depth);}                                // Indentation
-
-    public String toString() {return memory.toString();}                        // Print the memory for the layout
 
     String printEntry()                                                         // Print the memory layout header
      {return String.format("%4d  %4d        %s  %s", at, width, indent(), name);
@@ -216,6 +217,11 @@ class Memory extends Chip                                                       
                              "  At", "Wide", "Size", "Field name\n"));
       for(Layout l : fields) b.append(""+l.printEntry()+"\n");                  // Print all the fields in the structure layout
       return b.toString();
+     }
+
+    public String toString()                                                    // Memory as string
+     {final Memory m = memory(at, width);
+      return m.toString();
      }
 
     Layout getField(String path)                                                // Path to field
@@ -233,23 +239,29 @@ class Memory extends Chip                                                       
 
     void shareMemory(Layout layout)                                             // Use the memory of the specified layout as long as it is the same size
      {sameSize(layout);                                                         // Make sure the two layouts are the same size
-      for (Layout l : fields) l.memory = layout.memory;                         // Set each field to use the new memory
+      bits = layout.bits;
      }
 
-    void set(Memory variable)                                                   // Set a variable in memory
-     {memory.set(variable, at);
-     }
+   //void set(Memory variable) {set(variable, at);}                              // Set a variable in memory
 
     void set(int variable)                                                      // Set a variable in memory from an integer
-     {final Memory m = new Memory(width, null);
+     {final Memory m = memory(width);
       m.set(variable);
-      set(m);
+      superStructure.set(m, at);
      }
 
-    Memory getMemory() {return subMemory.get(at, width);}                             // Get a variable from memory as copied bits
-    int get()          {return subMemory.get();}                                      // Get a variable from memory as an integer
+    Memory memory() {return superStructure.memory(at, width);}                  // Get the memory associated with this layout
 
-    Memory.Sub subMemory(Memory memory) {return memory.sub(at, width);}         // Get a variable from memory as sub memory
+    int get()                                                                   // Get an integer representing the value of the memory
+     {final Memory m = memory();
+      return m.get();
+     }
+
+    void set(Layout source)                                                     // Set this variable from the supplied variable
+     {if (width != source.width)
+        stop("Variables have different widths", width, source.width);
+      superStructure.set(source.memory(), at);                                           // Set memory for this variable from memory reffered to by source variable
+     }
 
     abstract Layout duplicate(int At);                                          // Duplicate an element of this layout so we can modify it safely
 
@@ -257,13 +269,6 @@ class Memory extends Chip                                                       
      {final Layout l = duplicate(at);
       l.layout();
       return l;
-     }
-
-    void set(Variable source)                                                   // Set this variable from the supplied variable
-     {if (width != source.width)
-        stop("Variables have different widths", width, source.width);
-      final Memory.Sub vm = source.memory.new Sub(source.at, source.width);     // Refer to memory containing source variable
-      memory.set(vm, at);                                                       // Set memory for this variable from memory reffered to by source variable
      }
 
     void ok(int expected) {Chip.ok(get(), expected);}                           // Check the value of a variable
@@ -428,7 +433,7 @@ class Memory extends Chip                                                       
 //D0                                                                            // Tests
 
   static void test_memory()
-   {Memory m = memory(110, null);
+   {Memory m = memory(110);
     for (int i = 1; i < 11; i++)
      {m.shiftLeftFillWithOnes(i);
       m.shiftLeftFillWithZeros(i);
@@ -443,32 +448,32 @@ class Memory extends Chip                                                       
    }
 
   static void test_memory_sub()
-   {Memory m = memory(110, null);                                               // Main memory
+   {Memory m = memory(110);
     for (int i = 1; i < 11; i++)
      {m.shiftLeftFillWithOnes(i);
       m.shiftLeftFillWithZeros(i);
      }                               m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011111111110000000000");
 
-    final Memory.Sub s = m.sub(10, 10);                                         // Sub memory
+    final Memory s = m.memory(10, 10);
     s.shiftRightFillWithZeros(2);    m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000000111111110000000000");
     s.shiftLeftFillWithOnes(1);      m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000001111111110000000000");
     s.shiftLeftFillWithZeros(1);     m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011111111100000000000");
     ok(s.countLeadingOnes  (), 9);
     ok(s.countTrailingZeros(), 1);
 
-    final Memory.Sub S = s.sub(4, 2);                                           // Sub sub memory
+    final Memory S = s.memory(4, 2);
     S.zero();                        m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011110011100000000000");
    }
 
   static void test_memory_set_from_memory()
-   {Memory m = memory(8, null);
+   {Memory m = memory(8);
     m.shiftLeftFillWithOnes (2);
     m.shiftLeftFillWithZeros(2);
     m.shiftLeftFillWithOnes (2);
     m.shiftLeftFillWithZeros(2);
-    Memory M = memory(16, null);
+    Memory M = memory(16);
     m.ok("11001100"); M.ok("0000000000000000");
-    Memory s = M.sub((M.size() - m.size())/2, m.size());
+    Memory s = M.memory((M.size() - m.size())/2, m.size());
     s.set(m);
     s.ok("11001100"); M.ok("0000110011000000");
    }
@@ -499,6 +504,7 @@ class Memory extends Chip                                                       
     Structure T  = structure("outer",  s1, s2, u3);
 
     T.layout();
+
     ok(T.print(), """
   At  Wide  Size    Field name
    0    64          outer
@@ -534,29 +540,25 @@ class Memory extends Chip                                                       
     ok(C2.at(2), 40);
 
     if (true)                                                                   // Set memory directly
-     {final Memory m = T.layout();
-         b1.set   (1);
-         b2.set   (12);
-      ok(b1.get(),  1);
-      ok(b2.get(), 12);
-
-                                     m.ok("0000000000000000000000000000110000000000000000000000000000010000");
-      m.shiftRightFillWithSign(1);   m.ok("0000000000000000000000000000011000000000000000000000000000001000");
-      m.shiftLeftFillWithOnes(2);    m.ok("0000000000000000000000000001100000000000000000000000000000100011");
-      m.shiftLeftFillWithZeros(2);   m.ok("0000000000000000000000000110000000000000000000000000000010001100");
-      m.shiftLeftFillWithZeros(25);  m.ok("1100000000000000000000000000000100011000000000000000000000000000");
-      m.shiftRightFillWithSign(2);   m.ok("1111000000000000000000000000000001000110000000000000000000000000");
-      ok(m.countLeadingOnes  (),  4);
-      ok(m.countTrailingZeros(), 25);
+     {b1.set( 1);
+      b2.set(12);
+      b1.ok ( 1);
+      b2.ok (12);
+                                     T.ok("0000000000000000000000000000110000000000000000000000000000010000");
+      T.shiftRightFillWithSign(1);   T.ok("0000000000000000000000000000011000000000000000000000000000001000");
+      T.shiftLeftFillWithOnes(2);    T.ok("0000000000000000000000000001100000000000000000000000000000100011");
+      T.shiftLeftFillWithZeros(2);   T.ok("0000000000000000000000000110000000000000000000000000000010001100");
+      T.shiftLeftFillWithZeros(25);  T.ok("1100000000000000000000000000000100011000000000000000000000000000");
+      T.shiftRightFillWithSign(2);   T.ok("1111000000000000000000000000000001000110000000000000000000000000");
+      ok(T.countLeadingOnes  (),  4);
+      ok(T.countTrailingZeros(), 25);
 
 
-      final Memory.Sub n = m.sub(s2);
-say("AAAA", n.start, n.width);
-      m.ok("1111000000000000000000000000000001000110000000000000000000000000");
-      n.ok(        "0000000000000000000000000100");
-      n.subLayout.getField("inner2.b2").set(3);
-      m.ok("1111000000000000000000000000001101000110000000000000000000000000");
-      n.ok(        "0000000000000000000000110100");
+      T.ok("1111000000000000000000000000000001000110000000000000000000000000");
+      s2.ok(       "0000000000000000000000000100");
+      b2.set(3);
+      T.ok("1111000000000000000000000000001101000110000000000000000000000000");
+      s2.ok(        "0000000000000000000000110100");
      }
 
     if (true)                                                                   // Set array elements
@@ -632,17 +634,13 @@ say("AAAA", n.start, n.width);
     a.set(1);
     b.set(2);
     c.set(3);
-    Memory A = a.subMemory(m);
-    Memory B = b.subMemory(m);
-    Memory C = c.subMemory(m);
-    Memory S = s.subMemory(m);
-    A.ok("01");
-    B.ok("010");
-    C.ok("11");
-    S.ok("1101001");
-    B.set(7);
-    B.ok("111");
-    S.ok("1111101");
+    a.ok("01");
+    b.ok("010");
+    c.ok("11");
+    s.ok("1101001");
+    b.set(7);
+    b.ok("111");
+    s.ok("1111101");
    }
 
   static void test_variable_assign()
@@ -674,7 +672,8 @@ say("AAAA", n.start, n.width);
     Variable Sb = (Variable)S.getField("b");
     sb.set(5);  sb.ok(5);
     Sb.set(0);  Sb.ok(0);
-    Sb.set(sb); Sb.ok(5);
+    Sb.set(sb);
+    Sb.ok(5);
     s.set(65);  s.ok(65);
               a.ok(1); b.ok(0); c.ok(2);
     a.set(c); a.ok(2); b.ok(0); c.ok(2);
@@ -687,18 +686,40 @@ say("AAAA", n.start, n.width);
     Array     array   = new Array   ("array",  element, N);
               array.layout();
     array.setIndex(1);
+    ok(array.print(), """
+  At  Wide  Size    Field name
+   0    16     4    array
+   4     4            element
+""");
+
     element.set(3);
-    ok(element.get(), 3);
+    element.ok(3);
     ok(element.get(), ((Variable)array.getField("element")).get());
 
     Array a = (Array)array.duplicate(); a.shareMemory(array);
-    array.setIndex(2);
-    ok(element.get(), 0);
-    ok(element.get(), ((Variable)array.getField("element")).get());
-    ok(((Variable)a.getField("element")).get(), 3);
+    ok(a.print(), """
+  At  Wide  Size    Field name
+   0    16     4    array
+   4     4            element
+""");
 
-    Array b = (Array)array.duplicate(); b.shareMemory(array);   ok(b, "0000000000110000");
-    b.getField("element").set((Variable)a.getField("element")); ok(b, "0000001100110000");
+    array.setIndex(2);
+    Array b = (Array)array.duplicate(); b.shareMemory(array);
+    ok(b.print(), """
+  At  Wide  Size    Field name
+   0    16     4    array
+   8     4            element
+""");
+
+
+    Variable A = (Variable)(a.getField("element"));
+    Variable B = (Variable)(b.getField("element"));
+
+    a.ok("0000000000110000");
+    b.ok("0000000000110000");
+    B.set(A);
+    a.ok("0000001100110000");
+    b.ok("0000001100110000");
    }
 
   static void test_sub_variable2()
@@ -715,12 +736,11 @@ say("AAAA", n.start, n.width);
    4     4            b
    8     2            c
 """);
-    b.memory   .set(0b1100110011);
-    b.memory   .ok("1100110011");
-    b.subMemory.ok("0011");
-    b.subMemory.set(0b101);
-    b.memory   .ok("1101010011");
-    b.subMemory.ok("0101");
+    s.set(0b1100110011);
+    s.ok(  "1100110011");
+    b.ok("0011");
+    b.set(0b101);
+    b.ok("0101");
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
