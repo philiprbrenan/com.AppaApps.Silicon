@@ -16,13 +16,6 @@ class Memory extends Chip                                                       
   int at            = 0 ;                                                       // Position of memory in bits
   int width         = 0;                                                        // Number of bits in memory
 
-  Memory duplicateMemory()                                                      // Deep copy of layout of a memory so we can adjust array positions
-   {final Memory m = new Memory();
-    m.bits = bits;
-    if (mainLayout != null) m.mainLayout = mainLayout.duplicate();
-    return m;
-   }
-
   static Memory memory(int size)                                                // Create memory of specified size
    {final Memory m = new Memory();
     m.bits = new boolean[size];
@@ -71,10 +64,6 @@ class Memory extends Chip                                                       
    }
 
   void set(Memory source) {set(source, 0);}                                     // Set memory from source
-
-//  Memory get(int At, int Width)                                                 // Get a sub section of this memory
-//   {return memory(At, Width);
-//   }
 
   void zero()                                                                   // Zero a memory
    {final int size = size();
@@ -156,37 +145,9 @@ class Memory extends Chip                                                       
     Layout width   (int Width) {width = Width; return this;}                    // Set width or layout once it is known
     Layout position(int At)    {at    = At;    return this;}                    // Reposition array elements to take account of the index applied to the array
 
-    void isSuperStructure()                                                     // Test whether this layout is a super structure containing all the other layouts
-     {if (superStructure != this) stop("Not a super structure");
-     }
-
-    void isSubStructure()                                                       // Test whether this layout is a sub structure contained in a super structure
-     {if (superStructure == this) stop("Not a sub structure");
-     }
-
     abstract void layout(int at, int depth, Layout superStructure);             // Layout this field within the super structure.
 
     int size() {return width;}                                                  // Width of sub memory
-
-    Memory mainMemory()                                                         // Create main memory with attached layout to describe its structure
-     {if (up != null) stop("Not an outermost layout");
-      final Memory m = new Memory();
-      m.bits = new boolean[size()];
-      m.zero();
-      m.mainLayout = this;
-      m.width = size();
-      return m;
-     }
-
-    Memory subMemory()                                                          // Create main memory with attached layout to describe its structure
-     {if (up == null) stop("Not an inner layout");
-      final Memory m = new Memory();
-      m.bits = superStructure.bits;
-      m.mainLayout = superStructure;
-      m.at    = at();
-      m.width = size();
-      return m;
-     }
 
 //D1 Layouts                                                                    // Layout memory as variables, arrays, structures, unions
 
@@ -237,13 +198,6 @@ class Memory extends Chip                                                       
       return null;                                                              // No matching path
      }
 
-    void shareMemory(Layout layout)                                             // Use the memory of the specified layout as long as it is the same size
-     {sameSize(layout);                                                         // Make sure the two layouts are the same size
-      bits = layout.bits;
-     }
-
-   //void set(Memory variable) {set(variable, at);}                              // Set a variable in memory
-
     void set(int variable)                                                      // Set a variable in memory from an integer
      {final Memory m = memory(width);
       m.set(variable);
@@ -252,15 +206,12 @@ class Memory extends Chip                                                       
 
     Memory memory() {return superStructure.memory(at, width);}                  // Get the memory associated with this layout
 
-    int get()                                                                   // Get an integer representing the value of the memory
-     {final Memory m = memory();
-      return m.get();
-     }
+    int get() {return memory().get();}                                          // Get an integer representing the value of the memory
 
     void set(Layout source)                                                     // Set this variable from the supplied variable
      {if (width != source.width)
         stop("Variables have different widths", width, source.width);
-      superStructure.set(source.memory(), at);                                           // Set memory for this variable from memory reffered to by source variable
+      superStructure.set(source.memory(), at);                                  // Set memory for this variable from memory reffered to by source variable
      }
 
     abstract Layout duplicate(int At);                                          // Duplicate an element of this layout so we can modify it safely
@@ -268,7 +219,7 @@ class Memory extends Chip                                                       
     Layout duplicate()                                                          // Duplicate a set of nested layouts rebasing their start point to zero
      {final Layout l = duplicate(at);
       l.layout();
-      l.shareMemory(this);
+      l.bits = bits;
       return l;
      }
 
