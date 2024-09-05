@@ -129,7 +129,7 @@ class Memory extends Chip                                                       
     return n;
    }
 
-// D2 Sub Memory                                                                // A sub memory provides access to a part of the full memory.  A sub memory can be mapped by a sub structure.
+// D2 Layouts                                                                   // Layout memory as variables, arrays, structures and unions
 
   abstract static class Layout extends Memory                                   // Variable/Array/Structure definition. Memory definitions can only be laid out once.
    {final String name;                                                          // Name of field
@@ -145,8 +145,6 @@ class Memory extends Chip                                                       
     Layout width   (int Width) {width = Width; return this;}                    // Set width or layout once it is known
     Layout position(int At)    {at    = At;    return this;}                    // Reposition array elements to take account of the index applied to the array
 
-    abstract void layout(int at, int depth, Layout superStructure);             // Layout this field within the super structure.
-
     int size() {return width;}                                                  // Width of sub memory
 
 //D1 Layouts                                                                    // Layout memory as variables, arrays, structures, unions
@@ -159,6 +157,8 @@ class Memory extends Chip                                                       
       for(Layout l : fields) l.bits           = bits;                           // Locate the bits containing this layout element
       return this;
      }
+
+    abstract void layout(int at, int depth, Layout superStructure);             // Layout this field within the super structure.
 
     void sameSize(Layout layout)                                                // Check that two layouts have the same size
      {if (width != layout.width) stop("Layouts have different widths",
@@ -628,7 +628,6 @@ class Memory extends Chip                                                       
 
   static void test_array()
    {final int N       = 4;
-
     Variable  element = new Variable("element", N);
     Array     array   = new Array   ("array",  element, N);
               array.layout();
