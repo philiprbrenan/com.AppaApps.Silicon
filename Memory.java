@@ -65,6 +65,18 @@ class Memory extends Chip                                                       
 
   void set(Memory source) {set(source, 0);}                                     // Set memory from source
 
+  void set(int value)                                                           // Set memory to the value of an integer
+   {final int n = min(size(), Integer.SIZE);
+    for (int i = 0; i < n; i++) set(i, (value & (1<<i)) != 0);                  // Convert variable to bits
+   }
+
+  int get()                                                                     // Get memory as an integer
+   {final int n = size();
+    int v = 0;
+    for (int i = 0; i < n; i++) if (get(i)) v |= (1<<i);                        // Convert bits to int
+    return v;
+   }
+
   void zero()                                                                   // Zero a memory
    {final int size = size();
     for (int i = 0; i < size; i++) set(i, false);
@@ -91,18 +103,6 @@ class Memory extends Chip                                                       
     for (int i = 0; i < size-right;      ++i) set(i, get(i+right));
     final boolean sign = get(size-1);
     for (int i = size-right; i < size-1; ++i) set(i, sign);
-   }
-
-  void set(int value)                                                           // Set memory to the value of an integer
-   {final int n = min(size(), Integer.SIZE);
-    for (int i = 0; i < n; i++) set(i, (value & (1<<i)) != 0);                  // Convert variable to bits
-   }
-
-  int get()                                                                     // Get memory as an integer
-   {final int n = size();
-    int v = 0;
-    for (int i = 0; i < n; i++) if (get(i)) v |= (1<<i);                        // Convert bits to int
-    return v;
    }
 
   int countLeadingZeros()                                                       // Count leading zeros
@@ -156,7 +156,7 @@ class Memory extends Chip                                                       
       layout(0, 0, this);
       bits = new boolean[width];
       for(Layout l : fields) l.superStructure = this;                           // Locate the super structure containing this field
-      for(Layout l : fields) l.bits           = this.bits;                      // Locate the bits containing this layout element
+      for(Layout l : fields) l.bits           = bits;                           // Locate the bits containing this layout element
       return this;
      }
 
@@ -180,10 +180,7 @@ class Memory extends Chip                                                       
       return b.toString();
      }
 
-    public String toString()                                                    // Memory as string
-     {final Memory m = memory(at, width);
-      return m.toString();
-     }
+    public String toString() {return memory(at, width).toString();}             // Memory as string
 
     Layout getField(String path)                                                // Path to field
      {final String[]names = path.split("\\.");                                  // Split path
