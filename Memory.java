@@ -268,6 +268,7 @@ class Memory extends Chip                                                       
     Layout duplicate()                                                          // Duplicate a set of nested layouts rebasing their start point to zero
      {final Layout l = duplicate(at);
       l.layout();
+      l.shareMemory(this);
       return l;
      }
 
@@ -668,15 +669,12 @@ class Memory extends Chip                                                       
    5     2            c
 """);
 
-    Variable sb = (Variable)s.getField("b");
-    Variable Sb = (Variable)S.getField("b");
-    sb.set(5);  sb.ok(5);
-    Sb.set(0);  Sb.ok(0);
-    Sb.set(sb);
-    Sb.ok(5);
-    s.set(65);  s.ok(65);
-              a.ok(1); b.ok(0); c.ok(2);
-    a.set(c); a.ok(2); b.ok(0); c.ok(2);
+    Variable A = (Variable)s.getField("a");
+    Variable C = (Variable)S.getField("c");
+    A.set(3);  A.ok(3);
+    a.ok(3);   b.ok(0); c.ok(0);
+    C.set(A);
+    a.ok(3);   b.ok(0); c.ok(3);
    }
 
   static void test_array()
@@ -696,7 +694,7 @@ class Memory extends Chip                                                       
     element.ok(3);
     ok(element.get(), ((Variable)array.getField("element")).get());
 
-    Array a = (Array)array.duplicate(); a.shareMemory(array);
+    Array a = (Array)array.duplicate();
     ok(a.print(), """
   At  Wide  Size    Field name
    0    16     4    array
@@ -704,7 +702,7 @@ class Memory extends Chip                                                       
 """);
 
     array.setIndex(2);
-    Array b = (Array)array.duplicate(); b.shareMemory(array);
+    Array b = (Array)array.duplicate();
     ok(b.print(), """
   At  Wide  Size    Field name
    0    16     4    array
