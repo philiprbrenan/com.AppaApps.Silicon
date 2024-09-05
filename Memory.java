@@ -379,7 +379,8 @@ class Memory extends Chip                                                       
   static Structure structure(String name, Layout...ml)            {return new Structure(name, ml);}
   static Union     union    (String name, Layout...ml)            {return new Union    (name, ml);}
 
-//D0                                                                            // Tests
+//D1                                                                            // Tests
+//D2                                                                            // Memory without layous
 
   static void test_memory()
    {Memory m = memory(110);
@@ -427,7 +428,7 @@ class Memory extends Chip                                                       
     s.ok("11001100"); M.ok("0000110011000000");
    }
 
-//D0 Tests                                                                      // Tests
+//D2                                                                            // Memory with layouts
 
   static void test_variable()
    {Variable  a1 = variable ("a1", 4);
