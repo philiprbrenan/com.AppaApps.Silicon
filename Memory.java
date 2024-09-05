@@ -201,8 +201,6 @@ class Memory extends Chip                                                       
       superStructure.set(m, at);
      }
 
-    Memory memory() {return superStructure.memory(at, width);}                  // Get the memory associated with this layout
-
     int get() {return memory().get();}                                          // Get an integer representing the value of the memory
 
     void set(Layout source)                                                     // Set this variable from the supplied variable
@@ -210,6 +208,8 @@ class Memory extends Chip                                                       
         stop("Variables have different widths", width, source.width);
       superStructure.set(source.memory(), at);                                  // Set memory for this variable from memory reffered to by source variable
      }
+
+    Memory memory() {return superStructure.memory(at, width);}                  // Get the memory associated with this layout
 
     abstract Layout duplicate(int At);                                          // Duplicate an element of this layout so we can modify it safely
 
