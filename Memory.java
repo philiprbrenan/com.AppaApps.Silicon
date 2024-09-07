@@ -15,6 +15,12 @@ class Memory extends Chip                                                       
   int at            = 0 ;                                                       // Position of memory in bits
   int width         = 0;                                                        // Number of bits in memory
 
+  static Memory memory(String load)                                             // Create and load a memory from a string
+   {final Memory m = memory(load.length());                                     // Size of memory is length of string
+    m.set(load);                                                                // Load string
+    return m;
+   }
+
   static Memory memory(int size)                                                // Create memory of specified size
    {final Memory m = new Memory();
     m.bits = new boolean[size];
@@ -31,18 +37,18 @@ class Memory extends Chip                                                       
     return m;
    }
 
-  int at()        {return at;}                                                  // Position of field in memory
-  int size()      {return width;}                                               // Size of the memory
+  int at()         {return at;}                                                  // Position of field in memory
+  int memorySize() {return width;}                                               // Size of the memory
 
   boolean get(int i)                                                            // Get a bit from memory
-   {final int w = size(), a = at();
+   {final int w = memorySize(), a = at();
     if (i > w) stop("Trying to read beyond end of memory",   i, w);
     if (i < 0) stop("Trying to read before start of memory", i);
     return bits[a + i];
    }
 
   void set(int i, boolean b)                                                    // Set a bit in memory
-   {final int w = size(), a = at();
+   {final int w = memorySize(), a = at();
     if (i > w) stop("Trying to write beyond end of memory",   i, w);
     if (i < 0) stop("Trying to write before start of memory", i);
     bits[a + i] = b;
@@ -53,20 +59,20 @@ class Memory extends Chip                                                       
 
   public String toString()                                                      // Memory as string
    {final StringBuilder b = new StringBuilder();
-    for (int i = size(); i > 0; --i) b.append(get(i-1) ? '1' : '0');
+    for (int i = memorySize(); i > 0; --i) b.append(get(i-1) ? '1' : '0');
     return b.toString();
    }
 
   void set(String source, int offset)                                           // Set memory at speciifed offset from a source string
-   {final int t = size(), s = source.length(), m = min(t, s);
-    if (offset + s > t) stop("Cannot write beyond end of memory");
-    for (int i = 0; i < m; i++) set(offset+i, source.charAt(i) != '0');         // Load the specified string into memory
+   {final int t = memorySize(), s = source.length(), m = min(t, s);
+    if (offset + s > t) stop("Cannot write beyond end of memory", offset, s, t);
+    for (int i = 0; i < m; i++) set(offset+i, source.charAt(s-1-i) != '0');     // Load the specified string into memory
    }
 
   void set(String source) {set(source, 0);}                                     // Set memory from a source string
 
   void set(Memory source, int offset)                                           // Copy source memory into this memory at the specified offset
-   {final int t = size(), s = source.size(), m = min(t, s);
+   {final int t = memorySize(), s = source.memorySize(), m = min(t, s);
     if (offset + s > t) stop("Cannot write beyond end of memory");
     for (int i = 0; i < m; i++) set(offset+i, source.get(i));                   // Load the specified string into memory
    }
@@ -74,51 +80,51 @@ class Memory extends Chip                                                       
   void set(Memory source) {set(source, 0);}                                     // Set memory from source
 
   void set(int value)                                                           // Set memory to the value of an integer
-   {final int n = min(size(), Integer.SIZE);
+   {final int n = min(memorySize(), Integer.SIZE);
     for (int i = 0; i < n; i++) set(i, (value & (1<<i)) != 0);                  // Convert variable to bits
    }
 
   int get()                                                                     // Get memory as an integer
-   {final int n = size();
+   {final int n = memorySize();
     int v = 0;
     for (int i = 0; i < n; i++) if (get(i)) v |= (1<<i);                        // Convert bits to int
     return v;
    }
 
   void zero()                                                                   // Zero a memory
-   {final int size = size();
+   {final int size = memorySize();
     for (int i = 0; i < size; i++) set(i, false);
    }
 
   void not()                                                                    // Not a memory
-   {final int size = size();
+   {final int size = memorySize();
     for (int i = 0; i < size; i++) set(i, !get(i));
    }
 
   void shiftLeftFillWithZeros(int left)                                         // Shift left filling with zeroes
-   {for (int i = size(); i > left; --i) set(i-1, get(i-1-left));
+   {for (int i = memorySize(); i > left; --i) set(i-1, get(i-1-left));
     for (int i = 0;      i < left; ++i) set(i,   false);
    }
 
   void shiftLeftFillWithOnes(int left)                                          // Shift left filling with ones
-   {for (int i = size(); i > left; --i) set(i-1, get(i-1-left));
+   {for (int i = memorySize(); i > left; --i) set(i-1, get(i-1-left));
     for (int i = 0;      i < left; ++i) set(i,   true);
    }
 
   void shiftRightFillWithZeros(int right)                                       // Shift right filling with zeroes
-   {final int size = size();
+   {final int size = memorySize();
     for (int i = 0; i < size-right;    ++i) set(i, get(i+right));
     for (int i = size-right; i < size; ++i) set(i, false);
    }
 
   void shiftRightFillWithOnes(int right)                                        // Shift right filling with ones
-   {final int size = size();
+   {final int size = memorySize();
     for (int i = 0; i < size-right;    ++i) set(i, get(i+right));
     for (int i = size-right; i < size; ++i) set(i, true);
    }
 
   void shiftRightFillWithSign(int right)                                        // Shift right filling with sign
-   {final int size = size();
+   {final int size = memorySize();
     for (int i = 0; i < size-right;      ++i) set(i, get(i+right));
     final boolean sign = get(size-1);
     for (int i = size-right; i < size-1; ++i) set(i, sign);
@@ -126,24 +132,24 @@ class Memory extends Chip                                                       
 
   int countLeadingZeros()                                                       // Count leading zeros
    {int c = 0;
-    for (int i = size(); i > 0; --i) if (get(i-1)) return c; else ++c;
+    for (int i = memorySize(); i > 0; --i) if (get(i-1)) return c; else ++c;
     return c;
    }
 
   int countLeadingOnes()                                                        // Count leading ones
    {int c = 0;
-    for (int i = size(); i > 0; --i) if (!get(i-1)) return c; else ++c;
+    for (int i = memorySize(); i > 0; --i) if (!get(i-1)) return c; else ++c;
     return c;
    }
 
   int countTrailingZeros()                                                      // Count trailing zeros
-   {final int n = size();
+   {final int n = memorySize();
     for (int i = 0; i < n; ++i) if (get(i)) return i;
     return n;
    }
 
   int countTrailingOnes()                                                       // Count trailing ones
-   {final int n = size();
+   {final int n = memorySize();
     for (int i = 0; i < n; ++i) if (!get(i)) return i;
     return n;
    }
@@ -170,7 +176,7 @@ class Memory extends Chip                                                       
      }
 
     int at()   {return at;}                                                     // Position of field in memory
-    int size() {return width;}                                                  // Size of the memory
+    int memorySize() {return width;}                                                  // Size of the memory
 
 //D1 Layouts                                                                    // Layout memory as variables, arrays, structures, unions
 
@@ -270,10 +276,10 @@ class Memory extends Chip                                                       
     Layout element;                                                             // The elements of this array
     Array(String Name, Layout Element, int Size)
      {super(Name);
-      size(Size).element(Element);
+      arraySize(Size).element(Element);
      }
 
-    Array    size(int Size)       {size    = Size;    return this;}             // Set the size of the array
+    Array arraySize(int Size)     {size    = Size;    return this;}             // Set the size of the array
     Array element(Layout Element) {element = Element; return this;}             // The type of the element in the array
     int at(int i)                 {return at+i*element.width;}                  // Offset of this array element in the structure
 
@@ -458,7 +464,7 @@ class Memory extends Chip                                                       
     m.shiftLeftFillWithZeros(2);
     Memory M = memory(16);
     m.ok("11001100"); M.ok("0000000000000000");
-    Memory s = M.memory((M.size() - m.size())/2, m.size());
+    Memory s = M.memory((M.memorySize() - m.memorySize())/2, m.memorySize());
     s.set(m);
     s.ok("11001100"); M.ok("0000110011000000");
    }
@@ -769,6 +775,20 @@ class Memory extends Chip                                                       
     s.ok("1010111110101010");
    }
 
+  static void test_load_string()
+   {Variable  a = variable ("a", 4);
+    Variable  b = variable ("b", 4);
+    Variable  c = variable ("c", 4);
+    Structure s = structure("inner", a, b, c);
+    s.layout();
+
+    a.set(1);
+    b.set(2);
+    c.set(3);
+    s.ok       ("001100100001");
+    s.ok(memory("001100100001"));
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_memory();
     test_memory_sub();
@@ -782,6 +802,7 @@ class Memory extends Chip                                                       
     test_variable_assign();
     test_array();
     test_duplicate();
+    test_load_string();
    }
 
   static void newTests()                                                        // Tests being worked on
