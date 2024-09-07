@@ -6,91 +6,47 @@ package com.AppaApps.Silicon;                                                   
 
 import java.util.*;
 
-class Stuck extends RiscV                                                       // Stuck: a fixed size stack controlled by a unary number. The unary number zero indicates an empty stuck stack.
- {final Unary             unary;                                                // The layout of the stuck stack
-  final StuckMemoryLayout stuckMemoryLayout;                                    // The layout of the stuck stack
-  final Stack<Memory>     stuckMemory = new Stack<>();                          // The memory of the stuck stack
+class Stuck extends Memory.Structure                                            // Stuck: a fixed size stack controlled by a unary number. The unary number zero indicates an empty stuck stack.
+ {final Unary unary;                                                            // The layout of the stuck stack
+  final Memory.Variable element;                                                // An element of the stuck stack
+  final Memory.Array    array;                                                  // The array holding the elements of the stuck stack
   final int max;                                                                // The maximum number of entries in the stuck stack.
   final int width;                                                              // The width of each object in the stuck in bits
 
 //D1 Construction                                                               // Create a stuck stack
 
   Stuck(int Max, int Width)                                                     // Create the stuck stack
-   {max = Max; width = Width;
-    unary             = new Unary(max);                                         // The stuck stack
-    stuckMemoryLayout = new StuckMemoryLayout("stuck");                         // The stuck stack memory layout
-    stuckMemory.push(stuckMemoryLayout.memory());                               // The stuck stack memory
+   {super("Stuck");                                                             // Containing structure layout
+    max = Max; width = Width;
+    unary   = new Unary(max);                                                   // Unary number showing which elements in the stack are valid
+    element = variable("element", width);                                       // An element of the stuck stack
+    array   = array("array", element, max);                                     // An array of elements comprising the stuck stack
+    addField(unary);                                                            // Preventing from doing this earlier by Java forcing super to go first
+    addField(array);
+    layout();                                                                   // Layout the structure of the stuck stack
    }
 
-  void stuckMemoryOpen(Memory memory)                                           // Assign some memory for a unary number
-   {final int m = memory.size(), w = stuckMemoryLayout.width;                   // Check memory sizes
-    if (m != w)
-      stop("Memory size is different from expected", w, "but got", m);
-
-    stuckMemory.push(memory);                                                   // Open memory for stuck stack
-    unaryMemoryOpen();                                                          // Derive the unary memory from the stuck memory
-   }
-
-  Memory getStuckMemory() {return stuckMemory.lastElement();}                   // Get memory containing stuck stack
-
-  void stuckMemoryClose()                                                       // Finished with current memeory
-   {if (stuckMemory.size() == 0) stop("Memory stack underflow");
-    unaryMemoryClose();                                                         // Close unary memory
-    stuckMemory.pop();                                                          // Close stuck meory
-   }
   static Stuck stuck(int max, int width) {return new Stuck(max, width);}        // Create a stuck stack
 
-  void clear() {getStuckMemory().zero();}                                       // Clear a stuck stack
+  void clear() {unary.zero();}                                                  // Clear a stuck stack
 
 //D1 Characteristics                                                            // Characteristics of the stuck stack
 
-  void unaryMemoryOpen()                                                        // Set the memory for the unary number
-   {unary.memoryOpen(stuckMemoryLayout.unary.subMemory(getStuckMemory()));
-   }
-
-  void unaryMemoryClose() {unary.memoryClose();}                                // Release the memory for the unary number
-
-  int size()                                                                    // The current size of the stuck stack
-   {stuckMemoryClose();                                                          // Get the memory for the unary number controlling the stack
-    final int n = unary.get();                                                 // Value of unary is the size of the stuck stack
-    stuckMemoryClose();
-    return n;                                                                   // Get the memory for the unary number controlling the stack
-   }
+  int size() {return unary.get();}                                              // The current size of the stuck stack
 
   public void ok(String expected) {ok(toString(), expected);}                   // Check the stuck stack
 
   boolean isFull()  {return size() >= max;}                                     // Check the stuck stack is full
   boolean isEmpty() {return size() <= 0;}                                       // Check the stuck stack is empty
 
-  class StuckMemoryLayout extends Structure                                     // Memory layout for a stuck stack
-   {final Variable unary;                                                       // Unary vector to show used positions in stuck stack
-    final Variable element;                                                     // Element of stuck stack
-    final Array    array;                                                       // Array of Memorys implementing the stuck stack
-
-    StuckMemoryLayout(String name)                                              // Create the a memory layout for a unary number
-     {super(name);                                                              // Unary vector to show used positions in stuck stack
-      unary   = new Unary(max).layout;                                          // Unary vector to show used positions in stuck stack
-      element = new Variable("Memory", width);                                  // Memory on stuck stack
-      array   = new Array   ("array",  element, max);                           // Array of Memorys implementing the stuck stack
-      addField(unary);                                                          // Add the unary indicator
-      addField(array);                                                          // Add the array
-      layout();                                                                 // Layout memory
-say(print());
-     }
-   }
-
-  StuckMemoryLayout stuckMemoryLayout() {return new StuckMemoryLayout("Stuck");}// Memory layout for a stuck stack
-
 //D1 Actions                                                                    // Place and remove data to/from stuck stack
 
-  void push(Memory stuckMemory, Memory elementMemory)                                                      // Push an Memory onto the stuck stack
-   {stuckMemoryOpen(stuckMemory);
-    if (!unary.canInc()) stop("Stuck is full");                                 // Check there is room on the stack
+  void push(Memory ElementToPush)                                               // Push an Memory onto the stuck stack
+   {if (!unary.canInc()) stop("Stuck is full");                                 // Check there is room on the stack
     final int n = unary.get();                                                  // Current size of  Stuck Stack
-    stuckMemoryLayout.array.setIndex(n);                                        // Index stuck memory
-    stuckMemoryLayout.element.set(stuckMemory, elementMemory);                  // Set memory of stuck stack from supplied memory
+    array.setIndex(n);                                                          // Index stuck memory
+    element.set(ElementToPush);                                                 // Set memory of stuck stack from supplied memory
     unary.inc();
-    stuckMemoryClose();
    }
 /*
   void push(Memory i) {push(i.data);}                                          // Push an Memory onto the stuck stack
@@ -205,18 +161,28 @@ say(print());
 */
 //D0 Tests                                                                      // Test stuck stack
 
-  static void test_action()
-   {Stuck  s = stuck(4, 4);
-    Memory S = s.stuckMemoryLayout.memory();
-    MemoryLayout e = s.stuckMemoryLayout().element;
-                 e.layout();
-    Memory       E = e.memory();
+  static void test_push()
+   {final int W = 4, M = 4;
+    Stuck s = stuck(M, W);
 
-    E.set(1); s.push(S, E);
-    E.set(2); s.push(S, E);
-    E.set(3); s.push(S, E);
-    say(S.size());
-    //s.ok("Stuck(1, 2, 3)");
+    Memory e = memory(W);
+    e.set(1); s.push(e);
+    e.set(2); s.push(e);
+    e.set(3); s.push(e);
+    ok(s.size(), 3);
+    s.ok("00000011001000010111");
+   }
+
+  static void test_pop()
+   {final int W = 4, M = 4;
+    Stuck s = stuck(M, W);
+
+    Memory e = memory(W);
+    e.set(1); s.push(e);
+    e.set(2); s.push(e);
+    e.set(3); s.push(e);
+    ok(s.size(), 3);
+    s.ok("00000011001000010111");
    }
 /*  var a = s.pop();                 s.ok("Stuck(1, 2)");       ok(a, 3);
     s.unshift(3);                    s.ok("Stuck(3, 1, 2)");
@@ -311,7 +277,8 @@ say(print());
    }
 */
   static void oldTests()                                                        // Tests thought to be in good shape
-   {test_action();
+   {test_push();
+    test_pop();
     //test_push_shift();
     //test_insert_remove();
     //test_clear();
@@ -323,7 +290,7 @@ say(print());
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    test_action();
+    test_pop();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
