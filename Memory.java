@@ -43,8 +43,15 @@ class Memory extends Chip                                                       
     return m;
    }
 
-  int at()         {return at;}                                                  // Position of field in memory
-  int memorySize() {return width;}                                               // Size of the memory
+  Memory duplicate()                                                            // Copy some memory
+   {final int    n = memorySize();
+    final Memory m = memory(n);
+    for (int i = 0; i < n; ++i) m.set(i, get(i));
+    return m;
+   }
+
+  int at()         {return at;}                                                 // Position of field in memory
+  int memorySize() {return width;}                                              // Size of the memory
 
   boolean get(int i)                                                            // Get a bit from memory
    {final int w = memorySize(), a = at();
@@ -60,6 +67,7 @@ class Memory extends Chip                                                       
     bits[a + i] = b;
    }
 
+  void ok(int    expected) {Chip.ok(toInt(),    expected);}                     // Check memory is as expected compared to an integer
   void ok(String expected) {Chip.ok(toString(), expected);}                     // Check memory is as expected compared to a string representation with the least significant bit to the right as we are using little endian representations of memory
   void ok(Memory expected) {Chip.ok(toString(), expected.toString());}          // Check memory is as expected compared to another memory
 
@@ -90,7 +98,7 @@ class Memory extends Chip                                                       
     for (int i = 0; i < n; i++) set(i, (value & (1<<i)) != 0);                  // Convert variable to bits
    }
 
-  int get()                                                                     // Get memory as an integer
+  int toInt()                                                                   // Get memory as an integer
    {final int n = memorySize();
     int v = 0;
     for (int i = 0; i < n; i++) if (get(i)) v |= (1<<i);                        // Convert bits to int
@@ -238,7 +246,7 @@ class Memory extends Chip                                                       
       superStructure().set(m, at);
      }
 
-    int get() {return memory().get();}                                          // Get an integer representing the value of the memory
+    int toInt() {return memory().toInt();}                                      // Get an integer representing the value of the memory
 
     void set(Layout source)                                                     // Set this variable from the supplied variable
      {if (width != source.width)
@@ -259,7 +267,7 @@ class Memory extends Chip                                                       
       return l;
      }
 
-    void ok(int expected) {Chip.ok(get(), expected);}                           // Check the value of a variable
+    void ok(int expected) {Chip.ok(toInt(), expected);}                           // Check the value of a variable
    }
 
   static class Variable extends Layout                                          // Variable
@@ -687,7 +695,7 @@ class Memory extends Chip                                                       
 
     element.set(3);
     element.ok(3);
-    ok(element.get(), ((Variable)array.getField("element")).get());
+    ok(element.toInt(), ((Variable)array.getField("element")).toInt());
 
     Array a = (Array)array.duplicate();
     ok(a.print(), """
@@ -800,6 +808,15 @@ class Memory extends Chip                                                       
     m.ok("0101");
    }
 
+  static void test_duplicate_memory()
+   {Memory m = memoryFromInt(4, 5);
+    Memory n = m.duplicate();
+    n.ok("0101");
+    n.set(2);
+    m.ok("0101");
+    n.ok("0010");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_memory();
     test_memory_sub();
@@ -815,10 +832,12 @@ class Memory extends Chip                                                       
     test_duplicate();
     test_load_string();
     test_load_int();
+    test_duplicate_memory();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
+    //test_duplicate_memory();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
