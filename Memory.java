@@ -12,7 +12,6 @@ Lady Jessica - Dune - Frank Herbert - 1965.
 */
 class Memory extends Chip                                                       // Bit memory described by a layout.
  {boolean[]bits     = null;                                                     // Bits comprising the memory
-  Layout mainLayout = null;                                                     // Layout of memory
   int at            = 0 ;                                                       // Position of memory in bits
   int width         = 0;                                                        // Number of bits in memory
 
@@ -157,6 +156,11 @@ class Memory extends Chip                                                       
     Layout width   (int Width) {width = Width; return this;}                    // Set width or layout once it is known
     Layout position(int At)    {at    = At;    return this;}                    // Reposition array elements to take account of the index applied to the array
 
+    Layout superStructure()                                                     // No super structure present probably means that layout needs to be called
+     {if (superStructure == null) stop("Need to call layout first");
+      return  superStructure;
+     }
+
     int at()   {return at;}                                                     // Position of field in memory
     int size() {return width;}                                                  // Size of the memory
 
@@ -211,7 +215,7 @@ class Memory extends Chip                                                       
     void set(int variable)                                                      // Set a variable in memory from an integer
      {final Memory m = memory(width);
       m.set(variable);
-      superStructure.set(m, at);
+      superStructure().set(m, at);
      }
 
     int get() {return memory().get();}                                          // Get an integer representing the value of the memory
@@ -219,10 +223,10 @@ class Memory extends Chip                                                       
     void set(Layout source)                                                     // Set this variable from the supplied variable
      {if (width != source.width)
         stop("Variables have different widths", width, source.width);
-      superStructure.set(source.memory(), at);                                  // Set memory for this variable from memory reffered to by source variable
+      superStructure().set(source.memory(), at);                                // Set memory for this variable from memory reffered to by source variable
      }
 
-    Memory memory() {return superStructure.memory(at, width);}                  // Get the memory associated with this layout
+    Memory memory() {return superStructure().memory(at, width);}                // Get the memory associated with this layout
 
     abstract Layout duplicate(int At);                                          // Duplicate an element of this layout so we can modify it safely
 
