@@ -15,9 +15,15 @@ class Memory extends Chip                                                       
   int at            = 0 ;                                                       // Position of memory in bits
   int width         = 0;                                                        // Number of bits in memory
 
-  static Memory memory(String load)                                             // Create and load a memory from a string
+  static Memory memoryFromString(String load)                                   // Create and load a memory from a string
    {final Memory m = memory(load.length());                                     // Size of memory is length of string
     m.set(load);                                                                // Load string
+    return m;
+   }
+
+  static Memory memoryFromInt(int Width, int Value)                             // Create and load a memory from an integer
+   {final Memory m = memory(Width);                                             // Size of memory is length of string
+    m.set(Value);                                                               // Load string
     return m;
    }
 
@@ -785,8 +791,13 @@ class Memory extends Chip                                                       
     a.set(1);
     b.set(2);
     c.set(3);
-    s.ok       ("001100100001");
-    s.ok(memory("001100100001"));
+    s.ok                 ("001100100001");
+    s.ok(memoryFromString("001100100001"));
+   }
+
+  static void test_load_int()
+   {Memory m = memoryFromInt(4, 5);
+    m.ok("0101");
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -803,6 +814,7 @@ class Memory extends Chip                                                       
     test_array();
     test_duplicate();
     test_load_string();
+    test_load_int();
    }
 
   static void newTests()                                                        // Tests being worked on
