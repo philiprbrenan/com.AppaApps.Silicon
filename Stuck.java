@@ -32,12 +32,12 @@ class Stuck extends Memory.Structure                                            
 
 //D1 Characteristics                                                            // Characteristics of the stuck stack
 
-  int size() {return unary.get();}                                              // The current size of the stuck stack
+  int stuckSize() {return unary.get();}                                         // The current size of the stuck stack
 
   public void ok(String expected) {ok(toString(), expected);}                   // Check the stuck stack
 
-  boolean isFull()  {return size() >= max;}                                     // Check the stuck stack is full
-  boolean isEmpty() {return size() <= 0;}                                       // Check the stuck stack is empty
+  boolean isFull()  {return stuckSize() >= max;}                                // Check the stuck stack is full
+  boolean isEmpty() {return stuckSize() <= 0;}                                  // Check the stuck stack is empty
 
 //D1 Actions                                                                    // Place and remove data to/from stuck stack
 
@@ -169,20 +169,16 @@ class Stuck extends Memory.Structure                                            
     e.set(1); s.push(e);
     e.set(2); s.push(e);
     e.set(3); s.push(e);
-    ok(s.size(), 3);
+    ok(s.stuckSize(), 3);
     s.ok("00000011001000010111");
    }
 
   static void test_pop()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
-
-    Memory e = memory(W);
-    e.set(1); s.push(e);
-    e.set(2); s.push(e);
-    e.set(3); s.push(e);
-    ok(s.size(), 3);
-    s.ok("00000011001000010111");
+    s.set("00000011001000010111");
+say("AAAA", s);
+    ok(s.stuckSize(), 3);
    }
 /*  var a = s.pop();                 s.ok("Stuck(1, 2)");       ok(a, 3);
     s.unshift(3);                    s.ok("Stuck(3, 1, 2)");
