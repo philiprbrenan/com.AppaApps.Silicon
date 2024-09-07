@@ -49,7 +49,8 @@ class Memory extends Chip                                                       
     bits[a + i] = b;
    }
 
-  void ok(String expected) {Chip.ok(toString(), expected);}                     // Check memory is as expected
+  void ok(String expected) {Chip.ok(toString(), expected);}                     // Check memory is as expected compared to a string representation with the least significant bit to the right as we are using little endian representations of memory
+  void ok(Memory expected) {Chip.ok(toString(), expected.toString());}          // Check memory is as expected compared to another memory
 
   public String toString()                                                      // Memory as string
    {final StringBuilder b = new StringBuilder();
@@ -82,6 +83,11 @@ class Memory extends Chip                                                       
     for (int i = 0; i < size; i++) set(i, false);
    }
 
+  void not()                                                                    // Not a memory
+   {final int size = size();
+    for (int i = 0; i < size; i++) set(i, !get(i));
+   }
+
   void shiftLeftFillWithZeros(int left)                                         // Shift left filling with zeroes
    {for (int i = size(); i > left; --i) set(i-1, get(i-1-left));
     for (int i = 0;      i < left; ++i) set(i,   false);
@@ -96,6 +102,12 @@ class Memory extends Chip                                                       
    {final int size = size();
     for (int i = 0; i < size-right;    ++i) set(i, get(i+right));
     for (int i = size-right; i < size; ++i) set(i, false);
+   }
+
+  void shiftRightFillWithOnes(int right)                                        // Shift right filling with ones
+   {final int size = size();
+    for (int i = 0; i < size-right;    ++i) set(i, get(i+right));
+    for (int i = size-right; i < size; ++i) set(i, true);
    }
 
   void shiftRightFillWithSign(int right)                                        // Shift right filling with sign
@@ -145,14 +157,15 @@ class Memory extends Chip                                                       
     Layout width   (int Width) {width = Width; return this;}                    // Set width or layout once it is known
     Layout position(int At)    {at    = At;    return this;}                    // Reposition array elements to take account of the index applied to the array
 
-    int size() {return width;}                                                  // Width of sub memory
+    int at()   {return at;}                                                     // Position of field in memory
+    int size() {return width;}                                                  // Size of the memory
 
 //D1 Layouts                                                                    // Layout memory as variables, arrays, structures, unions
 
     Layout layout()                                                             // Layout the structure based on the fields that describe it
-     {fields.clear();
-      layout(0, 0, this);
-      bits = new boolean[width];
+     {fields.clear();                                                           // Clear of chain of fields in this layout
+      layout(0, 0, this);                                                       // Compute field positions
+      bits = new boolean[width];                                                // Memory for this layout
       for(Layout l : fields) l.superStructure = this;                           // Locate the super structure containing this field
       for(Layout l : fields) l.bits           = bits;                           // Locate the bits containing this layout element
       return this;
@@ -214,9 +227,11 @@ class Memory extends Chip                                                       
     abstract Layout duplicate(int At);                                          // Duplicate an element of this layout so we can modify it safely
 
     Layout duplicate()                                                          // Duplicate a set of nested layouts rebasing their start point to zero
-     {final Layout l = duplicate(at);
-      l.layout();
-      l.bits = bits;
+     {final Layout l = duplicate(at);                                           // Duplicate the layout
+      l.layout();                                                               // Layout the structure - it now has its own memory from layout. Its easier to do this than duplicate all of layout logic during duplication and iyt only costs an unnecessary memory allocatc
+      l.bits = bits;                                                            // Share memory of layout being duplicated
+
+      for(Layout f : l.fields) f.bits = bits;                                   // Locate the bits containing this layout element
       return l;
      }
 
@@ -232,7 +247,7 @@ class Memory extends Chip                                                       
      }
     Layout duplicate(int At)                                                    // Duplicate a variable so we can modify it safely
      {final Variable v = new Variable(name, width);
-      v.at = at - At; v.depth = depth;
+      v.at = at - At; v.depth = depth; v.bits = bits;
       return v;
      }
    }
@@ -274,6 +289,7 @@ class Memory extends Chip                                                       
     Layout duplicate(int At)                                                    // Duplicate an array so we can modify it safely
      {final Array a = new Array(name, element.duplicate(), size);
       a.width = width; a.at = at - At; a.depth = depth; a.index = index;
+      a.bits = bits;
       return a;
      }
    }
@@ -320,9 +336,9 @@ class Memory extends Chip                                                       
 
     Layout duplicate(int At)                                                    // Duplicate a structure so we can modify it safely
      {final Structure s = new Structure(name);
-      s.width = width; s.at = at - At; s.depth = depth;
+      s.width = width; s.at = at - At; s.depth = depth; s.bits = bits;
       for(Layout L : subStack)
-       {final Layout l = L.duplicate();
+       {final Layout l = L.duplicate(L.at);
         s.subMap.put(l.name, l);
         s.subStack.push(l);
        }
@@ -364,10 +380,10 @@ class Memory extends Chip                                                       
 
     Layout duplicate(int At)                                                    // Duplicate a union so we can modify it safely
      {final Union u = new Union(name);
-      u.width = width; u.at = at - At; u.depth = depth;
+      u.width = width; u.at = at - At; u.depth = depth; u.bits = bits;
       for(String s : subMap.keySet())
        {final Layout L = subMap.get(s);
-        final Layout l = L.duplicate();
+        final Layout l = L.duplicate(L.at);
         u.subMap.put(l.name, l);
        }
       return u;
@@ -688,6 +704,52 @@ class Memory extends Chip                                                       
     b.ok("0101");
    }
 
+  static void test_shift_variable()
+   {Variable  a = variable ("a", 4);
+    Variable  b = variable ("b", 8);
+    Variable  c = variable ("c", 4);
+    Structure s = structure("inner", a, b, c);
+    s.layout();
+
+    a.shiftLeftFillWithOnes(2);
+    b.shiftRightFillWithOnes(2);
+    b.shiftRightFillWithZeros(2);
+    c.not();
+    s.ok("1111001100000011");
+    s.shiftRightFillWithSign(2);
+    s.ok("1111110011000000");
+    s.shiftRightFillWithZeros(2);
+    s.ok("0011111100110000");
+    b.not();
+    s.ok("0011000011000000");
+    a.set(c);
+    s.ok("0011000011000011");
+   }
+
+  static void test_duplicate()
+   {Variable  a = variable ("a", 4);
+    Variable  b = variable ("b", 8);
+    Variable  c = variable ("c", 4);
+    Structure s = structure("inner", a, b, c);
+    s.layout();
+    Structure t = (Structure)s.duplicate();
+    ok(s.print(), t.print());
+
+    a.set(5);
+    b.set(5);
+    c.set(5);
+    s.ok(t);
+
+    Variable A = (Variable)t.getField("inner.a");
+    Variable B = (Variable)t.getField("inner.b");
+    Variable C = (Variable)t.getField("inner.c");
+
+    s.ok("0101000001010101"); A.not();
+    s.ok("0101000001011010"); B.not();
+    s.ok("0101111110101010"); C.not();
+    s.ok("1010111110101010");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_memory();
     test_memory_sub();
@@ -696,12 +758,14 @@ class Memory extends Chip                                                       
     test_double_array();
     test_sub_variable();
     test_sub_variable2();
+    test_shift_variable();
     test_variable_assign();
     test_array();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
+    test_duplicate();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
