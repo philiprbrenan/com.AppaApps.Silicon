@@ -41,43 +41,57 @@ class Stuck extends Memory.Structure                                            
 
 //D1 Actions                                                                    // Place and remove data to/from stuck stack
 
-  void push(Memory ElementToPush)                                               // Push an Memory onto the stuck stack
+  void push(Memory ElementToPush)                                               // Push an element as memory onto the stuck stack
    {if (!unary.canInc()) stop("Stuck is full");                                 // Check there is room on the stack
     final int n = unary.get();                                                  // Current size of  Stuck Stack
     array.setIndex(n);                                                          // Index stuck memory
     element.set(ElementToPush);                                                 // Set memory of stuck stack from supplied memory
     unary.inc();
    }
+
+  void push(int    Value) {push(memoryFromInt(max, Value));}                    // Push an integer onto the stuck stack
+  void push(String Value) {push(memoryFromString(Value));}                      // Push an Memory onto the stuck stack
+
+  Memory pop()                                                                  // Pop an element as memory from the stuck stack
+   {if (!unary.canDec()) stop("Stuck is empty");                                // Confirm there is an element to pop on the stuck stack
+    unary.dec();                                                                // New number of elements on stuck stack
+    final int n = unary.get();                                                  // Current size of stuck stack
+    array.setIndex(n);                                                          // Index stuck memory
+    return element.memory();                                                    // Get memory from stuck stack
+   }
+
+  Memory shift()                                                                // Shift an element as memory from the stuck stack
+   {if (!unary.canDec()) stop("Stuck is empty");                                // Confirm there is an element to shift on the stuck stack
+    unary.dec();                                                                // New number of elements on stuck stack
+    array.setIndex(0);                                                          // Index stuck memory
+    Memory m = element.memory().duplicate();                                    // Copy the slice of memory
+    final int N = unary.get();                                                  // Current size of stuck stack
+    for (int i = 0; i < N; i++)                                                 // Shift the stuck stack down place
+     {array.setIndex(i+1);                                                      // Upper element
+      Memory n = element.memory();                                              // Get reference to upper element
+      array.setIndex(i);                                                        // Index stuck memory
+      element.set(n);
+     }
+    return m;
+   }
+
+  void unshift(Memory ElementToUnShift)                                         // Unshift an element as memory onto the stuck stack
+   {if (!unary.canInc()) stop("Stuck is full");                                 // Confirm there is room for another element  in the stuck stack
+    final int N = unary.get();                                                  // Current size of stuck stack
+    for (int i = N; i > 0; i--)                                                 // Shift the stuck stack down place
+     {array.setIndex(i-1);                                                      // Lower element
+      Memory n = element.memory();                                              // Get reference to lower element
+      array.setIndex(i);                                                        // Index upper element
+      element.set(n);                                                           // Set upper element
+     }
+    array.setIndex(0);                                                          // Index first element
+    element.set(ElementToUnShift);
+    unary.inc();
+   }
+
+  void unshift(int    Value) {unshift(memoryFromInt(max, Value));}              // Unshift an integer onto the stuck stack
+  void unshift(String Value) {unshift(memoryFromString(Value));}                // Unshift an Memory onto the stuck stack
 /*
-  void push(Memory i) {push(i.data);}                                          // Push an Memory onto the stuck stack
-  void push(int data) {push(new Memory(data));}                                // Push an Memory onto the stuck stack
-
-  Memory pop()                                                                 // Pop an Memory from the stuck stack
-   {if (!u.canDec()) stop("Stuck is empty");
-    u.dec();
-    return s[size()];
-   }
-
-  Memory shift()                                                               // Shift an Memory from the stuck stack
-   {if (!u.canDec()) stop("Stuck is empty");
-    Memory r = s[0];
-    final int N = size();
-    for (int i = 0; i < N-1; i++) s[i] = s[i+1];
-    u.dec();
-    return r;
-   }
-
-  void unshift(boolean[]bits)                                                   // Unshift an Memory from the stuck stack
-   {if (!u.canInc()) stop("Stuck is full");
-    checkLength(bits);
-    final int N = size();
-    for (int j = N; j > 0; j--) s[j] = s[j-1];
-    s[0] = new Memory(bits);
-    u.inc();
-   }
-
-  void unshift(Memory i) {unshift(i.data);}                                    // Unshift an Memory from the stuck stack
-  void unshift(int data)  {unshift(new Memory(data));}                         // Unshift an Memory onto the stuck stack
 
   Memory removeElementAt(int i)                                                // Remove the Memory at 0 based index i and shift the Memorys above down one position
    {if (!u.canDec()) stop("Stuck is empty");
@@ -165,10 +179,9 @@ class Stuck extends Memory.Structure                                            
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
 
-    Memory e = memory(W);
-    e.set(1); s.push(e);
-    e.set(2); s.push(e);
-    e.set(3); s.push(e);
+    s.push(1);
+    s.push(2);
+    s.push(3);
     ok(s.stuckSize(), 3);
     s.ok("00000011001000010111");
    }
@@ -176,10 +189,31 @@ class Stuck extends Memory.Structure                                            
   static void test_pop()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
-    s.set("00000011001000010111");
-say("AAAA", s);
-    ok(s.stuckSize(), 3);
+    s.set("00000011001000010111");    ok(s.stuckSize(), 3);
+    s.pop().ok(3);  ok(s.stuckSize(), 2);
+    s.pop().ok(2);  ok(s.stuckSize(), 1);
+    s.pop().ok(1);  ok(s.stuckSize(), 0);
    }
+
+  static void test_shift()
+   {final int W = 4, M = 4;
+    Stuck s = stuck(M, W);
+    s.set("00000011001000010111");     ok(s.stuckSize(), 3); s.ok("00000011001000010111");
+    s.shift().ok(1); ok(s.stuckSize(), 2); s.ok("00000011001100100011");
+    s.shift().ok(2); ok(s.stuckSize(), 1); s.ok("00000011001100110001");
+    s.shift().ok(3); ok(s.stuckSize(), 0); s.ok("00000011001100110000");
+   }
+
+  static void test_unshift()
+   {final int W = 4, M = 4;
+    Stuck s = stuck(M, W);
+                  ok(s.stuckSize(), 0);
+    s.unshift(1); ok(s.stuckSize(), 1); s.ok("00000000000000010001");
+    s.unshift(2); ok(s.stuckSize(), 2); s.ok("00000000000100100011");
+    s.unshift(3); ok(s.stuckSize(), 3); s.ok("00000001001000110111");
+//  say("s.ok(\""+s+"\");");
+   }
+
 /*  var a = s.pop();                 s.ok("Stuck(1, 2)");       ok(a, 3);
     s.unshift(3);                    s.ok("Stuck(3, 1, 2)");
     var b = s.shift();               s.ok("Stuck(1, 2)");       ok(b, 3);
@@ -275,6 +309,7 @@ say("AAAA", s);
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_push();
     test_pop();
+    test_shift();
     //test_push_shift();
     //test_insert_remove();
     //test_clear();
@@ -285,8 +320,8 @@ say("AAAA", s);
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_pop();
+   {oldTests();
+    test_unshift();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
