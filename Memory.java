@@ -57,6 +57,14 @@ class Memory extends Chip                                                       
     return b.toString();
    }
 
+  void set(String source, int offset)                                           // Set memory at speciifed offset from a source string
+   {final int t = size(), s = source.length(), m = min(t, s);
+    if (offset + s > t) stop("Cannot write beyond end of memory");
+    for (int i = 0; i < m; i++) set(offset+i, source.charAt(i) != '0');         // Load the specified string into memory
+   }
+
+  void set(String source) {set(source, 0);}                                     // Set memory from a source string
+
   void set(Memory source, int offset)                                           // Copy source memory into this memory at the specified offset
    {final int t = size(), s = source.size(), m = min(t, s);
     if (offset + s > t) stop("Cannot write beyond end of memory");
@@ -435,6 +443,13 @@ class Memory extends Chip                                                       
     S.zero();                        m.ok("10110011100011110000111110000011111100000011111110000000111111110000000011111111100000000011110011100000000000");
    }
 
+  static void test_memory_set_from_string()
+   {Memory m = memory(8);
+    m.set("1111", 2);
+    m.not();
+    m.ok("11000011");
+   }
+
   static void test_memory_set_from_memory()
    {Memory m = memory(8);
     m.shiftLeftFillWithOnes (2);
@@ -757,6 +772,7 @@ class Memory extends Chip                                                       
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_memory();
     test_memory_sub();
+    test_memory_set_from_string();
     test_memory_set_from_memory();
     test_variable();
     test_double_array();
@@ -765,11 +781,11 @@ class Memory extends Chip                                                       
     test_shift_variable();
     test_variable_assign();
     test_array();
+    test_duplicate();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_duplicate();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
