@@ -68,9 +68,9 @@ class Stuck extends Memory.Structure                                            
     final int N = stuckSize();                                                  // Current size of  Stuck Stack
     for (int i = 0; i < N; i++)                                                 // Shift the stuck stack down place
      {array.setIndex(i+1);                                                      // Upper element
-      Memory n = element.memory();                                              // Get reference to upper element
+      Memory e = element.memory();                                              // Get reference to upper element
       array.setIndex(i);                                                        // Index stuck memory
-      element.set(n);
+      element.set(e);
      }
     return m;
    }
@@ -187,30 +187,34 @@ class Stuck extends Memory.Structure                                            
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
 
-    s.push(1);
-    s.push(2);
-    s.push(3);
+    s.push( 1);
+    s.push( 2);
+    s.push( 3);
+    s.push(12);
     ok(s.stuckSize(), 3);
-    s.ok("Stuck(1, 2, 3)");
+    s.ok("Stuck(1, 2, 3, 12)");
    }
 
   static void test_pop()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
-    s.set("00000011001000010111");    ok(s.stuckSize(), 3);
-    s.pop().ok(3);  ok(s.stuckSize(), 2);
-    s.pop().ok(2);  ok(s.stuckSize(), 1);
-    s.pop().ok(1);  ok(s.stuckSize(), 0);
+    s.set("11000011001000011111");
+                    ok(s.stuckSize(), 4);
+    s.pop().ok(12); ok(s.stuckSize(), 3);
+    s.pop().ok( 3); ok(s.stuckSize(), 2);
+    s.pop().ok( 2); ok(s.stuckSize(), 1);
+    s.pop().ok( 1); ok(s.stuckSize(), 0);
    }
 
   static void test_shift()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
-    s.set("00000011001000010111");
-                     ok(s.stuckSize(), 3); s.ok("Stuck(1, 2, 3)");
-    s.shift().ok(1); ok(s.stuckSize(), 2); s.ok("Stuck(2, 3)");
-    s.shift().ok(2); ok(s.stuckSize(), 1); s.ok("Stuck(3)");
-    s.shift().ok(3); ok(s.stuckSize(), 0); s.ok("Stuck()");
+    s.set("11000011001000011111");
+                                    ok(s.stuckSize(), 4); s.ok("Stuck(1, 2, 3, 12)");
+    Memory a = s.shift(); a.ok( 1); ok(s.stuckSize(), 3); s.ok("Stuck(2, 3, 12)");
+    Memory b = s.shift(); b.ok( 2); ok(s.stuckSize(), 2); s.ok("Stuck(3, 12)");
+    Memory c = s.shift(); c.ok( 3); ok(s.stuckSize(), 1); s.ok("Stuck(12)");
+    Memory d = s.shift(); d.ok(12); ok(s.stuckSize(), 0); s.ok("Stuck()");
    }
 
   static void test_unshift()
@@ -220,6 +224,7 @@ class Stuck extends Memory.Structure                                            
     s.unshift(1); ok(s.stuckSize(), 1); s.ok("Stuck(1)");
     s.unshift(2); ok(s.stuckSize(), 2); s.ok("Stuck(2, 1)");
     s.unshift(3); ok(s.stuckSize(), 3); s.ok("Stuck(3, 2, 1)");
+    s.unshift(9); ok(s.stuckSize(), 4); s.ok("Stuck(9, 3, 2, 1)");
 //  say("s.ok(\""+s+"\");");
    }
 
@@ -313,7 +318,7 @@ class Stuck extends Memory.Structure                                            
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    test_set_element_at();
+    test_shift();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
