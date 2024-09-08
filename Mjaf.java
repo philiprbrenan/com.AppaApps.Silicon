@@ -19,21 +19,24 @@ package com.AppaApps.Silicon;                                                   
 //                 When these lines being read bring life to thee!
 import java.util.Stack;                                                         // Used only for printing trees which is not something that will happen on the chip
 
-class Mjaf extends RiscV                                                        // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys and matching number of data elements because data is not transferred to the parent on fission  which simplifies deletions with complicating insertions.
+class Mjaf extends Memory.Structure                                             // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys and matching number of data elements because data is not transferred to the parent on fission  which simplifies deletions with complicating insertions.
  {final int bitsPerKey;                                                         // Number of bits in key
   final int bitsPerData;                                                        // Number of bits in data
   final int maxKeysPerLeaf;                                                     // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
   final int maxKeysPerBranch;                                                   // The maximum number of keys per branch.
+  final int maxNodes;                                                           // The maximum number of nodes in the tree
   final NodeStack nodes = new NodeStack();                                      // All the branch nodes - this is our memory allocation scheme
   Node nodesFreeList = null;                                                    // Free nodes list
+
+  Memory.Variable keyDataStored;
 
 //D1 Construction                                                               // Create a Btree from nodes which can be branches or leaves.  The data associated with the Btree is stored only in the leaves opposite the keys
 
   Node root;                                                                    // The root node of the Btree
-  int keyDataStored;                                                            // The number of key, data values stored in the Btree
 
   Mjaf(int BitsPerKey, int BitsPerData, int MaxKeysPerLeaf, int size)           // Define a Btree with a specified maximum number of keys per leaf.
-   {final int N = MaxKeysPerLeaf;
+   {super("tree");
+    final int N = MaxKeysPerLeaf;
     bitsPerKey  = BitsPerKey;
     bitsPerData = BitsPerData;
     if (N % 2 == 1) stop("# keys per leaf must be even not odd:", N);
@@ -41,6 +44,11 @@ class Mjaf extends RiscV                                                        
     maxKeysPerLeaf   = N;
     maxKeysPerBranch = N-1;
     for (int i = 0; i < size; i++) nodes.release(new Leaf());                   // Pre allocate leaves as they are bigger than branches
+    maxNodes = size;
+
+    keyDataStored = Memory.variable("keyDataStored", BitsPerKey+1);             // Field to track number of keys stored in twos complement form hence an extra bit for the sign
+    addField(keyDataStored);
+    layout();                                                                   // Layout memory describing tree
    }
 
   Mjaf() {this(16, 16, 4, 1000);}                                               // Define a Btree with a minimal maximum number of keys per node
@@ -49,7 +57,7 @@ class Mjaf extends RiscV                                                        
    {return new Mjaf(Key, Data, MaxKeysPerLeaf, size);
    }
 
-  int size() {return keyDataStored;}                                            // Number of entries in the tree
+  int size() {return keyDataStored.toInt();}                                    // Number of entries in the tree
 
   int nodesCreated = 0;                                                         // Number of nodes created
 
@@ -145,20 +153,13 @@ class Mjaf extends RiscV                                                        
       final Node t = nextLevel.elementAt(f);                                    // Top mode
       final Branch    b = branch(t);                                            // Recycle a branch
 
-//    for (int i = 0; i < f; i++)                                               // Remove first keys from old node to new node
-//     {final Key  k = key(keyNames .removeElementAt(0).bits());
-//      final Node n = nextLevel.removeElementAt(0);
-//      b.keyNames .push(k);
-//      b.nextLevel.push(n);
-//     }
-
       for (int i = 0; i < f; i++)                                               // Remove first keys from old node to new node
        {final Node n = nextLevel.firstElement(); nextLevel.removeElementAt(0);
-        b.keyNames .push(keyNames.removeElementAt(0));
+        b.keyNames .push(keyNames.shift());
         b.nextLevel.push(n);
        }
 
-      keyNames .removeElementAt(0);                                             // Remove central key which is no longer required
+      keyNames .shift();                                                        // Remove central key which is no longer required
       nextLevel.removeElementAt(0);
       return b;
      }
@@ -178,7 +179,7 @@ class Mjaf extends RiscV                                                        
       for (int i = 0; i < J; i++)                                               // Add right hand branch
        {final Key  k = key(Join.keyNames .elementAt(i));
         final Node n = Join.nextLevel.elementAt(i);
-        keyNames .push(k.memory());
+        keyNames .push(k.memory());                                             // Push mmeory associated with key
         nextLevel.push(n);
        }
       nodes.release(Join);
@@ -259,18 +260,18 @@ class Mjaf extends RiscV                                                        
 
       for (int i = 0; i < K; i++)
        {final Memory m = keyNames.elementAt(i);                                 // Current key
-        final Key k = new Key();                                               // Current key
+        final Key k = new Key();                                                // Current key
         k.set(m);
         if (lessThanOrEqual(keyName, k))                                        // Insert new key in order
          {keyNames  .insertElementAt(keyName  .memory(), i);
           dataValues.insertElementAt(dataValue.memory(), i);
-          ++keyDataStored;                                                      // Create a new entry in the leaf
+          keyDataStored.inc();                                                  // Create a new entry in the leaf
           return;
          }
        }
       keyNames  .push(keyName.memory());                                        // Either the leaf is empty or the new key is greater than every existing key
       dataValues.push(dataValue.memory());
-      ++keyDataStored;                                                          // Created a new entry in the leaf
+      keyDataStored.inc();                                                      // Created a new entry in the leaf
      }
 
     Leaf splitLeaf()                                                            // Split the leaf into two leafs - the new leaf consists of the indicated first elements, the old leaf retains the rest
@@ -434,7 +435,7 @@ class Mjaf extends RiscV                                                        
       final int  i = r.findIndexOfKey(keyName);                                 // Only one leaf and the key is known to be in the Btree so it must be in this leaf
       r.keyNames  .removeElementAt(i);
       r.dataValues.removeElementAt(i);
-      --keyDataStored;
+      keyDataStored.dec();
 
       return foundData;
      }
@@ -515,7 +516,7 @@ class Mjaf extends RiscV                                                        
        }
       P = p.findFirstGreaterOrEqual(keyName);                                   // Find key position in branch
      }
-    --keyDataStored;                                                            // Remove one entry  - we are on a leaf andf the entry is known to exist
+    keyDataStored.dec();                                                        // Remove one entry  - we are on a leaf andf the entry is known to exist
     final int  F = P.findIndexOfKey(keyName);                                   // Key is known to be present
            P .keyNames  .removeElementAt(F);
     ((Leaf)P).dataValues.removeElementAt(F);
@@ -613,7 +614,7 @@ class Mjaf extends RiscV                                                        
     ok(l.size(),        5);
     ok(l.findIndexOfKey(m.key(3)), 2);
     ok(l.findIndexOfKey(m.key(9)), -1);
-    ok(m.keyDataStored, 5);
+    ok(m.keyDataStored.toInt(), 5);
    }
 
   static void test_leaf_split()
