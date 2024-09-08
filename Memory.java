@@ -244,6 +244,8 @@ class Memory extends Chip                                                       
 
     public String toString() {return memory(at, width).toString();}             // Memory as string
 
+    int toInt() {return memory().toInt();}                                      // Get an integer representing the value of the memory
+
     Layout getField(String path)                                                // Path to field
      {final String[]names = path.split("\\.");                                  // Split path
       if (fields == null) return null;                                          // Not compiled
@@ -263,7 +265,11 @@ class Memory extends Chip                                                       
       superStructure().set(m, at);
      }
 
-    int toInt() {return memory().toInt();}                                      // Get an integer representing the value of the memory
+    void set(Memory variable)                                                   // Set a variable from memory
+     {final int w = width, v = variable.width;
+      if (w != v) stop("Memory has wrong length for variable", w, v);
+      superStructure().set(variable, at);
+     }
 
     void set(Layout source)                                                     // Set this variable from the supplied variable
      {if (width != source.width)
@@ -284,7 +290,7 @@ class Memory extends Chip                                                       
       return l;
      }
 
-    void ok(int expected) {Chip.ok(toInt(), expected);}                           // Check the value of a variable
+    void ok(int expected) {Chip.ok(toInt(), expected);}                         // Check the value of a variable
    }
 
   static class Variable extends Layout                                          // Variable
@@ -873,6 +879,21 @@ class Memory extends Chip                                                       
     ok(c.compareTo(c) ==  0);
    }
 
+  static void test_variable_from_memory()
+   {Variable  a = variable ("a", 4);
+    Variable  b = variable ("b", 4);
+    Variable  c = variable ("c", 4);
+    Structure s = structure("inner", a, b, c);
+    s.layout();
+
+    a.set(1);
+    b.set(2);
+    c.set(1);
+    c.ok(1);
+    c.set(b.memory());
+    c.ok(2);
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_memory();
     test_memory_sub();
@@ -891,11 +912,11 @@ class Memory extends Chip                                                       
     test_duplicate_memory();
     test_equals();
     test_compare_to();
+    test_variable_from_memory();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_compare_to();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
