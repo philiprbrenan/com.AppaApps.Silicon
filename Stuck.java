@@ -100,6 +100,18 @@ class Stuck extends Memory.Structure                                            
     return element.memory();                                                    // Get reference to upper element
    }
 
+  void setElementAt(Memory Element, int i)                                      // Set an element of the stuck stack
+   {final int N = stuckSize();                                                  // Current size of stuck stack
+    if (i > N) stop("Too far up");
+    if (i < 0) stop("Too far down");
+    array.setIndex(i);                                                          // Index stuck memory
+    element.set(Element);                                                       // Set memory of stuck stack from supplied memory
+    if (i == N) unary.inc();                                                    // Creating a new top element
+   }
+
+  void setElementAt(int    Value, int index) {setElementAt(memoryFromInt(width, Value), index);} // Unshift an integer onto the stuck stack
+  void setElementAt(String Value, int index) {setElementAt(memoryFromString(Value),     index);} // Unshift an Memory onto the stuck stack
+
   void insertElementAt(Memory elementToInsert, int i)                           // Insert an element represented as memory into the stuck stack at the indicated 0-based index after moving the elements above up one position
    {final int N = stuckSize();                                                  // Current size of stuck stack
     if (!unary.canInc()) stop("Stuck is full");
@@ -271,6 +283,19 @@ class Stuck extends Memory.Structure                                            
     s.set("01100011001000011111");
    }
 
+  static void test_set_element_at()
+   {final int W = 4, M = 8;
+    Stuck s = stuck(M, W);
+
+    s.setElementAt(1, 0); s.ok("Stuck(1)");
+    s.setElementAt(2, 1); s.ok("Stuck(1, 2)");
+    s.setElementAt(3, 2); s.ok("Stuck(1, 2, 3)");
+    s.setElementAt(4, 0); s.ok("Stuck(4, 2, 3)");
+    s.setElementAt(5, 1); s.ok("Stuck(4, 5, 3)");
+    s.setElementAt(6, 2); s.ok("Stuck(4, 5, 6)");
+    s.setElementAt(7, 0); s.ok("Stuck(7, 5, 6)");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_push();
     test_pop();
@@ -283,11 +308,12 @@ class Stuck extends Memory.Structure                                            
     test_index_of();
     test_clear();
     test_print();
+    test_set_element_at();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
-    test_print();
+   {//oldTests();
+    test_set_element_at();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
