@@ -343,29 +343,27 @@ final public class Node extends RiscV                                           
 
 //D1 Define a node
 
-  static MemoryLayout defineLeaf(int keys, int bits)                            // Define a layout representing a node - an interior node of the tree
+  static Memory.Layout defineLeaf(int keys, int bits)                           // Define a layout representing a node - an interior node of the tree
    {if (keys % 2 == 1) stop("Keys in leaf must be even, not", keys);
-    RiscV      r = new RiscV();
-    Variable   k = r.variable ("key",      bits);                               // Keys
-    Variable   d = r.variable ("data",     bits);                               // Data corresponding to each key
-    Variable   F = r.variable ("full",     keys);                               // A unary number that indicates how full the node is
-    Array      K = r.array    ("keys",  k, keys);                               // Array of keys
-    Array      D = r.array    ("datas", d, keys);                               // Array of matching data matching each key
-    Structure  s = r.structure("leaf",  K, D, F);                               // Definition of a leaf
+    Memory.Variable   k = Memory.variable ("key",      bits);                   // Keys
+    Memory.Variable   d = Memory.variable ("data",     bits);                   // Data corresponding to each key
+    Memory.Variable   F = Memory.variable ("full",     keys);                   // A unary number that indicates how full the node is
+    Memory.Array      K = Memory.array    ("keys",  k, keys);                   // Array of keys
+    Memory.Array      D = Memory.array    ("datas", d, keys);                   // Array of matching data matching each key
+    Memory.Structure  s = Memory.structure("leaf",  K, D, F);                   // Definition of a leaf
     s.layout();
     return s;
    }
 
-  static MemoryLayout defineNode(int keys, int bits)                            // Define a layout representing a node - an interior node of the tree
+  static Memory.Layout defineNode(int keys, int bits)                           // Define a layout representing a node - an interior node of the tree
    {if (keys % 2 == 0) stop("Keys in node must be odd, not", keys);
-    RiscV      r = new RiscV();
-    Variable   k = r.variable ("key",      bits);                               // Keys
-    Variable   n = r.variable ("next",     bits);                               // Next nodes in lower layer
-    Variable   T = r.variable ("top",      bits);                               // Top next node to lower layer
-    Variable   F = r.variable ("full",     keys);                               // A unary number that indicates how full the node is
-    Array      K = r.array    ("keys",  k, keys);                               // Array of keys
-    Array      N = r.array    ("nexts", n, keys);                               // Array of corresponding nexts all of which are less than or equal to the corresponding keys
-    Structure  s = r.structure("node",  K, N, T, F);
+    Memory.Variable   k = Memory.variable ("key",      bits);                   // Keys
+    Memory.Variable   n = Memory.variable ("next",     bits);                   // Next nodes in lower layer
+    Memory.Variable   T = Memory.variable ("top",      bits);                   // Top next node to lower layer
+    Memory.Variable   F = Memory.variable ("full",     keys);                   // A unary number that indicates how full the node is
+    Memory.Array      K = Memory.array    ("keys",  k, keys);                   // Array of keys
+    Memory.Array      N = Memory.array    ("nexts", n, keys);                   // Array of corresponding nexts all of which are less than or equal to the corresponding keys
+    Memory.Structure  s = Memory.structure("node",  K, N, T, F);
     s.layout();
     return s;
    }
@@ -492,12 +490,12 @@ final public class Node extends RiscV                                           
    }
 
   static void test_defineLeaf()                                                 // Test define a leaf
-   {final MemoryLayout s = defineLeaf(6, 4);
+   {final Memory.Layout s = defineLeaf(6, 4);
     ok(s.width, 54);
    }
 
   static void test_defineNode()                                                 // Test define a leaf
-   {final MemoryLayout s = defineNode(5, 4);
+   {final Memory.Layout s = defineNode(5, 4);
     ok(s.width, 49);
    }
 
@@ -513,7 +511,7 @@ final public class Node extends RiscV                                           
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
+   {oldTests();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
