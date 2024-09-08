@@ -18,7 +18,7 @@ class Stuck extends Memory.Structure                                            
   Stuck(int Max, int Width)                                                     // Create the stuck stack
    {super("Stuck");                                                             // Containing structure layout
     max = Max; width = Width;
-    unary   = new Unary(max);                                                   // Unary number showing which elements in the stack are valid
+    unary   = Unary.unary(max);                                                 // Unary number showing which elements in the stack are valid
     element = variable("element", width);                                       // An element of the stuck stack
     array   = array("array", element, max);                                     // An array of elements comprising the stuck stack
     addField(unary);                                                            // Preventing from doing this earlier by Java forcing super to go first
@@ -109,8 +109,12 @@ class Stuck extends Memory.Structure                                            
     if (i == N) unary.inc();                                                    // Creating a new top element
    }
 
-  void setElementAt(int    Value, int index) {setElementAt(memoryFromInt(width, Value), index);} // Unshift an integer onto the stuck stack
-  void setElementAt(String Value, int index) {setElementAt(memoryFromString(Value),     index);} // Unshift an Memory onto the stuck stack
+  void setElementAt(int Value, int index)                                       // Unshift an integer onto the stuck stack
+   {setElementAt(memoryFromInt(width, Value), index);
+   }
+  void setElementAt(String Value, int index)                                    // Unshift an Memory onto the stuck stack
+   {setElementAt(memoryFromString(Value), index);
+   }
 
   void insertElementAt(Memory elementToInsert, int i)                           // Insert an element represented as memory into the stuck stack at the indicated 0-based index after moving the elements above up one position
    {final int N = stuckSize();                                                  // Current size of stuck stack
@@ -186,12 +190,13 @@ class Stuck extends Memory.Structure                                            
   static void test_push()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
-
+    ok(s.isEmpty());
     s.push( 1);
     s.push( 2);
     s.push( 3);
     s.push(12);
     ok(s.stuckSize(), 3);
+    ok(s.isFull());
     s.ok("Stuck(1, 2, 3, 12)");
    }
 
