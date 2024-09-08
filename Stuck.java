@@ -148,41 +148,26 @@ class Stuck extends Memory.Structure                                            
 
   public int indexOf(Memory elementToFind)                                      // Return 0 based index of the indicated memory else -1 if the memory is not present in the stuck stack.
    {final int N = stuckSize();
-    final Memory keyToFind = new Memory(bits);
-    for (int i = 0; i < N; i++) if (keyToFind.equals(s[i])) return i;
+    for (int i = 0; i < N; i++)
+     {final Memory m = elementAt(i);
+      if (m.equals(elementToFind)) return i;
+     }
     return -1;                                                                  // Not found
    }
 
-  Memory indexOf(int    Value) {return indexOf(memoryFromInt(width, Value));}   // Zero based index of an integer in a stuck stack
-  Memory indexOf(String Value) {return indexOf(memoryFromString(Value));}       // Zero based index of a string in a stuck stack
-
-/*
-  public int indexOf(Memory keyToFind) {return indexOf(keyToFind.data);}       // Return 0 based index of the indicated key else -1 if the key is not present in the stuck stack.
-  public int indexOf(int keyToFind) {return indexOf(new Memory(keyToFind));}   // Return 0 based index of the indicated key else -1 if the key is not present in the stuck stack.
-
-//D1 Iterate                                                                    // Iterate a stuck stack
-
-  public Iterator<Memory> iterator() {return new MemoryIterator();}           // Create an iterator to iterate through the stack
-
-  class MemoryIterator implements Iterator<Memory>                            // Iterator for the stack
-   {int nextMemory = 0;
-
-    public boolean hasNext() {return nextMemory < size();}                     // Another Memory to iterate
-
-    public Memory next() {return s[nextMemory++];}
-   }
+  int indexOf(int    Value) {return indexOf(memoryFromInt(width, Value));}      // Zero based index of an integer in a stuck stack
+  int indexOf(String Value) {return indexOf(memoryFromString(Value));}          // Zero based index of a string in a stuck stack
 
 //D1 Print                                                                      // Print a stuck stack
 
   public String toString()                                                      // Print a stuck stack
    {final StringBuilder b = new StringBuilder("Stuck(");
-    final int N = size();
-    for (int i = 0; i < N; i++) b.append(""+s[i].toString()+", ");
+    final int N = stuckSize();
+    for (int i = 0; i < N; i++) b.append(""+elementAt(i).toInt()+", ");
     if (N > 0) b.setLength(b.length()-2);
     b.append(")");
     return b.toString();
    }
-*/
 
 //D0 Tests                                                                      // Test stuck stack
 
@@ -194,7 +179,7 @@ class Stuck extends Memory.Structure                                            
     s.push(2);
     s.push(3);
     ok(s.stuckSize(), 3);
-    s.ok("00000011001000010111");
+    s.ok("Stuck(1, 2, 3)");
    }
 
   static void test_pop()
@@ -209,19 +194,20 @@ class Stuck extends Memory.Structure                                            
   static void test_shift()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
-    s.set("00000011001000010111");     ok(s.stuckSize(), 3); s.ok("00000011001000010111");
-    s.shift().ok(1); ok(s.stuckSize(), 2); s.ok("00000011001100100011");
-    s.shift().ok(2); ok(s.stuckSize(), 1); s.ok("00000011001100110001");
-    s.shift().ok(3); ok(s.stuckSize(), 0); s.ok("00000011001100110000");
+    s.set("00000011001000010111");
+                     ok(s.stuckSize(), 3); s.ok("Stuck(1, 2, 3)");
+    s.shift().ok(1); ok(s.stuckSize(), 2); s.ok("Stuck(2, 3)");
+    s.shift().ok(2); ok(s.stuckSize(), 1); s.ok("Stuck(3)");
+    s.shift().ok(3); ok(s.stuckSize(), 0); s.ok("Stuck()");
    }
 
   static void test_unshift()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
                   ok(s.stuckSize(), 0);
-    s.unshift(1); ok(s.stuckSize(), 1); s.ok("00000000000000010001");
-    s.unshift(2); ok(s.stuckSize(), 2); s.ok("00000000000100100011");
-    s.unshift(3); ok(s.stuckSize(), 3); s.ok("00000001001000110111");
+    s.unshift(1); ok(s.stuckSize(), 1); s.ok("Stuck(1)");
+    s.unshift(2); ok(s.stuckSize(), 2); s.ok("Stuck(2, 1)");
+    s.unshift(3); ok(s.stuckSize(), 3); s.ok("Stuck(3, 2, 1)");
 //  say("s.ok(\""+s+"\");");
    }
 
@@ -247,9 +233,9 @@ class Stuck extends Memory.Structure                                            
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
     s.set("00000011001000010111");
-    s.removeElementAt(1).ok(2); s.ok("00000011001100010011");
-    s.removeElementAt(1).ok(3); s.ok("00000011001100010001");
-    s.removeElementAt(0).ok(1); s.ok("00000011001100010000");
+    s.removeElementAt(1).ok(2); s.ok("Stuck(1, 3)");
+    s.removeElementAt(1).ok(3); s.ok("Stuck(1)");
+    s.removeElementAt(0).ok(1); s.ok("Stuck()");
    }
 
   static void test_first_last()
@@ -260,98 +246,31 @@ class Stuck extends Memory.Structure                                            
     s.lastElement() .ok(3);
    }
 
-/*  var a = s.pop();                 s.ok("Stuck(1, 2)");       ok(a, 3);
-    s.unshift(3);                    s.ok("Stuck(3, 1, 2)");
-    var b = s.shift();               s.ok("Stuck(1, 2)");       ok(b, 3);
-    s.insertElementAt(3, 2);         s.ok("Stuck(1, 2, 3)");
-    s.insertElementAt(4, 2);         s.ok("Stuck(1, 2, 4, 3)"); ok(s.isFull());
-
-    var c = s.removeElementAt(2);    s.ok("Stuck(1, 2, 3)");    ok(c, 4);
-    var d = s.removeElementAt(2);    s.ok("Stuck(1, 2)");       ok(d, 3);
-    s.insertElementAt(3, 0);         s.ok("Stuck(3, 1, 2)");
-    var e = s.removeElementAt(0);    s.ok("Stuck(1, 2)");       ok(e, 3);
-    var f = s.MemoryAt(0);          ok(f, 1);
-    var g = s.MemoryAt(1);          ok(g, 2);
-    s.setMemoryAt(4, 1);            s.ok("Stuck(1, 4)");
-    s.setMemoryAt(2, 0);            s.ok("Stuck(2, 4)");
-    s.removeElementAt(0);            s.ok("Stuck(4)");          ok(!s.isEmpty());
-    s.removeElementAt(0);            s.ok("Stuck()");           ok( s.isEmpty());
-   }
-
-  static void test_push_shift()
-   {var s = stuck(4, 4);                                        ok(s.size(), 0); ok(s.isEmpty());
-    s.push(1);                       s.ok("Stuck(1)");          ok(s.size(), 1);
-    s.push(2);                       s.ok("Stuck(1, 2)");       ok(s.size(), 2);
-    s.push(3);                       s.ok("Stuck(1, 2, 3)");    ok(s.size(), 3);
-    s.push(4);                       s.ok("Stuck(1, 2, 3, 4)"); ok(s.size(), 4);
-    var f = s.firstMemory();                                   ok(f, 1);
-    var l = s.lastMemory();                                    ok(l, 4);
-    var a = s.shift();               s.ok("Stuck(2, 3, 4)");    ok(s.size(), 3); ok(a, 1);
-    var b = s.shift();               s.ok("Stuck(3, 4)");       ok(s.size(), 2); ok(b, 2);
-    var c = s.shift();               s.ok("Stuck(4)");          ok(s.size(), 1); ok(c, 3);
-    var d = s.shift();               s.ok("Stuck()");           ok(s.size(), 0); ok(d, 4);
-   }
-
-  static void test_insert_remove()
-   {var s = stuck(4, 4);             s.ok("Stuck()");           ok(s.size(), 0); ok(s.isEmpty());
-    s.insertElementAt(1, 0);         s.ok("Stuck(1)");          ok(s.size(), 1);
-    s.insertElementAt(2, 1);         s.ok("Stuck(1, 2)");       ok(s.size(), 2);
-    s.insertElementAt(3, 2);         s.ok("Stuck(1, 2, 3)");    ok(s.size(), 3);
-    s.insertElementAt(4, 3);         s.ok("Stuck(1, 2, 3, 4)"); ok(s.size(), 4); ok(s.isFull());
-    var a = s.removeElementAt(0);    s.ok("Stuck(2, 3, 4)");    ok(s.size(), 3); ok(a, 1);
-    var b = s.removeElementAt(0);    s.ok("Stuck(3, 4)");       ok(s.size(), 2); ok(b, 2);
-    var c = s.removeElementAt(0);    s.ok("Stuck(4)");          ok(s.size(), 1); ok(c, 3);
-    var d = s.removeElementAt(0);    s.ok("Stuck()");           ok(s.size(), 0); ok(d, 4);
-   }
-
-  static void test_search()
-   {final int N = 4;
-    var s = stuck(N, 4);
-    for (int i = 1; i <= N; i++) s.push(i);
-    s.ok("Stuck(1, 2, 3, 4)");
-    ok(s.indexOf(0), -1);
-    for (int i = 1; i <= N; i++) ok(s.indexOf(i), i-1);
-   }
-
-  static void test_iterate_zero()
-   {final int N = 4;
-    var s = stuck(N, 4);
-    final StringBuilder b = new StringBuilder();
-    for (Memory i : s) b.append(""+i+", ");
-    if (b.length() > 0) b.setLength(b.length()-2);
-    ok(b.toString().equals(""));
-   }
-
-  static void test_iterate()
-   {final int N = 4;
-    var s = stuck(N, 4);
-    for (int i = 1; i <= N; i++) s.push(i);
-    s.ok("Stuck(1, 2, 3, 4)");
-    final StringBuilder b = new StringBuilder();
-    for (Memory i : s) b.append(""+i+", ");
-    if (b.length() > 0) b.setLength(b.length()-2);
-    ok(b.toString().equals("1, 2, 3, 4"));
+  static void test_index_of()
+   {final int W = 4, M = 4;
+    Stuck s = stuck(M, W);
+    s.set("01100011001000011111");
+    ok(s.indexOf(1), 0);
+    ok(s.indexOf(2), 1);
+    ok(s.indexOf(3), 2);
+    ok(s.indexOf(6), 3);
+    ok(s.indexOf(7),-1);
    }
 
   static void test_clear()
-   {var s = stuck(4, 4);             ok(s.size(), 0);
-    s.push(1); s.ok("Stuck(1)");     ok(s.size(), 1);
-    s.push(2); s.ok("Stuck(1, 2)");  ok(s.size(), 2);
-    s.clear(); ok(s.isEmpty());
-    s.push(3); s.ok("Stuck(3)");     ok(s.size(), 1);
-    s.push(4); s.ok("Stuck(3, 4)");  ok(s.size(), 2);
+   {final int W = 4, M = 4;
+    Stuck s = stuck(M, W);
+    s.set("01100011001000011111");
+    s.clear();
+    s.set("01100011001000010000");
    }
 
-  static void test_structure()
-   {StuckMemoryLayout s = new StuckMemoryLayout(4, 4);
-    Memory            m = s.memory();
-    s.unary.set(m, 7);
-    s.array.set(m, 0,  1);
-    s.array.set(m, 1,  3);
-    s.array.set(m, 2,  7);
-    ok(m, "00000111001100010111");
+  static void test_print()
+   {final int W = 4, M = 4;
+    Stuck s = stuck(M, W);
+    s.set("01100011001000011111");
    }
-*/
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_push();
     test_pop();
@@ -361,18 +280,14 @@ class Stuck extends Memory.Structure                                            
     test_insert_element_at();
     test_remove_element_at();
     test_first_last();
-    //test_push_shift();
-    //test_insert_remove();
-    //test_clear();
-    //test_search();
-    //test_iterate_zero();
-    //test_iterate();
-    //test_structure();
+    test_index_of();
+    test_clear();
+    test_print();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_first_last();
+    test_print();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
