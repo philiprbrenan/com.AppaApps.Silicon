@@ -70,7 +70,7 @@ class Mjaf extends RiscV                                                        
       for (int i = 0; i < w; i++) bits[i] = Bits[i];
      }
 
-    public int compareTo(BitString B)                                           // Compare two but strings
+    public int compareTo(BitString B)                                           // Compare two bit strings
      {final int a = size(), b = B.size();
       if (a != b) stop("Bit strings have different sizes", a, b);
       for (int i = a-1; i >= 0; i--)
