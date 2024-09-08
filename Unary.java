@@ -46,7 +46,7 @@ class Unary extends Memory.Variable                                             
    {if (!canDec())
      {stop(get(), "Unary number is too small to be decremented");
      }
-    shiftRightFillWithSign(1);
+    shiftRightFillWithZeros(1);
    }
 
 //D1 Print                                                                      // Print a unary number
@@ -104,7 +104,7 @@ class Unary extends Memory.Variable                                             
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
+   {oldTests();
     test_sub_unary();
    }
 
