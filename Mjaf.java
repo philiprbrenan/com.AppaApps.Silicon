@@ -217,13 +217,13 @@ class Mjaf extends RiscV                                                        
       if (K + 1 + J > maxKeysPerBranch) stop("Join of branch has too many keys",
           K,"+1+",J, "greater than", maxKeysPerBranch);
 
-      keyNames .push(joinKeyName);                                              // Key to separate two halves
+      keyNames .push(joinKeyName.memory());                                     // Key to separate two halves
       nextLevel.push(topNode); topNode = Join.topNode;                          // Current top node becomes middle of new node
 
       for (int i = 0; i < J; i++)                                               // Add right hand branch
-       {final Key  k = new Key((Memory.Variable)Join.keyNames .elementAt(i));
+       {final Key  k = key(Join.keyNames .elementAt(i));
         final Node n = Join.nextLevel.elementAt(i);
-        keyNames .push(k);
+        keyNames .push(k.memory());
         nextLevel.push(n);
        }
       nodes.release(Join);
@@ -232,7 +232,7 @@ class Mjaf extends RiscV                                                        
     Node findFirstGreaterOrEqual(Key keyName)                                   // Find first key which is greater an the search key. The result is 1 based, a result of zero means all the keys were less than or equal than the search key
      {final int N = size();                                                     // Number of keys currently in node
       for (int i = 0; i < N; i++)                                               // Check each key
-       {final Key k = new Key((Memory.Variable)keyNames.elementAt(i));          // Key
+       {final Key k = key(keyNames.elementAt(i));                               // Key
         final boolean l = lessThanOrEqual(keyName, k);                          // Compare current key with search key
         if (l) return nextLevel.elementAt(i);                                   // Current key is greater than or equal to the search key
        }
@@ -246,7 +246,7 @@ class Mjaf extends RiscV                                                        
        {final Key k = key(keyNames.elementAt(i));                               // Key
         final boolean l = lessThanOrEqual(keyName, k);                          // Compare current key with search key
         if (l)                                                                  // Insert new key in order
-         {keyNames .insertElementAt(keyName, i);
+         {keyNames .insertElementAt(keyName.memory(), i);
           nextLevel.insertElementAt(putNode, i);
           return;
          }
@@ -271,7 +271,7 @@ class Mjaf extends RiscV                                                        
      {for (int i = 0; i < size(); i++)
        {nextLevel.elementAt(i).printHorizontally(S, level+1, debug);
         padStrings(S, level);
-        S.elementAt(level).append(keyNames.elementAt(i));
+        S.elementAt(level).append(keyNames.elementAt(i).toInt());
        }
       topNode.printHorizontally(S, level+1, debug);
      }
@@ -324,8 +324,8 @@ class Mjaf extends RiscV                                                        
       if (f < 1)         stop("First", f, "too small");
       final Leaf l = leaf();
       for (int i = 0; i < f; i++)                                               // Transfer keys and data
-       {final Memory k = keyNames  .removeElementAt(0);                         // Current key as memory
-        final Memory d = dataValues.removeElementAt(0);                         // Current data as memory
+       {final Memory k = keyNames  .shift();                                    // Current key as memory
+        final Memory d = dataValues.shift();                                    // Current data as memory
         l.keyNames  .push(k);                                                   // Transfer keys
         l.dataValues.push(d);                                                   // Transfer data
        }
@@ -342,10 +342,10 @@ class Mjaf extends RiscV                                                        
         "+", J, "greater than", maxKeysPerLeaf);
 
       for (int i = 0; i < J; i++)
-       {final Key  k = new Key ((Memory.Variable)Join.keyNames  .elementAt(i));
-        final Data d = new Data((Memory.Variable)Join.dataValues.elementAt(i));
-        keyNames  .push(k);
-        dataValues.push(d);
+       {final Key  k = key (Join.keyNames  .elementAt(i));
+        final Data d = data(Join.dataValues.elementAt(i));
+        keyNames  .push(k.memory());
+        dataValues.push(d.memory());
        }
       nodes.release(Join);
      }
@@ -355,8 +355,8 @@ class Mjaf extends RiscV                                                        
       s.append("Leaf(");
       final int K = keyNames.stuckSize();
       for  (int i = 0; i < K; i++)
-        s.append(""+keyNames.elementAt(i)+":"+
-                  dataValues.elementAt(i)+", ");
+        s.append(""+keyNames.elementAt(i).toInt()+":"+
+                  dataValues.elementAt(i).toInt()+", ");
       if (K > 0) s.setLength(s.length()-2);
       s.append(")");
       return s.toString();
@@ -365,7 +365,7 @@ class Mjaf extends RiscV                                                        
     public String shortString()                                                 // Print a leaf compactly
      {final StringBuilder s = new StringBuilder();
       final int K = keyNames.stuckSize();
-      for  (int i = 0; i < K; i++) s.append(""+keyNames.elementAt(i)+",");
+      for  (int i = 0; i < K; i++) s.append(""+keyNames.elementAt(i).toInt()+",");
       if (K > 0) s.setLength(s.length()-1);
       return s.toString();
      }
@@ -394,7 +394,7 @@ class Mjaf extends RiscV                                                        
      }
 
     final int f = q.findIndexOfKey(keyName);                                    // We have arrived at a leaf
-    return f == -1 ? null : new Data((Memory.Variable)(((Leaf)q).dataValues.elementAt(f)));      // Key not found or data associated with key in leaf
+    return f == -1 ? null : data(((Leaf)q).dataValues.elementAt(f));            // Key not found or data associated with key in leaf
    }
 
   boolean findAndInsert(Key keyName, Data dataValue)                            // Find the leaf for a key and insert the indicated key, data pair into if possible, returning true if the insertion was possible else false.
@@ -500,7 +500,7 @@ class Mjaf extends RiscV                                                        
        {final Branch  a = (Branch)A, b = (Branch)(r.topNode);
         final boolean j = a.joinableBranches(b);                                // Can we merge the two branches
         if (j)                                                                  // Merge the two branches
-         {final Key k = new Key((Memory.Variable)r.keyNames.firstElement());
+         {final Key k = key(r.keyNames.firstElement());
           a.joinBranch(b, k);
           root = a;                                                             // New merged root
          }
@@ -528,7 +528,7 @@ class Mjaf extends RiscV                                                        
          {final Branch a = (Branch)A, b = (Branch)B;
           final boolean m = a.joinableBranches(b);                              // Can we merge the two branches
           if (m)                                                                // Merge the two branches
-           {final Key k = new Key((Memory.Variable)p.keyNames.removeElementAt(j));
+           {final Key k = key(p.keyNames.removeElementAt(j));
             a.joinBranch(b, k);
             p.nextLevel.removeElementAt(j+1);
            }
@@ -551,7 +551,7 @@ class Mjaf extends RiscV                                                        
          {final Branch a = (Branch)A, b = (Branch)p.topNode;
           final boolean j = a.joinableBranches(b);                              // Can we merge the last two branches
           if (j)                                                                // Merge the last two branches
-           {final Key k = new Key((Memory.Variable)p.keyNames.pop());
+           {final Key k = key(p.keyNames.pop());
             a.joinBranch(b, k);
             p.nextLevel.pop();
             p.topNode = a;
@@ -597,7 +597,7 @@ class Mjaf extends RiscV                                                        
     final int    N = b.size();
     for (int i = 0; i < N; i++)                                                 // Nodes below root
      {b.nextLevel.elementAt(i).printHorizontally(S, 1, false);
-      S.firstElement().append(" "+b.keyNames.elementAt(i));
+      S.firstElement().append(" "+b.keyNames.elementAt(i).toInt());
      }
     b.topNode.printHorizontally(S, 1, false);
     return joinStrings(S);
