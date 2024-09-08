@@ -11,7 +11,7 @@ resistance. The mentat must overcome this resistance with logic.
 Lady Jessica - Dune - Frank Herbert - 1965.
 */
 class Memory extends Chip                                                       // Bit memory described by a layout.
- {boolean[]bits     = null;                                                     // Bits comprising the memory
+ {boolean[]bits     = null;                                                     // Bits comprising the memory with least significant bits stored lowest
   int at            = 0 ;                                                       // Position of memory in bits
   int width         = 0;                                                        // Number of bits in memory
 
@@ -183,6 +183,50 @@ class Memory extends Chip                                                       
    {final int n = memorySize();
     for (int i = 0; i < n; ++i) if (!get(i)) return i;
     return n;
+   }
+
+  void inc()                                                                    // Increment a block of memory treating it as two complement number. Incremeint beypynd the largest number has no effect.
+   {final int n = memorySize();                                                 // Number of bits
+    if (!get(n-1))                                                              // Sign bit is zero
+     {for (int i = 0; i < n-1; ++i)
+       {if (!get(i))                                                            // Least significant zero excluding sign bit
+         {set(i, true);                                                         // Transform least significant zero to one
+          for (int j = 0; j < i; j++) set(j, false);                            // Convert trailing ones to zeros
+          return;
+         }
+       }
+     }
+    else                                                                        // Sign bit is one
+     {for (int i = 0; i < n; ++i)
+       {if (get(i)) set(i, false);                                              // Least significant ones become zeros
+        else                                                                    // Least significant zero becomes one if there is such a zero
+         {set(i, true);
+          return;
+         }
+       }
+     }
+   }
+
+  void dec()                                                                    // Decrement a block of memory treating it as two complement number. Incremeint beypynd the largest number has no effect.
+   {final int n = memorySize();                                                 // Number of bits
+    if (!get(n-1))                                                              // Sign bit is zero
+     {for (int i = 0; i < n; ++i)
+       {if (!get(i)) set(i, true);                                              // Least significant zeros become ones
+        else                                                                    // Least significant one becomes zero if there is such a zero
+         {set(i, false);
+          return;
+         }
+       }
+     }
+    else                                                                        // Sign bit is one
+     {for (int i = 0; i < n-1; ++i)
+       {if (get(i))                                                             // Least significant one excluding sign bit
+         {set(i, false);                                                        // Transform least significant one to zero of there is one
+          for (int j = 0; j < i; j++) set(j, true);                             // Convert trailing zeros to ones
+          return;
+         }
+       }
+     }
    }
 
 // D2 Layouts                                                                   // Layout memory as variables, arrays, structures and unions
@@ -894,6 +938,38 @@ class Memory extends Chip                                                       
     c.ok(2);
    }
 
+  static void test_increment()
+   {Variable  a = variable ("a", 3);
+    Variable  b = variable ("b", 3);
+    Structure s = structure("s", b, a);
+    s.layout();
+    a.set("100");
+    a.inc(); a.ok("101");
+    a.inc(); a.ok("110");
+    a.inc(); a.ok("111");
+    a.inc(); a.ok("000");
+    a.inc(); a.ok("001");
+    a.inc(); a.ok("010");
+    a.inc(); a.ok("011");
+    a.inc(); a.ok("011");
+   }
+
+  static void test_decrement()
+   {Variable  a = variable ("a", 3);
+    Variable  b = variable ("b", 3);
+    Structure s = structure("s", b, a);
+    s.layout();
+    a.set("011");
+    a.dec(); a.ok("010");
+    a.dec(); a.ok("001");
+    a.dec(); a.ok("000");
+    a.dec(); a.ok("111");
+    a.dec(); a.ok("110");
+    a.dec(); a.ok("101");
+    a.dec(); a.ok("100");
+    a.dec(); a.ok("100");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_memory();
     test_memory_sub();
@@ -913,6 +989,8 @@ class Memory extends Chip                                                       
     test_equals();
     test_compare_to();
     test_variable_from_memory();
+    test_increment();
+    test_decrement();
    }
 
   static void newTests()                                                        // Tests being worked on
