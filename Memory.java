@@ -105,6 +105,16 @@ class Memory extends Chip                                                       
     return true;                                                                // No difference found
    }
 
+  int compareTo(Memory source)                                                  // -1, 0, +1 for this memory less than, equal or greater than the source memory
+   {final int t = memorySize(), s = source.memorySize();
+    if (s != t) stop("Memories have different sizes");
+    for (int i = s-1; i >= 0; i--)                                                 // Compare each bit
+     {if (!get(i) &&  source.get(i)) return -1;                                 // Less than
+      if ( get(i) && !source.get(i)) return +1;                                 // Greater than
+     }
+    return 0;                                                                   // Equal
+   }
+
   int toInt()                                                                   // Get memory as an integer
    {final int n = memorySize();
     int v = 0;
@@ -842,6 +852,27 @@ class Memory extends Chip                                                       
     ok(!b.equals(c));
    }
 
+  static void test_compare_to()
+   {Variable  a = variable ("a", 4);
+    Variable  b = variable ("b", 4);
+    Variable  c = variable ("c", 4);
+    Structure s = structure("inner", a, b, c);
+    s.layout();
+
+    a.set(1);
+    b.set(2);
+    c.set(1);
+    ok(a.compareTo(a) ==  0);
+    ok(a.compareTo(b) == -1);
+    ok(a.compareTo(c) ==  0);
+    ok(b.compareTo(a) == +1);
+    ok(b.compareTo(b) ==  0);
+    ok(b.compareTo(c) == +1);
+    ok(c.compareTo(a) ==  0);
+    ok(c.compareTo(b) == -1);
+    ok(c.compareTo(c) ==  0);
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_memory();
     test_memory_sub();
@@ -859,11 +890,12 @@ class Memory extends Chip                                                       
     test_load_int();
     test_duplicate_memory();
     test_equals();
+    test_compare_to();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    //test_duplicate_memory();
+    test_compare_to();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
