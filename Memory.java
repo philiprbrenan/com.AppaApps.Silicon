@@ -79,7 +79,7 @@ class Memory extends Chip                                                       
 
   void set(String source, int offset)                                           // Set memory at speciifed offset from a source string
    {final int t = memorySize(), s = source.length(), m = min(t, s);
-    if (offset + s > t) stop("Cannot write beyond end of memory", offset, s, t);
+    if (offset + m > t) stop("Cannot write beyond end of memory", offset, s, t);
     for (int i = 0; i < m; i++) set(offset+i, source.charAt(s-1-i) != '0');     // Load the specified string into memory
    }
 
@@ -87,7 +87,7 @@ class Memory extends Chip                                                       
 
   void set(Memory source, int offset)                                           // Copy source memory into this memory at the specified offset
    {final int t = memorySize(), s = source.memorySize(), m = min(t, s);
-    if (offset + s > t) stop("Cannot write beyond end of memory");
+    if (offset + m > t) stop("Cannot write beyond end of memory");
     for (int i = 0; i < m; i++) set(offset+i, source.get(i));                   // Load the specified string into memory
    }
 
@@ -96,6 +96,13 @@ class Memory extends Chip                                                       
   void set(int value)                                                           // Set memory to the value of an integer
    {final int n = min(memorySize(), Integer.SIZE);
     for (int i = 0; i < n; i++) set(i, (value & (1<<i)) != 0);                  // Convert variable to bits
+   }
+
+  boolean equals(Memory source)                                                 // Return true if the source memory is equal to this memory
+   {final int t = memorySize(), s = source.memorySize();
+    if (s != t) stop("Memories have different sizes");
+    for (int i = 0; i < s; i++) if (get(i) != source.get(i)) return false;      // Found a difference
+    return true;                                                                // No difference found
    }
 
   int toInt()                                                                   // Get memory as an integer
@@ -817,6 +824,24 @@ class Memory extends Chip                                                       
     n.ok("0010");
    }
 
+  static void test_equals()
+   {Variable  a = variable ("a", 4);
+    Variable  b = variable ("b", 4);
+    Variable  c = variable ("c", 4);
+    Structure s = structure("inner", a, b, c);
+    s.layout();
+
+    a.set(1);
+    b.set(2);
+    c.set(1);
+    ok( a.equals(a));
+    ok(!a.equals(b));
+    ok( a.equals(c));
+    ok(!b.equals(a));
+    ok( b.equals(b));
+    ok(!b.equals(c));
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_memory();
     test_memory_sub();
@@ -833,6 +858,7 @@ class Memory extends Chip                                                       
     test_load_string();
     test_load_int();
     test_duplicate_memory();
+    test_equals();
    }
 
   static void newTests()                                                        // Tests being worked on
