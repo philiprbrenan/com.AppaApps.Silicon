@@ -23,7 +23,7 @@ class Mjaf extends RiscV                                                        
  {final int bitsPerKey;                                                         // Number of bits in key
   final int bitsPerData;                                                        // Number of bits in data
   final int maxKeysPerLeaf;                                                     // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
-  final int maxKeysPerBranch;                                                   // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
+  final int maxKeysPerBranch;                                                   // The maximum number of keys per branch.
   final NodeStack nodes = new NodeStack();                                      // All the branch nodes - this is our memory allocation scheme
   Node nodesFreeList = null;                                                    // Free nodes list
 
@@ -53,49 +53,9 @@ class Mjaf extends RiscV                                                        
 
   int nodesCreated = 0;                                                         // Number of nodes created
 
-  class BitString implements Comparable<BitString>                              // Definition of a key or data
-   {final boolean[]bits;                                                        // Value of bit string
-    BitString(int N) {bits = new boolean[N];}                                   // Create bit string
-    int size() {return bits.length;}                                            // Width of bit string
-
-    void set(String Bits)                                                       // Set a bit string from a character string
-     {final  int w = size();
-      final String b = cleanBoolean(Bits, w);
-      for (int i = 0; i < w; i++) bits[i] = b.charAt(w-i-1) == '1';
-     }
-
-    void set(boolean[]Bits)                                                     // Set a bit string from a character string
-     {final int w = size(), b = bits.length;
-      if (b != w) stop("Bits have length", b, "but need", w);
-      for (int i = 0; i < w; i++) bits[i] = Bits[i];
-     }
-
-    public int compareTo(BitString B)                                           // Compare two bit strings
-     {final int a = size(), b = B.size();
-      if (a != b) stop("Bit strings have different sizes", a, b);
-      for (int i = a-1; i >= 0; i--)
-       {if (!bits[i] &&  B.bits[i]) return -1;
-        if ( bits[i] && !B.bits[i]) return +1;
-       }
-      return 0;
-     }
-
-    public int getInt()                                                         // Get the value of a bit string as integer
-     {final int a = size();
-      int v = 0;
-      for (int i = 0; i < a; i++) if (bits[i]) v += 1<<i;
-      return v;
-     }
-   }
-
   class Key extends Memory.Variable                                             // Definition of a key
    {Key() {super("Key", bitsPerKey); layout();}
-    Key(Memory.Variable elem)  {this(); set(elem);}
-    //Key(boolean[]  Bits)     {this(); set(Bits);}
-    //Key(long       Bits)     {this(); set(toBitString(Bits));}
    }
-  //Key key(Stuck.Element e)   {return new Key(e);}
-  //Key key(boolean[]Bits)     {return new Key(Bits);}
   Key key(int bits)
    {final Key k = new Key();
     k.set(bits);
@@ -109,12 +69,7 @@ class Mjaf extends RiscV                                                        
 
   class Data extends Memory.Variable                                            // Definition of data associated with a key
    {Data() {super("Data", bitsPerData); layout();}
-    Data(Memory.Variable elem) {this(); set(elem);}
-//    Data(boolean[]Bits)      {this(); set(Bits);}
-//    Data(long     Bits)      {this(); set(toBitString(Bits));}
    }
-//  Data data(Stuck.Element e){return new Data(e);}
-//  Data data(boolean[]Bits)  {return new Data(Bits);}
   Data data(int bits)
    {final Data d = new Data();
     d.set(bits);
