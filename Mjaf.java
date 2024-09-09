@@ -48,7 +48,7 @@ class Mjaf extends Memory.Structure                                             
 
     keyDataStored = Memory.variable("keyDataStored", BitsPerKey+1);             // Field to track number of keys stored in twos complement form hence an extra bit for the sign
     addField(keyDataStored);
-    layout();                                                                   // Layout memory describing tree
+    layout();                                                                   // Layout
    }
 
   Mjaf() {this(16, 16, 4, 1000);}                                               // Define a Btree with a minimal maximum number of keys per node
