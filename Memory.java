@@ -105,10 +105,15 @@ class Memory extends Chip                                                       
     return true;                                                                // No difference found
    }
 
+  boolean equals(int source)                                                    // Return true if the source integer is equal to this memory
+   {final Memory m = memoryFromInt(memorySize(), source);
+    return equals(m);
+   }
+
   int compareTo(Memory source)                                                  // -1, 0, +1 for this memory less than, equal or greater than the source memory
    {final int t = memorySize(), s = source.memorySize();
     if (s != t) stop("Memories have different sizes");
-    for (int i = s-1; i >= 0; i--)                                                 // Compare each bit
+    for (int i = s-1; i >= 0; i--)                                              // Compare each bit
      {if (!get(i) &&  source.get(i)) return -1;                                 // Less than
       if ( get(i) && !source.get(i)) return +1;                                 // Greater than
      }
@@ -900,6 +905,8 @@ class Memory extends Chip                                                       
     ok(!b.equals(a));
     ok( b.equals(b));
     ok(!b.equals(c));
+    ok( a.equals(1)); ok(!a.equals(2)); ok(!a.equals(-1));
+    ok(!b.equals(1)); ok( b.equals(2)); ok(!b.equals(-1));
    }
 
   static void test_compare_to()
