@@ -991,14 +991,16 @@ class Memory extends Chip                                                       
   static void test_null()
    {Variable  a = variable ("a", 16);
     Variable  b = variable ("b", 8);
-    Structure s = structure("s", b, a);
+    Variable  c = variable ("c", 8);
+    Structure s = structure("s", c, b, a);
     s.layout();
     a.setNull();
     b.setNull();
+    c.setNull();
     s.inc();
-    s.ok(0);
+    s.ok(0);           a.ok(0);        b.ok(0);        c.ok(0);
     s.dec();
-    s.isNull();
+    ok(s.isNull()); ok(a.isNull()); ok(b.isNull()); ok(c.isNull());
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
