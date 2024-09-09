@@ -89,14 +89,14 @@ class Mjaf extends Memory.Structure                                             
     return d;
    }
 
+  static boolean lessThanOrEqual(Key a, Key b)  {return a.compareTo(b) <= 0;}   // Define a new Btree of default type with a specified maximum number of keys per node
+
   abstract class Node implements Comparable<Node>                               // A branch or a leaf: an interior or exterior node. Comparable so we can place them in a tree or set by node number.
    {final Stuck keyNames;                                                       // Names of the keys in this branch or leaf
     final int nodeNumber = ++nodesCreated;                                      // Number of this node
     Node next = null;                                                           // Linked list of free nodes
 
     Node(int N) {keyNames = new Stuck(N, bitsPerKey);}                          // Create a node
-
-    boolean lessThanOrEqual(Key a, Key b)  {return a.compareTo(b) <= 0;}        // Define a new Btree of default type with a specified maximum number of keys per node
 
     int findIndexOfKey     (Key keyToFind)                                      // Find the one based index of a key in a branch node or zero if not found
      {return keyNames.indexOf(keyToFind);
@@ -385,7 +385,7 @@ class Mjaf extends Memory.Structure                                             
         final Key    k = l.splitKey();                                          // Splitting key
         final Branch b = branch(root);                                          // New root with old root to right
         b.putBranch(k, l);                                                      // Insert left hand node all of whose elements are less than the first element of what was the root
-        final Leaf f = l.lessThanOrEqual(keyName, k) ? l : (Leaf)root;          // Choose leaf
+        final Leaf f = lessThanOrEqual(keyName, k) ? l : (Leaf)root;            // Choose leaf
         f.putLeaf(keyName, dataValue);                                          // Place in leaf
         root = b;                                                               // The root now has just one entry in it - the splitting eky
        }
@@ -403,7 +403,7 @@ class Mjaf extends Memory.Structure                                             
         final Branch l = ((Branch)q).splitBranch();                             // New lower node
         p.putBranch(k, l);                                                      // Place splitting key in parent
         ((Branch)root).splitRoot();                                             // Root might need to be split to re-establish the invariants at start of loop
-        if (q.lessThanOrEqual(keyName, k)) q = l;                               // Position on lower node if search key is less than splitting key
+        if (lessThanOrEqual(keyName, k)) q = l;                                 // Position on lower node if search key is less than splitting key
        }
 
       p = (Branch)q;                                                            // Step parent down
@@ -412,13 +412,13 @@ class Mjaf extends Memory.Structure                                             
 
     final Leaf l = (Leaf)q;
     final int  g = l.findIndexOfKey(keyName);                                   // Locate index of key
-    if (g != -1) l.dataValues.setElementAt((Memory)dataValue, g);                       // Key already present in leaf
+    if (g != -1) l.dataValues.setElementAt((Memory)dataValue, g);               // Key already present in leaf
     else if (l.leafIsFull())                                                    // Split the node because it is full and we might need to insert below it requiring a slot in this node
      {final Key  k = l.splitKey();
       final Leaf e = l.splitLeaf();
       p.putBranch(k, e);
-      if (p.lessThanOrEqual(keyName, k)) e.putLeaf(keyName, dataValue);         // Insert key in the appropriate split leaf
-      else                               l.putLeaf(keyName, dataValue);
+      if (lessThanOrEqual(keyName, k)) e.putLeaf(keyName, dataValue);           // Insert key in the appropriate split leaf
+      else                             l.putLeaf(keyName, dataValue);
      }
     else l.putLeaf(keyName, dataValue);                                         // On a leaf that is not full so we can insert directly
    } // put
