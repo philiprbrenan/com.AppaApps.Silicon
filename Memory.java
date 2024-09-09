@@ -110,6 +110,17 @@ class Memory extends Chip                                                       
     return equals(m);
    }
 
+  boolean isNull()                                                              // test wther a memory is set to -1 aka as the null value
+   {final int t = memorySize();
+    for  (int i = 0; i < t; i++) if (!get(i)) return false;                     // Not null
+    return true;                                                                // Null
+   }
+
+  void setNull()                                                                // Arbitrarily set -1 as the null value
+   {final int t = memorySize();
+    for  (int i = 0; i < t; i++) set(i,  true);                                 // Set null
+   }
+
   int compareTo(Memory source)                                                  // -1, 0, +1 for this memory less than, equal or greater than the source memory
    {final int t = memorySize(), s = source.memorySize();
     if (s != t) stop("Memories have different sizes");
@@ -977,6 +988,19 @@ class Memory extends Chip                                                       
     a.dec(); a.ok("100");
    }
 
+  static void test_null()
+   {Variable  a = variable ("a", 16);
+    Variable  b = variable ("b", 8);
+    Structure s = structure("s", b, a);
+    s.layout();
+    a.setNull();
+    b.setNull();
+    s.inc();
+    s.ok(0);
+    s.dec();
+    s.isNull();
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_memory();
     test_memory_sub();
@@ -998,10 +1022,12 @@ class Memory extends Chip                                                       
     test_variable_from_memory();
     test_increment();
     test_decrement();
+    test_null();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
+   {//oldTests();
+    test_null();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
