@@ -61,6 +61,8 @@ class Mjaf extends Memory.Structure                                             
 
   int nodesCreated = 0;                                                         // Number of nodes created
 
+  boolean emptyTree() {return root == null;}                                    // Test for an empty tree
+
   class Key extends Memory.Variable                                             // Definition of a key
    {Key() {super("Key", bitsPerKey); layout();}
    }
@@ -96,12 +98,8 @@ class Mjaf extends Memory.Structure                                             
     final int nodeNumber = ++nodesCreated;                                      // Number of this node
     Node next = null;                                                           // Linked list of free nodes
 
-    Node(int N) {keyNames = new Stuck(N, bitsPerKey);}                          // Create a node
-
-    int findIndexOfKey     (Key keyToFind)                                      // Find the one based index of a key in a branch node or zero if not found
-     {return keyNames.indexOf(keyToFind);
-     }
-
+    Node(int N)    {keyNames = new Stuck(N, bitsPerKey);}                       // Create a node
+    int findIndexOfKey(Key keyToFind) {return keyNames.indexOf(keyToFind);}     // Find the one based index of a key in a branch node or zero if not found
     int splitIdx() {return maxKeysPerBranch >> 1;}                              // Index of splitting key
     Key splitKey() {return key(keyNames.elementAt(splitIdx()));}                // Splitting key
     int size    () {return keyNames.stuckSize();}                               // Number of elements in this leaf
@@ -110,7 +108,7 @@ class Mjaf extends Memory.Structure                                             
 
     abstract void printHorizontally(Stack<StringBuilder>S, int l, boolean d);   // Print horizontally
     void traverse(Stack<Node>S) {S.push(this);}                                 // Traverse tree placing all its nodes on a stack
-    public int compareTo(Node B)                                                // make it possible to orde nodes
+    public int compareTo(Node B)                                                // Make it possible to orde nodes
      {final Integer a = nodeNumber, b = B.nodeNumber;
       return a.compareTo(b);
      }
@@ -150,8 +148,8 @@ class Mjaf extends Memory.Structure                                             
      {final int K = keyNames.stuckSize(), f = splitIdx();                       // Number of keys currently in node
       if (f < K-1) {} else stop("Split", f, "too big for branch of size:", K);
       if (f <   1)         stop("First", f, "too small");
-      final Node t = nextLevel.elementAt(f);                                    // Top mode
-      final Branch    b = branch(t);                                            // Recycle a branch
+      final Node   t = nextLevel.elementAt(f);                                  // Top mode
+      final Branch b = branch(t);                                               // Recycle a branch
 
       for (int i = 0; i < f; i++)                                               // Remove first keys from old node to new node
        {final Node n = nextLevel.firstElement(); nextLevel.removeElementAt(0);
@@ -216,9 +214,9 @@ class Mjaf extends Memory.Structure                                             
       final int K = keyNames.stuckSize();
 
       for (int i = 0; i < K; i++)                                               // Keys and next level indices
-        s.append(""+keyNames.elementAt(i)+":"+
+       {s.append(""+keyNames.elementAt(i)+":"+
           nextLevel.elementAt(i).nodeNumber+", ");
-
+       }
       s.append(""+topNode.nodeNumber+")");
       return s.toString();
      }
@@ -260,7 +258,7 @@ class Mjaf extends Memory.Structure                                             
 
       for (int i = 0; i < K; i++)
        {final Memory m = keyNames.elementAt(i);                                 // Current key
-        final Key k = new Key();                                                // Current key
+        final Key    k = new Key();                                             // Current key
         k.set(m);
         if (lessThanOrEqual(keyName, k))                                        // Insert new key in order
          {keyNames  .insertElementAt(keyName  .memory(), i);
@@ -278,7 +276,7 @@ class Mjaf extends Memory.Structure                                             
      {final int K = size(), f = maxKeysPerLeaf/2;                               // Number of keys currently in node
       if (f < K) {} else stop("Split", f, "too big for leaf of size:", K);
       if (f < 1)         stop("First", f, "too small");
-      final Leaf l = leaf();
+      final Leaf l = leaf();                                                    // Create new leaf
       for (int i = 0; i < f; i++)                                               // Transfer keys and data
        {final Memory k = keyNames  .shift();                                    // Current key as memory
         final Memory d = dataValues.shift();                                    // Current data as memory
@@ -342,7 +340,7 @@ class Mjaf extends Memory.Structure                                             
 //D1 Search                                                                     // Find a key, data pair
 
   Data find(Key keyName)                                                        // Find a the data associated with a key
-   {if (root == null) return null;                                              // Empty tree
+   {if (emptyTree()) return null;                                               // Empty tree
     Node q = root;                                                              // Root of tree
     for(int i = 0; i < 999 && q != null; ++i)                                   // Step down through tree up to some reasonable limit
      {if (!(q instanceof Branch)) break;                                        // Stepped to a leaf
@@ -354,9 +352,9 @@ class Mjaf extends Memory.Structure                                             
    }
 
   boolean findAndInsert(Key keyName, Data dataValue)                            // Find the leaf for a key and insert the indicated key, data pair into if possible, returning true if the insertion was possible else false.
-   {if (root == null)                                                           // Empty tree so we can insert directly
+   {if (emptyTree())                                                            // Empty tree so we can insert directly
      {root = leaf();                                                            // Create the root as a leaf
-      ((Leaf)root).putLeaf(keyName, dataValue);                                 // insert key, data pair in the leaf
+      ((Leaf)root).putLeaf(keyName, dataValue);                                 // Insert key, data pair in the leaf
       return true;                                                              // Successfully inserted
      }
 
@@ -371,7 +369,7 @@ class Mjaf extends Memory.Structure                                             
     if (g != -1) l.dataValues.setElementAt(dataValue, g);                       // Key already present in leaf
     else if (l.leafIsFull()) return false;                                      // There's no room in the leaf so return false
     l.putLeaf(keyName, dataValue);                                              // On a leaf that is not full so we can insert directly
-    return true;                                                                // inserted directly
+    return true;                                                                // Inserted directly
    }
 
 //D1 Insertion                                                                  // Insert keys and data into the Btree
@@ -426,7 +424,7 @@ class Mjaf extends Memory.Structure                                             
 //D1 Deletion                                                                   // Delete a key from a Btree
 
   Data delete(Key keyName)                                                      // Delete a key from a tree
-   {if (root == null) return null;                                              // The tree is empty
+   {if (emptyTree()) return null;                                               // The tree is empty
     final Data foundData = find(keyName);                                       // Find the data associated with the key
     if (foundData == null) return null;                                         // The key is not present so cannot be deleted
 
@@ -541,7 +539,7 @@ class Mjaf extends Memory.Structure                                             
 
   String printHorizontally()                                                    // Print a tree horizontally
    {final Stack<StringBuilder> S = new Stack<>();
-    if (root == null) return "";                                                // Empty tree
+    if (emptyTree()) return "";                                                 // Empty tree
     S.push(new StringBuilder());
 
     if (root instanceof Leaf)                                                   // Root is a leaf
