@@ -168,6 +168,16 @@ class Mjaf2 extends Memory.Structure                                            
       dataValues  .insertElementAt(data, i);
      }
 
+    Key getKey(int i)                                                           // Get the indexed key
+     {nodes.setIndex(index);
+      return new Key(leafKeyNames.elementAt(i));
+     }
+
+    Data getData(int i)                                                         // Get the indexed data value
+     {nodes.setIndex(index);
+      return new Data(dataValues.elementAt(i));
+     }
+
     Memory memory()                                                             // Get memory associated with a leaf
      {nodes.setIndex(index);
       return leaf.memory();
@@ -267,15 +277,17 @@ class Mjaf2 extends Memory.Structure                                            
    }
 
   static void test_put_leaf()
-   {final int N = 3, M = 4;
+   {final int N = 4, M = 4;
     Mjaf2 m = mjaf(N, N, M, N);
     Leaf l = m.new Leaf();
     l.put(m.new Key(4), m.new Data(8));
     l.put(m.new Key(3), m.new Data(6));
     l.put(m.new Key(2), m.new Data(4));
     l.put(m.new Key(1), m.new Data(2));
-say("AAAA", m);
-    m.ok("000110100010111110001101000111111000000000000000000000000000000000000000000000000000000000000000000111101000000000001000010000011");
+    for (int i = 1; i <= 4; i++)
+     {ok(l.getKey (i-1).toInt(), i);
+      ok(l.getData(i-1).toInt(), 2*i);
+     }
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
