@@ -15,6 +15,19 @@ class Memory extends Chip                                                       
   int at            = 0 ;                                                       // Position of memory in bits
   int width         = 0;                                                        // Number of bits in memory
 
+  Memory() {}                                                                   // Create an empty memory
+
+  Memory(Memory source)                                                         // Create a memory from another memory
+   {bits  = source.bits;
+    at    = source.at;
+    width = source.width;
+   }
+
+  Memory(int Width)                                                             // Create a memory of specified width
+   {width = Width;
+    bits  = new boolean[width];
+   }
+
   static Memory memoryFromString(String load)                                   // Create and load a memory from a string
    {final Memory m = memory(load.length());                                     // Size of memory is length of string
     m.set(load);                                                                // Load string
@@ -129,6 +142,16 @@ class Memory extends Chip                                                       
       if ( get(i) && !source.get(i)) return +1;                                 // Greater than
      }
     return 0;                                                                   // Equal
+   }
+
+  boolean lessThanOrEqual(Memory source)                                        // True if the this block of memory is less than or equal to the source block
+   {final int t = memorySize(), s = source.memorySize();
+    if (s != t) stop("Memories have different sizes");
+    for (int i = s-1; i >= 0; i--)                                              // Compare each bit
+     {if (!get(i) &&  source.get(i)) return true;                               // Less than
+      if ( get(i) && !source.get(i)) return false;                              // Greater than
+     }
+    return true;                                                                // Equal
    }
 
   int toInt()                                                                   // Get memory as an integer
@@ -1003,6 +1026,24 @@ class Memory extends Chip                                                       
     ok(s.isNull()); ok(a.isNull()); ok(b.isNull()); ok(c.isNull());
    }
 
+  static void test_less_than_or_equal()
+   {Variable  a = variable ("a", 4);
+    Variable  b = variable ("b", 4);
+    Structure s = structure("s", b, a);
+    s.layout();
+    a.set(1); b.set(2);
+    ok( a.lessThanOrEqual(a));
+    ok( a.lessThanOrEqual(b));
+    ok(!b.lessThanOrEqual(a));
+    ok( b.lessThanOrEqual(b));
+    Memory A = new Memory(4); A.set(7);
+    Memory B = new Memory(4); B.set(5);
+    ok( A.lessThanOrEqual(A));
+    ok(!A.lessThanOrEqual(B));
+    ok( B.lessThanOrEqual(A));
+    ok( B.lessThanOrEqual(B));
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_memory();
     test_memory_sub();
@@ -1025,11 +1066,12 @@ class Memory extends Chip                                                       
     test_increment();
     test_decrement();
     test_null();
+    test_less_than_or_equal();
    }
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    test_null();
+    test_less_than_or_equal();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
