@@ -178,6 +178,16 @@ class Mjaf2 extends Memory.Structure                                            
       return new Data(dataValues.elementAt(i));
      }
 
+    int getKeyAsInt(int i)                                                      // Get the indexed key as an integer
+     {nodes.setIndex(index);
+      return leafKeyNames.elementAt(i).toInt();
+     }
+
+    int getDataAsInt(int i)                                                     // Get the indexed data value as an integer
+     {nodes.setIndex(index);
+      return dataValues.elementAt(i).toInt();
+     }
+
     Memory memory()                                                             // Get memory associated with a leaf
      {nodes.setIndex(index);
       return leaf.memory();
@@ -285,8 +295,8 @@ class Mjaf2 extends Memory.Structure                                            
     l.put(m.new Key(2), m.new Data(4));
     l.put(m.new Key(1), m.new Data(2));
     for (int i = 1; i <= 4; i++)
-     {ok(l.getKey (i-1).toInt(), i);
-      ok(l.getData(i-1).toInt(), 2*i);
+     {ok(l.getKeyAsInt (i-1), i);
+      ok(l.getDataAsInt(i-1), 2*i);
      }
    }
 
