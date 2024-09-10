@@ -98,7 +98,7 @@ class Mjaf extends Memory.Structure                                             
     final int nodeNumber = ++nodesCreated;                                      // Number of this node
     Node next = null;                                                           // Linked list of free nodes
 
-    Node(int N)    {keyNames = new Stuck(N, bitsPerKey);}                       // Create a node
+    Node(int N)    {keyNames = new Stuck("Stuck", N, bitsPerKey);}              // Create a node
     int findIndexOfKey(Key keyToFind) {return keyNames.indexOf(keyToFind);}     // Find the one based index of a key in a branch node or zero if not found
     int splitIdx() {return maxKeysPerBranch >> 1;}                              // Index of splitting key
     Key splitKey() {return key(keyNames.elementAt(splitIdx()));}                // Splitting key
@@ -245,7 +245,7 @@ class Mjaf extends Memory.Structure                                             
    {final Stuck dataValues;                                                     // Data associated with each key
     Leaf()                                                                      // Data associated with keys in leaf
      {super(maxKeysPerLeaf);
-      dataValues = new Stuck(maxKeysPerLeaf, bitsPerData);
+      dataValues = new Stuck("Stuck", maxKeysPerLeaf, bitsPerData);
      }
 
     void clear() {keyNames.clear(); dataValues.clear();}                        // Clear leaf
