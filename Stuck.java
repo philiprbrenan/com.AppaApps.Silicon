@@ -15,8 +15,8 @@ class Stuck extends Memory.Structure                                            
 
 //D1 Construction                                                               // Create a stuck stack
 
-  Stuck(int Max, int Width)                                                     // Create the stuck stack
-   {super("Stuck");                                                             // Containing structure layout
+  Stuck(String Name, int Max, int Width)                                        // Create the stuck stack
+   {super(Name);                                                                // Containing structure layout
     max = Max; width = Width;
     unary   = Unary.unary(max);                                                 // Unary number showing which elements in the stack are valid
     element = variable("element", width);                                       // An element of the stuck stack
@@ -26,7 +26,9 @@ class Stuck extends Memory.Structure                                            
     layout();                                                                   // Layout the structure of the stuck stack
    }
 
-  static Stuck stuck(int max, int width) {return new Stuck(max, width);}        // Create a stuck stack
+  static Stuck stuck(int max, int width)                                        // Create a stuck stack
+   {return new Stuck("Stuck", max, width);
+   }
 
   void clear() {unary.zero();}                                                  // Clear a stuck stack
 
