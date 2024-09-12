@@ -38,7 +38,8 @@ class Mjaf2 extends Memory.Structure                                            
   final Memory.Structure branch;                                                // Branch of the tree
   final Memory.Structure leaf;                                                  // Leaf of the tree
   final Memory.Union     branchOrLeaf;                                          // Branch or leaf of the tree
-  final Memory.Variable  isLeaf;                                                // Whether the node is a leaf or a branch
+  final Memory.Variable  isBranch;                                              // The node is a branch if true
+  final Memory.Variable  isLeaf;                                                // The node is a leaf if true
   final Memory.Structure node;                                                  // Node of the tree
   final Memory.Array     nodes;                                                 // Array of nodes comprising tree
 
@@ -67,8 +68,9 @@ class Mjaf2 extends Memory.Structure                                            
     branch         = Memory.structure("branch", branchKeyNames, nextValue, topNode); // Branch of the tree
     leaf           = Memory.structure("leaf",   leafKeyNames,   dataValues);    // Leaf of the tree
     branchOrLeaf   = Memory.union    ("branchOrLeaf",   branch, leaf);          // Branch or leaf of the tree
-    isLeaf         = Memory.variable ("isLeaf",         1);                     // Whether the node is a leaf or a branch
-    node           = Memory.structure("node",  isLeaf,  branchOrLeaf);          // Node of the tree
+    isBranch       = Memory.variable ("isBranch",       1);                     // The node is a branch if true
+    isLeaf         = Memory.variable ("isLeaf",         1);                     // The node is a leaf if true
+    node           = Memory.structure("node",  isLeaf,  isBranch, branchOrLeaf);// Node of the tree
     nodes          = Memory.array    ("nodes", node,    size);                  // Array of nodes comprising tree
     addField(nodesFree);
     addField(nodesCreated);
@@ -123,6 +125,12 @@ class Mjaf2 extends Memory.Structure                                            
 
     Leaf(int Index) {index = Index;}                                            // Address a leaf by index
 
+    void free()                                                                 // Free a leaf
+     {nodes.setIndex(index);                                                    // Mark as a leaf
+      clear();                                                                  // Clear the leaf
+      nodesFree.push(index);                                                    // Put leaf on free chain
+     }
+
     void clear() {nodes.setIndex(index); node.zero();}                          // Clear a leaf
 
     boolean isEmpty()                                                           // Leaf is empty
@@ -133,6 +141,11 @@ class Mjaf2 extends Memory.Structure                                            
     boolean isFull()                                                            // Leaf is full
      {nodes.setIndex(index);
       return leafKeyNames.isFull();
+     }
+
+    boolean isLeaf()                                                            // Node is a leaf
+     {nodes.setIndex(index);
+      return isLeaf.toInt() > 0;
      }
 
     int nKeys() {nodes.setIndex(index); return leafKeyNames.stuckSize();}       // Number of keys in a leaf
@@ -226,6 +239,60 @@ class Mjaf2 extends Memory.Structure                                            
        }
       return l;                                                                 // Split out leaf
      }
+
+    boolean joinableLeaves(Leaf a)                                              // Check that we can join two leaves
+     {return nKeys() + a.nKeys() <= maxKeysPerLeaf;
+     }
+
+    void joinLeaf(Leaf Join)                                                    // Join the specified leaf onto the end of this leaf
+     {final int K = nKeys(), J = Join.nKeys();                                  // Number of keys currently in node
+      if (!joinableLeaves(Join)) stop("Join of leaf has too many keys", K,
+        "+", J, "greater than", maxKeysPerLeaf);
+
+      for (int i = 0; i < J; i++)
+       {nodes.setIndex(Join.index);
+        final Memory k = leafKeyNames.elementAt(i);
+        final Memory d = dataValues.elementAt(i);
+        nodes.setIndex(index);
+        leafKeyNames.push(k);
+        dataValues.push(d);
+       }
+      Join.free();                                                              // Free the leaf that was
+     }
+
+    public String toString()                                                    // Print leaf
+     {nodes.setIndex(index);
+      final StringBuilder s = new StringBuilder();
+      s.append("Leaf(");
+      final int K = leafKeyNames.stuckSize();
+      for  (int i = 0; i < K; i++)
+        s.append(""+leafKeyNames.elementAt(i).toInt()+":"+
+                      dataValues.elementAt(i).toInt()+", ");
+      if (K > 0) s.setLength(s.length()-2);
+      s.append(")");
+      return s.toString();
+     }
+
+    public String shortString()                                                 // Print a leaf compactly
+     {nodes.setIndex(index);
+      final StringBuilder s = new StringBuilder();
+      final int K = leafKeyNames.stuckSize();
+      for  (int i = 0; i < K; i++) s.append(""+leafKeyNames.elementAt(i).toInt()+",");
+      if (K > 0) s.setLength(s.length()-1);
+      return s.toString();
+     }
+
+    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print leaf  horizontally
+     {nodes.setIndex(index);
+      padStrings(S, level);
+      S.elementAt(level).append(debug ? toString() : shortString());
+      padStrings(S, level);
+     }
+
+    void ok(String expected)                                                    // Check node is as expected
+     {nodes.setIndex(index);
+      Mjaf.ok(toString(), expected);
+     }
    }
 
 //D1 Search                                                                     // Find a key, data pair
@@ -252,38 +319,40 @@ class Mjaf2 extends Memory.Structure                                            
     return true;                                                                // Inserted directly
    }
 
+//D1 Print                                                                      // Print a tree
+
+  static void padStrings(Stack<StringBuilder> S, int level)                     // Pad a stack of strings so they all have the same length
+   {for (int i = S.size(); i <= level; ++i) S.push(new StringBuilder());
+    int m = 0;
+    for (StringBuilder s : S) m = m < s.length() ? s.length() : m;
+    for (StringBuilder s : S)
+      if (s.length() < m) s.append(" ".repeat(m - s.length()));
+   }
+
+//D1 Tests                                                                      // Tests
+
   static void test_create_leaf()
    {final int N = 2, M = 4;
     Mjaf2 m = mjaf(N, N, M, N);
-    m.ok("000000000000000000000000000000000000000000000000001110000000000100011"); final Leaf l1 = m.new Leaf(); ok(l1.index, N-1);
-    m.ok("000000000000000000000000100000000000000000000000001110000000000100001"); final Leaf l2 = m.new Leaf(); ok(l2.index, N-2);
-    m.ok("000000000000000000000000100000000000000000000000011110000000000100000");
-    Memory.Variable k = Memory.variable("key", N);                              // Create a key
-    k.layout();
-    ok( l1.isEmpty());
-    ok(!l1.isFull ());
+    final Leaf l = m.new Leaf(); ok(l.index, N-1);
+    Memory.Variable key = Memory.variable("key", N);
+    key.layout();
+    ok( l.isEmpty());
+    ok(!l.isFull ());
+    ok( l.isLeaf());
     for (int i = 0; i < M; i++)
-     {k.set(i);
-      l1.pushKey (m.new Key (k.memory()));
-      l1.pushData(m.new Data(k.memory()));
+     {key.set(i);
+      l.put(m.new Key(key.memory()), m.new Data(key.memory()));
      }
-    ok(!l1.isEmpty());
-    ok( l1.isFull ());
-    m.ok("111001001111111001001111100000000000000000000000011110000000000100000");
-   }
+    ok(!l.isEmpty());
+    ok( l.isFull ());
+    l.ok("Leaf(0:0, 1:1, 2:2, 3:3)");
 
-  static void test_split_leaf()
-   {final int N = 2, M = 4;
-    Mjaf2 m = mjaf(N, N, M, N);
-    m.set("111001001111111001001111100000000000000000000000001110000000000100001");
-    Leaf k = m.new Leaf(1);
-    k.memory().ok("111001001111111001001111");
-    Leaf l = k.split();
+    Leaf k = l.split();
     ok(k.nKeys(), 2); ok(k.nData(), 2);
     ok(l.nKeys(), 2); ok(l.nKeys(), 2);
-    k.memory().ok("111111100011111111100011");
-    l.memory().ok("000001000011000001000011");
-    m.ok("111111100011111111100011100000100001100000100001111110000000000100000");
+    k.ok("Leaf(0:0, 1:1)");
+    l.ok("Leaf(2:2, 3:3)");
    }
 
   static void test_put_leaf()
@@ -300,14 +369,38 @@ class Mjaf2 extends Memory.Structure                                            
      }
    }
 
+  static void test_join_leaf()
+   {final int N = 4, M = 4;
+    Mjaf2 m = mjaf(N, N, M, N);
+    Leaf j = m.new Leaf();
+    Leaf k = m.new Leaf();
+    Leaf l = m.new Leaf();
+    j.put(m.new Key(1), m.new Data(8)); ok( k.joinableLeaves(j));
+    j.put(m.new Key(2), m.new Data(6)); ok( k.joinableLeaves(j));
+    k.put(m.new Key(3), m.new Data(4)); ok( k.joinableLeaves(j));
+    k.put(m.new Key(4), m.new Data(2)); ok( k.joinableLeaves(j));
+    l.put(m.new Key(4), m.new Data(8)); ok( k.joinableLeaves(l));
+    l.put(m.new Key(3), m.new Data(6)); ok( k.joinableLeaves(l));
+    l.put(m.new Key(2), m.new Data(4)); ok(!k.joinableLeaves(l));
+    l.put(m.new Key(1), m.new Data(2)); ok(!k.joinableLeaves(l));
+
+    k.ok("Leaf(3:4, 4:2)");
+    j.ok("Leaf(1:8, 2:6)");
+    ok(m.nodesFree.stuckSize(), 1);
+    j.joinLeaf(k);
+    j.ok("Leaf(1:8, 2:6, 3:4, 4:2)");
+    ok(m.nodesFree.stuckSize(), 2);
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_create_leaf();
-    test_split_leaf();
+    test_put_leaf();
+    test_join_leaf();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_put_leaf();
+   {oldTests();
+    //test_join_leaf();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
