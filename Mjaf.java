@@ -148,7 +148,7 @@ class Mjaf extends Memory.Structure                                             
      {final int K = keyNames.stuckSize(), f = splitIdx();                       // Number of keys currently in node
       if (f < K-1) {} else stop("Split", f, "too big for branch of size:", K);
       if (f <   1)         stop("First", f, "too small");
-      final Node   t = nextLevel.elementAt(f);                                  // Top mode
+      final Node   t = nextLevel.elementAt(f);                                  // Top node
       final Branch b = branch(t);                                               // Recycle a branch
 
       for (int i = 0; i < f; i++)                                               // Remove first keys from old node to new node
@@ -177,7 +177,7 @@ class Mjaf extends Memory.Structure                                             
       for (int i = 0; i < J; i++)                                               // Add right hand branch
        {final Key  k = key(Join.keyNames .elementAt(i));
         final Node n = Join.nextLevel.elementAt(i);
-        keyNames .push(k.memory());                                             // Push mmeory associated with key
+        keyNames .push(k.memory());                                             // Push memory associated with key
         nextLevel.push(n);
        }
       nodes.release(Join);
