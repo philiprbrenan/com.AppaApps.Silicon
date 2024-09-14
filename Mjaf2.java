@@ -195,7 +195,7 @@ boolean debugPut = false;
 
     Key splitKey()                                                              // Splitting key
      {nodes.setIndex(index);
-      return new Key(branchKeyNames.elementAt(splitIdx));
+      return new Key(branchKeyNames.elementAt(splitIdx).duplicate());
      }
 
     void pushKey(Key memory)                                                    // Push a key into a branch
@@ -416,7 +416,7 @@ boolean debugPut = false;
 
     Key splitKey()                                                              // Splitting key
      {nodes.setIndex(index);
-      return new Key(leafKeyNames.elementAt(splitIdx));
+      return new Key(leafKeyNames.elementAt(splitIdx).duplicate());
      }
 
     void pushKey(Key memory)                                                    // Push a key into a leaf
@@ -652,7 +652,9 @@ boolean debugPut = false;
     if (g != -1) dataValues.setElementAt(dataValue, g);                         // Key already present in leaf
     else if (l.isFull())                                                        // Split the node because it is full and we might need to insert below it requiring a slot in this node
      {final Key  k = l.splitKey();
+if (debugPut) say("AAAA", k);
       final Leaf e = l.split();
+if (debugPut) say("AAAA", k);
       p.put(k, node(e.index));
 
       if (keyName.lessThanOrEqual(k)) e.put(keyName, dataValue);                // Insert key in the appropriate split leaf
@@ -888,7 +890,6 @@ boolean debugPut = false;
 
     m.put(m.new Key(7), m.new Data(14));
     //say(m.printHorizontally());
-m.debugPut = true;
     ok(m.printHorizontally(), """
     2    4     |
 1,2  3,4  5,6,7|
@@ -902,7 +903,6 @@ m.debugPut = true;
 """);
 
     m.put(m.new Key(9), m.new Data(18));
-    stop(m.printHorizontally());
     ok(m.printHorizontally(), """
     2    4    6     |
 1,2  3,4  5,6  7,8,9|
