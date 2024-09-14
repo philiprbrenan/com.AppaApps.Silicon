@@ -2,6 +2,8 @@
 // Btree with data stored only in the leaves to simplify deletion.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
+// class node to create next nodes from
+// try reinserting a je=key.data multiple times
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
 //                 Shall I compare thee to a summer's day?
 //                 Thou art more lovely and more temperate:
@@ -26,6 +28,7 @@ class Mjaf2 extends Memory.Structure                                            
   final int maxKeysPerLeaf;                                                     // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
   final int maxKeysPerBranch;                                                   // The maximum number of keys per branch.
   final int maxNodes;                                                           // The maximum number of nodes in the tree
+  final int splitIdx;                                                           // Index of splitting key
 
   final Memory.Variable  nodesCreated;                                          // Number of nodes created
   final Memory.Variable  keyDataStored;                                         // Current number of key/data pairs currently stored in tree
@@ -44,6 +47,8 @@ class Mjaf2 extends Memory.Structure                                            
   final Memory.Structure node;                                                  // Node of the tree
   final Memory.Array     nodes;                                                 // Array of nodes comprising tree
 
+boolean debugPut = false;
+
 //D1 Construction                                                               // Create a Btree from nodes which can be branches or leaves.  The data associated with the Btree is stored only in the leaves opposite the keys
 
   Mjaf2(int BitsPerKey, int BitsPerData, int MaxKeysPerLeaf, int size)          // Define a Btree with a specified maximum number of keys per leaf.
@@ -52,10 +57,12 @@ class Mjaf2 extends Memory.Structure                                            
     bitsPerKey  = BitsPerKey;
     bitsPerNext = BitsPerKey + 1;
     bitsPerData = BitsPerData;
+
     if (N % 2 == 1) stop("# keys per leaf must be even not odd:", N);
     if (N     <= 3) stop("# keys per leaf must be greater than three, not:", N);
     maxKeysPerLeaf   = N;
     maxKeysPerBranch = N-1;
+    splitIdx         = maxKeysPerBranch >> 1;                                   // Index of splitting key
     maxNodes = size;
 
     nodesCreated   = Memory.variable ("nodesCreated", 2*BitsPerKey+1);          // Number of nodes created
@@ -114,22 +121,25 @@ class Mjaf2 extends Memory.Structure                                            
      }
    }
 
-  boolean isBranch(Memory index)                                                   // Test whether the memory represents a branch
-   {nodes.setIndex(index.toInt());
+  boolean isBranch(Memory index) {return isBranch(index.toInt());}              // Test whether the memory represents a branch
+  boolean isLeaf  (Memory index) {return isLeaf  (index.toInt());}              // Test whether the memory represents a leaf
+
+  boolean isBranch(int index)                                                   // Test whether the memory represents a branch
+   {nodes.setIndex(index);
     return isBranch.get(0);
    }
 
-  boolean isLeaf(Memory index)                                                     // Test whether the memory represents a leaf
-   {nodes.setIndex(index.toInt());
+  boolean isLeaf(int index)                                                     // Test whether the memory represents a leaf
+   {nodes.setIndex(index);
     return isLeaf.get(0);
    }
 
-  boolean rootIsBranch()                                                   // Test whether the memory represents a branch
+  boolean rootIsBranch()                                                        // Test whether the memory represents a branch
    {nodes.setIndex(root.toInt());
     return isBranch.get(0);
    }
 
-  boolean rootIsLeaf()                                                     // Test whether the memory represents a leaf
+  boolean rootIsLeaf()                                                          // Test whether the memory represents a leaf
    {nodes.setIndex(root.toInt());
     return isLeaf.get(0);
    }
@@ -182,6 +192,11 @@ class Mjaf2 extends Memory.Structure                                            
 
     int nKeys  () {nodes.setIndex(index); return branchKeyNames.stuckSize();}   // Number of keys in a branch
     int nLevels() {nodes.setIndex(index); return nextLevel     .stuckSize();}   // Number of next levels but not including the top node
+
+    Key splitKey()                                                              // Splitting key
+     {nodes.setIndex(index);
+      return new Key(branchKeyNames.elementAt(splitIdx));
+     }
 
     void pushKey(Key memory)                                                    // Push a key into a branch
      {nodes.setIndex(index);
@@ -257,7 +272,7 @@ class Mjaf2 extends Memory.Structure                                            
 
     void splitRoot()                                                            // Split the root when it is a branch
      {if (isFull())
-       {final Key    k = new Key(branchKeyNames.elementAt(maxKeysPerBranch/2));
+       {final Key    k = new Key(branchKeyNames.elementAt(splitIdx));
         final Branch l = split(), b = new Branch(memory());
         b.put(k, l.memory());
         root.set(b.index);
@@ -266,7 +281,7 @@ class Mjaf2 extends Memory.Structure                                            
 
     Branch split()                                                              // Split a branch into two branches at the indicated key
      {nodes.setIndex(index);
-      final int K = branchKeyNames.stuckSize(), f = maxKeysPerBranch/2;         // Number of keys currently in node
+      final int K = branchKeyNames.stuckSize(), f = splitIdx;                   // Number of keys currently in node
       if (f < K-1) {} else stop("Split", f, "too big for branch of size:", K);
       if (f <   1)         stop("First", f, "too small");
       final Memory t = nextLevel.elementAt(f);                                  // Top node
@@ -399,6 +414,11 @@ class Mjaf2 extends Memory.Structure                                            
     int nKeys() {nodes.setIndex(index); return leafKeyNames.stuckSize();}       // Number of keys in a leaf
     int nData() {nodes.setIndex(index); return dataValues  .stuckSize();}       // Number of data values in a leaf
 
+    Key splitKey()                                                              // Splitting key
+     {nodes.setIndex(index);
+      return new Key(leafKeyNames.elementAt(splitIdx));
+     }
+
     void pushKey(Key memory)                                                    // Push a key into a leaf
      {nodes.setIndex(index);
       leafKeyNames.push(memory);
@@ -514,8 +534,9 @@ class Mjaf2 extends Memory.Structure                                            
       s.append("Leaf(");
       final int K = leafKeyNames.stuckSize();
       for  (int i = 0; i < K; i++)
-        s.append(""+leafKeyNames.elementAt(i).toInt()+":"+
+       {s.append(""+leafKeyNames.elementAt(i).toInt()+":"+
                       dataValues.elementAt(i).toInt()+", ");
+       }
       if (K > 0) s.setLength(s.length()-2);
       s.append(")");
       return s.toString();
@@ -543,55 +564,102 @@ class Mjaf2 extends Memory.Structure                                            
      }
    }
 
-//D1 Insertion                                                                  // Insert keys and data into the Btree
+//D1 Search                                                                     // Find a key, data pair
 /*
+  Data find(Key keyName)                                                        // Find a the data associated with a key
+   {if (emptyTree()) return null;                                               // Empty tree
+    Node q = root;                                                              // Root of tree
+    for(int i = 0; i < 999 && q != null; ++i)                                   // Step down through tree up to some reasonable limit
+     {if (!(q instanceof Branch)) break;                                        // Stepped to a leaf
+      q = ((Branch)q).findFirstGreaterOrEqual(keyName);                         // Position of key
+     }
+
+    final int f = q.findIndexOfKey(keyName);                                    // We have arrived at a leaf
+    return f == -1 ? null : data(((Leaf)q).dataValues.elementAt(f));            // Key not found or data associated with key in leaf
+   }
+*/
+  boolean findAndInsert(Key keyName, Data dataValue)                            // Find the leaf for a key and insert the indicated key, data pair into if possible, returning true if the insertion was possible else false.
+   {if (emptyTree())                                                            // Empty tree so we can insert directly
+     {final Leaf l = new Leaf();                                                // Create the root as a leaf
+      root.set(node(l.index));                                                  // Create the root as a leaf
+      l.put(keyName, dataValue);                                                // Insert key, data pair in the leaf
+      return true;                                                              // Successfully inserted
+     }
+
+    Memory q = root.memory();                                                   // Root of tree
+    int   qn = q.toInt();
+    for(int i = 0; i < 999 && q != null; ++i)                                   // Step down through tree up to some reasonable limit
+     {if (isLeaf(q)) break;                                                     // Stepped to a leaf
+      final Branch b = new Branch(qn);
+      nodes.setIndex(b.index);
+      q = b.findFirstGreaterOrEqual(keyName);                                   // Position of key
+      qn = q.toInt();
+     }
+
+    final Leaf l = new Leaf(qn);
+    nodes.setIndex(l.index);
+    final int g = leafKeyNames.indexOf(keyName);                                // We have arrived at a leaf
+    if (g != -1) dataValues.setElementAt(dataValue, g);                         // Key already present in leaf
+    else if (l.isFull()) return false;                                          // There's no room in the leaf so return false
+    l.put(keyName, dataValue);                                                  // On a leaf that is not full so we can insert directly
+    return true;                                                                // Inserted directly
+   }
+
+//D1 Insertion                                                                  // Insert keys and data into the Btree
+
   void put(Key keyName, Data dataValue)                                         // Insert a new key, data pair into the Btree
-   {//if (findAndInsert(keyName, dataValue)) return;                              // Do a fast insert if possible, thisis increasingly likely in trees with large leaves
-    if (isLeaf(root))                                                           // Insert into root as a leaf
-     {if (!((Leaf)root).leafIsFull()) ((Leaf)root).putLeaf(keyName, dataValue); // Still room in the root while it is is a leaf
+   {if (findAndInsert(keyName, dataValue)) return;                              // Do a fast insert if possible, thisis increasingly likely in trees with large leaves
+
+    if (rootIsLeaf())                                                           // Insert into root as a leaf
+     {final Leaf lr = new Leaf(root.toInt());
+      if (!lr.isFull())  lr.put(keyName, dataValue);                            // Still room in the root while it is is a leaf
       else                                                                      // Insert into root as a leaf which is full
-       {final Leaf   l = ((Leaf)root).splitLeaf();                              // New left hand side of root
+       {final Leaf   l = lr.split();                                            // New left hand side of root
         final Key    k = l.splitKey();                                          // Splitting key
-        final Branch b = branch(root);                                          // New root with old root to right
-        b.putBranch(k, l);                                                      // Insert left hand node all of whose elements are less than the first element of what was the root
-        final Leaf f = lessThanOrEqual(keyName, k) ? l : (Leaf)root;            // Choose leaf
-        f.putLeaf(keyName, dataValue);                                          // Place in leaf
-        root = b;                                                               // The root now has just one entry in it - the splitting eky
+        final Branch b = new Branch(node(lr.index));                            // New root with old root to right
+        b.put(k, node(l.index));                                                // Insert left hand node all of whose elements are less than the first element of what was the root
+        final Leaf f = keyName.lessThanOrEqual(k) ? l : lr;                     // Choose leaf
+        f.put(keyName, dataValue);                                              // Place in leaf
+        root.set(b.index);                                                      // The root now has just one entry in it - the splitting eky
        }
       return;
      }
-    else ((Branch)root).splitRoot();                                            // Split full root which is a branch not a leaf
+    else new Branch(root.toInt()).splitRoot();                                  // Split full root which is a branch not a leaf
 
-    Branch p = (Branch)root; Node q = p;                                        // The root has already been split so the parent child relationship will be established
+    Branch p = new Branch(root.toInt());                                        // The root has already been split so the parent child relationship will be established
+    int    q = p.index;
 
     for(int i = 0; i < 999; ++i)                                                // Step down through tree to find the required leaf, splitting as we go
-     {if (!(q instanceof Branch)) break;                                        // Stepped to a branch
+     {if (isLeaf(q)) break;                                                     // Stepped to a branch
+      final Branch bq = new Branch(q);
 
-      if (((Branch)q).branchIsFull())                                           // Split the branch because it is full and we might need to insert below it requiring a slot in this node
-       {final Key    k = q.splitKey();                                          // Splitting key
-        final Branch l = ((Branch)q).splitBranch();                             // New lower node
-        p.putBranch(k, l);                                                      // Place splitting key in parent
-        ((Branch)root).splitRoot();                                             // Root might need to be split to re-establish the invariants at start of loop
-        if (lessThanOrEqual(keyName, k)) q = l;                                 // Position on lower node if search key is less than splitting key
+      if (bq.isFull())                                                          // Split the branch because it is full and we might need to insert below it requiring a slot in this node
+       {final Key    k = bq.splitKey();                                         // Splitting key
+        final Branch l = bq.split();                                            // New lower node
+        p.put(k, l.memory());                                                   // Place splitting key in parent
+        final Branch br = new Branch(root.toInt());
+        br.splitRoot();                                                         // Root might need to be split to re-establish the invariants at start of loop
+        if (keyName.lessThanOrEqual(k)) q = l.index;                            // Position on lower node if search key is less than splitting key
        }
 
-      p = (Branch)q;                                                            // Step parent down
-      q = p.findFirstGreaterOrEqual(keyName);                                   // The node does not need splitting
+      p = bq;                                                                   // Step parent down
+      q = p.findFirstGreaterOrEqual(keyName).toInt();                           // The node does not need splitting
      }
 
-    final Leaf l = (Leaf)q;
-    final int  g = l.findIndexOfKey(keyName);                                   // Locate index of key
-    if (g != -1) l.dataValues.setElementAt((Memory)dataValue, g);               // Key already present in leaf
-    else if (l.leafIsFull())                                                    // Split the node because it is full and we might need to insert below it requiring a slot in this node
+    final Leaf l = new Leaf(q);
+    nodes.setIndex(l.index);
+    final int g = leafKeyNames.indexOf(keyName);                                // Locate index of key
+    if (g != -1) dataValues.setElementAt(dataValue, g);                         // Key already present in leaf
+    else if (l.isFull())                                                        // Split the node because it is full and we might need to insert below it requiring a slot in this node
      {final Key  k = l.splitKey();
-      final Leaf e = l.splitLeaf();
-      p.putBranch(k, e);
-      if (lessThanOrEqual(keyName, k)) e.putLeaf(keyName, dataValue);           // Insert key in the appropriate split leaf
-      else                             l.putLeaf(keyName, dataValue);
+      final Leaf e = l.split();
+      p.put(k, node(e.index));
+
+      if (keyName.lessThanOrEqual(k)) e.put(keyName, dataValue);                // Insert key in the appropriate split leaf
+      else                            l.put(keyName, dataValue);
      }
-    else l.putLeaf(keyName, dataValue);                                         // On a leaf that is not full so we can insert directly
+    else l.put(keyName, dataValue);                                             // On a leaf that is not full so we can insert directly
    } // put
-*/
 
 //D1 Print                                                                      // Print a tree
 
@@ -601,6 +669,59 @@ class Mjaf2 extends Memory.Structure                                            
     for (StringBuilder s : S) m = m < s.length() ? s.length() : m;
     for (StringBuilder s : S)
       if (s.length() < m) s.append(" ".repeat(m - s.length()));
+   }
+
+  static String joinStrings(Stack<StringBuilder> S)                             // Join lines
+   {final StringBuilder a = new StringBuilder();
+    for (StringBuilder s : S) a.append(s.toString()+"|\n");
+    return a.toString();
+   }
+
+  String printHorizontally()                                                    // Print a tree horizontally
+   {final Stack<StringBuilder> S = new Stack<>();
+    if (emptyTree()) return "";                                                 // Empty tree
+    S.push(new StringBuilder());
+
+    if (rootIsLeaf())                                                           // Root is a leaf
+     {final Leaf lr = new Leaf(root.toInt());
+      lr.printHorizontally(S, 0, false);
+      return S.toString()+"\n";
+     }
+
+    final Branch b = new Branch(root.toInt());                                  // Root is a branch
+
+    nodes.setIndex(b.index);
+    final int    N = b.nKeys();
+    for (int i = 0; i < N; i++)                                                 // Nodes below root
+     {nodes.setIndex(b.index);
+      final Memory m = nextLevel.elementAt(i);
+      final int    M = m.toInt();
+      if      (isLeaf  (m))
+       {final Leaf l = new Leaf(M);
+                   l.printHorizontally(S, 1, false);
+        nodes.setIndex(b.index);
+        S.firstElement().append(" "+branchKeyNames.elementAt(i).toInt());
+       }
+      else
+       {final Branch B = new Branch(m.toInt());
+        B.printHorizontally(S, 1, false);
+        nodes.setIndex(B.index);
+        S.firstElement().append(" "+branchKeyNames.elementAt(i).toInt());
+       }
+     }
+    nodes.setIndex(b.index);
+    final int    tn = topNode.toInt();
+    final Memory tm = topNode.memory();
+    nodes.setIndex(b.index);
+
+    if (isLeaf(tm))
+     {final Leaf l = new Leaf(tn);
+      l.printHorizontally(S, 1, false);
+     }
+    else
+     {new Branch(topNode.memory()).printHorizontally(S, 1, false);
+     }
+    return joinStrings(S);
    }
 
 //D1 Tests                                                                      // Tests
@@ -732,6 +853,62 @@ class Mjaf2 extends Memory.Structure                                            
     ok(m.nodesFree.stuckSize(), 2);
    }
 
+  static void test_put()
+   {final int N = 8, M = 4;
+    Mjaf2 m = mjaf(N, N, M, N<<2);
+
+    m.put(m.new Key(1), m.new Data(2));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), "[1]\n");
+
+    m.put(m.new Key(2), m.new Data(4));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), "[1,2]\n");
+
+    m.put(m.new Key(3), m.new Data(6));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), "[1,2,3]\n");
+
+    m.put(m.new Key(4), m.new Data(8));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), "[1,2,3,4]\n");
+
+    m.put(m.new Key(5), m.new Data(10));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), """
+    2     |
+1,2  3,4,5|
+""");
+
+    m.put(m.new Key(6), m.new Data(12));
+    ok(m.printHorizontally(), """
+    2       |
+1,2  3,4,5,6|
+""");
+
+    m.put(m.new Key(7), m.new Data(14));
+    //say(m.printHorizontally());
+m.debugPut = true;
+    ok(m.printHorizontally(), """
+    2    4     |
+1,2  3,4  5,6,7|
+""");
+
+    m.put(m.new Key(8), m.new Data(16));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), """
+    2    4       |
+1,2  3,4  5,6,7,8|
+""");
+
+    m.put(m.new Key(9), m.new Data(18));
+    stop(m.printHorizontally());
+    ok(m.printHorizontally(), """
+    2    4    6     |
+1,2  3,4  5,6  7,8,9|
+""");
+   }
+
   static void test_root()
    {final int N = 4, M = 4;
     Mjaf2  m = mjaf(N, N, M, N);
@@ -748,11 +925,12 @@ class Mjaf2 extends Memory.Structure                                            
     test_create_leaf();
     test_put_leaf();
     test_join_leaf();
+    test_root();
    }
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    test_root();
+    test_put();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
