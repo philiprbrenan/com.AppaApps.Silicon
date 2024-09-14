@@ -25,6 +25,7 @@ class Mjaf extends Memory.Structure                                             
   final int maxKeysPerLeaf;                                                     // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
   final int maxKeysPerBranch;                                                   // The maximum number of keys per branch.
   final int maxNodes;                                                           // The maximum number of nodes in the tree
+  final int splitIdx;                                                           // Index of splitting key
   final NodeStack nodes = new NodeStack();                                      // All the branch nodes - this is our memory allocation scheme
   Node nodesFreeList = null;                                                    // Free nodes list
 
@@ -43,6 +44,7 @@ class Mjaf extends Memory.Structure                                             
     if (N     <= 3) stop("# keys per leaf must be greater than three, not:", N);
     maxKeysPerLeaf   = N;
     maxKeysPerBranch = N-1;
+    splitIdx         = maxKeysPerBranch >> 1;                                   // Index of splitting key
     for (int i = 0; i < size; i++) nodes.release(new Leaf());                   // Pre allocate leaves as they are bigger than branches
     maxNodes = size;
 
@@ -100,8 +102,7 @@ class Mjaf extends Memory.Structure                                             
 
     Node(int N)    {keyNames = new Stuck("Stuck", N, bitsPerKey);}              // Create a node
     int findIndexOfKey(Key keyToFind) {return keyNames.indexOf(keyToFind);}     // Find the one based index of a key in a branch node or zero if not found
-    int splitIdx() {return maxKeysPerBranch >> 1;}                              // Index of splitting key
-    Key splitKey() {return key(keyNames.elementAt(splitIdx()));}                // Splitting key
+    Key splitKey() {return key(keyNames.elementAt(splitIdx));}                  // Splitting key
     int size    () {return keyNames.stuckSize();}                               // Number of elements in this leaf
 
     void ok(String expected) {Mjaf.ok(toString(), expected);}                   // Check node is as expected
@@ -145,7 +146,7 @@ class Mjaf extends Memory.Structure                                             
      }
 
     Branch splitBranch()                                                        // Split a branch into two branches at the indicated key
-     {final int K = keyNames.stuckSize(), f = splitIdx();                       // Number of keys currently in node
+     {final int K = keyNames.stuckSize(), f = splitIdx;                         // Number of keys currently in node
       if (f < K-1) {} else stop("Split", f, "too big for branch of size:", K);
       if (f <   1)         stop("First", f, "too small");
       final Node   t = nextLevel.elementAt(f);                                  // Top node
