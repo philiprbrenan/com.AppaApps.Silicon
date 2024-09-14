@@ -47,7 +47,7 @@ class Mjaf2 extends Memory.Structure                                            
   final Memory.Structure node;                                                  // Node of the tree
   final Memory.Array     nodes;                                                 // Array of nodes comprising tree
 
-boolean debugPut = false;
+static boolean debugPut = false;
 
 //D1 Construction                                                               // Create a Btree from nodes which can be branches or leaves.  The data associated with the Btree is stored only in the leaves opposite the keys
 
@@ -185,10 +185,10 @@ boolean debugPut = false;
       return branchKeyNames.isFull();
      }
 
-    boolean isBranch()                                                          // Node is a branch
-     {nodes.setIndex(index);
-      return isBranch.toInt() > 0;
-     }
+//    boolean isBranch()                                                          // Node is a branch
+//     {nodes.setIndex(index);
+//      return isBranch.toInt() > 0;
+//     }
 
     int nKeys  () {nodes.setIndex(index); return branchKeyNames.stuckSize();}   // Number of keys in a branch
     int nLevels() {nodes.setIndex(index); return nextLevel     .stuckSize();}   // Number of next levels but not including the top node
@@ -248,6 +248,13 @@ boolean debugPut = false;
       return nextLevel.elementAt(i).toInt();
      }
 
+    Memory getTop()                                                             // Get the top bode as an integer
+     {nodes.setIndex(index);
+      return topNode;
+     }
+
+    int getTopAsInt() {return getTop().toInt();}                                // Get the top bode as an integer
+
     Memory memory()                                                             // Get memory associated with a branch
      {nodes.setIndex(index);
       return branch.memory();
@@ -272,28 +279,28 @@ boolean debugPut = false;
 
     void splitRoot()                                                            // Split the root when it is a branch
      {if (isFull())
-       {final Key    k = new Key(branchKeyNames.elementAt(splitIdx));
-        final Branch l = split(), b = new Branch(memory());
-        b.put(k, l.memory());
+       {final Key    k = new Key(getKey(splitIdx));
+        final Branch l = split();
+
+        final Branch b = new Branch(node(index));
+        b.put(k, node(l.index));
         root.set(b.index);
        }
      }
 
     Branch split()                                                              // Split a branch into two branches at the indicated key
      {nodes.setIndex(index);
-      final int K = branchKeyNames.stuckSize(), f = splitIdx;                   // Number of keys currently in node
+      final int K = nKeys(), f = splitIdx;                                      // Number of keys currently in node
       if (f < K-1) {} else stop("Split", f, "too big for branch of size:", K);
       if (f <   1)         stop("First", f, "too small");
-      final Memory t = nextLevel.elementAt(f);                                  // Top node
+      final Memory t = getTop();                                                // Top node
       final Branch b = new Branch(t);                                           // Recycle a branch
 
       for (int i = 0; i < f; i++)                                               // Remove first keys from old node to new node
-       {nodes.setIndex(index);
-        final Key    k = shiftKey();
+       {final Key    k = shiftKey();
         final Memory n = shiftNext();
         b.put(k, n);
        }
-      nodes.setIndex(index);
       shiftKey();                                                               // Remove central key which is no longer required
       shiftNext();
       return b;
@@ -342,7 +349,7 @@ boolean debugPut = false;
     public String toString()                                                    // Print branch
      {nodes.setIndex(index);
       final StringBuilder s = new StringBuilder();
-      s.append("Branch(");
+      s.append("Branch_"+index+"(");
       final int K = nKeys();
       for  (int i = 0; i < K; i++)
        {s.append(""+branchKeyNames.elementAt(i).toInt()+":"+
@@ -362,12 +369,46 @@ boolean debugPut = false;
       return s.toString();
      }
 
-    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print branch  horizontally
-     {nodes.setIndex(index);
-      padStrings(S, level);
-      S.elementAt(level).append(debug ? toString() : shortString());
-      padStrings(S, level);
+    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print branch horizontally
+     {final int N = nKeys();
+say("AAAA", N, this);
+say("AA11", new Branch(25));
+say("AA22", new Branch(29));
+say("AA33", new Branch(26));
+//say("AA44", new Branch(27));
+//say("AA55", new Branch(28));
+      for (int i = 0; i < N; i++)
+       {final int n = getNextAsInt(i);
+say("BBBB", n);
+        if (isBranch(n))
+         {final Branch b = new Branch(n);
+say("CCCC", b);
+          b.printHorizontally(S, level+1, debug);
+          padStrings(S, level);
+          S.elementAt(level).append(getKeyAsInt(i));
+         }
+        else
+         {final Leaf l = new Leaf(n);
+say("DDDD", l);
+          l.printHorizontally(S, level+1, debug);
+          padStrings(S, level);
+          S.elementAt(level).append(getKeyAsInt(i));
+         }
+       }
+      if (isBranch(getTopAsInt()))
+       {final Branch b = new Branch(getTopAsInt());
+say("EEEE", b);
+        b.printHorizontally(S, level+1, debug);
+       }
+      else
+       {final Leaf l = new Leaf(getTopAsInt());
+say("FFFF", l);
+        l.printHorizontally(S, level+1, debug);
+       }
      }
+
+
+
 
     void ok(String expected)                                                    // Check node is as expected
      {nodes.setIndex(index);
@@ -406,10 +447,10 @@ boolean debugPut = false;
       return leafKeyNames.isFull();
      }
 
-    boolean isLeaf()                                                            // Node is a leaf
-     {nodes.setIndex(index);
-      return isLeaf.toInt() > 0;
-     }
+//  boolean isLeaf()                                                            // Node is a leaf
+//   {nodes.setIndex(index);
+//    return isLeaf.toInt() > 0;
+//   }
 
     int nKeys() {nodes.setIndex(index); return leafKeyNames.stuckSize();}       // Number of keys in a leaf
     int nData() {nodes.setIndex(index); return dataValues  .stuckSize();}       // Number of data values in a leaf
@@ -531,7 +572,7 @@ boolean debugPut = false;
     public String toString()                                                    // Print leaf
      {nodes.setIndex(index);
       final StringBuilder s = new StringBuilder();
-      s.append("Leaf(");
+      s.append("Leaf_"+index+"(");
       final int K = leafKeyNames.stuckSize();
       for  (int i = 0; i < K; i++)
        {s.append(""+leafKeyNames.elementAt(i).toInt()+":"+
@@ -652,9 +693,7 @@ boolean debugPut = false;
     if (g != -1) dataValues.setElementAt(dataValue, g);                         // Key already present in leaf
     else if (l.isFull())                                                        // Split the node because it is full and we might need to insert below it requiring a slot in this node
      {final Key  k = l.splitKey();
-if (debugPut) say("AAAA", k);
       final Leaf e = l.split();
-if (debugPut) say("AAAA", k);
       p.put(k, node(e.index));
 
       if (keyName.lessThanOrEqual(k)) e.put(keyName, dataValue);                // Insert key in the appropriate split leaf
@@ -681,6 +720,7 @@ if (debugPut) say("AAAA", k);
 
   String printHorizontally()                                                    // Print a tree horizontally
    {final Stack<StringBuilder> S = new Stack<>();
+
     if (emptyTree()) return "";                                                 // Empty tree
     S.push(new StringBuilder());
 
@@ -691,9 +731,9 @@ if (debugPut) say("AAAA", k);
      }
 
     final Branch b = new Branch(root.toInt());                                  // Root is a branch
-
     nodes.setIndex(b.index);
     final int    N = b.nKeys();
+
     for (int i = 0; i < N; i++)                                                 // Nodes below root
      {nodes.setIndex(b.index);
       final Memory m = nextLevel.elementAt(i);
@@ -705,10 +745,11 @@ if (debugPut) say("AAAA", k);
         S.firstElement().append(" "+branchKeyNames.elementAt(i).toInt());
        }
       else
-       {final Branch B = new Branch(m.toInt());
+       {final Branch B = new Branch(M);
         B.printHorizontally(S, 1, false);
-        nodes.setIndex(B.index);
-        S.firstElement().append(" "+branchKeyNames.elementAt(i).toInt());
+        nodes.setIndex(b.index);
+        final int k = branchKeyNames.elementAt(i).toInt();
+        S.firstElement().append(" "+k);
        }
      }
     nodes.setIndex(b.index);
@@ -743,7 +784,7 @@ if (debugPut) say("AAAA", k);
     ok( b.index, N-1);
     ok( b.isEmpty());
     ok(!b.isFull ());
-    ok( b.isBranch());
+    ok(m.isBranch(b.index));
     for (int i = 0; i < M-1; i++) b.put(m.new Key(i), m.node(i));
     ok(!b.isEmpty());
     ok( b.isFull ());
@@ -802,7 +843,7 @@ if (debugPut) say("AAAA", k);
     key.layout();
     ok( l.isEmpty());
     ok(!l.isFull ());
-    ok( l.isLeaf());
+    ok( m.isLeaf(l.index));
     for (int i = 0; i < M; i++)
      {key.set(i);
       l.put(m.new Key(key.memory()), m.new Data(key.memory()));
@@ -906,6 +947,21 @@ if (debugPut) say("AAAA", k);
     ok(m.printHorizontally(), """
     2    4    6     |
 1,2  3,4  5,6  7,8,9|
+""");
+
+    m.put(m.new Key(10), m.new Data(20));
+    ok(m.printHorizontally(), """
+    2    4    6        |
+1,2  3,4  5,6  7,8,9,10|
+""");
+
+debugPut = true;
+    m.put(m.new Key(11), m.new Data(22));
+
+//  say(m.printHorizontally());
+    ok(m.printHorizontally(), """
+    2    4    6        |
+1,2  3,4  5,6  7,8,9,10|
 """);
    }
 
