@@ -350,7 +350,8 @@ class Memory extends Chip                                                       
 
     void set(Memory variable)                                                   // Set a variable from memory
      {final int w = width, v = variable.width;
-      if (w != v) stop("Memory has wrong length for variable", w, v);
+      if (w != v) stop("Memory has wrong length for variable, wanted:", w,
+                       "got:", v);
       superStructure().set(variable, at);
      }
 
