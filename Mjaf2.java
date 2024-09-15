@@ -101,6 +101,34 @@ static boolean debugPut = false;
 
   boolean emptyTree() {return root.isNull();}                                   // Test for an empty tree
 
+  public String toString()                                                      // Convert tree to string
+   {final StringBuilder b = new StringBuilder();
+    b.append("Mjaf\n");
+    b.append(String.format
+     ("BitsPerKey  : %4d  BitsPerData  : %4d  MaxKeysPerLeaf: %4d MaxNodes: %4d\n",
+       bitsPerKey, bitsPerData, maxKeysPerLeaf, maxNodes));
+
+    b.append(String.format
+     ("nodesCreated: %4d  keyDataStored: %4d  root: %4d\n",
+       nodesCreated.toInt(), keyDataStored.toInt(), root.toInt()));
+
+    b.append("Node\n");
+    for (int i = 0; i < maxNodes; i++)
+     {nodes.setIndex(i);
+      final boolean ib = isBranch.toInt() > 0, il = isLeaf.toInt() > 0;
+      if (!ib && !il) continue;
+      b.append(String.format("%4d ", i));
+
+      if (ib) b.append("      Branch Keys:"+branchKeyNames.print("","")+
+                                   " Next:"+nextLevel     .print("","")+
+                                        " "+topNode.toInt()+"\n");
+      else    b.append("      Leaf   Keys:"+leafKeyNames  .print("","")+
+                                   " Data:"+dataValues    .print("","")+
+                                       "\n");
+     }
+    return b.toString();
+   }
+
   class Key extends Memory                                                      // Memory for a key
    {Key() {super(bitsPerKey);}
     Key(Memory memory)
@@ -195,7 +223,7 @@ static boolean debugPut = false;
 
     Key splitKey()                                                              // Splitting key
      {nodes.setIndex(index);
-      return new Key(branchKeyNames.elementAt(splitIdx).duplicate());
+      return new Key(getKey(splitIdx).duplicate());
      }
 
     void pushKey(Key memory)                                                    // Push a key into a branch
@@ -230,12 +258,12 @@ static boolean debugPut = false;
 
     Key getKey(int i)                                                           // Get the indexed key
      {nodes.setIndex(index);
-      return new Key(branchKeyNames.elementAt(i));
+      return new Key(branchKeyNames.elementAt(i).duplicate());
      }
 
     Memory getNext(int i)                                                       // Get the indexed index of the next level
      {nodes.setIndex(index);
-      return dataValues.elementAt(i);
+      return nextLevel.elementAt(i);
      }
 
     int getKeyAsInt(int i)                                                      // Get the indexed key as an integer
@@ -281,7 +309,6 @@ static boolean debugPut = false;
      {if (isFull())
        {final Key    k = new Key(getKey(splitIdx));
         final Branch l = split();
-
         final Branch b = new Branch(node(index));
         b.put(k, node(l.index));
         root.set(b.index);
@@ -293,8 +320,9 @@ static boolean debugPut = false;
       final int K = nKeys(), f = splitIdx;                                      // Number of keys currently in node
       if (f < K-1) {} else stop("Split", f, "too big for branch of size:", K);
       if (f <   1)         stop("First", f, "too small");
-      final Memory t = getTop();                                                // Top node
-      final Branch b = new Branch(t);                                           // Recycle a branch
+      final Memory t = getNext(f);                                              // Top node
+      final Branch b = new Branch(node(t.toInt()));                             // Recycle a branch
+if (debugPut) say("AAAA", b);
 
       for (int i = 0; i < f; i++)                                               // Remove first keys from old node to new node
        {final Key    k = shiftKey();
@@ -371,25 +399,16 @@ static boolean debugPut = false;
 
     void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print branch horizontally
      {final int N = nKeys();
-say("AAAA", N, this);
-say("AA11", new Branch(25));
-say("AA22", new Branch(29));
-say("AA33", new Branch(26));
-//say("AA44", new Branch(27));
-//say("AA55", new Branch(28));
       for (int i = 0; i < N; i++)
        {final int n = getNextAsInt(i);
-say("BBBB", n);
         if (isBranch(n))
          {final Branch b = new Branch(n);
-say("CCCC", b);
           b.printHorizontally(S, level+1, debug);
           padStrings(S, level);
           S.elementAt(level).append(getKeyAsInt(i));
          }
         else
          {final Leaf l = new Leaf(n);
-say("DDDD", l);
           l.printHorizontally(S, level+1, debug);
           padStrings(S, level);
           S.elementAt(level).append(getKeyAsInt(i));
@@ -397,18 +416,13 @@ say("DDDD", l);
        }
       if (isBranch(getTopAsInt()))
        {final Branch b = new Branch(getTopAsInt());
-say("EEEE", b);
         b.printHorizontally(S, level+1, debug);
        }
       else
        {final Leaf l = new Leaf(getTopAsInt());
-say("FFFF", l);
         l.printHorizontally(S, level+1, debug);
        }
      }
-
-
-
 
     void ok(String expected)                                                    // Check node is as expected
      {nodes.setIndex(index);
@@ -677,7 +691,7 @@ say("FFFF", l);
       if (bq.isFull())                                                          // Split the branch because it is full and we might need to insert below it requiring a slot in this node
        {final Key    k = bq.splitKey();                                         // Splitting key
         final Branch l = bq.split();                                            // New lower node
-        p.put(k, l.memory());                                                   // Place splitting key in parent
+        p.put(k, node(l.index));                                                // Place splitting key in parent
         final Branch br = new Branch(root.toInt());
         br.splitRoot();                                                         // Root might need to be split to re-establish the invariants at start of loop
         if (keyName.lessThanOrEqual(k)) q = l.index;                            // Position on lower node if search key is less than splitting key
@@ -731,7 +745,9 @@ say("FFFF", l);
      }
 
     final Branch b = new Branch(root.toInt());                                  // Root is a branch
-    nodes.setIndex(b.index);
+    final int btn = b.getTopAsInt();
+    final Memory btm = b.getTop();
+
     final int    N = b.nKeys();
 
     for (int i = 0; i < N; i++)                                                 // Nodes below root
@@ -752,17 +768,14 @@ say("FFFF", l);
         S.firstElement().append(" "+k);
        }
      }
-    nodes.setIndex(b.index);
-    final int    tn = topNode.toInt();
-    final Memory tm = topNode.memory();
-    nodes.setIndex(b.index);
 
-    if (isLeaf(tm))
-     {final Leaf l = new Leaf(tn);
+    if (isLeaf(btm))
+     {final Leaf l = new Leaf(btn);
       l.printHorizontally(S, 1, false);
      }
     else
-     {new Branch(topNode.memory()).printHorizontally(S, 1, false);
+     {final Branch B = new Branch(btn);
+      B.printHorizontally(S, 1, false);
      }
     return joinStrings(S);
    }
@@ -898,7 +911,7 @@ say("FFFF", l);
 
   static void test_put()
    {final int N = 8, M = 4;
-    Mjaf2 m = mjaf(N, N, M, N<<2);
+    Mjaf2 m = mjaf(N, N, M, 4*N);
 
     m.put(m.new Key(1), m.new Data(2));
     //say(m.printHorizontally());
@@ -924,6 +937,7 @@ say("FFFF", l);
 """);
 
     m.put(m.new Key(6), m.new Data(12));
+    //say(m.printHorizontally());
     ok(m.printHorizontally(), """
     2       |
 1,2  3,4,5,6|
@@ -944,24 +958,118 @@ say("FFFF", l);
 """);
 
     m.put(m.new Key(9), m.new Data(18));
+    //say(m.printHorizontally());
     ok(m.printHorizontally(), """
     2    4    6     |
 1,2  3,4  5,6  7,8,9|
 """);
 
     m.put(m.new Key(10), m.new Data(20));
+    //say(m.printHorizontally());
     ok(m.printHorizontally(), """
     2    4    6        |
 1,2  3,4  5,6  7,8,9,10|
 """);
 
-debugPut = true;
     m.put(m.new Key(11), m.new Data(22));
-
-//  say(m.printHorizontally());
+    //say(m.printHorizontally());
     ok(m.printHorizontally(), """
-    2    4    6        |
-1,2  3,4  5,6  7,8,9,10|
+        4               |
+   2        6   8       |
+1,2 3,4  5,6 7,8 9,10,11|
+""");
+
+    m.put(m.new Key(12), m.new Data(24));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), """
+        4                  |
+   2        6   8          |
+1,2 3,4  5,6 7,8 9,10,11,12|
+""");
+
+    m.put(m.new Key(13), m.new Data(26));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), """
+        4                      |
+   2        6   8    10        |
+1,2 3,4  5,6 7,8 9,10  11,12,13|
+""");
+
+    m.put(m.new Key(14), m.new Data(28));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), """
+        4                         |
+   2        6   8    10           |
+1,2 3,4  5,6 7,8 9,10  11,12,13,14|
+""");
+
+    m.put(m.new Key(15), m.new Data(30));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), """
+        4        8                     |
+   2        6         10     12        |
+1,2 3,4  5,6 7,8  9,10  11,12  13,14,15|
+""");
+
+    m.put(m.new Key(16), m.new Data(32));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), """
+        4        8                        |
+   2        6         10     12           |
+1,2 3,4  5,6 7,8  9,10  11,12  13,14,15,16|
+""");
+
+    m.put(m.new Key(17), m.new Data(34));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), """
+        4        8                            |
+   2        6         10     12     14        |
+1,2 3,4  5,6 7,8  9,10  11,12  13,14  15,16,17|
+""");
+
+    m.put(m.new Key(18), m.new Data(36));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), """
+        4        8                               |
+   2        6         10     12     14           |
+1,2 3,4  5,6 7,8  9,10  11,12  13,14  15,16,17,18|
+""");
+
+    m.put(m.new Key(19), m.new Data(38));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), """
+                8                                   |
+       4                    12                      |
+   2       6         10            14     16        |
+1,2 3,4 5,6 7,8  9,10  11,12  13,14  15,16  17,18,19|
+""");
+
+    m.put(m.new Key(20), m.new Data(40));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), """
+                8                                      |
+       4                    12                         |
+   2       6         10            14     16           |
+1,2 3,4 5,6 7,8  9,10  11,12  13,14  15,16  17,18,19,20|
+""");
+
+    m.put(m.new Key(21), m.new Data(42));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), """
+                8                                          |
+       4                    12                             |
+   2       6         10            14     16     18        |
+1,2 3,4 5,6 7,8  9,10  11,12  13,14  15,16  17,18  19,20,21|
+""");
+
+    for (int i = 22; i < 32; i++) m.put(m.new Key(i), m.new Data(i<<2));
+
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), """
+                8                          16                                                  |
+       4                    12                           20            24                      |
+   2       6         10            14             18            22            26     28        |
+1,2 3,4 5,6 7,8  9,10  11,12  13,14  15,16   17,18  19,20  21,22  23,24  25,26  27,28  29,30,31|
 """);
    }
 
