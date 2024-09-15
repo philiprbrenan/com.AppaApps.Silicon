@@ -324,8 +324,8 @@ static boolean debugPut = false;
        {final Memory  k = branchKeyNames.elementAt(i);                          // Current key
         final boolean l = keyName.lessThanOrEqual(k);                           // Insert new key in order
         if (l)                                                                  // Insert new key in order
-         {insertKey (keyName,     i);                                           // Insert key
-          insertNext(node, i);                                                  // Insert data
+         {insertKey (keyName, i);                                               // Insert key
+          insertNext(node,    i);                                               // Insert data
           keyDataStored.inc();                                                  // Created a new entry in the branch
           return;
          }
@@ -372,7 +372,6 @@ static boolean debugPut = false;
       if (K + 1 + J > maxKeysPerLeaf) stop("Join of branch has too many keys",
           K,"+1+",J, "greater than", maxKeysPerBranch);
 
-
       nodes.setIndex(Join.index);
       final Memory t = topNode.memory();                                        // TopNode from branch being joined
 
@@ -396,7 +395,7 @@ static boolean debugPut = false;
      {nodes.setIndex(index);
       final int N = nKeys();                                                    // Number of keys currently in node
       for (int i = 0; i < N; i++)                                               // Check each key
-       {final Key k = new Key(branchKeyNames.elementAt(i));                     // Key
+       {final Key     k = getKey(i);                                            // Key
         final boolean l = keyName.compareTo(k) <= 0;                            // Compare current key with search key
         if (l) return nextLevel.elementAt(i);                                   // Current key is greater than or equal to the search key
        }
@@ -409,7 +408,7 @@ static boolean debugPut = false;
       s.append("Branch_"+index+"(");
       final int K = nKeys();
       for  (int i = 0; i < K; i++)
-       {s.append(""+branchKeyNames.elementAt(i).toInt()+":"+
+       {s.append(""+getKeyAsInt(i)+":"+
                          nextLevel.elementAt(i).toInt()+", ");
        }
       if (K > 0) s.setLength(s.length()-2);
@@ -1083,102 +1082,102 @@ static boolean debugPut = false;
     m.put(m.key(11), m.data(22));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
-        4               |
-   2        6   8       |
-1,2 3,4  5,6 7,8 9,10,11|
+         4                 |
+   2         6    8        |
+1,2  3,4  5,6  7,8  9,10,11|
 """);
 
     m.put(m.key(12), m.data(24));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
-        4                  |
-   2        6   8          |
-1,2 3,4  5,6 7,8 9,10,11,12|
+         4                    |
+   2         6    8           |
+1,2  3,4  5,6  7,8  9,10,11,12|
 """);
 
     m.put(m.key(13), m.data(26));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
-        4                      |
-   2        6   8    10        |
-1,2 3,4  5,6 7,8 9,10  11,12,13|
+         4                         |
+   2         6    8     10         |
+1,2  3,4  5,6  7,8  9,10   11,12,13|
 """);
 
     m.put(m.key(14), m.data(28));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
-        4                         |
-   2        6   8    10           |
-1,2 3,4  5,6 7,8 9,10  11,12,13,14|
+         4                            |
+   2         6    8     10            |
+1,2  3,4  5,6  7,8  9,10   11,12,13,14|
 """);
 
     m.put(m.key(15), m.data(30));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
-        4        8                     |
-   2        6         10     12        |
-1,2 3,4  5,6 7,8  9,10  11,12  13,14,15|
+         4         8                       |
+   2         6          10      12         |
+1,2  3,4  5,6  7,8  9,10   11,12   13,14,15|
 """);
 
     m.put(m.key(16), m.data(32));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
-        4        8                        |
-   2        6         10     12           |
-1,2 3,4  5,6 7,8  9,10  11,12  13,14,15,16|
+         4         8                          |
+   2         6          10      12            |
+1,2  3,4  5,6  7,8  9,10   11,12   13,14,15,16|
 """);
 
     m.put(m.key(17), m.data(34));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
-        4        8                            |
-   2        6         10     12     14        |
-1,2 3,4  5,6 7,8  9,10  11,12  13,14  15,16,17|
+         4         8                               |
+   2         6          10      12      14         |
+1,2  3,4  5,6  7,8  9,10   11,12   13,14   15,16,17|
 """);
 
     m.put(m.key(18), m.data(36));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
-        4        8                               |
-   2        6         10     12     14           |
-1,2 3,4  5,6 7,8  9,10  11,12  13,14  15,16,17,18|
+         4         8                                  |
+   2         6          10      12      14            |
+1,2  3,4  5,6  7,8  9,10   11,12   13,14   15,16,17,18|
 """);
 
     m.put(m.key(19), m.data(38));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
-                8                                   |
-       4                    12                      |
-   2       6         10            14     16        |
-1,2 3,4 5,6 7,8  9,10  11,12  13,14  15,16  17,18,19|
+                   8                                       |
+        4                       12                         |
+   2         6          10              14      16         |
+1,2  3,4  5,6  7,8  9,10   11,12   13,14   15,16   17,18,19|
 """);
 
     m.put(m.key(20), m.data(40));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
-                8                                      |
-       4                    12                         |
-   2       6         10            14     16           |
-1,2 3,4 5,6 7,8  9,10  11,12  13,14  15,16  17,18,19,20|
+                   8                                          |
+        4                       12                            |
+   2         6          10              14      16            |
+1,2  3,4  5,6  7,8  9,10   11,12   13,14   15,16   17,18,19,20|
 """);
 
     m.put(m.key(21), m.data(42));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
-                8                                          |
-       4                    12                             |
-   2       6         10            14     16     18        |
-1,2 3,4 5,6 7,8  9,10  11,12  13,14  15,16  17,18  19,20,21|
+                   8                                               |
+        4                       12                                 |
+   2         6          10              14      16      18         |
+1,2  3,4  5,6  7,8  9,10   11,12   13,14   15,16   17,18   19,20,21|
 """);
 
     for (int i = 22; i < 32; i++) m.put(m.key(i), m.data(i<<2));
 
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
-                8                          16                                                  |
-       4                    12                           20            24                      |
-   2       6         10            14             18            22            26     28        |
-1,2 3,4 5,6 7,8  9,10  11,12  13,14  15,16   17,18  19,20  21,22  23,24  25,26  27,28  29,30,31|
+                   8                             16                                                        |
+        4                       12                              20              24                         |
+   2         6          10              14              18              22              26      28         |
+1,2  3,4  5,6  7,8  9,10   11,12   13,14   15,16   17,18   19,20   21,22   23,24   25,26   27,28   29,30,31|
 """);
    }
 
@@ -1187,12 +1186,12 @@ static boolean debugPut = false;
     Mjaf2 m = mjaf(N, N, M, 4*N);
 
     for (int i = 0; i < 64; i++) m.put(m.key(i>>1), m.data(i));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
-                7                        15                                                     |
-       3                  11                           19            23                         |
-   1       5        9            13             17            21            25     27           |
-0,1 2,3 4,5 6,7  8,9 10,11  12,13  14,15   16,17  18,19  20,21  22,23  24,25  26,27  28,29,30,31|
+                   7                           15                                                           |
+        3                     11                              19              23                            |
+   1         5         9              13              17              21              25      27            |
+0,1  2,3  4,5  6,7  8,9  10,11   12,13   14,15   16,17   18,19   20,21   22,23   24,25   26,27   28,29,30,31|
 """);
      ok(m.find(m.key( 9)).toInt() == 19);
      ok(m.find(m.key(10)).toInt() == 21);
@@ -1208,11 +1207,11 @@ static boolean debugPut = false;
     for (int i = 15; i > 0; --i)
      {m.put(m.key(i), m.data(i<<1));
      }
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
-              7          11            |
-     3   5        9             13     |
-1,2,3 4,5 6,7  8,9 10,11   12,13  14,15|
+                7           11             |
+     3    5         9              13      |
+1,2,3  4,5  6,7  8,9  10,11   12,13   14,15|
 """);
      ok(m.find(m.key( 9)).toInt() == 18);
      ok(m.find(m.key(15)).toInt() == 30);
@@ -1239,11 +1238,11 @@ static boolean debugPut = false;
     for (int i = 0; i < r.length; ++i) m.put(m.key(r[i]), m.data(i));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
-                                                                                                                                                                                                                                                511                                                                                                                                                                                                                     |
-                                                               186                                                               317                                                                                                                                                                                        658                                                                                                                                         |
-                                   103                                                     246                                                                               403                                   472                                                                    578                                                           704                                           858                         912                                   |
-       27     39        72                   135                                 234                 261           279                     344       358           391                 425               442                         501                      545       560                         611           650                         686                         806           830                         903                             961       987       |
-1,13,27  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298,317   338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
+                                                                                                                                                                                                                                                                   511                                                                                                                                                                                                                                    |
+                                                                    186                                                                    317                                                                                                                                                                                                      658                                                                                                                                                   |
+                                      103                                                         246                                                                                      403                                      472                                                                        578                                                                704                                              858                           912                                      |
+       27      39         72                     135                                   234                   261            279                       344        358            391                   425                442                           501                       545        560                           611            650                           686                           806            830                           903                               961        987        |
+1,13,27   29,39   43,55,72   90,96,103    106,135    151,155,157,186    188,229,232,234    237,246    260,261    272,273,279    288,298,317    338,344    354,358    376,377,391    401,403    422,425    436,437,438,442    447,472    480,490,494,501    503,511    516,526,545    554,560    564,576,577,578    586,611    612,615,650    657,658    667,679,681,686    690,704    769,773,804,806    809,826,830    839,854,858    882,884,903    906,907,912    922,937,946,961    976,987    989,993|
 """);
     for (int i = 0; i < r.length; ++i) ok(m.find(m.key(r[i])), m.data(i));
     ok(m.find(m.key(r.length+1)) == null);
@@ -1399,7 +1398,7 @@ if (print) say("  AAAA\n", m.printHorizontally());
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
+   {oldTests();
     test_delete();
    }
 
