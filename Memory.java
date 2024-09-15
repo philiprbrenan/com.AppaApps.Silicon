@@ -423,7 +423,11 @@ class Memory extends Chip                                                       
                             at, width, size, indent(), name);
      }
 
-    void setIndex(int Index) {index = Index; position(at);}                     // Sets the index for the current array element allowing us to set and get this element and all its sub elements.
+    void setIndex(int Index)                                                    // Sets the index for the current array element allowing us to set and get this element and all its sub elements.
+     {if (index != Index)
+       {index = Index; position(at);
+       }
+     }
 
     Layout duplicate(int At)                                                    // Duplicate an array so we can modify it safely
      {final Array a = new Array(name, element.duplicate(), size);
