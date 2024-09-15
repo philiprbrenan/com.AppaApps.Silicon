@@ -295,6 +295,8 @@ class Mjaf2 extends Memory.Structure                                            
 
     Node lastNext()                                                             // Last next element
      {nodes.setIndex(index);
+say("AAAA", index);
+say(Mjaf2.this.toString()) ;
       return new Node(nextLevel.elementAt(nKeys()-1).toInt());
      }
 
@@ -797,7 +799,7 @@ class Mjaf2 extends Memory.Structure                                            
        {final Node A = p.lastNext();
         if (A instanceof Leaf)
          {final Leaf a = (Leaf)A, b = new Leaf(p.getTopAsInt());
-          final boolean j = a.joinable(b);                                // Can we merge the two leaves
+          final boolean j = a.joinable(b);                                      // Can we merge the two leaves
           if (j)                                                                // Merge the two leaves
            {a.join(b);
             p.popKey();
@@ -1246,6 +1248,81 @@ class Mjaf2 extends Memory.Structure                                            
     ok(m.find(m.key(r.length+1)) == null);
    }
 
+  static Mjaf2 test_delete_one(int Print, int count, int delete, String e, String d)
+   {final int N = 8, M = 4;
+    final boolean print = Print > 0;
+    Mjaf2 m = mjaf(N, N, M, 4*N);
+
+    for (int i = 0; i < count; i++) m.put(m.key(i+1), m.data(2*(i+1)));
+    test_delete_two(m, Print, delete, e, d);
+    return m;
+   }
+
+  static void test_delete_two(Mjaf2 m, int Print, int delete, String e, String d)
+   {final int N = 8, M = 4;
+    final boolean print = Print > 0;
+
+    ok(m.printHorizontally(), e);
+if (print) say("AAAA\n", m.printHorizontally());
+    m.delete(m.key(delete));
+if (print) say("BBBB\n", m.printHorizontally());
+    ok(m.printHorizontally(), d);
+   }
+
+  static void test_delete()
+   {Mjaf2 m;
+    test_delete_one(0, 1, 1, """
+[1]
+""", """
+[]
+""");
+    test_delete_one(0, 2, 1, """
+[1,2]
+""", """
+[2]
+""");
+    test_delete_one(0, 2, 2, """
+[1,2]
+""", """
+[1]
+""");
+    test_delete_one(0, 3, 1, """
+[1,2,3]
+""", """
+[2,3]
+""");
+    test_delete_one(0, 3, 2, """
+[1,2,3]
+""", """
+[1,3]
+""");
+    test_delete_one(0, 3, 3, """
+[1,2,3]
+""", """
+[1,2]
+""");
+    test_delete_one(0, 5, 1, """
+    2     |
+1,2  3,4,5|
+""", """
+  2     |
+2  3,4,5|
+""");
+    m = test_delete_one(0, 5, 1, """
+    2     |
+1,2  3,4,5|
+""", """
+  2     |
+2  3,4,5|
+""");
+    test_delete_two(m, 1, 2, """
+  2     |
+2  3,4,5|
+""", """
+[3,4,5]
+""");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_create_branch();
     test_put_branch();
@@ -1257,11 +1334,13 @@ class Mjaf2 extends Memory.Structure                                            
     test_put();
     test_put2();
     test_put_reverse();
+    test_put_random();
+    test_delete();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {oldTests();
-    test_put_random();
+   {//oldTests();
+    test_delete();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
