@@ -651,12 +651,12 @@ if (debugPut) say("AAAA", b);
       qn = q.toInt();
      }
 
-    final Leaf l = new Leaf(qn);
+    final Leaf l = new Leaf(qn);                                                // Reached a leaf
     nodes.setIndex(l.index);
     final int g = leafKeyNames.indexOf(keyName);                                // We have arrived at a leaf
     if (g != -1) dataValues.setElementAt(dataValue, g);                         // Key already present in leaf
     else if (l.isFull()) return false;                                          // There's no room in the leaf so return false
-    l.put(keyName, dataValue);                                                  // On a leaf that is not full so we can insert directly
+    else l.put(keyName, dataValue);                                             // On a leaf that is not full so we can insert directly
     return true;                                                                // Inserted directly
    }
 
@@ -681,6 +681,8 @@ if (debugPut) say("AAAA", b);
      }
     else new Branch(root.toInt()).splitRoot();                                  // Split full root which is a branch not a leaf
 
+if (debugPut) say("ssss", keyName.toInt());
+if (debugPut) say(Mjaf2.this.printHorizontally());
     Branch p = new Branch(root.toInt());                                        // The root has already been split so the parent child relationship will be established
     int    q = p.index;
 
@@ -690,11 +692,21 @@ if (debugPut) say("AAAA", b);
 
       if (bq.isFull())                                                          // Split the branch because it is full and we might need to insert below it requiring a slot in this node
        {final Key    k = bq.splitKey();                                         // Splitting key
+if (debugPut) say("kkkk", k);
+if (debugPut) say("pppp", p);
+if (debugPut) say("BBBB", bq);
         final Branch l = bq.split();                                            // New lower node
+if (debugPut) say("pppp", p);
+if (debugPut) say("BBBB", bq);
+if (debugPut) say("llll", l);
+if (debugPut) say(Mjaf2.this.printHorizontally());
         p.put(k, node(l.index));                                                // Place splitting key in parent
         final Branch br = new Branch(root.toInt());
         br.splitRoot();                                                         // Root might need to be split to re-establish the invariants at start of loop
-        if (keyName.lessThanOrEqual(k)) q = l.index;                            // Position on lower node if search key is less than splitting key
+        if (keyName.lessThanOrEqual(k))                                         // Position on lower node if search key is less than splitting key
+         {q = l.index;
+if (debugPut) say("MMMM", l.index);
+         }
        }
 
       p = bq;                                                                   // Step parent down
@@ -785,12 +797,9 @@ if (debugPut) say("AAAA", b);
   static void test_create_branch()
    {final int N = 2, M = 4;
     Mjaf2 m = mjaf(N, N, M, N);
-    Memory.Variable next = Memory.variable("next", N+1);
-    next.layout();
-    next.set(M);
-    final Branch b = m.new Branch(next.memory());
-    ok( m.isBranch(b.memory()));
-    ok(!m.isLeaf  (b.memory()));
+    final Branch b = m.new Branch(m.node(N+1));
+    ok( m.isBranch(b.index));
+    ok(!m.isLeaf  (b.index));
 
     Memory.Variable key = Memory.variable("key", N);
     key.layout();
@@ -801,15 +810,15 @@ if (debugPut) say("AAAA", b);
     for (int i = 0; i < M-1; i++) b.put(m.new Key(i), m.node(i));
     ok(!b.isEmpty());
     ok( b.isFull ());
-    b.ok("Branch(0:0, 1:1, 2:2, 4)");
+    b.ok("Branch_1(0:0, 1:1, 2:2, 3)");
 
     Branch c = b.split();
     ok(c.nKeys(), 1);
     ok(c.nLevels(), 1);
     ok(b.nKeys(), 1);
     ok(b.nKeys(), 1);
-    b.ok("Branch(2:2, 4)");
-    c.ok("Branch(0:0, 1)");
+    b.ok("Branch_1(2:2, 3)");
+    c.ok("Branch_0(0:0, 1)");
    }
 
   static void test_put_branch()
@@ -836,12 +845,12 @@ if (debugPut) say("AAAA", b);
     j.put(m.new Key(1), m.node(8)); ok( k.joinable(j));
     k.put(m.new Key(3), m.node(4)); ok( k.joinable(j));
 
-    k.ok("Branch(3:4, 13)");
-    j.ok("Branch(1:8, 11)");
+    k.ok("Branch_2(3:4, 13)");
+    j.ok("Branch_3(1:8, 11)");
     ok(k.nKeys(), 1);
     ok(j.nKeys(), 1);
     j.join(k, m.new Key(2));
-    j.ok("Branch(1:8, 2:11, 3:4, 13)");
+    j.ok("Branch_3(1:8, 2:11, 3:4, 13)");
     ok(m.nodesFree.stuckSize(), 2);
    }
 
@@ -849,8 +858,8 @@ if (debugPut) say("AAAA", b);
    {final int N = 2, M = 4;
     Mjaf2 m = mjaf(N, N, M, N);
     final Leaf l = m.new Leaf(); ok(l.index, N-1);
-    ok(!m.isBranch(l.memory()));
-    ok( m.isLeaf  (l.memory()));
+    ok(!m.isBranch(l.index));
+    ok( m.isLeaf  (l.index));
 
     Memory.Variable key = Memory.variable("key", N);
     key.layout();
@@ -863,13 +872,13 @@ if (debugPut) say("AAAA", b);
      }
     ok(!l.isEmpty());
     ok( l.isFull ());
-    l.ok("Leaf(0:0, 1:1, 2:2, 3:3)");
+    l.ok("Leaf_1(0:0, 1:1, 2:2, 3:3)");
 
     Leaf k = l.split();
     ok(k.nKeys(), 2); ok(k.nData(), 2);
     ok(l.nKeys(), 2); ok(l.nKeys(), 2);
-    k.ok("Leaf(0:0, 1:1)");
-    l.ok("Leaf(2:2, 3:3)");
+    k.ok("Leaf_0(0:0, 1:1)");
+    l.ok("Leaf_1(2:2, 3:3)");
    }
 
   static void test_put_leaf()
@@ -901,11 +910,11 @@ if (debugPut) say("AAAA", b);
     l.put(m.new Key(2), m.new Data(4)); ok(!k.joinable(l));
     l.put(m.new Key(1), m.new Data(2)); ok(!k.joinable(l));
 
-    k.ok("Leaf(3:4, 4:2)");
-    j.ok("Leaf(1:8, 2:6)");
+    k.ok("Leaf_2(3:4, 4:2)");
+    j.ok("Leaf_3(1:8, 2:6)");
     ok(m.nodesFree.stuckSize(), 1);
     j.join(k);
-    j.ok("Leaf(1:8, 2:6, 3:4, 4:2)");
+    j.ok("Leaf_3(1:8, 2:6, 3:4, 4:2)");
     ok(m.nodesFree.stuckSize(), 2);
    }
 
@@ -914,65 +923,65 @@ if (debugPut) say("AAAA", b);
     Mjaf2 m = mjaf(N, N, M, 4*N);
 
     m.put(m.new Key(1), m.new Data(2));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), "[1]\n");
 
     m.put(m.new Key(2), m.new Data(4));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), "[1,2]\n");
 
     m.put(m.new Key(3), m.new Data(6));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), "[1,2,3]\n");
 
     m.put(m.new Key(4), m.new Data(8));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), "[1,2,3,4]\n");
 
     m.put(m.new Key(5), m.new Data(10));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
     2     |
 1,2  3,4,5|
 """);
 
     m.put(m.new Key(6), m.new Data(12));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
     2       |
 1,2  3,4,5,6|
 """);
 
     m.put(m.new Key(7), m.new Data(14));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
     2    4     |
 1,2  3,4  5,6,7|
 """);
 
     m.put(m.new Key(8), m.new Data(16));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
     2    4       |
 1,2  3,4  5,6,7,8|
 """);
 
     m.put(m.new Key(9), m.new Data(18));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
     2    4    6     |
 1,2  3,4  5,6  7,8,9|
 """);
 
     m.put(m.new Key(10), m.new Data(20));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
     2    4    6        |
 1,2  3,4  5,6  7,8,9,10|
 """);
 
     m.put(m.new Key(11), m.new Data(22));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
         4               |
    2        6   8       |
@@ -980,7 +989,7 @@ if (debugPut) say("AAAA", b);
 """);
 
     m.put(m.new Key(12), m.new Data(24));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
         4                  |
    2        6   8          |
@@ -988,7 +997,7 @@ if (debugPut) say("AAAA", b);
 """);
 
     m.put(m.new Key(13), m.new Data(26));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
         4                      |
    2        6   8    10        |
@@ -996,7 +1005,7 @@ if (debugPut) say("AAAA", b);
 """);
 
     m.put(m.new Key(14), m.new Data(28));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
         4                         |
    2        6   8    10           |
@@ -1004,7 +1013,7 @@ if (debugPut) say("AAAA", b);
 """);
 
     m.put(m.new Key(15), m.new Data(30));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
         4        8                     |
    2        6         10     12        |
@@ -1012,7 +1021,7 @@ if (debugPut) say("AAAA", b);
 """);
 
     m.put(m.new Key(16), m.new Data(32));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
         4        8                        |
    2        6         10     12           |
@@ -1020,7 +1029,7 @@ if (debugPut) say("AAAA", b);
 """);
 
     m.put(m.new Key(17), m.new Data(34));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
         4        8                            |
    2        6         10     12     14        |
@@ -1028,7 +1037,7 @@ if (debugPut) say("AAAA", b);
 """);
 
     m.put(m.new Key(18), m.new Data(36));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
         4        8                               |
    2        6         10     12     14           |
@@ -1036,7 +1045,7 @@ if (debugPut) say("AAAA", b);
 """);
 
     m.put(m.new Key(19), m.new Data(38));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
                 8                                   |
        4                    12                      |
@@ -1045,7 +1054,7 @@ if (debugPut) say("AAAA", b);
 """);
 
     m.put(m.new Key(20), m.new Data(40));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
                 8                                      |
        4                    12                         |
@@ -1054,7 +1063,7 @@ if (debugPut) say("AAAA", b);
 """);
 
     m.put(m.new Key(21), m.new Data(42));
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
                 8                                          |
        4                    12                             |
@@ -1064,12 +1073,43 @@ if (debugPut) say("AAAA", b);
 
     for (int i = 22; i < 32; i++) m.put(m.new Key(i), m.new Data(i<<2));
 
-    //say(m.printHorizontally());
+    //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
                 8                          16                                                  |
        4                    12                           20            24                      |
    2       6         10            14             18            22            26     28        |
 1,2 3,4 5,6 7,8  9,10  11,12  13,14  15,16   17,18  19,20  21,22  23,24  25,26  27,28  29,30,31|
+""");
+   }
+
+  static void test_put2()
+   {final int N = 8, M = 4;
+    Mjaf2 m = mjaf(N, N, M, 4*N);
+
+    for (int i = 0; i < 64; i++) m.put(m.new Key(i>>1), m.new Data(i));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), """
+                7                        15                                                     |
+       3                  11                           19            23                         |
+   1       5        9            13             17            21            25     27           |
+0,1 2,3 4,5 6,7  8,9 10,11  12,13  14,15   16,17  18,19  20,21  22,23  24,25  26,27  28,29,30,31|
+""");
+   }
+
+  static void test_put_reverse()
+   {final int N = 8, M = 4;
+    Mjaf2 m = mjaf(N, N, M, 4*N);
+
+    for (int i = 15; i > 0; --i)
+     {debugPut = i == 1;
+      m.put(m.new Key(i), m.new Data(i));
+     }
+    stop(m.printHorizontally());
+    ok(m.printHorizontally(), """
+                                              16                                   24                             |
+               8             12                                  20                                 28            |
+       3   5          10              14                  18               22                26            30     |
+0,1,2,3 4,5 7,8 1,9,10  11,12  6,13,14  15,16   6,10,17,18  19,20  14,21,22  23,24   18,25,26  27,28  29,30  31,32|
 """);
    }
 
@@ -1090,11 +1130,14 @@ if (debugPut) say("AAAA", b);
     test_put_leaf();
     test_join_leaf();
     test_root();
+    test_put();
+    test_put2();
+    test_put_reverse();
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_put();
+   {oldTests();
+    test_join_leaf();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
