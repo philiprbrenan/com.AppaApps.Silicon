@@ -131,9 +131,7 @@ class Mjaf2 extends Memory.Structure                                            
     Key(Memory memory)
      {super(); bits = memory.bits; at = memory.at; width = memory.width;
      }
-    Key(int n)
-     {super(memoryFromInt(bitsPerKey, n));
-     }
+    Key(int n) {super(memoryFromInt(bitsPerKey, n));}
    }
   Key key(int n) {return new Key(n);}
 
@@ -142,34 +140,16 @@ class Mjaf2 extends Memory.Structure                                            
     Data(Memory memory)
      {super(); bits = memory.bits; at = memory.at; width = memory.width;
      }
-    Data(int n)
-     {super(memoryFromInt(bitsPerData, n));
-     }
+    Data(int n) {super(memoryFromInt(bitsPerData, n));}
    }
   Data data(int n) {return new Data(n);}
 
   boolean isBranch(Memory index) {return isBranch(index.toInt());}              // Test whether the memory represents a branch
   boolean isLeaf  (Memory index) {return isLeaf  (index.toInt());}              // Test whether the memory represents a leaf
-
-  boolean isBranch(int index)                                                   // Test whether the memory represents a branch
-   {nodes.setIndex(index);
-    return isBranch.get(0);
-   }
-
-  boolean isLeaf(int index)                                                     // Test whether the memory represents a leaf
-   {nodes.setIndex(index);
-    return isLeaf.get(0);
-   }
-
-  boolean rootIsBranch()                                                        // Test whether the memory represents a branch
-   {nodes.setIndex(root.toInt());
-    return isBranch.get(0);
-   }
-
-  boolean rootIsLeaf()                                                          // Test whether the memory represents a leaf
-   {nodes.setIndex(root.toInt());
-    return isLeaf.get(0);
-   }
+  boolean isBranch(int index)    {return new Node(index).isBranch();}           // Test whether the memory represents a branch
+  boolean isLeaf  (int index)    {return new Node(index).isLeaf();}             // Test whether the memory represents a leaf
+  boolean rootIsBranch()         {return new Node(root.toInt()).isBranch();}    // Test whether the memory represents a branch
+  boolean rootIsLeaf()           {return new Node(root.toInt()).isLeaf();}      // Test whether the memory represents a branch
 
 //D1 Node                                                                       // A branch or a leaf
 
@@ -181,6 +161,31 @@ class Mjaf2 extends Memory.Structure                                            
     Node(Memory memory)            {index = memory.toInt();}                    // Node from memory
     Node(Memory.Variable variable) {index = variable.toInt();}                  // Node from variable
     Memory node() {return memoryFromInt(bitsPerNext, index);}                   // Create memory representing a node index
+
+    boolean isLeaf  () {nodes.setIndex(index); return isLeaf  .get(0);}         // Whether the node represents a leaf
+    boolean isBranch() {nodes.setIndex(index); return isBranch.get(0);}         // Whether the node represents a leaf
+
+    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print leaf  horizontally
+     {nodes.setIndex(index);
+      padStrings(S, level);
+      S.elementAt(level).append(debug ? toString() : shortString());
+      padStrings(S, level);
+     }
+
+    void free()                                                                 // Free a branch
+     {nodes.setIndex(index);                                                    // Mark as a branch
+      clear();                                                                  // Clear the branch
+      nodesFree.push(index);                                                    // Put branch on free chain
+     }
+
+    void clear() {nodes.setIndex(index); node.zero();}                          // Clear a branch
+
+    public String shortString() {return "";}                                    // Print a leaf compactly
+
+    void ok(String expected)                                                    // Check node is as expected
+     {nodes.setIndex(index);
+      Mjaf.ok(toString(), expected);
+     }
    }
 
 //D1 Branch                                                                     // Methods applicable to a branch
@@ -194,14 +199,6 @@ class Mjaf2 extends Memory.Structure                                            
       nodes.setIndex(index); isBranch.set(1);                                   // Mark as a branch
       topNode.set(top.node());
      }
-
-    void free()                                                                 // Free a branch
-     {nodes.setIndex(index);                                                    // Mark as a branch
-      clear();                                                                  // Clear the branch
-      nodesFree.push(index);                                                    // Put branch on free chain
-     }
-
-    void clear() {nodes.setIndex(index); node.zero();}                          // Clear a branch
 
     boolean isEmpty()                                                           // Branch is empty
      {nodes.setIndex(index);
@@ -241,6 +238,16 @@ class Mjaf2 extends Memory.Structure                                            
       return new Node(nextLevel.shift());
      }
 
+    Key popKey()                                                                // Pop a key into a branch
+     {nodes.setIndex(index);
+      return new Key(branchKeyNames.pop());
+     }
+
+    Node popNext()                                                              // Pop index of next node
+     {nodes.setIndex(index);
+      return new Node(nextLevel.pop());
+     }
+
     void insertKey(Key key, int i)                                              // Insert a key into a branch
      {nodes.setIndex(index);
       branchKeyNames.insertElementAt(key, i);
@@ -256,9 +263,9 @@ class Mjaf2 extends Memory.Structure                                            
       return new Key(branchKeyNames.elementAt(i).duplicate());
      }
 
-    Memory getNext(int i)                                                       // Get the indexed index of the next level
+    Node getNext(int i)                                                         // Get the indexed index of the next level
      {nodes.setIndex(index);
-      return nextLevel.elementAt(i);
+      return new Node(nextLevel.elementAt(i).toInt());
      }
 
     int getKeyAsInt(int i)                                                      // Get the indexed key as an integer
@@ -271,12 +278,37 @@ class Mjaf2 extends Memory.Structure                                            
       return nextLevel.elementAt(i).toInt();
      }
 
+    int findIndexOfKey(Key key)                                                 // Get the indexed key as an integer
+     {nodes.setIndex(index);
+      return branchKeyNames.indexOf(key);
+     }
+
+    void removeKey(int i)                                                       // Remove the indicated key
+     {nodes.setIndex(index);
+      nextLevel.removeElementAt(i);
+     }
+
+    void removeNext(int i)                                                      // Remove the indicated key
+     {nodes.setIndex(index);
+      nextLevel.removeElementAt(i);
+     }
+
+    Node lastNext()                                                             // Last next element
+     {nodes.setIndex(index);
+      return new Node(nextLevel.elementAt(nKeys()-1).toInt());
+     }
+
     Memory getTop()                                                             // Get the top bode as an integer
      {nodes.setIndex(index);
       return topNode;
      }
 
     int getTopAsInt() {return getTop().toInt();}                                // Get the top bode as an integer
+
+    void setTop(int TopNode)                                                    // Set the top node
+     {nodes.setIndex(index);
+      topNode.set(TopNode);
+     }
 
     Memory memory()                                                             // Get memory associated with a branch
      {nodes.setIndex(index);
@@ -315,8 +347,8 @@ class Mjaf2 extends Memory.Structure                                            
       final int K = nKeys(), f = splitIdx;                                      // Number of keys currently in node
       if (f < K-1) {} else stop("Split", f, "too big for branch of size:", K);
       if (f <   1)         stop("First", f, "too small");
-      final Memory t = getNext(f);                                              // Top node
-      final Branch b = new Branch(new Node(t.toInt()));                         // Recycle a branch
+      final Node   t = getNext(f);                                              // Top node
+      final Branch b = new Branch(t);                                           // Recycle a branch
 
       for (int i = 0; i < f; i++)                                               // Remove first keys from old node to new node
        {final Key  k = shiftKey();
@@ -395,7 +427,7 @@ class Mjaf2 extends Memory.Structure                                            
      {final int N = nKeys();
       for (int i = 0; i < N; i++)
        {final int n = getNextAsInt(i);
-        if (isBranch(n))
+        if (new Node(n).isBranch())
          {final Branch b = new Branch(n);
           b.printHorizontally(S, level+1, debug);
           padStrings(S, level);
@@ -408,7 +440,7 @@ class Mjaf2 extends Memory.Structure                                            
           S.elementAt(level).append(getKeyAsInt(i));
          }
        }
-      if (isBranch(getTopAsInt()))
+      if (new Node(getTopAsInt()).isBranch())
        {final Branch b = new Branch(getTopAsInt());
         b.printHorizontally(S, level+1, debug);
        }
@@ -416,11 +448,6 @@ class Mjaf2 extends Memory.Structure                                            
        {final Leaf l = new Leaf(getTopAsInt());
         l.printHorizontally(S, level+1, debug);
        }
-     }
-
-    void ok(String expected)                                                    // Check node is as expected
-     {nodes.setIndex(index);
-      Mjaf.ok(toString(), expected);
      }
    }
 
@@ -434,14 +461,6 @@ class Mjaf2 extends Memory.Structure                                            
       clear();                                                                  // Clear the leaf
       nodes.setIndex(index); isLeaf.set(1);                                     // Mark as a leaf
      }
-
-    void free()                                                                 // Free a leaf
-     {nodes.setIndex(index);                                                    // Mark as a leaf
-      clear();                                                                  // Clear the leaf
-      nodesFree.push(index);                                                    // Put leaf on free chain
-     }
-
-    void clear() {nodes.setIndex(index); node.zero();}                          // Clear a leaf
 
     boolean isEmpty()                                                           // Leaf is empty
      {nodes.setIndex(index);
@@ -509,6 +528,21 @@ class Mjaf2 extends Memory.Structure                                            
     int getDataAsInt(int i)                                                     // Get the indexed data value as an integer
      {nodes.setIndex(index);
       return dataValues.elementAt(i).toInt();
+     }
+
+    int findIndexOfKey(Key key)                                                 // Get the indexed key as an integer
+     {nodes.setIndex(index);
+      return leafKeyNames.indexOf(key);
+     }
+
+    void removeKey(int i)                                                       // Remove the indicated key
+     {nodes.setIndex(index);
+      leafKeyNames.removeElementAt(i);
+     }
+
+    void removeData(int i)                                                      // Remove the indicated key
+     {nodes.setIndex(index);
+      dataValues.removeElementAt(i);
      }
 
     Memory memory()                                                             // Get memory associated with a leaf
@@ -592,33 +626,21 @@ class Mjaf2 extends Memory.Structure                                            
       if (K > 0) s.setLength(s.length()-1);
       return s.toString();
      }
-
-    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print leaf  horizontally
-     {nodes.setIndex(index);
-      padStrings(S, level);
-      S.elementAt(level).append(debug ? toString() : shortString());
-      padStrings(S, level);
-     }
-
-    void ok(String expected)                                                    // Check node is as expected
-     {nodes.setIndex(index);
-      Mjaf.ok(toString(), expected);
-     }
    }
 
 //D1 Search                                                                     // Find a key, data pair
 
   Data find(Key keyName)                                                        // Find a the data associated with a key
    {if (emptyTree()) return null;                                               // Empty tree
-    int qn = root.toInt();
+    int q = root.toInt();
 
     for(int i = 0; i < 999 ; ++i)                                               // Step down through tree up to some reasonable limit
-     {if (isLeaf(qn)) break;                                                    // Stepped to a leaf
-      final Branch b = new Branch(qn);
-      qn = b.findFirstGreaterOrEqual(keyName).toInt();                          // Position of key
+     {if (isLeaf(q)) break;                                                     // Stepped to a leaf
+      final Branch b = new Branch(q);
+      q = b.findFirstGreaterOrEqual(keyName).toInt();                           // Position of key
      }
 
-    final Leaf l = new Leaf(qn);                                                // Reached a leaf
+    final Leaf l = new Leaf(q);                                                 // Reached a leaf
     final int g = leafKeyNames.indexOf(keyName);                                // We have arrived at a leaf
     return g == -1 ? null : l.getData(g);                                       // Key is not or is present in leaf
    }
@@ -626,19 +648,19 @@ class Mjaf2 extends Memory.Structure                                            
   boolean findAndInsert(Key keyName, Data dataValue)                            // Find the leaf for a key and insert the indicated key, data pair into if possible, returning true if the insertion was possible else false.
    {if (emptyTree())                                                            // Empty tree so we can insert directly
      {final Leaf l = new Leaf();                                                // Create the root as a leaf
-      root.set(new Node(l).node());                                             // Create the root as a leaf
+      root.set(l.index);                                                        // Create the root as a leaf
       l.put(keyName, dataValue);                                                // Insert key, data pair in the leaf
       return true;                                                              // Successfully inserted
      }
 
-    int   qn = root.toInt();
+    int q = root.toInt();                                                       // Start at the root
     for(int i = 0; i < 999 ; ++i)                                               // Step down through tree up to some reasonable limit
-     {if (isLeaf(qn)) break;                                                    // Stepped to a leaf
-      final Branch b = new Branch(qn);
-      qn = b.findFirstGreaterOrEqual(keyName).toInt();                          // Position of key
+     {if (isLeaf(q)) break;                                                     // Stepped to a leaf
+      final Branch b = new Branch(q);
+      q = b.findFirstGreaterOrEqual(keyName).toInt();                           // Position of key
      }
 
-    final Leaf l = new Leaf(qn);                                                // Reached a leaf
+    final Leaf l = new Leaf(q);                                                 // Reached a leaf
     final int g = leafKeyNames.indexOf(keyName);                                // We have arrived at a leaf
     if (g != -1) dataValues.setElementAt(dataValue, g);                         // Key already present in leaf
     else if (l.isFull()) return false;                                          // There's no room in the leaf so return false
@@ -672,14 +694,14 @@ class Mjaf2 extends Memory.Structure                                            
 
     for(int i = 0; i < 999; ++i)                                                // Step down through tree to find the required leaf, splitting as we go
      {if (isLeaf(q)) break;                                                     // Stepped to a branch
-      final Branch bq = new Branch(q);
+      final Branch b = new Branch(q);
 
-      if (bq.isFull())                                                          // Split the branch because it is full and we might need to insert below it requiring a slot in this node
-       {final Key    k = bq.splitKey();                                         // Splitting key
-        final Branch l = bq.split();                                            // New lower node
+      if (b.isFull())                                                           // Split the branch because it is full and we might need to insert below it requiring a slot in this node
+       {final Key    k = b.splitKey();                                          // Splitting key
+        final Branch l = b.split();                                             // New lower node
         p.put(k, new Node(l));                                                  // Place splitting key in parent
-        final Branch br = new Branch(root.toInt());
-        br.splitRoot();                                                         // Root might need to be split to re-establish the invariants at start of loop
+        final Branch r = new Branch(root.toInt());
+        r.splitRoot();                                                          // Root might need to be split to re-establish the invariants at start of loop
         if (keyName.lessThanOrEqual(k)) q = l.index;                            // Position on lower node if search key is less than splitting key
        }
 
@@ -701,6 +723,110 @@ class Mjaf2 extends Memory.Structure                                            
      }
     else l.put(keyName, dataValue);                                             // On a leaf that is not full so we can insert directly
    } // put
+
+
+//D1 Deletion                                                                   // Delete a key from a Btree
+
+  Data delete(Key keyName)                                                      // Delete a key from a tree
+   {if (emptyTree()) return null;                                               // The tree is empty
+    final Data foundData = find(keyName);                                       // Find the data associated with the key
+    if (foundData == null) return null;                                         // The key is not present so cannot be deleted
+
+    if (rootIsLeaf())                                                           // Delete from root as a leaf
+     {final Leaf r = new Leaf(root.toInt());
+      final int  i = r.findIndexOfKey(keyName);                                 // Only one leaf and the key is known to be in the Btree so it must be in this leaf
+      r.removeKey (i);
+      r.removeData(i);
+      keyDataStored.dec();
+
+      return foundData;
+     }
+
+    if (new Branch(root.toInt()).nKeys() == 1)                                  // If the root is a branch and only has one key so we might be able to merge its children
+     {final Branch r = new Branch(root.toInt());
+      final Node   A = r.getNext(0);
+
+      if (A.isLeaf())
+       {final Leaf    a = new Leaf(A.index), b = new Leaf(r.getTopAsInt());
+        final boolean j = a.joinable(b);                                        // Can we merge the two leaves
+        if (j)                                                                  // Merge the two leaves
+         {a.join(b);
+          root.set(a.index);                                                    // New merged root
+         }
+       }
+      else                                                                      // Merge two branches under root
+       {final Branch  a = new Branch(A.index), b = new Branch(r.getTopAsInt());
+        final boolean j = a.joinable(b);                                        // Can we merge the two branches
+        if (j)                                                                  // Merge the two branches
+         {final Key k = r.getKey(0);
+          a.join(b, k);
+          root.set(a.index);                                                    // New merged root
+         }
+       }
+     }
+
+    Node P = new Node(root.toInt());                                            // We now know that the root is a branch
+
+    for    (int i = 0; i < 999; ++i)                                            // Step down through tree to find the required leaf, splitting as we go
+     {if (P.isLeaf()) break;                                                    // Stepped to a leaf
+      final Branch p = new Branch(P.index);
+      for(int j = 0; j < p.nKeys()-1; ++j)                                      // See if any pair under this node can be merged
+       {final Node A = p.getNext(j);
+        final Node B = p.getNext(j+1);
+        if (A instanceof Leaf)
+         {final Leaf a = (Leaf)A, b = (Leaf)B;
+          final boolean m = a.joinable(b);                                      // Can we merge the two leaves
+          if (m)                                                                // Merge the two leaves
+           {a.join(b);
+            p.removeKey(j);
+            p.removeNext(j+1);
+           }
+         }
+        else                                                                    // Merge two branches
+         {final Branch a = new Branch(A.index), b = new Branch(B.index);
+          final boolean m = a.joinable(b);                                      // Can we merge the two branches
+          if (m)                                                                // Merge the two branches
+           {final Key k = p.getKey(j); p.removeKey(j);
+            a.join(b, k);
+            p.removeNext(j+1);
+           }
+         }
+       }
+
+      if (!p.isEmpty())                                                         // Check last pair
+       {final Node A = p.lastNext();
+        if (A instanceof Leaf)
+         {final Leaf a = (Leaf)A, b = new Leaf(p.getTopAsInt());
+          final boolean j = a.joinable(b);                                // Can we merge the two leaves
+          if (j)                                                                // Merge the two leaves
+           {a.join(b);
+            p.popKey();
+            p.popNext();
+            p.setTop(a.index);
+           }
+         }
+        else                                                                    // Merge two branches
+         {final Branch a = new Branch(A.index), b = new Branch(p.getTopAsInt());
+          final boolean j = a.joinable(b);                                      // Can we merge the last two branches
+          if (j)                                                                // Merge the last two branches
+           {final Key k = p.popKey();
+            a.join(b, k);
+            p.popNext();
+            p.setTop(a.index);
+           }
+         }
+       }
+      P = new Node(p.findFirstGreaterOrEqual(keyName).toInt());                 // Find key position in branch
+     }
+    keyDataStored.dec();                                                        // Remove one entry  - we are on a leaf andf the entry is known to exist
+
+    final Leaf l = new Leaf(P.index);                                           // We know we are at the leaf
+    final int  F = l.findIndexOfKey(keyName);                                   // Key is known to be present
+    l.removeKey(F);
+    l.removeData(F);
+
+    return foundData;
+   } // delete
 
 //D1 Print                                                                      // Print a tree
 
