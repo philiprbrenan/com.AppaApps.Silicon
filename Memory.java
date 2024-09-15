@@ -67,16 +67,16 @@ class Memory extends Chip                                                       
   int memorySize() {return width;}                                              // Size of the memory
 
   boolean get(int i)                                                            // Get a bit from memory
-   {final int w = memorySize(), a = at();
-    if (i > w) stop("Trying to read beyond end of memory",   i, w);
-    if (i < 0) stop("Trying to read before start of memory", i);
+   {final int w = bits.length, a = at();
+    if (a + i > w) stop("Trying to read beyond end of memory",   a, i, w);
+    if (a + i < 0) stop("Trying to read before start of memory", a, i);
     return bits[a + i];
    }
 
   void set(int i, boolean b)                                                    // Set a bit in memory
-   {final int w = memorySize(), a = at();
-    if (i > w) stop("Trying to write beyond end of memory",   i, w);
-    if (i < 0) stop("Trying to write before start of memory", i);
+   {final int w = bits.length, a = at();
+    if (a + i > w) stop("Trying to write beyond end of memory",   a, i, w);
+    if (a + i < 0) stop("Trying to write before start of memory", a, i);
     bits[a + i] = b;
    }
 
