@@ -369,7 +369,7 @@ class Mjaf extends Memory.Structure                                             
     final Leaf l = (Leaf)q;
     if (g != -1) l.dataValues.setElementAt(dataValue, g);                       // Key already present in leaf
     else if (l.leafIsFull()) return false;                                      // There's no room in the leaf so return false
-    l.putLeaf(keyName, dataValue);                                              // On a leaf that is not full so we can insert directly
+    else l.putLeaf(keyName, dataValue);                                         // On a leaf that is not full so we can insert directly
     return true;                                                                // Inserted directly
    }
 
@@ -791,6 +791,24 @@ class Mjaf extends Memory.Structure                                             
                     9            |
        3   5   7          11     |
 0,1,2,3 4,5 6,7 8,9  10,11  12,13|
+""");
+
+    if (true) test_insert_reverse(14, !true, """
+              6         10            |
+     2   4        8            12     |
+0,1,2 3,4 5,6  7,8 9,10   11,12  13,14|
+""");
+
+    if (true) test_insert_reverse(15, !true, """
+                7          11            |
+       3   5        9             13     |
+0,1,2,3 4,5 6,7  8,9 10,11   12,13  14,15|
+""");
+
+    if (true) test_insert_reverse(16, !true, """
+                  8            12            |
+     2   4   6         10             14     |
+0,1,2 3,4 5,6 7,8  9,10  11,12   13,14  15,16|
 """);
    }
 
@@ -1985,6 +2003,20 @@ class Mjaf extends Memory.Structure                                             
     //say(m.printHorizontally());
    }
 
+  static void test_put2()
+   {final int N = 8, M = 4;
+    Mjaf m = mjaf(N, N, M, N<<2);
+
+    for (int i = 0; i < 64; i++) m.put(m.key(i>>1), m.data(i));
+    //say(m.printHorizontally());
+    ok(m.printHorizontally(), """
+                7                        15                                                     |
+       3                  11                           19            23                         |
+   1       5        9            13             17            21            25     27           |
+0,1 2,3 4,5 6,7  8,9 10,11  12,13  14,15   16,17  18,19  20,21  22,23  24,25  26,27  28,29,30,31|
+""");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_create();
     test_leaf_split();
@@ -2000,11 +2032,11 @@ class Mjaf extends Memory.Structure                                             
     test_delete();
     test_delete_reverse();
     test_save();
+    test_put2();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_find();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
