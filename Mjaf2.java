@@ -322,7 +322,6 @@ static boolean debugPut = false;
       if (f <   1)         stop("First", f, "too small");
       final Memory t = getNext(f);                                              // Top node
       final Branch b = new Branch(node(t.toInt()));                             // Recycle a branch
-if (debugPut) say("AAAA", b);
 
       for (int i = 0; i < f; i++)                                               // Remove first keys from old node to new node
        {final Key    k = shiftKey();
@@ -620,19 +619,22 @@ if (debugPut) say("AAAA", b);
    }
 
 //D1 Search                                                                     // Find a key, data pair
-/*
+
   Data find(Key keyName)                                                        // Find a the data associated with a key
    {if (emptyTree()) return null;                                               // Empty tree
-    Node q = root;                                                              // Root of tree
-    for(int i = 0; i < 999 && q != null; ++i)                                   // Step down through tree up to some reasonable limit
-     {if (!(q instanceof Branch)) break;                                        // Stepped to a leaf
-      q = ((Branch)q).findFirstGreaterOrEqual(keyName);                         // Position of key
+    int qn = root.toInt();
+
+    for(int i = 0; i < 999 ; ++i)                                               // Step down through tree up to some reasonable limit
+     {if (isLeaf(qn)) break;                                                    // Stepped to a leaf
+      final Branch b = new Branch(qn);
+      qn = b.findFirstGreaterOrEqual(keyName).toInt();                          // Position of key
      }
 
-    final int f = q.findIndexOfKey(keyName);                                    // We have arrived at a leaf
-    return f == -1 ? null : data(((Leaf)q).dataValues.elementAt(f));            // Key not found or data associated with key in leaf
+    final Leaf l = new Leaf(qn);                                                // Reached a leaf
+    final int g = leafKeyNames.indexOf(keyName);                                // We have arrived at a leaf
+    return g == -1 ? null : l.getData(g);                                       // Key is not or is present in leaf
    }
-*/
+
   boolean findAndInsert(Key keyName, Data dataValue)                            // Find the leaf for a key and insert the indicated key, data pair into if possible, returning true if the insertion was possible else false.
    {if (emptyTree())                                                            // Empty tree so we can insert directly
      {final Leaf l = new Leaf();                                                // Create the root as a leaf
@@ -641,18 +643,14 @@ if (debugPut) say("AAAA", b);
       return true;                                                              // Successfully inserted
      }
 
-    Memory q = root.memory();                                                   // Root of tree
-    int   qn = q.toInt();
-    for(int i = 0; i < 999 && q != null; ++i)                                   // Step down through tree up to some reasonable limit
-     {if (isLeaf(q)) break;                                                     // Stepped to a leaf
+    int   qn = root.toInt();
+    for(int i = 0; i < 999 ; ++i)                                               // Step down through tree up to some reasonable limit
+     {if (isLeaf(qn)) break;                                                    // Stepped to a leaf
       final Branch b = new Branch(qn);
-      nodes.setIndex(b.index);
-      q = b.findFirstGreaterOrEqual(keyName);                                   // Position of key
-      qn = q.toInt();
+      qn = b.findFirstGreaterOrEqual(keyName).toInt();                          // Position of key
      }
 
     final Leaf l = new Leaf(qn);                                                // Reached a leaf
-    nodes.setIndex(l.index);
     final int g = leafKeyNames.indexOf(keyName);                                // We have arrived at a leaf
     if (g != -1) dataValues.setElementAt(dataValue, g);                         // Key already present in leaf
     else if (l.isFull()) return false;                                          // There's no room in the leaf so return false
@@ -681,8 +679,6 @@ if (debugPut) say("AAAA", b);
      }
     else new Branch(root.toInt()).splitRoot();                                  // Split full root which is a branch not a leaf
 
-if (debugPut) say("ssss", keyName.toInt());
-if (debugPut) say(Mjaf2.this.printHorizontally());
     Branch p = new Branch(root.toInt());                                        // The root has already been split so the parent child relationship will be established
     int    q = p.index;
 
@@ -692,24 +688,14 @@ if (debugPut) say(Mjaf2.this.printHorizontally());
 
       if (bq.isFull())                                                          // Split the branch because it is full and we might need to insert below it requiring a slot in this node
        {final Key    k = bq.splitKey();                                         // Splitting key
-if (debugPut) say("kkkk", k);
-if (debugPut) say("pppp", p);
-if (debugPut) say("BBBB", bq);
         final Branch l = bq.split();                                            // New lower node
-if (debugPut) say("pppp", p);
-if (debugPut) say("BBBB", bq);
-if (debugPut) say("llll", l);
-if (debugPut) say(Mjaf2.this.printHorizontally());
         p.put(k, node(l.index));                                                // Place splitting key in parent
         final Branch br = new Branch(root.toInt());
         br.splitRoot();                                                         // Root might need to be split to re-establish the invariants at start of loop
-        if (keyName.lessThanOrEqual(k))                                         // Position on lower node if search key is less than splitting key
-         {q = l.index;
-if (debugPut) say("MMMM", l.index);
-         }
+        if (keyName.lessThanOrEqual(k)) q = l.index;                            // Position on lower node if search key is less than splitting key
        }
 
-      p = bq;                                                                   // Step parent down
+      p = new Branch(q);                                                        // Step parent down
       q = p.findFirstGreaterOrEqual(keyName).toInt();                           // The node does not need splitting
      }
 
@@ -1094,6 +1080,11 @@ if (debugPut) say("MMMM", l.index);
    1       5        9            13             17            21            25     27           |
 0,1 2,3 4,5 6,7  8,9 10,11  12,13  14,15   16,17  18,19  20,21  22,23  24,25  26,27  28,29,30,31|
 """);
+     ok(m.find(m.new Key( 9)).toInt() == 19);
+     ok(m.find(m.new Key(10)).toInt() == 21);
+     ok(m.find(m.new Key(32))         == null);
+        m.put (m.new Key( 9), m.new Data(18));
+     ok(m.find(m.new Key( 9)).toInt() == 18);
    }
 
   static void test_put_reverse()
@@ -1102,15 +1093,17 @@ if (debugPut) say("MMMM", l.index);
 
     for (int i = 15; i > 0; --i)
      {debugPut = i == 1;
-      m.put(m.new Key(i), m.new Data(i));
+      m.put(m.new Key(i), m.new Data(i<<1));
      }
-    stop(m.printHorizontally());
+    //say(m.printHorizontally());
     ok(m.printHorizontally(), """
-                                              16                                   24                             |
-               8             12                                  20                                 28            |
-       3   5          10              14                  18               22                26            30     |
-0,1,2,3 4,5 7,8 1,9,10  11,12  6,13,14  15,16   6,10,17,18  19,20  14,21,22  23,24   18,25,26  27,28  29,30  31,32|
+              7          11            |
+     3   5        9             13     |
+1,2,3 4,5 6,7  8,9 10,11   12,13  14,15|
 """);
+     ok(m.find(m.new Key( 9)).toInt() == 18);
+     ok(m.find(m.new Key(15)).toInt() == 30);
+     ok(m.find(m.new Key(0))          == null);
    }
 
   static void test_root()
