@@ -47,8 +47,6 @@ class Mjaf2 extends Memory.Structure                                            
   final Memory.Structure node;                                                  // Node of the tree
   final Memory.Array     nodes;                                                 // Array of nodes comprising tree
 
-static boolean debugPut = false;
-
 //D1 Construction                                                               // Create a Btree from nodes which can be branches or leaves.  The data associated with the Btree is stored only in the leaves opposite the keys
 
   Mjaf2(int BitsPerKey, int BitsPerData, int MaxKeysPerLeaf, int size)          // Define a Btree with a specified maximum number of keys per leaf.
@@ -97,8 +95,7 @@ static boolean debugPut = false;
    {return new Mjaf2(Key, Data, MaxKeysPerLeaf, size);
    }
 
-  int size() {return keyDataStored.toInt();}                                    // Number of entries in the tree
-
+  int     size     () {return keyDataStored.toInt();}                           // Number of entries in the tree
   boolean emptyTree() {return root.isNull();}                                   // Test for an empty tree
 
   public String toString()                                                      // Convert tree to string
@@ -174,27 +171,28 @@ static boolean debugPut = false;
     return isLeaf.get(0);
    }
 
-//D1 Branch                                                                     // Methods applicable to a branch
+//D1 Node                                                                       // A branch or a leaf
 
-  Memory node(int i)                                                            // Create memory representing a node index for testing purposes
-   {final Memory.Variable next = Memory.variable("next", bitsPerNext);
-    next.layout();
-    next.set(i);
-    return next.memory();
+  class Node                                                                    // A node contains a leaf or a branch
+   {final int index;                                                            // The index of the node in the memory layout
+    Node(int Index)                {index = Index;}                             // Node from an index - useful in testing
+    Node(Branch branch)            {index = branch.index;}                      // Node from a branch
+    Node(Leaf   leaf)              {index = leaf.index;}                        // Node from a leaf
+    Node(Memory memory)            {index = memory.toInt();}                    // Node from memory
+    Node(Memory.Variable variable) {index = variable.toInt();}                  // Node from variable
+    Memory node() {return memoryFromInt(bitsPerNext, index);}                   // Create memory representing a node index
    }
 
-  class Branch                                                                  // Describe a branch
-   {final int index;
+//D1 Branch                                                                     // Methods applicable to a branch
 
-    Branch(int Index)                                                           // Create a branch with a specified index
-     {index = Index;                                                            // Index of next free node
-     }
+  class Branch extends Node                                                     // Describe a branch
+   {Branch(int Index) {super(Index);}                                           // Address the branch at the specified index in the memory layout
 
-    Branch(Memory top)                                                          // Create a branch with a specified top node
+    Branch(Node top)                                                            // Create a branch with a specified top node
      {this(nodesFree.pop().toInt());                                            // Index of next free node
       clear();                                                                  // Clear the branch
       nodes.setIndex(index); isBranch.set(1);                                   // Mark as a branch
-      topNode.set(top);
+      topNode.set(top.node());
      }
 
     void free()                                                                 // Free a branch
@@ -215,11 +213,6 @@ static boolean debugPut = false;
       return branchKeyNames.isFull();
      }
 
-//    boolean isBranch()                                                          // Node is a branch
-//     {nodes.setIndex(index);
-//      return isBranch.toInt() > 0;
-//     }
-
     int nKeys  () {nodes.setIndex(index); return branchKeyNames.stuckSize();}   // Number of keys in a branch
     int nLevels() {nodes.setIndex(index); return nextLevel     .stuckSize();}   // Number of next levels but not including the top node
 
@@ -233,9 +226,9 @@ static boolean debugPut = false;
       branchKeyNames.push(memory);
      }
 
-    void pushNext(Memory memory)                                                // Push a next level into a branch
+    void pushNext(Node node)                                                    // Push a next level into a branch
      {nodes.setIndex(index);
-      nextLevel.push(memory);
+      nextLevel.push(node.node());
      }
 
     Key shiftKey()                                                              // Shift a key into a branch
@@ -243,9 +236,9 @@ static boolean debugPut = false;
       return new Key(branchKeyNames.shift());
      }
 
-    Memory shiftNext()                                                          // Shift index of next node
+    Node shiftNext()                                                            // Shift index of next node
      {nodes.setIndex(index);
-      return nextLevel.shift();
+      return new Node(nextLevel.shift());
      }
 
     void insertKey(Key key, int i)                                              // Insert a key into a branch
@@ -253,9 +246,9 @@ static boolean debugPut = false;
       branchKeyNames.insertElementAt(key, i);
      }
 
-    void insertNext(Memory next, int i)                                         // Insert index of next level node
+    void insertNext(Node node, int i)                                           // Insert index of next level node
      {nodes.setIndex(index);
-      nextLevel.insertElementAt(next, i);
+      nextLevel.insertElementAt(node.node(), i);
      }
 
     Key getKey(int i)                                                           // Get the indexed key
@@ -290,20 +283,20 @@ static boolean debugPut = false;
       return branch.memory();
      }
 
-    void put(Key keyName, Memory nextLevel)                                     // Put a key / next node index value pair into a branch
+    void put(Key keyName, Node node)                                            // Put a key / next node index value pair into a branch
      {final int K = nKeys();                                                    // Number of keys currently in node
       for (int i = 0; i < K; i++)                                               // Search existing keys for a greater key
-       {final Memory k = branchKeyNames.elementAt(i);                           // Current key
+       {final Memory  k = branchKeyNames.elementAt(i);                          // Current key
         final boolean l = keyName.lessThanOrEqual(k);                           // Insert new key in order
         if (l)                                                                  // Insert new key in order
-         {insertKey (keyName,   i);                                             // Insert key
-          insertNext(nextLevel, i);                                             // Insert data
+         {insertKey (keyName,     i);                                           // Insert key
+          insertNext(node, i);                                                  // Insert data
           keyDataStored.inc();                                                  // Created a new entry in the branch
           return;
          }
        }
       pushKey (keyName);                                                        // Either the branch is empty or the new key is greater than every existing key
-      pushNext(nextLevel);
+      pushNext(node);
       keyDataStored.inc();                                                      // Created a new entry in the branch
      }
 
@@ -311,8 +304,8 @@ static boolean debugPut = false;
      {if (isFull())
        {final Key    k = new Key(getKey(splitIdx));
         final Branch l = split();
-        final Branch b = new Branch(node(index));
-        b.put(k, node(l.index));
+        final Branch b = new Branch(new Node(index));
+        b.put(k, new Node(l));
         root.set(b.index);
        }
      }
@@ -323,11 +316,11 @@ static boolean debugPut = false;
       if (f < K-1) {} else stop("Split", f, "too big for branch of size:", K);
       if (f <   1)         stop("First", f, "too small");
       final Memory t = getNext(f);                                              // Top node
-      final Branch b = new Branch(node(t.toInt()));                             // Recycle a branch
+      final Branch b = new Branch(new Node(t.toInt()));                         // Recycle a branch
 
       for (int i = 0; i < f; i++)                                               // Remove first keys from old node to new node
-       {final Key    k = shiftKey();
-        final Memory n = shiftNext();
+       {final Key  k = shiftKey();
+        final Node n = shiftNext();
         b.put(k, n);
        }
       shiftKey();                                                               // Remove central key which is no longer required
@@ -350,13 +343,13 @@ static boolean debugPut = false;
 
       nodes.setIndex(index);
       pushKey(joinKeyName);                                                     // Key to separate joined branches
-      pushNext(topNode.memory());                                               // Push current top node
+      pushNext(new Node(topNode));                                              // Push current top node
       topNode.set(t);                                                           // New top node is the one from teh branch being joined
 
       for (int i = 0; i < J; i++)                                               // Add right hand branch
        {nodes.setIndex(Join.index);
-        final Key    k = new Key(branchKeyNames.elementAt(i));
-        final Memory n = nextLevel.elementAt(i);
+        final Key  k = new Key (branchKeyNames.elementAt(i));
+        final Node n = new Node(nextLevel.elementAt(i));
         nodes.setIndex(index);
         pushKey(k);                                                             // Push memory associated with key
         pushNext(n);
@@ -369,7 +362,7 @@ static boolean debugPut = false;
       final int N = nKeys();                                                    // Number of keys currently in node
       for (int i = 0; i < N; i++)                                               // Check each key
        {final Key k = new Key(branchKeyNames.elementAt(i));                     // Key
-        final boolean l = keyName.compareTo(k) <= 0;                           // Compare current key with search key
+        final boolean l = keyName.compareTo(k) <= 0;                            // Compare current key with search key
         if (l) return nextLevel.elementAt(i);                                   // Current key is greater than or equal to the search key
        }
       return topNode;
@@ -433,10 +426,8 @@ static boolean debugPut = false;
 
 //D1 Leaf                                                                       // Methods applicable to a leaf
 
-  class Leaf                                                                    // Describe a leaf
-   {final int index;
-
-    Leaf(int Index) {index = Index;}                                            // Address a leaf by index
+  class Leaf extends Node                                                       // Describe a leaf
+   {Leaf(int Index) {super(Index);}                                             // Address a leaf by index
 
     Leaf()                                                                      // Create a leaf
      {this(nodesFree.pop().toInt());                                            // Index of next free node
@@ -461,11 +452,6 @@ static boolean debugPut = false;
      {nodes.setIndex(index);
       return leafKeyNames.isFull();
      }
-
-//  boolean isLeaf()                                                            // Node is a leaf
-//   {nodes.setIndex(index);
-//    return isLeaf.toInt() > 0;
-//   }
 
     int nKeys() {nodes.setIndex(index); return leafKeyNames.stuckSize();}       // Number of keys in a leaf
     int nData() {nodes.setIndex(index); return dataValues  .stuckSize();}       // Number of data values in a leaf
@@ -640,7 +626,7 @@ static boolean debugPut = false;
   boolean findAndInsert(Key keyName, Data dataValue)                            // Find the leaf for a key and insert the indicated key, data pair into if possible, returning true if the insertion was possible else false.
    {if (emptyTree())                                                            // Empty tree so we can insert directly
      {final Leaf l = new Leaf();                                                // Create the root as a leaf
-      root.set(node(l.index));                                                  // Create the root as a leaf
+      root.set(new Node(l).node());                                             // Create the root as a leaf
       l.put(keyName, dataValue);                                                // Insert key, data pair in the leaf
       return true;                                                              // Successfully inserted
      }
@@ -671,8 +657,8 @@ static boolean debugPut = false;
       else                                                                      // Insert into root as a leaf which is full
        {final Leaf   l = lr.split();                                            // New left hand side of root
         final Key    k = l.splitKey();                                          // Splitting key
-        final Branch b = new Branch(node(lr.index));                            // New root with old root to right
-        b.put(k, node(l.index));                                                // Insert left hand node all of whose elements are less than the first element of what was the root
+        final Branch b = new Branch(new Node(lr.index));                        // New root with old root to right
+        b.put(k, new Node(l));                                                  // Insert left hand node all of whose elements are less than the first element of what was the root
         final Leaf f = keyName.lessThanOrEqual(k) ? l : lr;                     // Choose leaf
         f.put(keyName, dataValue);                                              // Place in leaf
         root.set(b.index);                                                      // The root now has just one entry in it - the splitting eky
@@ -691,7 +677,7 @@ static boolean debugPut = false;
       if (bq.isFull())                                                          // Split the branch because it is full and we might need to insert below it requiring a slot in this node
        {final Key    k = bq.splitKey();                                         // Splitting key
         final Branch l = bq.split();                                            // New lower node
-        p.put(k, node(l.index));                                                // Place splitting key in parent
+        p.put(k, new Node(l));                                                  // Place splitting key in parent
         final Branch br = new Branch(root.toInt());
         br.splitRoot();                                                         // Root might need to be split to re-establish the invariants at start of loop
         if (keyName.lessThanOrEqual(k)) q = l.index;                            // Position on lower node if search key is less than splitting key
@@ -708,7 +694,7 @@ static boolean debugPut = false;
     else if (l.isFull())                                                        // Split the node because it is full and we might need to insert below it requiring a slot in this node
      {final Key  k = l.splitKey();
       final Leaf e = l.split();
-      p.put(k, node(e.index));
+      p.put(k, new Node(e));
 
       if (keyName.lessThanOrEqual(k)) e.put(keyName, dataValue);                // Insert key in the appropriate split leaf
       else                            l.put(keyName, dataValue);
@@ -785,7 +771,7 @@ static boolean debugPut = false;
   static void test_create_branch()
    {final int N = 2, M = 4;
     Mjaf2 m = mjaf(N, N, M, N);
-    final Branch b = m.new Branch(m.node(N+1));
+    final Branch b = m.new Branch(m.new Node(N+1));
     ok( m.isBranch(b.index));
     ok(!m.isLeaf  (b.index));
 
@@ -795,7 +781,7 @@ static boolean debugPut = false;
     ok( b.isEmpty());
     ok(!b.isFull ());
     ok(m.isBranch(b.index));
-    for (int i = 0; i < M-1; i++) b.put(m.key(i), m.node(i));
+    for (int i = 0; i < M-1; i++) b.put(m.key(i), m.new Node(i));
     ok(!b.isEmpty());
     ok( b.isFull ());
     b.ok("Branch_1(0:0, 1:1, 2:2, 3)");
@@ -812,12 +798,9 @@ static boolean debugPut = false;
   static void test_put_branch()
    {final int N = 4, M = 4;
     Mjaf2 m = mjaf(N, N, M, N);
-    Memory.Variable next = Memory.variable("next", M+1);
-    next.layout();
-    next.set(M);
-    Branch b = m.new Branch(next.memory());
+    Branch b = m.new Branch(m.new Node(M));
 
-    for (int i = 0; i < 3; i++) b.put(m.key(3-i), m.node(2*i));
+    for (int i = 0; i < 3; i++) b.put(m.key(3-i), m.new Node(2*i));
 
     ok(b.getKeyAsInt(0), 1);  ok(b.getNextAsInt(0), 4);
     ok(b.getKeyAsInt(1), 2);  ok(b.getNextAsInt(1), 2);
@@ -827,11 +810,11 @@ static boolean debugPut = false;
   static void test_join_branch()
    {final int N = 4, M = 4;
     Mjaf2 m = mjaf(N, N, M, N);
-    Branch j = m.new Branch(m.node(11));
-    Branch k = m.new Branch(m.node(13));
-    Branch l = m.new Branch(m.node(15));
-    j.put(m.key(1), m.node(8)); ok( k.joinable(j));
-    k.put(m.key(3), m.node(4)); ok( k.joinable(j));
+    Branch j = m.new Branch(m.new Node(11));
+    Branch k = m.new Branch(m.new Node(13));
+    Branch l = m.new Branch(m.new Node(15));
+    j.put(m.key(1), m.new Node(8)); ok( k.joinable(j));
+    k.put(m.key(3), m.new Node(4)); ok( k.joinable(j));
 
     k.ok("Branch_2(3:4, 13)");
     j.ok("Branch_3(1:8, 11)");
@@ -1094,8 +1077,7 @@ static boolean debugPut = false;
     Mjaf2 m = mjaf(N, N, M, 4*N);
 
     for (int i = 15; i > 0; --i)
-     {debugPut = i == 1;
-      m.put(m.key(i), m.data(i<<1));
+     {m.put(m.key(i), m.data(i<<1));
      }
     //say(m.printHorizontally());
     ok(m.printHorizontally(), """
@@ -1112,7 +1094,7 @@ static boolean debugPut = false;
    {final int N = 4, M = 4;
     Mjaf2  m = mjaf(N, N, M, N);
     Leaf   l = m.new Leaf();
-    Branch b = m.new Branch(m.node(1));
+    Branch b = m.new Branch(m.new Node(1));
     m.root.set(l.index); ok(m.rootIsLeaf());
     m.root.set(b.index); ok(m.rootIsBranch());
    }
