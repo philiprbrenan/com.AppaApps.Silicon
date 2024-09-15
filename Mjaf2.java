@@ -1115,6 +1115,28 @@ static boolean debugPut = false;
     m.root.set(b.index); ok(m.rootIsBranch());
    }
 
+  static int[]random_array()                                                    // Random array
+   {final int[]r = {27, 442, 545, 317, 511, 578, 391, 993, 858, 586, 472, 906, 658, 704, 882, 246, 261, 501, 354, 903, 854, 279, 526, 686, 987, 403, 401, 989, 650, 576, 436, 560, 806, 554, 422, 298, 425, 912, 503, 611, 135, 447, 344, 338, 39, 804, 976, 186, 234, 106, 667, 494, 690, 480, 288, 151, 773, 769, 260, 809, 438, 237, 516, 29, 376, 72, 946, 103, 961, 55, 358, 232, 229, 90, 155, 657, 681, 43, 907, 564, 377, 615, 612, 157, 922, 272, 490, 679, 830, 839, 437, 826, 577, 937, 884, 13, 96, 273, 1, 188};
+    return r;
+   }
+
+  static void test_put_random()
+   {final int[] r = random_array();
+    final Mjaf2 m = mjaf(12, 12, 4, r.length);
+    for (int i = 0; i < r.length; ++i) m.put(m.new Key(r[i]), m.new Data(i));
+    //stop(m.printHorizontally());
+    ok(m.printHorizontally(), """
+                                                                                                                                                                                                                                                511                                                                                                                                                                                                                     |
+                                                               186                                                               317                                                                                                                                                                                        658                                                                                                                                         |
+                                   103                                                     246                                                                               403                                   472                                                                    578                                                           704                                           858                         912                                   |
+       27     39        72                   135                                 234                 261           279                     344       358           391                 425               442                         501                      545       560                         611           650                         686                         806           830                         903                             961       987       |
+1,13,27  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298,317   338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
+""");
+    for (int i = 0; i < r.length; ++i) ok(m.find(m.new Key(r[i])), m.new Data(i));
+    ok(m.find(m.new Key(r.length+1)) == null);
+   }
+
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_create_branch();
     test_put_branch();
@@ -1130,7 +1152,7 @@ static boolean debugPut = false;
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_join_leaf();
+    test_put_random();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
