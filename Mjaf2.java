@@ -295,9 +295,14 @@ class Mjaf2 extends Memory.Structure                                            
 
     Node lastNext()                                                             // Last next element
      {nodes.setIndex(index);
-say("AAAA", index);
-say(Mjaf2.this.toString()) ;
-      return new Node(nextLevel.elementAt(nKeys()-1).toInt());
+say("CCCC", index);
+say(Mjaf2.this.toString());
+      final int n = nKeys();
+say("DDDD", n, toString());
+
+      final int l = nextLevel.elementAt(n-1).toInt();
+say("EEEE", l);
+      return new Node(l);
      }
 
     Memory getTop()                                                             // Get the top bode as an integer
@@ -775,8 +780,8 @@ say(Mjaf2.this.toString()) ;
       for(int j = 0; j < p.nKeys()-1; ++j)                                      // See if any pair under this node can be merged
        {final Node A = p.getNext(j);
         final Node B = p.getNext(j+1);
-        if (A instanceof Leaf)
-         {final Leaf a = (Leaf)A, b = (Leaf)B;
+        if (A.isLeaf())                                                         // Both nodes are leaves
+         {final Leaf a = new Leaf(A.index), b = new Leaf(B.index);
           final boolean m = a.joinable(b);                                      // Can we merge the two leaves
           if (m)                                                                // Merge the two leaves
            {a.join(b);
@@ -795,6 +800,9 @@ say(Mjaf2.this.toString()) ;
          }
        }
 
+say("BBBB", Mjaf2.this.toString());
+say("BBBB", p.index);
+say("BBBB", p);
       if (!p.isEmpty())                                                         // Check last pair
        {final Node A = p.lastNext();
         if (A instanceof Leaf)
@@ -1254,18 +1262,16 @@ say(Mjaf2.this.toString()) ;
     Mjaf2 m = mjaf(N, N, M, 4*N);
 
     for (int i = 0; i < count; i++) m.put(m.key(i+1), m.data(2*(i+1)));
-    test_delete_two(m, Print, delete, e, d);
+    test_delete_two(m, Print, delete, d);
     return m;
    }
 
-  static void test_delete_two(Mjaf2 m, int Print, int delete, String e, String d)
+  static void test_delete_two(Mjaf2 m, int Print, int delete, String d)
    {final int N = 8, M = 4;
     final boolean print = Print > 0;
 
-    ok(m.printHorizontally(), e);
-if (print) say("AAAA\n", m.printHorizontally());
     m.delete(m.key(delete));
-if (print) say("BBBB\n", m.printHorizontally());
+if (print) say("  AAAAA\n", m.printHorizontally());
     ok(m.printHorizontally(), d);
    }
 
@@ -1315,11 +1321,23 @@ if (print) say("BBBB\n", m.printHorizontally());
   2     |
 2  3,4,5|
 """);
-    test_delete_two(m, 1, 2, """
-  2     |
-2  3,4,5|
-""", """
+    test_delete_two(m, 0, 2, """
 [3,4,5]
+""");
+    m = test_delete_one(0, 7, 5, """
+    2    4     |
+1,2  3,4  5,6,7|
+""", """
+    2    4   |
+1,2  3,4  6,7|
+""");
+    test_delete_two(m, 0, 2, """
+  2    4   |
+1  3,4  6,7|
+""");
+    test_delete_two(m, 0, 3, """
+  2    4   |
+1  3,4  6,7|
 """);
    }
 
