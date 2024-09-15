@@ -178,14 +178,16 @@ class Stuck extends Memory.Structure                                            
 
 //D1 Print                                                                      // Print a stuck stack
 
-  public String toString()                                                      // Print a stuck stack
-   {final StringBuilder b = new StringBuilder("Stuck(");
+  String print(String Name, String End)                                         // Print a stuck stack
+   {final StringBuilder b = new StringBuilder(Name);
     final int N = stuckSize();
     for (int i = 0; i < N; i++) b.append(""+elementAt(i).toInt()+", ");
     if (N > 0) b.setLength(b.length()-2);
-    b.append(")");
+    b.append(End);
     return b.toString();
    }
+
+  public String toString() {return print("Stuck(", ")");}                       // Print a stuck stack with label
 
 //D0 Tests                                                                      // Test stuck stack
 
@@ -293,6 +295,8 @@ class Stuck extends Memory.Structure                                            
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
     s.set("01100011001000011111");
+    s.ok("Stuck(1, 2, 3, 6)");
+    ok(s.print("[","]"), "[1, 2, 3, 6]");
    }
 
   static void test_set_element_at()
@@ -325,7 +329,7 @@ class Stuck extends Memory.Structure                                            
 
   static void newTests()                                                        // Tests being worked on
    {//oldTests();
-    test_shift();
+    test_print();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
