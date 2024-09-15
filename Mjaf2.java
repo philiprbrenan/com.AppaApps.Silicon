@@ -46,6 +46,7 @@ class Mjaf2 extends Memory.Structure                                            
   final Memory.Variable  isLeaf;                                                // The node is a leaf if true
   final Memory.Structure node;                                                  // Node of the tree
   final Memory.Array     nodes;                                                 // Array of nodes comprising tree
+static boolean debugPut = false;
 
 //D1 Construction                                                               // Create a Btree from nodes which can be branches or leaves.  The data associated with the Btree is stored only in the leaves opposite the keys
 
@@ -283,25 +284,20 @@ class Mjaf2 extends Memory.Structure                                            
       return branchKeyNames.indexOf(key);
      }
 
-    void removeKey(int i)                                                       // Remove the indicated key
+    void removeKey(int i)                                                       // Remove the indicated key from the branch
      {nodes.setIndex(index);
-      nextLevel.removeElementAt(i);
+      branchKeyNames.removeElementAt(i);
      }
 
-    void removeNext(int i)                                                      // Remove the indicated key
+    void removeNext(int i)                                                      // Remove the indicated next level from the branch
      {nodes.setIndex(index);
       nextLevel.removeElementAt(i);
      }
 
     Node lastNext()                                                             // Last next element
      {nodes.setIndex(index);
-say("CCCC", index);
-say(Mjaf2.this.toString());
       final int n = nKeys();
-say("DDDD", n, toString());
-
       final int l = nextLevel.elementAt(n-1).toInt();
-say("EEEE", l);
       return new Node(l);
      }
 
@@ -368,12 +364,12 @@ say("EEEE", l);
      }
 
     boolean joinable(Branch a)                                                  // Check that we can join two leaves
-     {return nKeys() + a.nKeys() <= maxKeysPerBranch;
+     {return nKeys() + a.nKeys() + 1 <= maxKeysPerBranch;
      }
 
     void join(Branch Join, Key joinKeyName)                                     // Append the second branch to the first one adding the specified key
      {final int K = nKeys(), J = Join.nKeys();                                  // Number of keys currently in node
-      if (K + 1 + J > maxKeysPerBranch) stop("Join of branch has too many keys",
+      if (K + 1 + J > maxKeysPerLeaf) stop("Join of branch has too many keys",
           K,"+1+",J, "greater than", maxKeysPerBranch);
 
 
@@ -438,13 +434,13 @@ say("EEEE", l);
          {final Branch b = new Branch(n);
           b.printHorizontally(S, level+1, debug);
           padStrings(S, level);
-          S.elementAt(level).append(getKeyAsInt(i));
+          S.elementAt(level).append(""+getKeyAsInt(i)+" ");
          }
         else
          {final Leaf l = new Leaf(n);
           l.printHorizontally(S, level+1, debug);
           padStrings(S, level);
-          S.elementAt(level).append(getKeyAsInt(i));
+          S.elementAt(level).append(getKeyAsInt(i)+" ");
          }
        }
       if (new Node(getTopAsInt()).isBranch())
@@ -800,9 +796,6 @@ say("EEEE", l);
          }
        }
 
-say("BBBB", Mjaf2.this.toString());
-say("BBBB", p.index);
-say("BBBB", p);
       if (!p.isEmpty())                                                         // Check last pair
        {final Node A = p.lastNext();
         if (A instanceof Leaf)
@@ -1262,6 +1255,7 @@ say("BBBB", p);
     Mjaf2 m = mjaf(N, N, M, 4*N);
 
     for (int i = 0; i < count; i++) m.put(m.key(i+1), m.data(2*(i+1)));
+if (print) say("  AAAA\n", m.printHorizontally());
     test_delete_two(m, Print, delete, d);
     return m;
    }
@@ -1271,8 +1265,8 @@ say("BBBB", p);
     final boolean print = Print > 0;
 
     m.delete(m.key(delete));
-if (print) say("  AAAAA\n", m.printHorizontally());
-    ok(m.printHorizontally(), d);
+    if (print) say(m.printHorizontally(), d);
+                ok(m.printHorizontally(), d);
    }
 
   static void test_delete()
@@ -1328,16 +1322,64 @@ if (print) say("  AAAAA\n", m.printHorizontally());
     2    4     |
 1,2  3,4  5,6,7|
 """, """
-    2    4   |
-1,2  3,4  6,7|
+        4   |
+1,2,3,4  6,7|
 """);
     test_delete_two(m, 0, 2, """
-  2    4   |
-1  3,4  6,7|
+      4   |
+1,3,4  6,7|
 """);
     test_delete_two(m, 0, 3, """
-  2    4   |
-1  3,4  6,7|
+    4   |
+1,4  6,7|
+""");
+    test_delete_two(m, 0, 1, """
+[4,6,7]
+""");
+
+    m = test_delete_one(0, 31, 5, """
+                   8                             16                                                        |
+        4                       12                              20              24                         |
+   2         6          10              14              18              22              26      28         |
+1,2  3,4  5,6  7,8  9,10   11,12   13,14   15,16   17,18   19,20   21,22   23,24   25,26   27,28   29,30,31|
+""", """
+                                              16                                                        |
+               8                                             20              24                         |
+       4  6          10      12      14              18              22              26      28         |
+1,2,3,4  6  7,8  9,10   11,12   13,14   15,16   17,18   19,20   21,22   23,24   25,26   27,28   29,30,31|
+""");
+    test_delete_two(m, 0, 20, """
+                                              16                                                   |
+               8                                                        24                         |
+       4  6          10      12      14                 20      22              26      28         |
+1,2,3,4  6  7,8  9,10   11,12   13,14   15,16   17,18,19   21,22   23,24   25,26   27,28   29,30,31|
+""");
+    test_delete_two(m, 0, 21, """
+                8                             16                      24                        |
+       4  6          10      12      14                 20   22              26      28         |
+1,2,3,4  6  7,8  9,10   11,12   13,14   15,16   17,18,19   22   23,24   25,26   27,28   29,30,31|
+""");
+    test_delete_two(m, 0, 22, """
+                8                             16                 24                        |
+       4  6          10      12      14                 22              26      28         |
+1,2,3,4  6  7,8  9,10   11,12   13,14   15,16   17,18,19   23,24   25,26   27,28   29,30,31|
+""");
+    test_delete_two(m, 0, 23, """
+                8                             16              24                        |
+       4  6          10      12      14                 22           26      28         |
+1,2,3,4  6  7,8  9,10   11,12   13,14   15,16   17,18,19   24   25,26   27,28   29,30,31|
+""");
+
+    test_delete_two(m, 0, 24, """
+                8                             16            24                        |
+       4  6          10      12      14                 22         26      28         |
+1,2,3,4  6  7,8  9,10   11,12   13,14   15,16   17,18,19      25,26   27,28   29,30,31|
+""");
+
+    test_delete_two(m, 0, 6, """
+               8                             16            24                        |
+       4 6          10      12      14                 22         26      28         |
+1,2,3,4    7,8  9,10   11,12   13,14   15,16   17,18,19      25,26   27,28   29,30,31|
 """);
    }
 
