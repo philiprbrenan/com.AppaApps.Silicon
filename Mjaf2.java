@@ -138,6 +138,7 @@ static boolean debugPut = false;
      {super(memoryFromInt(bitsPerKey, n));
      }
    }
+  Key key(int n) {return new Key(n);}
 
   class Data extends Memory                                                     // Memory for a data value
    {Data() {super(bitsPerData);}
@@ -148,6 +149,7 @@ static boolean debugPut = false;
      {super(memoryFromInt(bitsPerData, n));
      }
    }
+  Data data(int n) {return new Data(n);}
 
   boolean isBranch(Memory index) {return isBranch(index.toInt());}              // Test whether the memory represents a branch
   boolean isLeaf  (Memory index) {return isLeaf  (index.toInt());}              // Test whether the memory represents a leaf
@@ -793,7 +795,7 @@ static boolean debugPut = false;
     ok( b.isEmpty());
     ok(!b.isFull ());
     ok(m.isBranch(b.index));
-    for (int i = 0; i < M-1; i++) b.put(m.new Key(i), m.node(i));
+    for (int i = 0; i < M-1; i++) b.put(m.key(i), m.node(i));
     ok(!b.isEmpty());
     ok( b.isFull ());
     b.ok("Branch_1(0:0, 1:1, 2:2, 3)");
@@ -815,7 +817,7 @@ static boolean debugPut = false;
     next.set(M);
     Branch b = m.new Branch(next.memory());
 
-    for (int i = 0; i < 3; i++) b.put(m.new Key(3-i), m.node(2*i));
+    for (int i = 0; i < 3; i++) b.put(m.key(3-i), m.node(2*i));
 
     ok(b.getKeyAsInt(0), 1);  ok(b.getNextAsInt(0), 4);
     ok(b.getKeyAsInt(1), 2);  ok(b.getNextAsInt(1), 2);
@@ -828,14 +830,14 @@ static boolean debugPut = false;
     Branch j = m.new Branch(m.node(11));
     Branch k = m.new Branch(m.node(13));
     Branch l = m.new Branch(m.node(15));
-    j.put(m.new Key(1), m.node(8)); ok( k.joinable(j));
-    k.put(m.new Key(3), m.node(4)); ok( k.joinable(j));
+    j.put(m.key(1), m.node(8)); ok( k.joinable(j));
+    k.put(m.key(3), m.node(4)); ok( k.joinable(j));
 
     k.ok("Branch_2(3:4, 13)");
     j.ok("Branch_3(1:8, 11)");
     ok(k.nKeys(), 1);
     ok(j.nKeys(), 1);
-    j.join(k, m.new Key(2));
+    j.join(k, m.key(2));
     j.ok("Branch_3(1:8, 2:11, 3:4, 13)");
     ok(m.nodesFree.stuckSize(), 2);
    }
@@ -854,7 +856,7 @@ static boolean debugPut = false;
     ok( m.isLeaf(l.index));
     for (int i = 0; i < M; i++)
      {key.set(i);
-      l.put(m.new Key(key.memory()), m.new Data(key.memory()));
+      l.put(m. new Key(key.memory()), m.new Data(key.memory()));
      }
     ok(!l.isEmpty());
     ok( l.isFull ());
@@ -871,10 +873,10 @@ static boolean debugPut = false;
    {final int N = 4, M = 4;
     Mjaf2 m = mjaf(N, N, M, N);
     Leaf l = m.new Leaf();
-    l.put(m.new Key(4), m.new Data(8));
-    l.put(m.new Key(3), m.new Data(6));
-    l.put(m.new Key(2), m.new Data(4));
-    l.put(m.new Key(1), m.new Data(2));
+    l.put(m.key(4), m.data(8));
+    l.put(m.key(3), m.data(6));
+    l.put(m.key(2), m.data(4));
+    l.put(m.key(1), m.data(2));
     for (int i = 1; i <= 4; i++)
      {ok(l.getKeyAsInt (i-1), i);
       ok(l.getDataAsInt(i-1), 2*i);
@@ -887,14 +889,14 @@ static boolean debugPut = false;
     Leaf j = m.new Leaf();
     Leaf k = m.new Leaf();
     Leaf l = m.new Leaf();
-    j.put(m.new Key(1), m.new Data(8)); ok( k.joinable(j));
-    j.put(m.new Key(2), m.new Data(6)); ok( k.joinable(j));
-    k.put(m.new Key(3), m.new Data(4)); ok( k.joinable(j));
-    k.put(m.new Key(4), m.new Data(2)); ok( k.joinable(j));
-    l.put(m.new Key(4), m.new Data(8)); ok( k.joinable(l));
-    l.put(m.new Key(3), m.new Data(6)); ok( k.joinable(l));
-    l.put(m.new Key(2), m.new Data(4)); ok(!k.joinable(l));
-    l.put(m.new Key(1), m.new Data(2)); ok(!k.joinable(l));
+    j.put(m.key(1), m.data(8)); ok( k.joinable(j));
+    j.put(m.key(2), m.data(6)); ok( k.joinable(j));
+    k.put(m.key(3), m.data(4)); ok( k.joinable(j));
+    k.put(m.key(4), m.data(2)); ok( k.joinable(j));
+    l.put(m.key(4), m.data(8)); ok( k.joinable(l));
+    l.put(m.key(3), m.data(6)); ok( k.joinable(l));
+    l.put(m.key(2), m.data(4)); ok(!k.joinable(l));
+    l.put(m.key(1), m.data(2)); ok(!k.joinable(l));
 
     k.ok("Leaf_2(3:4, 4:2)");
     j.ok("Leaf_3(1:8, 2:6)");
@@ -908,65 +910,65 @@ static boolean debugPut = false;
    {final int N = 8, M = 4;
     Mjaf2 m = mjaf(N, N, M, 4*N);
 
-    m.put(m.new Key(1), m.new Data(2));
+    m.put(m.key(1), m.data(2));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), "[1]\n");
 
-    m.put(m.new Key(2), m.new Data(4));
+    m.put(m.key(2), m.data(4));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), "[1,2]\n");
 
-    m.put(m.new Key(3), m.new Data(6));
+    m.put(m.key(3), m.data(6));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), "[1,2,3]\n");
 
-    m.put(m.new Key(4), m.new Data(8));
+    m.put(m.key(4), m.data(8));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), "[1,2,3,4]\n");
 
-    m.put(m.new Key(5), m.new Data(10));
+    m.put(m.key(5), m.data(10));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
     2     |
 1,2  3,4,5|
 """);
 
-    m.put(m.new Key(6), m.new Data(12));
+    m.put(m.key(6), m.data(12));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
     2       |
 1,2  3,4,5,6|
 """);
 
-    m.put(m.new Key(7), m.new Data(14));
+    m.put(m.key(7), m.data(14));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
     2    4     |
 1,2  3,4  5,6,7|
 """);
 
-    m.put(m.new Key(8), m.new Data(16));
+    m.put(m.key(8), m.data(16));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
     2    4       |
 1,2  3,4  5,6,7,8|
 """);
 
-    m.put(m.new Key(9), m.new Data(18));
+    m.put(m.key(9), m.data(18));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
     2    4    6     |
 1,2  3,4  5,6  7,8,9|
 """);
 
-    m.put(m.new Key(10), m.new Data(20));
+    m.put(m.key(10), m.data(20));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
     2    4    6        |
 1,2  3,4  5,6  7,8,9,10|
 """);
 
-    m.put(m.new Key(11), m.new Data(22));
+    m.put(m.key(11), m.data(22));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
         4               |
@@ -974,7 +976,7 @@ static boolean debugPut = false;
 1,2 3,4  5,6 7,8 9,10,11|
 """);
 
-    m.put(m.new Key(12), m.new Data(24));
+    m.put(m.key(12), m.data(24));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
         4                  |
@@ -982,7 +984,7 @@ static boolean debugPut = false;
 1,2 3,4  5,6 7,8 9,10,11,12|
 """);
 
-    m.put(m.new Key(13), m.new Data(26));
+    m.put(m.key(13), m.data(26));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
         4                      |
@@ -990,7 +992,7 @@ static boolean debugPut = false;
 1,2 3,4  5,6 7,8 9,10  11,12,13|
 """);
 
-    m.put(m.new Key(14), m.new Data(28));
+    m.put(m.key(14), m.data(28));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
         4                         |
@@ -998,7 +1000,7 @@ static boolean debugPut = false;
 1,2 3,4  5,6 7,8 9,10  11,12,13,14|
 """);
 
-    m.put(m.new Key(15), m.new Data(30));
+    m.put(m.key(15), m.data(30));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
         4        8                     |
@@ -1006,7 +1008,7 @@ static boolean debugPut = false;
 1,2 3,4  5,6 7,8  9,10  11,12  13,14,15|
 """);
 
-    m.put(m.new Key(16), m.new Data(32));
+    m.put(m.key(16), m.data(32));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
         4        8                        |
@@ -1014,7 +1016,7 @@ static boolean debugPut = false;
 1,2 3,4  5,6 7,8  9,10  11,12  13,14,15,16|
 """);
 
-    m.put(m.new Key(17), m.new Data(34));
+    m.put(m.key(17), m.data(34));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
         4        8                            |
@@ -1022,7 +1024,7 @@ static boolean debugPut = false;
 1,2 3,4  5,6 7,8  9,10  11,12  13,14  15,16,17|
 """);
 
-    m.put(m.new Key(18), m.new Data(36));
+    m.put(m.key(18), m.data(36));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
         4        8                               |
@@ -1030,7 +1032,7 @@ static boolean debugPut = false;
 1,2 3,4  5,6 7,8  9,10  11,12  13,14  15,16,17,18|
 """);
 
-    m.put(m.new Key(19), m.new Data(38));
+    m.put(m.key(19), m.data(38));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
                 8                                   |
@@ -1039,7 +1041,7 @@ static boolean debugPut = false;
 1,2 3,4 5,6 7,8  9,10  11,12  13,14  15,16  17,18,19|
 """);
 
-    m.put(m.new Key(20), m.new Data(40));
+    m.put(m.key(20), m.data(40));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
                 8                                      |
@@ -1048,7 +1050,7 @@ static boolean debugPut = false;
 1,2 3,4 5,6 7,8  9,10  11,12  13,14  15,16  17,18,19,20|
 """);
 
-    m.put(m.new Key(21), m.new Data(42));
+    m.put(m.key(21), m.data(42));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
                 8                                          |
@@ -1057,7 +1059,7 @@ static boolean debugPut = false;
 1,2 3,4 5,6 7,8  9,10  11,12  13,14  15,16  17,18  19,20,21|
 """);
 
-    for (int i = 22; i < 32; i++) m.put(m.new Key(i), m.new Data(i<<2));
+    for (int i = 22; i < 32; i++) m.put(m.key(i), m.data(i<<2));
 
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
@@ -1072,7 +1074,7 @@ static boolean debugPut = false;
    {final int N = 8, M = 4;
     Mjaf2 m = mjaf(N, N, M, 4*N);
 
-    for (int i = 0; i < 64; i++) m.put(m.new Key(i>>1), m.new Data(i));
+    for (int i = 0; i < 64; i++) m.put(m.key(i>>1), m.data(i));
     //say(m.printHorizontally());
     ok(m.printHorizontally(), """
                 7                        15                                                     |
@@ -1080,11 +1082,11 @@ static boolean debugPut = false;
    1       5        9            13             17            21            25     27           |
 0,1 2,3 4,5 6,7  8,9 10,11  12,13  14,15   16,17  18,19  20,21  22,23  24,25  26,27  28,29,30,31|
 """);
-     ok(m.find(m.new Key( 9)).toInt() == 19);
-     ok(m.find(m.new Key(10)).toInt() == 21);
-     ok(m.find(m.new Key(32))         == null);
-        m.put (m.new Key( 9), m.new Data(18));
-     ok(m.find(m.new Key( 9)).toInt() == 18);
+     ok(m.find(m.key( 9)).toInt() == 19);
+     ok(m.find(m.key(10)).toInt() == 21);
+     ok(m.find(m.key(32))         == null);
+        m.put (m.key( 9), m.data(18));
+     ok(m.find(m.key( 9)).toInt() == 18);
    }
 
   static void test_put_reverse()
@@ -1093,7 +1095,7 @@ static boolean debugPut = false;
 
     for (int i = 15; i > 0; --i)
      {debugPut = i == 1;
-      m.put(m.new Key(i), m.new Data(i<<1));
+      m.put(m.key(i), m.data(i<<1));
      }
     //say(m.printHorizontally());
     ok(m.printHorizontally(), """
@@ -1101,9 +1103,9 @@ static boolean debugPut = false;
      3   5        9             13     |
 1,2,3 4,5 6,7  8,9 10,11   12,13  14,15|
 """);
-     ok(m.find(m.new Key( 9)).toInt() == 18);
-     ok(m.find(m.new Key(15)).toInt() == 30);
-     ok(m.find(m.new Key(0))          == null);
+     ok(m.find(m.key( 9)).toInt() == 18);
+     ok(m.find(m.key(15)).toInt() == 30);
+     ok(m.find(m.key(0))          == null);
    }
 
   static void test_root()
@@ -1123,7 +1125,7 @@ static boolean debugPut = false;
   static void test_put_random()
    {final int[] r = random_array();
     final Mjaf2 m = mjaf(12, 12, 4, r.length);
-    for (int i = 0; i < r.length; ++i) m.put(m.new Key(r[i]), m.new Data(i));
+    for (int i = 0; i < r.length; ++i) m.put(m.key(r[i]), m.data(i));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), """
                                                                                                                                                                                                                                                 511                                                                                                                                                                                                                     |
@@ -1132,10 +1134,9 @@ static boolean debugPut = false;
        27     39        72                   135                                 234                 261           279                     344       358           391                 425               442                         501                      545       560                         611           650                         686                         806           830                         903                             961       987       |
 1,13,27  29,39  43,55,72  90,96,103   106,135   151,155,157,186   188,229,232,234   237,246   260,261   272,273,279   288,298,317   338,344   354,358   376,377,391   401,403   422,425   436,437,438,442   447,472   480,490,494,501   503,511    516,526,545   554,560   564,576,577,578   586,611   612,615,650   657,658   667,679,681,686   690,704   769,773,804,806   809,826,830   839,854,858   882,884,903   906,907,912   922,937,946,961   976,987   989,993|
 """);
-    for (int i = 0; i < r.length; ++i) ok(m.find(m.new Key(r[i])), m.new Data(i));
-    ok(m.find(m.new Key(r.length+1)) == null);
+    for (int i = 0; i < r.length; ++i) ok(m.find(m.key(r[i])), m.data(i));
+    ok(m.find(m.key(r.length+1)) == null);
    }
-
 
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_create_branch();
