@@ -17,8 +17,6 @@ package com.AppaApps.Silicon;                                                   
 //                 The eye of heaven lights thy face for me,
 //                 Nor shall death brag thou wander'st in his shade,
 //                 When these lines being read bring life to thee!
-import java.util.Stack;                                                         // Used only for printing trees which is not something that will happen on the chip
-
 class Mjaf2 extends Memory.Structure                                            // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys and matching number of data elements because data is not transferred to the parent on fission  which simplifies deletions with complicating insertions.
  {final int bitsPerKey;                                                         // Number of bits in key
   final int bitsPerData;                                                        // Number of bits in data
@@ -158,7 +156,8 @@ class Mjaf2 extends Memory.Structure                                            
     Branch branch() {return new Branch(index);}                                 // Make a branch from this node
     Leaf   leaf()   {return new Leaf (index); }                                 // Make a leaf from this node
 
-    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print leaf  horizontally
+    void printHorizontally(java.util.Stack<StringBuilder>S, int level,          // Print leaf  horizontally
+                            boolean debug)
      {nodes.setIndex(index);
       padStrings(S, level);
       S.elementAt(level).append(debug ? toString() : shortString());
@@ -204,7 +203,7 @@ class Mjaf2 extends Memory.Structure                                            
      }
 
     void pushKey(Key memory)                                                    // Push a key into a branch
-     {nodes.setIndex(index);branchKeyNames.push(memory);
+     {nodes.setIndex(index); branchKeyNames.push(memory);
      }
 
     void pushNext(Node node)                                                    // Push a next level into a branch
@@ -337,13 +336,11 @@ class Mjaf2 extends Memory.Structure                                            
       if (K + 1 + J > maxKeysPerLeaf) stop("Join of branch has too many keys",
           K,"+1+",J, "greater than", maxKeysPerBranch);
 
-      nodes.setIndex(Join.index);
-      final Memory t = topNode.memory();                                        // TopNode from branch being joined
+      final Node t = Join.getTop();                                             // TopNode from branch being joined
 
-      nodes.setIndex(index);
       pushKey(joinKeyName);                                                     // Key to separate joined branches
-      pushNext(new Node(topNode));                                              // Push current top node
-      topNode.set(t);                                                           // New top node is the one from teh branch being joined
+      pushNext(getTop());                                                       // Push current top node
+      topNode.set(t.index);                                                     // New top node is the one from teh branch being joined
 
       for (int i = 0; i < J; i++)                                               // Add right hand branch
        {final Key  k = Join.getKey (i);
@@ -355,8 +352,7 @@ class Mjaf2 extends Memory.Structure                                            
      }
 
     Node findFirstGreaterOrEqual(Key keyName)                                   // Find first key which is greater than the search key. The result is 1 based, a result of zero means all the keys were less than or equal than the search key
-     {nodes.setIndex(index);
-      final int N = nKeys();                                                    // Number of keys currently in node
+     {final int N = nKeys();                                                    // Number of keys currently in node
       for (int i = 0; i < N; i++)                                               // Check each key
        {final Key     k = getKey(i);                                            // Key
         final boolean l = keyName.compareTo(k) <= 0;                            // Compare current key with search key
@@ -366,8 +362,7 @@ class Mjaf2 extends Memory.Structure                                            
      }
 
     public String toString()                                                    // Print branch
-     {nodes.setIndex(index);
-      final StringBuilder s = new StringBuilder();
+     {final StringBuilder s = new StringBuilder();
       s.append("Branch_"+index+"(");
       final int K = nKeys();
       for  (int i = 0; i < K; i++)
@@ -379,15 +374,15 @@ class Mjaf2 extends Memory.Structure                                            
      }
 
     public String shortString()                                                 // Print a branch compactly
-     {nodes.setIndex(index);
-      final StringBuilder s = new StringBuilder();
+     {final StringBuilder s = new StringBuilder();
       final int K = nKeys();
       for  (int i = 0; i < K; i++) s.append(""+getKey(i).toInt()+",");
       if (K > 0) s.setLength(s.length()-1);                                     // Remove trailing comma
       return s.toString();
      }
 
-    void printHorizontally(Stack<StringBuilder>S, int level, boolean debug)     // Print branch horizontally
+    void printHorizontally(java.util.Stack<StringBuilder>S, int level,          // Print branch horizontally
+                            boolean debug)
      {final int N = nKeys();
       for (int i = 0; i < N; i++)
        {final Node n = getNext(i);
@@ -423,15 +418,8 @@ class Mjaf2 extends Memory.Structure                                            
       nodes.setIndex(index); isLeaf.set(1);                                     // Mark as a leaf
      }
 
-    boolean isEmpty()                                                           // Leaf is empty
-     {nodes.setIndex(index);
-      return leafKeyNames.isEmpty();
-     }
-
-    boolean isFull()                                                            // Leaf is full
-     {nodes.setIndex(index);
-      return leafKeyNames.isFull();
-     }
+    boolean isEmpty() {nodes.setIndex(index); return leafKeyNames.isEmpty();}   // Leaf is empty
+    boolean isFull()  {nodes.setIndex(index); return leafKeyNames.isFull();}    // Leaf is full
 
     int nKeys() {nodes.setIndex(index); return leafKeyNames.stuckSize();}       // Number of keys in a leaf
     int nData() {nodes.setIndex(index); return dataValues  .stuckSize();}       // Number of data values in a leaf
@@ -552,8 +540,7 @@ class Mjaf2 extends Memory.Structure                                            
      }
 
     public String toString()                                                    // Print leaf
-     {nodes.setIndex(index);
-      final StringBuilder s = new StringBuilder();
+     {final StringBuilder s = new StringBuilder();
       s.append("Leaf_"+index+"(");
       final int K = leafKeyNames.stuckSize();
       for  (int i = 0; i < K; i++)
@@ -565,8 +552,7 @@ class Mjaf2 extends Memory.Structure                                            
      }
 
     public String shortString()                                                 // Print a leaf compactly
-     {nodes.setIndex(index);
-      final StringBuilder s = new StringBuilder();
+     {final StringBuilder s = new StringBuilder();
       final int K = nKeys();
       for  (int i = 0; i < K; i++) s.append(""+getKey(i).toInt()+",");
       if (K > 0) s.setLength(s.length()-1);
@@ -697,7 +683,7 @@ class Mjaf2 extends Memory.Structure                                            
          }
        }
       else                                                                      // Merge two branches under root
-       {final Branch a = new Branch(A.index), b = r.getTop().branch();
+       {final Branch  a = new Branch(A.index), b = r.getTop().branch();
         final boolean j = a.joinable(b);                                        // Can we merge the two branches
         if (j)                                                                  // Merge the two branches
          {final Key k = r.getKey(0);
@@ -772,7 +758,7 @@ class Mjaf2 extends Memory.Structure                                            
 
 //D1 Print                                                                      // Print a tree
 
-  static void padStrings(Stack<StringBuilder> S, int level)                     // Pad a stack of strings so they all have the same length
+  static void padStrings(java.util.Stack<StringBuilder> S, int level)           // Pad a stack of strings so they all have the same length
    {for (int i = S.size(); i <= level; ++i) S.push(new StringBuilder());
     int m = 0;
     for (StringBuilder s : S) m = m < s.length() ? s.length() : m;
@@ -780,14 +766,14 @@ class Mjaf2 extends Memory.Structure                                            
       if (s.length() < m) s.append(" ".repeat(m - s.length()));
    }
 
-  static String joinStrings(Stack<StringBuilder> S)                             // Join lines
+  static String joinStrings(java.util.Stack<StringBuilder> S)                   // Join lines
    {final StringBuilder a = new StringBuilder();
     for  (StringBuilder s : S) a.append(s.toString()+"|\n");
     return a.toString();
    }
 
   String printHorizontally()                                                    // Print a tree horizontally
-   {final Stack<StringBuilder> S = new Stack<>();
+   {final java.util.Stack<StringBuilder> S = new java.util.Stack<>();
 
     if (emptyTree()) return "";                                                 // Empty tree
     S.push(new StringBuilder());
