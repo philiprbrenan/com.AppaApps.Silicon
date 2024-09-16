@@ -143,13 +143,12 @@ class Mjaf2 extends Memory.Structure                                            
   Data data(int n) {return new Data(n);}
 
   class Node                                                                    // A node contains a leaf or a branch
-   {final int index;                                                            // The index of the node in the memory layout
+   {final int   index;                                                          // The index of the node in the memory layout
     Node()                         {index = root.toInt();}                      // Node from root
-    Node(int Index)                {index = Index;}                             // Node from an index - useful in testing
+    Node(int    Index)             {index = Index;}                             // Node from an index - useful in testing
     Node(Branch branch)            {index = branch.index;}                      // Node from a branch
     Node(Leaf   leaf)              {index = leaf.index;}                        // Node from a leaf
     Node(Memory memory)            {index = memory.toInt();}                    // Node from memory
-    Node(Memory.Variable variable) {index = variable.toInt();}                  // Node from variable
     Memory node() {return memoryFromInt(bitsPerNext, index);}                   // Create memory representing a node index
 
     boolean isLeaf  () {nodes.setIndex(index); return isLeaf  .get(0);}         // Whether the node represents a leaf
