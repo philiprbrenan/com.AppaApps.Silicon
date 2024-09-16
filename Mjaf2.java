@@ -2,8 +2,6 @@
 // Btree with data stored only in the leaves to simplify deletion.
 // Philip R Brenan at appaapps dot com, Appa Apps Ltd Inc., 2024
 //------------------------------------------------------------------------------
-// class node to create next nodes from
-// try reinserting a je=key.data multiple times
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout  a binary tree on a silicon chip.
 //                 Shall I compare thee to a summer's day?
 //                 Thou art more lovely and more temperate:
@@ -46,7 +44,6 @@ class Mjaf2 extends Memory.Structure                                            
   final Memory.Variable  isLeaf;                                                // The node is a leaf if true
   final Memory.Structure node;                                                  // Node of the tree
   final Memory.Array     nodes;                                                 // Array of nodes comprising tree
-static boolean debugPut = false;
 
 //D1 Construction                                                               // Create a Btree from nodes which can be branches or leaves.  The data associated with the Btree is stored only in the leaves opposite the keys
 
@@ -130,18 +127,16 @@ static boolean debugPut = false;
 //D1 Node                                                                       // A branch or a leaf
 
   class Key extends Memory                                                      // Memory for a key
-   {Key() {super(bitsPerKey);}
-    Key(Memory memory)
-     {super(); bits = memory.bits; at = memory.at; width = memory.width;
+   {Key(Memory memory)
+     {super(bitsPerKey); bits = memory.bits; at = memory.at; width = memory.width;
      }
     Key(int n) {super(memoryFromInt(bitsPerKey, n));}
    }
   Key key(int n) {return new Key(n);}
 
   class Data extends Memory                                                     // Memory for a data value
-   {Data() {super(bitsPerData);}
-    Data(Memory memory)
-     {super(); bits = memory.bits; at = memory.at; width = memory.width;
+   {Data(Memory memory)
+     {super(bitsPerData); bits = memory.bits; at = memory.at; width = memory.width;
      }
     Data(int n) {super(memoryFromInt(bitsPerData, n));}
    }
@@ -196,20 +191,13 @@ static boolean debugPut = false;
      {this(nodesFree.pop().toInt());                                            // Index of next free node
       clear();                                                                  // Clear the branch
       nodes.setIndex(index); isBranch.set(1);                                   // Mark as a branch
-      topNode.set(top.node());
+      topNode.set(top.node());                                                  // Set the top node for this branch
      }
 
-    boolean isEmpty()                                                           // Branch is empty
-     {nodes.setIndex(index);
-      return branchKeyNames.isEmpty();
-     }
+    boolean isEmpty() {nodes.setIndex(index);return branchKeyNames.isEmpty();}  // Branch is empty
+    boolean isFull()  {nodes.setIndex(index);return branchKeyNames.isFull();}   // Branch is full
 
-    boolean isFull()                                                            // Branch is full
-     {nodes.setIndex(index);
-      return branchKeyNames.isFull();
-     }
-
-    int nKeys  () {nodes.setIndex(index); return branchKeyNames.stuckSize();}   // Number of keys in a branch
+    int nKeys() {nodes.setIndex(index); return branchKeyNames.stuckSize();}     // Number of keys in a branch
 
     Key splitKey()                                                              // Splitting key
      {nodes.setIndex(index);
@@ -217,8 +205,7 @@ static boolean debugPut = false;
      }
 
     void pushKey(Key memory)                                                    // Push a key into a branch
-     {nodes.setIndex(index);
-      branchKeyNames.push(memory);
+     {nodes.setIndex(index);branchKeyNames.push(memory);
      }
 
     void pushNext(Node node)                                                    // Push a next level into a branch
@@ -368,15 +355,15 @@ static boolean debugPut = false;
       Join.free();
      }
 
-    Memory findFirstGreaterOrEqual(Key keyName)                                 // Find first key which is greater than the search key. The result is 1 based, a result of zero means all the keys were less than or equal than the search key
+    Node findFirstGreaterOrEqual(Key keyName)                                   // Find first key which is greater than the search key. The result is 1 based, a result of zero means all the keys were less than or equal than the search key
      {nodes.setIndex(index);
       final int N = nKeys();                                                    // Number of keys currently in node
       for (int i = 0; i < N; i++)                                               // Check each key
        {final Key     k = getKey(i);                                            // Key
         final boolean l = keyName.compareTo(k) <= 0;                            // Compare current key with search key
-        if (l) return nextLevel.elementAt(i);                                   // Current key is greater than or equal to the search key
+        if (l) return getNext(i);                                               // Current key is greater than or equal to the search key
        }
-      return topNode;
+      return getTop();
      }
 
     public String toString()                                                    // Print branch
@@ -601,7 +588,7 @@ static boolean debugPut = false;
 
     for(int i = 0; i < 999 ; ++i)                                               // Step down through tree up to some reasonable limit
      {if (q.isLeaf()) break;                                                    // Stepped to a leaf
-      q = new Node(q.branch().findFirstGreaterOrEqual(keyName));                // Position of key
+      q = q.branch().findFirstGreaterOrEqual(keyName);                          // Position of key
      }
 
     final Leaf l = q.leaf();                                                    // Reached a leaf
@@ -620,7 +607,7 @@ static boolean debugPut = false;
     Node q = new Node();                                                        // Start at the root
     for(int i = 0; i < 999 ; ++i)                                               // Step down through tree up to some reasonable limit
      {if (q.isLeaf()) break;                                                    // Stepped to a leaf
-      q = new Node(q.branch().findFirstGreaterOrEqual(keyName));                // Position of key
+      q = q.branch().findFirstGreaterOrEqual(keyName);                          // Position of key
      }
 
     final Leaf l = q.leaf();                                                    // Reached a leaf
@@ -669,7 +656,7 @@ static boolean debugPut = false;
        }
 
       p = q.branch();                                                           // Step parent down
-      q = new Node(p.findFirstGreaterOrEqual(keyName));                         // The node does not need splitting
+      q = p.findFirstGreaterOrEqual(keyName);                                   // The node does not need splitting
      }
 
     final Leaf l = q.leaf();
@@ -777,7 +764,7 @@ static boolean debugPut = false;
            }
          }
        }
-      P = new Node(p.findFirstGreaterOrEqual(keyName));                         // Find key position in branch
+      P = p.findFirstGreaterOrEqual(keyName);                                   // Find key position in branch
      }
     keyDataStored.dec();                                                        // Remove one entry  - we are on a leaf andf the entry is known to exist
 
