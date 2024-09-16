@@ -502,11 +502,6 @@ class Mjaf2 extends Memory.Structure                                            
       dataValues.removeElementAt(i);
      }
 
-    Memory memory()                                                             // Get memory associated with a leaf
-     {nodes.setIndex(index);
-      return leaf.memory();
-     }
-
     void put(Key keyName, Data dataValue)                                       // Put a key / data value pair into a leaf
      {final int K = nKeys();                                                    // Number of keys currently in node
       if (K >= maxKeysPerLeaf) stop("Too many keys in leaf");
