@@ -17,11 +17,11 @@ package com.AppaApps.Silicon;                                                   
 //                 The eye of heaven lights thy face for me,
 //                 Nor shall death brag thou wander'st in his shade,
 //                 When these lines being read bring life to thee!
-class Mjaf2 extends Memory.Structure                                            // Btree algorithm but with data stored only in the leaves.  The branches (interior nodes) have an odd number of keys to facilitate fission, whereas the leaves (exterior nodes) have even number of keys and matching number of data elements because data is not transferred to the parent on fission  which simplifies deletions with complicating insertions.
+class Mjaf2 extends Memory.Structure                                            // Btree algorithm but with data stored only in the leaves to facilitate deletion without complicating search or insertion. The branches (interior nodes) have an odd number of keys to make the size of a branch as close to that of a leaf as possible to simplify memory management.
  {final int bitsPerKey;                                                         // Number of bits in key
   final int bitsPerData;                                                        // Number of bits in data
   final int bitsPerNext;                                                        // Number of bits in next level
-  final int maxKeysPerLeaf;                                                     // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as whether classic Btree algorithm.
+  final int maxKeysPerLeaf;                                                     // The maximum number of keys per leaf.  This should be an even number greater than three. The maximum number of keys per branch is one less. The normal Btree algorithm requires an odd number greater than two for both leaves and branches.  The difference arises because we only store data in leaves not in leaves and branches as does the classic Btree algorithm.
   final int maxKeysPerBranch;                                                   // The maximum number of keys per branch.
   final int maxNodes;                                                           // The maximum number of nodes in the tree
   final int splitIdx;                                                           // Index of splitting key
@@ -35,8 +35,8 @@ class Mjaf2 extends Memory.Structure                                            
   final Stuck            dataValues;                                            // Data values
   final Stuck            nextLevel;                                             // Index of next level node
   final Memory.Variable  topNode;                                               // Next node if search key is greater than all keys in this node
-  final Memory.Structure branch;                                                // Branch of the tree
-  final Memory.Structure leaf;                                                  // Leaf of the tree
+  final Memory.Structure branch;                                                // Branch node of the tree
+  final Memory.Structure leaf;                                                  // Leaf node of the tree
   final Memory.Union     branchOrLeaf;                                          // Branch or leaf of the tree
   final Memory.Variable  isBranch;                                              // The node is a branch if true
   final Memory.Variable  isLeaf;                                                // The node is a leaf if true
@@ -174,6 +174,9 @@ class Mjaf2 extends Memory.Structure                                            
 
     public String shortString() {return "";}                                    // Print a leaf compactly
 
+    void inc() {nodes.setIndex(index); keyDataStored.inc();}                    // Increment insertion count
+    void dec() {nodes.setIndex(index); keyDataStored.dec();}                    // Decrement insertion count
+
     void ok(String expected)                                                    // Check node is as expected
      {nodes.setIndex(index);
       Mjaf.ok(toString(), expected);
@@ -291,13 +294,13 @@ class Mjaf2 extends Memory.Structure                                            
         if (l)                                                                  // Insert new key in order
          {insertKey (keyName, i);                                               // Insert key
           insertNext(node,    i);                                               // Insert data
-          keyDataStored.inc();                                                  // Created a new entry in the branch
+          //keyDataStored.inc();                                                  // Created a new entry in the branch
           return;
          }
        }
       pushKey (keyName);                                                        // Either the branch is empty or the new key is greater than every existing key
       pushNext(node);
-      keyDataStored.inc();                                                      // Created a new entry in the branch
+      //keyDataStored.inc();                                                      // Created a new entry in the branch
      }
 
     void splitRoot()                                                            // Split the root when it is a branch
@@ -498,13 +501,13 @@ class Mjaf2 extends Memory.Structure                                            
         if (keyName.lessThanOrEqual(k))                                         // Insert new key in order
          {insertKey (keyName,   i);                                             // Insert key
           insertData(dataValue, i);                                             // Insert data
-          keyDataStored.inc();                                                  // Created a new entry in the leaf
+          inc();                                                                // Created a new entry in the leaf
           return;
          }
        }
       pushKey (keyName);                                                        // Either the leaf is empty or the new key is greater than every existing key
       pushData(dataValue);
-      keyDataStored.inc();                                                      // Created a new entry in the leaf
+      inc();                                                                    // Created a new entry in the leaf
      }
 
     Leaf split()                                                                // Split the leaf into two leafs - the new leaf consists of the indicated first elements, the old leaf retains the rest
@@ -910,18 +913,22 @@ class Mjaf2 extends Memory.Structure                                            
     m.put(m.key(1), m.data(2));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), "[1]\n");
+    ok(m.size(), 1);
 
     m.put(m.key(2), m.data(4));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), "[1,2]\n");
+    ok(m.size(), 2);
 
     m.put(m.key(3), m.data(6));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), "[1,2,3]\n");
+    ok(m.size(), 3);
 
     m.put(m.key(4), m.data(8));
     //stop(m.printHorizontally());
     ok(m.printHorizontally(), "[1,2,3,4]\n");
+    ok(m.size(), 4);
 
     m.put(m.key(5), m.data(10));
     //stop(m.printHorizontally());
@@ -929,6 +936,7 @@ class Mjaf2 extends Memory.Structure                                            
     2     |
 1,2  3,4,5|
 """);
+    ok(m.size(), 5);
 
     m.put(m.key(6), m.data(12));
     //stop(m.printHorizontally());
@@ -936,6 +944,7 @@ class Mjaf2 extends Memory.Structure                                            
     2       |
 1,2  3,4,5,6|
 """);
+    ok(m.size(), 6);
 
     m.put(m.key(7), m.data(14));
     //stop(m.printHorizontally());
@@ -943,6 +952,7 @@ class Mjaf2 extends Memory.Structure                                            
     2    4     |
 1,2  3,4  5,6,7|
 """);
+    ok(m.size(), 7);
 
     m.put(m.key(8), m.data(16));
     //stop(m.printHorizontally());
@@ -950,6 +960,7 @@ class Mjaf2 extends Memory.Structure                                            
     2    4       |
 1,2  3,4  5,6,7,8|
 """);
+    ok(m.size(), 8);
 
     m.put(m.key(9), m.data(18));
     //stop(m.printHorizontally());
@@ -957,6 +968,7 @@ class Mjaf2 extends Memory.Structure                                            
     2    4    6     |
 1,2  3,4  5,6  7,8,9|
 """);
+    ok(m.size(), 9);
 
     m.put(m.key(10), m.data(20));
     //stop(m.printHorizontally());
@@ -964,6 +976,7 @@ class Mjaf2 extends Memory.Structure                                            
     2    4    6        |
 1,2  3,4  5,6  7,8,9,10|
 """);
+    ok(m.size(), 10);
 
     m.put(m.key(11), m.data(22));
     //stop(m.printHorizontally());
@@ -972,6 +985,7 @@ class Mjaf2 extends Memory.Structure                                            
    2         6    8        |
 1,2  3,4  5,6  7,8  9,10,11|
 """);
+    ok(m.size(), 11);
 
     m.put(m.key(12), m.data(24));
     //stop(m.printHorizontally());
@@ -980,6 +994,7 @@ class Mjaf2 extends Memory.Structure                                            
    2         6    8           |
 1,2  3,4  5,6  7,8  9,10,11,12|
 """);
+    ok(m.size(), 12);
 
     m.put(m.key(13), m.data(26));
     //stop(m.printHorizontally());
@@ -988,6 +1003,7 @@ class Mjaf2 extends Memory.Structure                                            
    2         6    8     10         |
 1,2  3,4  5,6  7,8  9,10   11,12,13|
 """);
+    ok(m.size(), 13);
 
     m.put(m.key(14), m.data(28));
     //stop(m.printHorizontally());
@@ -996,6 +1012,7 @@ class Mjaf2 extends Memory.Structure                                            
    2         6    8     10            |
 1,2  3,4  5,6  7,8  9,10   11,12,13,14|
 """);
+    ok(m.size(), 14);
 
     m.put(m.key(15), m.data(30));
     //stop(m.printHorizontally());
@@ -1004,6 +1021,7 @@ class Mjaf2 extends Memory.Structure                                            
    2         6          10      12         |
 1,2  3,4  5,6  7,8  9,10   11,12   13,14,15|
 """);
+    ok(m.size(), 15);
 
     m.put(m.key(16), m.data(32));
     //stop(m.printHorizontally());
@@ -1012,6 +1030,7 @@ class Mjaf2 extends Memory.Structure                                            
    2         6          10      12            |
 1,2  3,4  5,6  7,8  9,10   11,12   13,14,15,16|
 """);
+    ok(m.size(), 16);
 
     m.put(m.key(17), m.data(34));
     //stop(m.printHorizontally());
@@ -1020,6 +1039,7 @@ class Mjaf2 extends Memory.Structure                                            
    2         6          10      12      14         |
 1,2  3,4  5,6  7,8  9,10   11,12   13,14   15,16,17|
 """);
+    ok(m.size(), 17);
 
     m.put(m.key(18), m.data(36));
     //stop(m.printHorizontally());
@@ -1028,6 +1048,7 @@ class Mjaf2 extends Memory.Structure                                            
    2         6          10      12      14            |
 1,2  3,4  5,6  7,8  9,10   11,12   13,14   15,16,17,18|
 """);
+    ok(m.size(), 18);
 
     m.put(m.key(19), m.data(38));
     //stop(m.printHorizontally());
@@ -1037,6 +1058,7 @@ class Mjaf2 extends Memory.Structure                                            
    2         6          10              14      16         |
 1,2  3,4  5,6  7,8  9,10   11,12   13,14   15,16   17,18,19|
 """);
+    ok(m.size(), 19);
 
     m.put(m.key(20), m.data(40));
     //stop(m.printHorizontally());
@@ -1046,6 +1068,7 @@ class Mjaf2 extends Memory.Structure                                            
    2         6          10              14      16            |
 1,2  3,4  5,6  7,8  9,10   11,12   13,14   15,16   17,18,19,20|
 """);
+    ok(m.size(), 20);
 
     m.put(m.key(21), m.data(42));
     //stop(m.printHorizontally());
@@ -1055,6 +1078,7 @@ class Mjaf2 extends Memory.Structure                                            
    2         6          10              14      16      18         |
 1,2  3,4  5,6  7,8  9,10   11,12   13,14   15,16   17,18   19,20,21|
 """);
+    ok(m.size(), 21);
 
     for (int i = 22; i < 32; i++) m.put(m.key(i), m.data(i<<2));
 
@@ -1065,6 +1089,7 @@ class Mjaf2 extends Memory.Structure                                            
    2         6          10              14              18              22              26      28         |
 1,2  3,4  5,6  7,8  9,10   11,12   13,14   15,16   17,18   19,20   21,22   23,24   25,26   27,28   29,30,31|
 """);
+    ok(m.size(), 31);
    }
 
   static void test_put2()
@@ -1245,18 +1270,21 @@ class Mjaf2 extends Memory.Structure                                            
        4  6          10      12      14                 22           26      28         |
 1,2,3,4  6  7,8  9,10   11,12   13,14   15,16   17,18,19   24   25,26   27,28   29,30,31|
 """);
+    ok(m.size(), 26);
 
     test_delete_two(m, 0, 24, """
                 8                             16            24                        |
        4  6          10      12      14                 22         26      28         |
 1,2,3,4  6  7,8  9,10   11,12   13,14   15,16   17,18,19      25,26   27,28   29,30,31|
 """);
+    ok(m.size(), 25);
 
     test_delete_two(m, 0, 6, """
                8                             16            24                        |
        4 6          10      12      14                 22         26      28         |
 1,2,3,4    7,8  9,10   11,12   13,14   15,16   17,18,19      25,26   27,28   29,30,31|
 """);
+    ok(m.size(), 24);
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
@@ -1273,7 +1301,7 @@ class Mjaf2 extends Memory.Structure                                            
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    test_delete();
+    //test_delete();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
