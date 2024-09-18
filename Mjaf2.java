@@ -154,7 +154,7 @@ class Mjaf2 extends Memory.Structure                                            
 
     void setRoot()  {root.set(index);}                                          // Make this node the root node
     Branch branch() {return new Branch(index);}                                 // Locate branch described by this node
-    Leaf   leaf()   {return new Leaf (index); }                                 // Locate leaf described by this node
+    Leaf   leaf()   {return new Leaf  (index);}                                 // Locate leaf described by this node
 
     void printHorizontally(java.util.Stack<StringBuilder>S, int level,          // Print leaf horizontally
                             boolean debug)
@@ -271,9 +271,7 @@ class Mjaf2 extends Memory.Structure                                            
 
     Node lastNext()                                                             // Last next element in a branch, but not the top node
      {nodes.setIndex(index);
-      final int n = nKeys();
-      final int l = nextLevel.elementAt(n-1).toInt();
-      return new Node(l);
+      return new Node(nextLevel.lastElement());
      }
 
     Node getTop()                                                               // Get the top node in a branch
@@ -289,9 +287,7 @@ class Mjaf2 extends Memory.Structure                                            
     void put(Key keyName, Node node)                                            // Put a key / next node index value pair into a branch
      {final int K = nKeys();                                                    // Number of keys currently in node
       for (int i = 0; i < K; i++)                                               // Search existing keys for a greater key
-       {final Memory  k = getKey(i);                                            // Current key
-        final boolean l = keyName.lessThanOrEqual(k);                           // Insert new key in order
-        if (l)                                                                  // Insert new key in order
+       {if (keyName.lessThanOrEqual(getKey(i)))                                                                  // Insert new key in order
          {insertKey (keyName, i);                                               // Insert key
           insertNext(node,    i);                                               // Insert data
           return;
@@ -303,10 +299,10 @@ class Mjaf2 extends Memory.Structure                                            
 
     void splitRoot()                                                            // Split the root when it is a branch
      {if (isFull())
-       {final Key    k = new Key(getKey(splitIdx));
+       {final Key    k = getKey(splitIdx);
         final Branch l = split();
-        final Branch b = new Branch(new Node(index));
-        b.put(k, new Node(l));
+        final Branch b = new Branch(new Node(index));                           // Make a new branch with its top node set to this node.
+        b.put(k, l);
         b.setRoot();
        }
      }
@@ -316,7 +312,7 @@ class Mjaf2 extends Memory.Structure                                            
       if (f < K-1) {} else stop("Split", f, "too big for branch of size:", K);
       if (f <   1)         stop("First", f, "too small");
       final Node   t = getNext(f);                                              // Top node
-      final Branch b = new Branch(t);                                           // Recycle a branch
+      final Branch b = new Branch(t);                                           // Make a new branch with the top node set to the noed refenced by the splitting key
 
       for (int i = 0; i < f; i++)                                               // Remove first keys from old node to new node
        {final Key  k = shiftKey();
@@ -531,7 +527,7 @@ class Mjaf2 extends Memory.Structure                                            
       if (!joinable(Join)) stop("Join of leaf has too many keys", K,
         "+", J, "greater than", maxKeysPerLeaf);
 
-      for (int i = 0; i < J; i++)
+      for (int i = 0; i < J; i++)                                               // Add each key/data from the leaf being joined
        {final Key  k = Join.getKey(i);
         final Data d = Join.getData(i);
         pushKey(k);
