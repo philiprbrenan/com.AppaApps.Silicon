@@ -8,6 +8,8 @@ import java.util.*;
 
 class Stuck extends Memory.Structure                                            // Stuck: a fixed size stack controlled by a unary number. The unary number zero indicates an empty stuck stack.
  {final Unary unary;                                                            // The layout of the stuck stack
+  final Memory.Variable index;                                                  // Index to an element in the stuck
+  final Memory.Variable buffer;                                                 // A buffer used to load or unload the stuck
   final Memory.Variable element;                                                // An element of the stuck stack
   final Memory.Array    array;                                                  // The array holding the elements of the stuck stack
   final int max;                                                                // The maximum number of entries in the stuck stack.
@@ -19,8 +21,12 @@ class Stuck extends Memory.Structure                                            
    {super(Name);                                                                // Containing structure layout
     max = Max; width = Width;
     unary   = Unary.unary(max);                                                 // Unary number showing which elements in the stack are valid
+    index   = variable("index",   width);                                       // Index to an element in the stuck
+    buffer  = variable("buffer",  width);                                       // A buffer used to load or unload the stuck
     element = variable("element", width);                                       // An element of the stuck stack
     array   = array("array", element, max);                                     // An array of elements comprising the stuck stack
+    addField(index);                                                            // Index to an element in the stuck
+    addField(buffer);                                                           // A buffer used to load or unload the stuck
     addField(unary);                                                            // Preventing from doing this earlier by Java forcing super to go first
     addField(array);
     layout();                                                                   // Layout the structure of the stuck stack
@@ -41,6 +47,12 @@ class Stuck extends Memory.Structure                                            
   boolean isFull()  {return stuckSize() >= max;}                                // Check the stuck stack is full
   boolean isEmpty() {return stuckSize() <= 0;}                                  // Check the stuck stack is empty
 
+  void setIndex (int Element)   {index .set(memoryFromInt(width, Element));}    // Set the index from an integer
+  void setIndex (Memory memory) {index .set(memory);}                           // Set the index from memory
+
+  void setBuffer(int Element)   {buffer.set(memoryFromInt(width, Element));}    // Set the buffer from an integer
+  void setBuffer(Memory memory) {buffer.set(memory);}                           // Set the buffer from memory
+
 //D1 Actions                                                                    // Place and remove data to/from stuck stack
 
   void push(Memory ElementToPush)                                               // Push an element as memory onto the stuck stack
@@ -51,8 +63,8 @@ class Stuck extends Memory.Structure                                            
     unary.inc();
    }
 
-  void push(int    Value) {push(memoryFromInt(width, Value));}                  // Push an integer onto the stuck stack
-  void push(String Value) {push(memoryFromString(Value));}                      // Push an Memory onto the stuck stack
+  void Push() {push(buffer);}                                                   // Push the buffer onto the stuck stack
+  void push(int Value) {push(memoryFromInt(width, Value));}                     // Push an integer onto the stuck stack
 
   Memory pop()                                                                  // Pop an element as memory from the stuck stack
    {if (!unary.canDec()) stop("Stuck is empty");                                // Confirm there is an element to pop on the stuck stack
@@ -61,6 +73,8 @@ class Stuck extends Memory.Structure                                            
     array.setIndex(n);                                                          // Index stuck memory
     return element.memory();                                                    // Get memory from stuck stack
    }
+
+  void Pop() {setBuffer(pop());}                                                // Pop an element as memory from the stuck stack
 
   Memory shift()                                                                // Shift an element as memory from the stuck stack
    {if (!unary.canDec()) stop("Stuck is empty");                                // Confirm there is an element to shift on the stuck stack
@@ -72,10 +86,12 @@ class Stuck extends Memory.Structure                                            
      {array.setIndex(i+1);                                                      // Upper element
       Memory e = element.memory();                                              // Get reference to upper element
       array.setIndex(i);                                                        // Index stuck memory
-      element.set(e);
+      element.set(e);                                                           // Get referenced element
      }
-    return m;
+    return m;                                                                   // Return memory of shifted element
    }
+
+  void Shift() {setBuffer(shift());}                                            // Shift an element as memory from the stuck stack
 
   void unshift(Memory ElementToUnShift)                                         // Unshift an element as memory onto the stuck stack
    {if (!unary.canInc()) stop("Stuck is full");                                 // Confirm there is room for another element  in the stuck stack
@@ -91,6 +107,8 @@ class Stuck extends Memory.Structure                                            
     unary.inc();
    }
 
+  void Unshift() {unshift(buffer);}                                             // Unshift an element as memory onto the stuck stack
+
   void unshift(int    Value) {unshift(memoryFromInt(width, Value));}            // Unshift an integer onto the stuck stack
   void unshift(String Value) {unshift(memoryFromString(Value));}                // Unshift an Memory onto the stuck stack
 
@@ -101,6 +119,8 @@ class Stuck extends Memory.Structure                                            
     array.setIndex(i);                                                          // Upper element
     return element.memory();                                                    // Get reference to upper element
    }
+
+  void ElementAt() {setBuffer(elementAt(index.toInt()));}                       // Return the element at the indicated index
 
   void setElementAt(Memory Element, int i)                                      // Set an element of the stuck stack
    {final int N = stuckSize();                                                  // Current size of stuck stack
@@ -142,6 +162,8 @@ class Stuck extends Memory.Structure                                            
    {insertElementAt(memoryFromString(Value), index);
    }
 
+  void insertElementAt() {insertElementAt(buffer.toInt(), index.toInt());}      // Push an Memory onto the stuck stack
+
   Memory removeElementAt(int i)                                                 // Remove the Memory at 0 based index i and shift the Memorys above down one position
    {if (!unary.canDec()) stop("Stuck is empty");
     final int N = stuckSize();
@@ -159,8 +181,13 @@ class Stuck extends Memory.Structure                                            
     return r;
    }
 
+  Memory RemoveElementAt() {return removeElementAt(index.toInt());}             // Remove the Memory at 0 based index i and shift the Memorys above down one position
+
   Memory firstElement() {return elementAt(0);}                                  // Get the value of the first Memory
   Memory  lastElement() {return elementAt(stuckSize()-1);}                      // Get the value of the last Memory
+
+  void   FirstElement() {setBuffer(elementAt(0));}                              // Get the value of the first Memory
+  void    LastElement() {setBuffer(elementAt(stuckSize()-1));}                  // Get the value of the last Memory
 
 //D1 Search                                                                     // Search a stuck stack.
 
@@ -195,19 +222,24 @@ class Stuck extends Memory.Structure                                            
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
     ok(s.isEmpty());
-    s.push( 1);
-    s.push( 2);
-    s.push( 3);
-    s.push(12);
-    ok(s.stuckSize(), 3);
+    s.push(1); s.push(2); s.push(3); s.push(12);
+    ok(s.stuckSize(), 4);
     ok(s.isFull());
     s.ok("Stuck(1, 2, 3, 12)");
+   }
+
+  static void test_push_buffer()
+   {final int W = 4, M = 4;
+    Stuck s = stuck(M, W);
+    s.setBuffer(1); s.Push(); s.ok("Stuck(1)");
+    s.setBuffer(2); s.Push(); s.ok("Stuck(1, 2)");
+    s.setBuffer(3); s.Push(); s.ok("Stuck(1, 2, 3)");
    }
 
   static void test_pop()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
-    s.set("11000011001000011111");
+    s.push(1); s.push(2); s.push(3); s.push(12);
                     ok(s.stuckSize(), 4);
     s.pop().ok(12); ok(s.stuckSize(), 3);
     s.pop().ok( 3); ok(s.stuckSize(), 2);
@@ -215,15 +247,39 @@ class Stuck extends Memory.Structure                                            
     s.pop().ok( 1); ok(s.stuckSize(), 0);
    }
 
+  static void test_pop_buffer()
+   {final int W = 4, M = 4;
+    Stuck s = stuck(M, W);
+    s.push(1); s.push(2); s.push(3); s.push(12);
+                    ok(s.stuckSize(), 4);
+    s.Pop();
+    s.buffer.ok(12);
+    ok(s.stuckSize(), 3);
+    s.Pop(); s.buffer.ok( 3); ok(s.stuckSize(), 2);
+    s.Pop(); s.buffer.ok( 2); ok(s.stuckSize(), 1);
+    s.Pop(); s.buffer.ok( 1); ok(s.stuckSize(), 0);
+   }
+
   static void test_shift()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
-    s.set("11000011001000011111");
+    s.push(1); s.push(2); s.push(3); s.push(12);
                                     ok(s.stuckSize(), 4); s.ok("Stuck(1, 2, 3, 12)");
     Memory a = s.shift(); a.ok( 1); ok(s.stuckSize(), 3); s.ok("Stuck(2, 3, 12)");
     Memory b = s.shift(); b.ok( 2); ok(s.stuckSize(), 2); s.ok("Stuck(3, 12)");
     Memory c = s.shift(); c.ok( 3); ok(s.stuckSize(), 1); s.ok("Stuck(12)");
     Memory d = s.shift(); d.ok(12); ok(s.stuckSize(), 0); s.ok("Stuck()");
+   }
+
+  static void test_shift_buffer()
+   {final int W = 4, M = 4;
+    Stuck s = stuck(M, W);
+    s.push(1); s.push(2); s.push(3); s.push(12);
+
+    s.Shift(); s.buffer.ok( 1);
+    s.Shift(); s.buffer.ok( 2);
+    s.Shift(); s.buffer.ok( 3);
+    s.Shift(); s.buffer.ok(12);
    }
 
   static void test_unshift()
@@ -234,48 +290,96 @@ class Stuck extends Memory.Structure                                            
     s.unshift(2); ok(s.stuckSize(), 2); s.ok("Stuck(2, 1)");
     s.unshift(3); ok(s.stuckSize(), 3); s.ok("Stuck(3, 2, 1)");
     s.unshift(9); ok(s.stuckSize(), 4); s.ok("Stuck(9, 3, 2, 1)");
-//  say("s.ok(\""+s+"\");");
+   }
+
+  static void test_unshift_buffer()
+   {final int W = 4, M = 4;
+    Stuck s = stuck(M, W);
+                  ok(s.stuckSize(), 0);
+    s.buffer.set(1); s.Unshift(); ok(s.stuckSize(), 1); s.ok("Stuck(1)");
+    s.buffer.set(2); s.Unshift(); ok(s.stuckSize(), 2); s.ok("Stuck(2, 1)");
+    s.buffer.set(3); s.Unshift(); ok(s.stuckSize(), 3); s.ok("Stuck(3, 2, 1)");
+    s.buffer.set(9); s.Unshift(); ok(s.stuckSize(), 4); s.ok("Stuck(9, 3, 2, 1)");
    }
 
   static void test_element_at()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
-    s.set("00000011001000010111");
+    s.push(1); s.push(2); s.push(3); s.push(12);
     s.elementAt(0).ok(1);
     s.elementAt(1).ok(2);
     s.elementAt(2).ok(3);
+    s.elementAt(3).ok(12);
+   }
+
+  static void test_element_at_buffer()
+   {final int W = 4, M = 4;
+    Stuck s = stuck(M, W);
+    s.push(1); s.push(2); s.push(3); s.push(12);
+    s.index.set(0); s.ElementAt(); s.buffer.ok(1);
+    s.index.set(1); s.ElementAt(); s.buffer.ok(2);
+    s.index.set(2); s.ElementAt(); s.buffer.ok(3);
+    s.index.set(3); s.ElementAt(); s.buffer.ok(12);
    }
 
   static void test_insert_element_at()
    {final int W = 4, M = 8;
     Stuck s = stuck(M, W);
-    s.insertElementAt(3, 0);
-    s.insertElementAt(2, 1);
-    s.insertElementAt(1, 2);
-    s.insertElementAt(4, 1);
+    s.insertElementAt(3, 0); s.ok("Stuck(3)");
+    s.insertElementAt(2, 1); s.ok("Stuck(3, 2)");
+    s.insertElementAt(1, 2); s.ok("Stuck(3, 2, 1)");
+    s.insertElementAt(4, 1); s.ok("Stuck(3, 4, 2, 1)");
+   }
+
+  static void test_insert_element_at_buffer()
+   {final int W = 4, M = 8;
+    Stuck s = stuck(M, W);
+    s.setBuffer(3); s.setIndex(0); s.insertElementAt(); s.ok("Stuck(3)");
+    s.setBuffer(2); s.setIndex(1); s.insertElementAt(); s.ok("Stuck(3, 2)");
+    s.setBuffer(1); s.setIndex(2); s.insertElementAt(); s.ok("Stuck(3, 2, 1)");
+    s.setBuffer(4); s.setIndex(1); s.insertElementAt(); s.ok("Stuck(3, 4, 2, 1)");
    }
 
   static void test_remove_element_at()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
-    s.set("00000011001000010111");
-    s.removeElementAt(1).ok(2); s.ok("Stuck(1, 3)");
-    s.removeElementAt(1).ok(3); s.ok("Stuck(1)");
-    s.removeElementAt(0).ok(1); s.ok("Stuck()");
+    s.push(1); s.push(2); s.push(3); s.push(12);
+    s.removeElementAt(1).ok(2);   s.ok("Stuck(1, 3, 12)");
+    s.removeElementAt(1).ok(3);   s.ok("Stuck(1, 12)");
+    s.removeElementAt(0).ok(1);   s.ok("Stuck(12)");
+    s.removeElementAt(0).ok(12);  s.ok("Stuck()");
+   }
+
+  static void test_remove_element_at_buffer()
+   {final int W = 4, M = 4;
+    Stuck s = stuck(M, W);
+    s.push(1); s.push(2); s.push(3); s.push(12);
+    s.setIndex(1); s.RemoveElementAt().ok(2);   s.ok("Stuck(1, 3, 12)");
+    s.setIndex(1); s.RemoveElementAt().ok(3);   s.ok("Stuck(1, 12)");
+    s.setIndex(0); s.RemoveElementAt().ok(1);   s.ok("Stuck(12)");
+    s.setIndex(0); s.RemoveElementAt().ok(12);  s.ok("Stuck()");
    }
 
   static void test_first_last()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
-    s.set("00000011001000010111");
+    s.push(1); s.push(2); s.push(3); s.push(12);
     s.firstElement().ok(1);
-    s.lastElement() .ok(3);
+    s.lastElement() .ok(12);
+   }
+
+  static void test_first_last_buffer()
+   {final int W = 4, M = 4;
+    Stuck s = stuck(M, W);
+    s.push(1); s.push(2); s.push(3); s.push(12);
+    s.FirstElement(); s.buffer.ok(1);
+    s.LastElement();  s.buffer.ok(12);
    }
 
   static void test_index_of()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
-    s.set("01100011001000011111");
+    s.push(1); s.push(2); s.push(3); s.push(6);
     ok(s.indexOf(1), 0);
     ok(s.indexOf(2), 1);
     ok(s.indexOf(3), 2);
@@ -286,15 +390,15 @@ class Stuck extends Memory.Structure                                            
   static void test_clear()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
-    s.set("01100011001000011111");
+    s.push(1); s.push(2); s.push(3); s.push(6);
     s.clear();
-    s.set("01100011001000010000");
+    s.ok("Stuck()");
    }
 
   static void test_print()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
-    s.set("01100011001000011111");
+    s.push(1); s.push(2); s.push(3); s.push(6);
     s.ok("Stuck(1, 2, 3, 6)");
     ok(s.print("[","]"), "[1, 2, 3, 6]");
    }
@@ -314,12 +418,19 @@ class Stuck extends Memory.Structure                                            
 
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_push();
+    test_push_buffer();
     test_pop();
+    test_pop_buffer();
     test_shift();
+    test_shift_buffer();
     test_unshift();
+    test_unshift_buffer();
     test_element_at();
+    test_element_at_buffer();
     test_insert_element_at();
+    test_insert_element_at_buffer();
     test_remove_element_at();
+    test_remove_element_at_buffer();
     test_first_last();
     test_index_of();
     test_clear();
@@ -328,8 +439,8 @@ class Stuck extends Memory.Structure                                            
    }
 
   static void newTests()                                                        // Tests being worked on
-   {//oldTests();
-    test_print();
+   {oldTests();
+    test_first_last_buffer();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
