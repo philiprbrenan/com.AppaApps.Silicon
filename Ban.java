@@ -375,9 +375,9 @@ final public class Ban extends Chip                                             
      {this.Code = Code;                                                         // Code to be executed - prepare using RiscV.java
       memory = new byte[Memory];                                                // Allocate memory
       xi = pulse("xi").period(  N).on(N/2).start(1).b();                        // Execute an instruction
-      pc = new Register("pc", XLEN, xi, 0);                                     // Initialize program counter
+      pc = new Register("pc", XLEN, xi);                                        // Initialize program counter
        x = new Register[XLEN];                                                  // The registers of the RiscV architecture
-      for (int i = 1; i < XLEN; i++) x[i] = new Register("x"+i, XLEN, xi, 0);   // Initialize registers
+      for (int i = 1; i < XLEN; i++) x[i] = new Register("x"+i, XLEN, xi);      // Initialize registers
 
       code = bits("code", XLEN, Code);                                          // Instructions as numbers
 
