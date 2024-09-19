@@ -857,7 +857,7 @@ public class Chip                                                               
   static boolean[]bitStack(int width, long...values)                            // Create a stack of bits
    {final int N = width*values.length;
     if (width <= 0) stop("Width must be one or more, not", width);
-    if (width >= Long.SIZE) stop("Width must be less than", Long.SIZE, "not", width);
+    //if (width >= Long.SIZE) stop("Width must be less than", Long.SIZE, "not", width);
     final boolean[]b = new boolean[N];
     for(int i = 0; i<N; ++i) b[i] = (values[i/width] & (1l<<(i % width))) != 0;
     return b;
@@ -928,12 +928,6 @@ public class Chip                                                               
     public String toString()                                                    // Convert the bits represented by an output bus to a string
      {final StringBuilder s = new StringBuilder();
       final int N = bits();
-      if (N > 8)                                                                // Print as hexadecimal
-       {final Integer i = Int();
-        if (i == null) return "null";
-        return "0x"+Integer.toHexString(i);
-       }
-
       for (int i = 1; i <= N; i++)
        {final Bit  b = b(i);
         final Gate g = getGate(b);
@@ -1903,12 +1897,12 @@ public class Chip                                                               
     int on     = 1;                                                             // On for one step
     int delay  = 0;                                                             // No delay
     int start  = 0;                                                             // Start on the first cycle
-    PulseBuilder name  (String Name) {name   = Name  ; return this;}
-    PulseBuilder period(int  Period) {period = Period; return this;}
-    PulseBuilder on    (int      On) {on     = On    ; return this;}
-    PulseBuilder delay (int   Delay) {delay  = Delay ; return this;}
-    PulseBuilder start (int   Start) {start  = Start ; return this;}
-    Pulse b()    {return new Pulse(name, period, on, delay, start);}
+    PulseBuilder name  (String Name) {name   = Name  ; return this;}            // Name of pulse
+    PulseBuilder period(int  Period) {period = Period; return this;}            // Period of pulse or 0 for one infinitely long pulse
+    PulseBuilder on    (int      On) {on     = On    ; return this;}            // How long the pulse is on
+    PulseBuilder delay (int   Delay) {delay  = Delay ; return this;}            // Delay before the start of the on section
+    PulseBuilder start (int   Start) {start  = Start ; return this;}            // Number of initial periods to wait before starting the pulse
+    Pulse b()    {return new Pulse(name, period, on, delay, start);}            // Create the pulse
    }
 
   PulseBuilder pulse(String name)                                               // Create a new pulse builder with default values
@@ -4695,26 +4689,26 @@ c8 =                                                 (a4 & b4)
 
     c.executionTrace.ok("""
 Step  p
-   1  0x1
-   2  0x2
-   3  0x4
-   4  0x8
-   5  0x10
-   6  0x20
-   7  0x40
-   8  0x80
-   9  0x100
-  10  0x200
-  11  0x400
-  12  0x800
-  13  0x1000
-  14  0x2000
-  15  0x4000
-  16  0x8000
-  17  0x1
-  18  0x2
-  19  0x4
-  20  0x8
+   1  0000000000000001
+   2  0000000000000010
+   3  0000000000000100
+   4  0000000000001000
+   5  0000000000010000
+   6  0000000000100000
+   7  0000000001000000
+   8  0000000010000000
+   9  0000000100000000
+  10  0000001000000000
+  11  0000010000000000
+  12  0000100000000000
+  13  0001000000000000
+  14  0010000000000000
+  15  0100000000000000
+  16  1000000000000000
+  17  0000000000000001
+  18  0000000000000010
+  19  0000000000000100
+  20  0000000000001000
 """);
    }
 
@@ -4763,6 +4757,7 @@ Step  p
     ok(c.maximumDistanceToNearestOutput, D);
     //c.printExecutionTrace(); stop();
    }
+
   static void test_shift()
    {Chip c = chip();
     Bits b = c.bits      ("b", 4, 3);
@@ -5645,6 +5640,43 @@ Step  o     e
     c.run();
    }
 
+  static void test_register_wide()
+   {final long[]T = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16};
+    final int D = 7, W = 8, N = W * T.length;
+    Chip      c = chip();
+    Bits      i = c.bits        ("i", W, T);
+    Pulse     p = c.pulse       ("p").period(0).delay(D).b();
+    Register  r = c.new Register("r", N, p, 1).anneal();
+                  c.continueBits(r.load, i);
+
+    c.executionTrace = c.new ExecutionTrace()
+     {String title() {return "p  Reg";}
+      String trace() {return String.format("%s  %s", p, i);}
+     };
+
+    c.simulationSteps(2*D);
+    c.simulate();
+    //r.ok(A);
+    //c.printExecutionTrace(); stop();
+    c.executionTrace.ok("""
+Step  p  Reg
+   1  0  00010000000011110000111000001101000011000000101100001010000010010000100000000111000001100000010100000100000000110000001000000001
+   2  0  00010000000011110000111000001101000011000000101100001010000010010000100000000111000001100000010100000100000000110000001000000001
+   3  0  00010000000011110000111000001101000011000000101100001010000010010000100000000111000001100000010100000100000000110000001000000001
+   4  0  00010000000011110000111000001101000011000000101100001010000010010000100000000111000001100000010100000100000000110000001000000001
+   5  0  00010000000011110000111000001101000011000000101100001010000010010000100000000111000001100000010100000100000000110000001000000001
+   6  0  00010000000011110000111000001101000011000000101100001010000010010000100000000111000001100000010100000100000000110000001000000001
+   7  0  00010000000011110000111000001101000011000000101100001010000010010000100000000111000001100000010100000100000000110000001000000001
+   8  1  00010000000011110000111000001101000011000000101100001010000010010000100000000111000001100000010100000100000000110000001000000001
+   9  0  00010000000011110000111000001101000011000000101100001010000010010000100000000111000001100000010100000100000000110000001000000001
+  10  0  00010000000011110000111000001101000011000000101100001010000010010000100000000111000001100000010100000100000000110000001000000001
+  11  0  00010000000011110000111000001101000011000000101100001010000010010000100000000111000001100000010100000100000000110000001000000001
+  12  0  00010000000011110000111000001101000011000000101100001010000010010000100000000111000001100000010100000100000000110000001000000001
+  13  0  00010000000011110000111000001101000011000000101100001010000010010000100000000111000001100000010100000100000000110000001000000001
+  14  0  00010000000011110000111000001101000011000000101100001010000010010000100000000111000001100000010100000100000000110000001000000001
+""");
+   }
+
   static void oldTests()                                                        // Tests thought to be in good shape
    {test_max_min();
     test_source_file_name();
@@ -5727,11 +5759,12 @@ Step  o     e
     test_choose_equals_zero();
     test_read_memory();
     test_each_step();
+    test_register_wide();
    }
 
   static void newTests()                                                        // Tests being worked on
    {oldTests();
-    //test_count_bits();
+    test_register_wide();
    }
 
   public static void main(String[] args)                                        // Test if called as a program
