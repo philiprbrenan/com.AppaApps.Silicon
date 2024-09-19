@@ -57,7 +57,7 @@ class Stuck extends Memory.Structure                                            
    {return new Stuck("Stuck", max, width);
    }
 
-  void clear() {unary.zero();}                                                  // Clear a stuck stack
+  void clear() {zero();}                                                        // Clear a stuck stack
 
 //D1 Characteristics                                                            // Characteristics of the stuck stack
 
@@ -416,7 +416,11 @@ class Stuck extends Memory.Structure                                            
   static void test_first_last()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
-    s.push(1); s.push(2); s.push(3); s.push(12);
+                s.notEmpty.ok(0); s.full.ok(0);
+    s.push( 1); s.notEmpty.ok(1); s.full.ok(0);
+    s.push( 2); s.notEmpty.ok(1); s.full.ok(0);
+    s.push( 3); s.notEmpty.ok(1); s.full.ok(0);
+    s.push(12); s.notEmpty.ok(1); s.full.ok(1);
     s.firstElement().ok(1);
     s.lastElement() .ok(12);
    }
@@ -454,8 +458,10 @@ class Stuck extends Memory.Structure                                            
   static void test_clear()
    {final int W = 4, M = 4;
     Stuck s = stuck(M, W);
+    s.full.ok(0); s.notEmpty.ok(0);
     s.push(1); s.push(2); s.push(3); s.push(6);
-    s.clear();
+    s.full.ok(1); s.notEmpty.ok(1); s.clear();
+    s.full.ok(0); s.notEmpty.ok(0);
     s.ok("Stuck()");
    }
 
