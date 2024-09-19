@@ -388,7 +388,7 @@ final public class Ban extends Chip                                             
 
       for (int i = 1; i < XLEN; i++) x[i].load(cpu.X[i]);                       // Update registers
 
-      continueBits(pc.load, cpu.PC);                                            // Update the program counter
+      continueBits(pc.input, cpu.PC);                                           // Update the program counter
 
       cpu.m.anneal();                                                           // Anneal potentially unused gates
       for (int i = 1; i < XLEN; i++) cpu.X[i].anneal();
