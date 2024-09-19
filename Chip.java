@@ -1831,7 +1831,7 @@ public class Chip                                                               
 //      for (int i = 1; i <= Width; i++) My(b(i), orPulse, choose.b(i));          // Create the memory bits
 //     }
 
-//  void load(Bits input) {continueBits(load, input);}                          // Load register from input on falling edge of load signal.
+    void load(Bits Input) {continueBits(input, Input);}                         // Load register from input on falling edge of load signal.
 
     Register anneal() {super.anneal(); return this;}                            // Anneal register
    }
