@@ -19,6 +19,7 @@ class Stuck extends Memory.Structure                                            
   final Memory.Array    array;                                                  // The array holding the elements of the stuck stack
   final int max;                                                                // The maximum number of entries in the stuck stack.
   final int width;                                                              // The width of each object in the stuck in bits
+  final Chip chip;                                                              // Chip implementing the stuck
 
 //D1 Construction                                                               // Create a stuck stack
 
@@ -46,7 +47,8 @@ class Stuck extends Memory.Structure                                            
     addField(array);                                                            // Array of nodes
     layout();                                                                   // Layout the structure of the stuck stack
 
-//  stuck_chip();
+    chip = null;
+//  chip = stuck_chip();                                                        // Create a chip
    }
 
 //  Chip stuck_chip()
