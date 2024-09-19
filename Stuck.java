@@ -8,13 +8,13 @@ import java.util.*;
 
 class Stuck extends Memory.Structure                                            // Stuck: a fixed size stack controlled by a unary number. The unary number zero indicates an empty stuck stack.
  {final Unary unary;                                                            // The layout of the stuck stack
-  final Memory.Variable found;                                                  // Whether the latest find actually found the specified element
-  final Memory.Variable full;                                                   // Whether the stuck is full
-  final Memory.Variable notEmpty;                                               // Whether the stuck contains at least one element or not
-  final Memory.Variable index;                                                  // Index to an element wanted in the stuck
-  final Memory.Variable outdex;                                                 // Index to an element found in the stuck
-  final Memory.Variable input;                                                  // A buffer used to provide input to the stack
-  final Memory.Variable output;                                                 // A buffer holding an output from the stuck
+  final Memory.Variable found;                                                  //o Whether the latest find actually found the specified element
+  final Memory.Variable full;                                                   //o Whether the stuck is full
+  final Memory.Variable notEmpty;                                               //o Whether the stuck contains at least one element or not
+  final Memory.Variable index;                                                  //i Index to an element wanted in the stuck
+  final Memory.Variable outdex;                                                 //o Index to an element found in the stuck
+  final Memory.Variable input;                                                  //i A buffer used to provide input to the stack
+  final Memory.Variable output;                                                 //o A buffer holding an output from the stuck
   final Memory.Variable element;                                                // An element of the stuck stack
   final Memory.Array    array;                                                  // The array holding the elements of the stuck stack
   final int max;                                                                // The maximum number of entries in the stuck stack.
@@ -24,17 +24,17 @@ class Stuck extends Memory.Structure                                            
 
   Stuck(String Name, int Max, int Width)                                        // Create the stuck stack
    {super(Name);                                                                // Containing structure layout
-    max = Max; width = Width;
-    unary   = Unary.unary(max);                                                 // Unary number showing which elements in the stack are valid
-    found   = variable("found",       1);                                       // Whether the latest find actually found the specified element
-    full    = variable("full",        1);                                       // Whether the stuck is full
-    notEmpty= variable("notEmpty",    1);                                       // Whether the stuck contains at least one element or not
-    index   = variable("index",   width);                                       // Index to an element wanted in the stuck
-    outdex  = variable("outdex",  width);                                       // Index to an element found in the stuck
-    input   = variable("input",   width);                                       // A buffer used to load the stuck
-    output  = variable("output",  width);                                       // A buffer used to unload the stuck
-    element = variable("element", width);                                       // An element of the stuck stack
-    array   = array("array", element, max);                                     // An array of elements comprising the stuck stack
+    width    = Width; max = Max;
+    unary    = Unary.unary(max);                                                // Unary number showing which elements in the stack are valid
+    found    = variable("found",       1);                                      // Whether the latest find actually found the specified element
+    full     = variable("full",        1);                                      // Whether the stuck is full
+    notEmpty = variable("notEmpty",    1);                                      // Whether the stuck contains at least one element or not
+    index    = variable("index",   width);                                      // Index to an element wanted in the stuck
+    outdex   = variable("outdex",  width);                                      // Index to an element found in the stuck
+    input    = variable("input",   width);                                      // A buffer used to load the stuck
+    output   = variable("output",  width);                                      // A buffer used to unload the stuck
+    element  = variable("element", width);                                      // An element of the stuck stack
+    array    = array   ("array",   element, max);                               // An array of elements comprising the stuck stack
     addField(found);                                                            // Whether the latest find actually found the specified element
     addField(full);                                                             // Whether the stuck is full
     addField(notEmpty);                                                         // Whether the stuck contains at least one element or not
