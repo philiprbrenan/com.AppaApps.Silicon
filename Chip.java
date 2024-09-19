@@ -1795,19 +1795,19 @@ public class Chip                                                               
     final Bits     choose;                                                      // Initialize or load
     final Bit     orPulse;                                                      // Or of pulses
 
-    Register(String Output, int Width, Pulse LoadPulse, int InitialValue)       // Load register from input on falling edge of load signal. The register is initialized to a default value
+    Register(String Output, int Width, Pulse LoadPulse)                         // Load register from input on falling edge of load signal. The register is initialized to a default value
      {super(Output, Width);                                                     // Load from these bits
       output     = Output;                                                      // Output name
       reg        = this;                                                        // Bit bus created by register
 
       input      = n(Output, "input");                                          // Load bitbus name - use this name to load the register
       inputBits  = bitBus(input, Width);                                        // Load bitbus
-      initValue  = Chip.this.bits(n(Output, "initial"),   Width, InitialValue); // Initial value
+      initValue  = Chip.this.bits(n(Output, "initial"), Width, 0);              // Initial value
       initPulse  = pulse (n(Output, "initPulse"), 0, logTwo(Width));            // Initialization pulse width - this happens once as the pulse does not repeat. A short delay is needed to let the input signal reach the memory gates
       orPulse    = Or(n(Output, "orPulse"), initPulse, LoadPulse);              // Combine the initial pulse with the load pulse
 
-      choose     = chooseFromTwoWords(n(Output, "initialize"), inputBits,       // Initialize or load
-                                     initValue, initPulse);
+      choose     = chooseFromTwoWords                                           // Initialize or load
+       (n(Output, "initialize"), inputBits, initValue, initPulse);
 
       for (int i = 1; i <= Width; i++) My(b(i), orPulse, choose.b(i));          // Create the memory bits
      }
@@ -1837,12 +1837,12 @@ public class Chip                                                               
    }
 
   Register register(String name, int width, Pulse load)                         // Create a register loaded from one source
-   {return new Register(name, width, load, 0);
+   {return new Register(name, width, load);
   }
 
-  Register register(String name, int width, Pulse load, int value)              // Create a register loaded from one source
-   {return new Register(name, width, load, value);
-   }
+//Register register(String name, int width, Pulse load, int value)              // Create a register loaded from one source
+// {return new Register(name, width, load, value);
+// }
 
 // Register register(String name, int width, Pulse load, Bits bits, int value)   // Create a register loaded from one source
 //  {return new Register(name, width, load, bits, value);
@@ -4765,10 +4765,9 @@ Step  p
   static void test_register_initialization()
    {final int N = 8, D = 7, A = 85;
     Chip      c = chip();
-    Bits      i = c.bits        ("i", N, A);
     Pulse     p = c.pulse       ("p").period(D).start(1).b();
-    Register  r = c.new Register("r", N, p, 1).anneal();
-                  c.continueBits(r.input, i);
+    Register  r = c.new Register("r", N, p).anneal();
+                  c.bits        (r.input, N, A);
 
     c.executionTrace = c.new ExecutionTrace()
      {String title() {return "p  Reg";}
@@ -5669,7 +5668,7 @@ Step  o     e
     final int D = 8, W = 8, N = W * T.length;
     Chip      c = chip();
     Pulse     p = c.pulse       ("p").period(0).delay(D).on(D).b();
-    Register  r = c.new Register("r", N, p, 1).anneal();
+    Register  r = c.new Register("r", N, p).anneal();
     Bits      i = c.bits        (r.input, W, T);
 
     c.executionTrace = c.new ExecutionTrace()
