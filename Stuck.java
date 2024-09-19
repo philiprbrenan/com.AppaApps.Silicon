@@ -8,6 +8,7 @@ import java.util.*;
 
 class Stuck extends Memory.Structure                                            // Stuck: a fixed size stack controlled by a unary number. The unary number zero indicates an empty stuck stack.
  {final Unary unary;                                                            // The layout of the stuck stack
+  final Memory.Variable found;                                                  // Whether the latest find actually found the specified element
   final Memory.Variable index;                                                  // Index to an element in the stuck
   final Memory.Variable buffer;                                                 // A buffer used to load or unload the stuck
   final Memory.Variable element;                                                // An element of the stuck stack
@@ -21,24 +22,30 @@ class Stuck extends Memory.Structure                                            
    {super(Name);                                                                // Containing structure layout
     max = Max; width = Width;
     unary   = Unary.unary(max);                                                 // Unary number showing which elements in the stack are valid
+    found   = variable("found",       1);                                       // Whether the latest find actually found the specified element
     index   = variable("index",   width);                                       // Index to an element in the stuck
     buffer  = variable("buffer",  width);                                       // A buffer used to load or unload the stuck
     element = variable("element", width);                                       // An element of the stuck stack
     array   = array("array", element, max);                                     // An array of elements comprising the stuck stack
+    addField(found);                                                            // Whether the latest find actually found the specified element
     addField(index);                                                            // Index to an element in the stuck
     addField(buffer);                                                           // A buffer used to load or unload the stuck
     addField(unary);                                                            // Preventing from doing this earlier by Java forcing super to go first
     addField(array);
     layout();                                                                   // Layout the structure of the stuck stack
 
-    stuck_chip();
+//  stuck_chip();
    }
 
-  Chip stuck_chip()
-   {final Chip c = new Chip();
-
-    return c;
-   }
+//  Chip stuck_chip()
+//   {final Chip      c = new Chip();
+//    final int       N = layout.width;
+//    final Bits      i = c.bits        ("i", W, T);
+//    final Pulse     p = c.pulse       ("p").period(0).delay(D).on(D).b();
+//    final Register stuckRegister = register(n(name, "register"), layout.width);
+//
+//    return c;
+//   }
 
   static Stuck stuck(int max, int width)                                        // Create a stuck stack
    {return new Stuck("Stuck", max, width);
@@ -48,7 +55,8 @@ class Stuck extends Memory.Structure                                            
 
 //D1 Characteristics                                                            // Characteristics of the stuck stack
 
-  int stuckSize() {return unary.get();}                                         // The current size of the stuck stack
+  int  stuckSize() {return unary.get();}                                        // The current size of the stuck stack
+  void StuckSize() {index.set(unary.get());}                                    // The current size of the stuck stack via the index field
 
   public void ok(String expected) {ok(toString(), expected);}                   // Check the stuck stack
 
@@ -201,7 +209,7 @@ class Stuck extends Memory.Structure                                            
 
 //D1 Search                                                                     // Search a stuck stack.
 
-  int indexOf(Memory elementToFind)                                             // Return 0 based index of the indicated memory else -1 if the memory is not present in the stuck stack.
+  int indexOf(Memory elementToFind)                                             // Set found to true and index to the 0 based index of the indicated memory else -1 if the memory is not present in the stuck stack.
    {final int N = stuckSize();
     for (int i = 0; i < N; i++)
      {final Memory m = elementAt(i);
@@ -236,6 +244,7 @@ class Stuck extends Memory.Structure                                            
     ok(s.isEmpty());
     s.push(1); s.push(2); s.push(3); s.push(12);
     ok(s.stuckSize(), 4);
+    s.StuckSize(); s.index.ok(4);
     ok(s.isFull());
     s.ok("Stuck(1, 2, 3, 12)");
    }
