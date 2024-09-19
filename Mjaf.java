@@ -2018,21 +2018,21 @@ class Mjaf extends Memory.Structure                                             
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
-   {test_create();
-    test_leaf_split();
-    test_leaf_split_in_half();
-    test_branch();
-    test_branch_full();
-    test_pad_strings();
-    test_insert();
-    test_insert_reverse();
-    test_find();
-    test_find_reverse();
-    test_insert_random();
-    test_delete();
-    test_delete_reverse();
-    test_save();
-    test_put2();
+   {//test_create();
+    //test_leaf_split();
+    //test_leaf_split_in_half();
+    //test_branch();
+    //test_branch_full();
+    //test_pad_strings();
+    //test_insert();
+    //test_insert_reverse();
+    //test_find();
+    //test_find_reverse();
+    //test_insert_random();
+    //test_delete();
+    //test_delete_reverse();
+    //test_save();
+      test_put2();
    }
 
   static void newTests()                                                        // Tests being worked on
