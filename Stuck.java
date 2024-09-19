@@ -30,6 +30,14 @@ class Stuck extends Memory.Structure                                            
     addField(unary);                                                            // Preventing from doing this earlier by Java forcing super to go first
     addField(array);
     layout();                                                                   // Layout the structure of the stuck stack
+
+    stuck_chip();
+   }
+
+  Chip stuck_chip()
+   {final Chip c = new Chip();
+
+    return c;
    }
 
   static Stuck stuck(int max, int width)                                        // Create a stuck stack
