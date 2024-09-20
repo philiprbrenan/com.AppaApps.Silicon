@@ -34,6 +34,7 @@ public class Charybdis extends Chip                                             
   static void test_shift_left()
    {final int W = 4;
     Charybdis c = new Charybdis("c", W, W);
+say("AAAA", c.input);
     c.shiftLeftConstant(c.input.name, c.register, 1);
 
     c.executionTrace = c.new ExecutionTrace()
