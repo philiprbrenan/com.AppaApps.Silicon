@@ -2293,6 +2293,16 @@ c8 =                                                 (a4 & b4)
     return conCatBits(output, s);                                               // Concatenate bits
    }
 
+  Bits shiftLeftConstantFillWithOnes(String output, Bits input, int shift)      // Shift the input bits left by the constant number of positions specified in shift filling on the right with ones to make a field "shift" bits wider than the input field.
+   {final int B = input.bits();                                                 // Number of bits in input
+    if (shift < 1) stop("Shift of:", shift, "is less than the minimum of 1");   // Check shift is within range
+    if (shift > B) stop("Shift of:", shift, "is bigger than maximum of", B);    // Check shift is within range
+    final Bit[]s = new Bit[B+shift];                                            // Shifted bits
+    for (int i = 0; i < shift; i++) s[i] = One(n(i+1, output, "one"));          // Right hand ones
+    for (int i = shift; i < B+shift; i++) s[i] = input.b(i-shift+1);            // Shifted bits
+    return conCatBits(output, s);                                               // Concatenate bits
+   }
+
   Bits shiftLeftMultiple(String output, Bits input, Bits shift)                 // Shift the input bits left by the number of positions specified in shift filling in with zeroes.
    {final int B = input.bits();                                                 // Number of bits in input
     final Bits[]s = new Bits[B+1];                                              // Shifted bits
