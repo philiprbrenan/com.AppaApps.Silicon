@@ -4,13 +4,23 @@
 //------------------------------------------------------------------------------
 package com.AppaApps.Silicon;                                                   // Design, simulate and layout a binary tree on a silicon chip.
 
-class Unary extends Memory.Variable                                             // Unary arithmetic
- {final int max;                                                                // Maximum size of unary number
+class Unary extends Memory.Structure                                            // Unary arithmetic
+ {final Memory.Variable notZero;                                                // Not zero if true
+  final Memory.Variable atMax;                                                  // At the maximum value
+  final Memory.Variable value;                                                  // The value of the unary number
+  final int max;                                                                // Maximum size of unary number
 
 //D1 Construction                                                               // Create a unary number
 
   Unary(int Max)                                                                // Create a unary number of specified size
-   {super("Unary", Max);
+   {super("Unary");                                                             // Structure definition
+    if (Max <= 0) stop("Unary size must be at least one, not", Max);            // Size check
+    notZero = variable("notZero", 1);                                           // Not zero if true
+    atMax   = variable("atMax",   1);                                           // At the maximum value
+    value   = variable("value", Max) ;                                          // The value of the unary number
+    addField(notZero);                                                          // Not zero if true
+    addField(atMax);                                                            // At the maximum value
+    addField(value);                                                            // The value of the unary number
     layout();
     max = Max;
    }
@@ -19,17 +29,23 @@ class Unary extends Memory.Variable                                             
 
   int max() {return max;}                                                       // The maximum value of the unary number
 
-  void ok(int n) {ok(this, n);}                                                 // Check that a unary number has the expected value
+  void ok(int n) {ok(get(), n);}                                                // Check that a unary number has the expected value
 
 //D1 Set and get                                                                // Set and get a unary number
 
   void set(int n)                                                               // Set the unary number
-   {zero();
-    if (n > 0) shiftLeftFillWithOnes(n);
+   {if (n < 0)   stop("Cannot set to a value less than zero", n);
+    if (n > max) stop("Cannot set to a value greater than max", n, max);
+    zero();                                                                     // Zero out the number
+    if (n > 0)                                                                  // Set a non zero value
+     {value.shiftLeftFillWithOnes(n);                                           // Non zero value
+      notZero.set(1);
+      atMax.set(n < max ? 0 : 1);
+     }
    }
 
   int get()                                                                     // Get the unary number
-   {return countTrailingOnes();
+   {return value.countTrailingOnes();
    }
 
 //D1 Arithmetic                                                                 // Arithmetic using unary numbers
@@ -38,31 +54,34 @@ class Unary extends Memory.Variable                                             
   boolean canDec() {return get() > 0;}                                          // Can we decrement the unary number
 
   void inc()                                                                    // Increment the unary number
-   {if (!canInc()) stop(get(), "Unary number is too big to be incremented");
-    shiftLeftFillWithOnes(1);
+   {if (atMax.toInt() == 1) stop(get(), "Unary number is too big to be incremented");
+    set(get()+1);
    }
 
   void dec()                                                                    // Decrement the unary number
-   {if (!canDec())
-     {stop(get(), "Unary number is too small to be decremented");
-     }
-    shiftRightFillWithZeros(1);
+   {if (notZero.toInt() == 0) stop(get(), "Unary number is too small to be decremented");
+    set(get()-1);
    }
 
 //D1 Print                                                                      // Print a unary number
 
-  public String toString() {return ""+get();}                                   // Print a unary number
+  public String toString()
+   {return "Unary(notZero:"+notZero.toInt()+                                    // Print a unary number
+                 ", atMax:"+atMax.toInt()+
+                 ", value:"+get()+
+                   ", max:"+max+")";
+   }
 
 //D0 Tests                                                                      // Test unary numbers
 
   static void test_unary()
    {Unary u = unary(32);
-                u.set(0);
-                 u.ok(0);
-    u.inc();     u.ok(1);
-    u.inc();     u.ok(2);
-    u.inc();     u.ok(3);
-    u.inc();     u.ok(4);
+              u.set(0);
+              u.ok(0);
+    u.inc();  u.ok(1);
+    u.inc();  u.ok(2);
+    u.inc();  u.ok(3);
+    u.inc();  u.ok(4);
     u.set(21);
     u.inc();
     u.ok (22);
@@ -95,7 +114,6 @@ class Unary extends Memory.Variable                                             
     s.set(0);
     u.set(2);
     u.ok (2);
-    s.ok("00110000");
    }
 
   static void oldTests()                                                        // Tests thought to be in good shape
