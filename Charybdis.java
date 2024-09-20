@@ -14,7 +14,7 @@ Three times a day she sucks the dark water down, and three times she spits it up
 public class Charybdis extends Chip                                             // A chip that transforms a register and then reloads it in a never ending cycle
  {final Register register;                                                      // The register that will be transformed
   final Pulse      pulse;                                                       // The pulse that will update the register at the end of the cycle
-  final Bits       input;                                                       // Set this bit bus to load the register with its latest value
+  final Bits      update;                                                       // Set this bit bus to load the register with its latest value
   final int        delay;                                                       // The time it takes for the register to reset
   final int        width;                                                       // Width of the register in bits
   final int           on;                                                       // How many steps we need to wait for the correct response
@@ -24,25 +24,27 @@ public class Charybdis extends Chip                                             
     width       = Width;
     on          = On;
     delay       = logTwo(width);
-    pulse       = pulse       (n(Name, "pulse")).period(0).delay(delay).on(on).b();
+    pulse       = pulse       (n(Name, "pulse")).period(2*on).delay(on).on(on).start(2).b();
     register    = new Register(n(Name, "register"), width, pulse).anneal();
-    input       = register.inputBits;
+    update      = register.inputBits;
    }
 
 //D0                                                                            // Tests
 
   static void test_shift_left()
-   {final int W = 4;
+   {final int W = 2;
     Charybdis c = new Charybdis("c", W, W);
-say("AAAA", c.input);
-    c.shiftLeftConstant(c.input.name, c.register, 1);
+    Bits      s = c.shiftLeftConstantFillWithOnes("shift", c.register, 1).anneal();
+    c.subBits(c.update.name, s, 2, W);
 
     c.executionTrace = c.new ExecutionTrace()
      {String title() {return "p  Reg";}
-      String trace() {return String.format("%s  %s  %s", c.pulse, c.input, c.register);}
+      String trace() {
+        say(c);
+        return String.format("%s  %s  %s", c.pulse, s, c.register);}
      };
 
-    c.simulationSteps(3*W);
+    c.simulationSteps(20*W);
     c.simulate();
     //r.ok(A);
     c.printExecutionTrace(); stop();
