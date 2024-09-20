@@ -1000,8 +1000,8 @@ public class Chip                                                               
     return B;
    }
 
-  class BitBus extends Bits                                                     // A bus made out of bits. Define gates with the names of the bits in the bus to realize the bus.
-   {BitBus(CharSequence Name, int Bits)                                         // Create a new bit bus
+  class BitBus2 extends Bits                                                     // A bus made out of bits. Define gates with the names of the bits in the bus to realize the bus.
+   {BitBus2(CharSequence Name, int Bits)                                         // Create a new bit bus
      {super(Name.toString(), Bits);
       bitBuses.put(name, this);
      }
@@ -1015,8 +1015,8 @@ public class Chip                                                               
      }
    }
 
-  BitBus bitBus(CharSequence Name, int Bits)                                    // Create a new bit bus
-   {return new BitBus(Name, Bits);
+  BitBus2 bitBus2(CharSequence Name, int Bits)                                    // Create a new bit bus
+   {return new BitBus2(Name, Bits);
    }
 
   class SubBitBus extends Bits                                                  // A bit bus made out of part of another bit bus
@@ -1251,7 +1251,7 @@ public class Chip                                                               
       for (int b = 1; b <= words; ++b)                                          // Size of bit bus for each word in the word bus
        {final String s = n(b, name);
         Bits B = bitBuses.get(s);                                               // Check whether the component bitBus exists or not
-        if (B == null) B = new BitBus(s, bits);                                 // Create component bitBus if necessary
+        if (B == null) B = new Bits(s, bits);                                 // Create component bitBus if necessary
        }
      }
 
@@ -1488,7 +1488,7 @@ public class Chip                                                               
    {final int bb = b.bits(), ww = w.words(), wb = w.bits();
     if (wb != bb) stop("Each word has", wb, "bits,",
       "but the search key has", bb);
-    final Bits m = new BitBus(output, ww);
+    final Bits m = new Bits(output, ww);
     for (int i = 1; i <= ww; i++) compareGt(m.b(i), w.w(i), b);
     return m;
    }
@@ -1497,7 +1497,7 @@ public class Chip                                                               
    {final int bb = b.bits(), ww = w.words(), wb = w.bits();
     if (wb != bb) stop("Each word has", wb, "bits,",
       "but the search key has", bb);
-    final Bits m = new BitBus(output, ww);
+    final Bits m = new Bits(output, ww);
     for (int i = 1; i <= ww; i++) compareLt(m.b(i), w.w(i), b);
     return m;
    }
@@ -1513,7 +1513,7 @@ public class Chip                                                               
 
   Bits enableWordIfEq(String output, Bits result, Bits a, Bits b)               // Set the output to result if a == b else 0
    {final int  B = result.bits();
-    final Bits e = new BitBus(n(output), B);                                    // Enabled word
+    final Bits e = new Bits(n(output), B);                                    // Enabled word
     final Bit  q = compareEq(n(output, "eq"), a, b);                            // Compare
     return enableWord(output, result, q);                                       // Enable the result if a equals b
    }
@@ -1801,7 +1801,7 @@ public class Chip                                                               
       reg        = this;                                                        // Bit bus created by register
 
       input      = n(Output, "input");                                          // Load bitbus name - use this name to load the register
-      inputBits  = bitBus(input, Width);                                        // Load bitbus
+      inputBits  = new Bits(input, Width);                                        // Load bitbus
       initValue  = Chip.this.bits(n(Output, "initial"), Width, 0);              // Initial value
       initPulse  = pulse (n(Output, "initPulse"), 0, logTwo(Width));            // Initialization pulse width - this happens once as the pulse does not repeat. A short delay is needed to let the input signal reach the memory gates
       orPulse    = Or(n(Output, "orPulse"), initPulse, LoadPulse);              // Combine the initial pulse with the load pulse
@@ -2678,14 +2678,14 @@ c8 =                                                 (a4 & b4)
     final In   []   in;                                                         // Inputs provided by the peripheral
     final int    width;                                                         // Width of input in bits
     final Gate    edge;                                                         // Falling edge shows new value is available
-    final BitBus  bits;                                                         // Gate whose falling edge drives the peripheral
+    final Bits    bits;                                                         // Gate whose falling edge drives the peripheral
     int current;                                                                // Index of current element being input
     int nextStep;                                                               // Step for next change
     InputUnit(String Name, int Width, In...In)                                  // Load input peripheral with predetermined values that appear after a specified delay
      {name = Name; width = Width; in = In;
       edge =     Input(n(name, "edge"));                                        // Falling edge shows that a new value is available
       edge.setSystemGate();
-      bits = new BitBus(n(name, "bits"), width);                                // Create an input bus
+      bits = new Bits(n(name, "bits"), width);                                // Create an input bus
       for (int i = 1; i <= width; i++)                                          // Mark the bits as system gates so that they do not require external inputs.
        {final Bit b = bits.b(i);
         final Gate g = Input(b);
@@ -4426,7 +4426,7 @@ c8 =                                                 (a4 & b4)
      {int N = powerTwo(B);
       for  (int i = 1; i <= N; i++)
        {Chip c = chip("monotone_mask_to_point_mask_"+B);
-        Bits I = c.bitBus("i", N);
+        Bits I = c.bits("i", N);
         for (int j = 1; j <= N; j++) if (j < i) c.One(I.b(j)); else c.Zero(I.b(j));
         Bits O = c.outputBits("O", I);
         c.simulate();
@@ -4970,8 +4970,8 @@ Step  p
    {int N = 4, A = 9;
 
     Chip C = new Chip();
-    Bits i = C.bits ("i",  N,  A);
-    Bits o = C.bitBus("o", N);
+    Bits i = C.bits("i",  N,  A);
+    Bits o = C.bits("o", N);
     Bits O = C.outputBits("O", o);
     C.connect(o, i);
 
