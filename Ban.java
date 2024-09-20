@@ -158,16 +158,16 @@ final public class Ban extends Chip                                             
       one     = C.bits (q("one"),    XLEN, 1);                                  // Constant one
       zero    = C.bits (q("zero"),   XLEN, 0);                                  // Constant zero
 
-      opCode  = C.subBitBus(q("opCode"), decode, p_opCode,     l_opCode);       // Decode the instruction converting the offsets from zero based to one based
-      funct3  = C.subBitBus(q("funct3"), decode, p_funct3,     l_funct3);
-      funct5  = C.subBitBus(q("funct5"), decode, p_funct5,     l_funct5);
-      funct7  = C.subBitBus(q("funct7"), decode, p_funct7,     l_funct7);
-      rd      = C.subBitBus(q("rd"),     decode, p_rd,         l_rd);
-      rs1     = C.subBitBus(q("rs1"),    decode, p_rs1,        l_rs1);
-      rs2     = C.subBitBus(q("rs2"),    decode, p_rs2,        l_rs2);
+      opCode  = C.subBits(q("opCode"), decode, p_opCode,     l_opCode);       // Decode the instruction converting the offsets from zero based to one based
+      funct3  = C.subBits(q("funct3"), decode, p_funct3,     l_funct3);
+      funct5  = C.subBits(q("funct5"), decode, p_funct5,     l_funct5);
+      funct7  = C.subBits(q("funct7"), decode, p_funct7,     l_funct7);
+      rd      = C.subBits(q("rd"),     decode, p_rd,         l_rd);
+      rs1     = C.subBits(q("rs1"),    decode, p_rs1,        l_rs1);
+      rs2     = C.subBits(q("rs2"),    decode, p_rs2,        l_rs2);
                                                                                 // Decode immediate field
-      immi    = C.subBitBus(q("immi"),   decode, ip_immediate, il_immediate);   // Imipac: the weapon that defends itself.
-      immu    = C.subBitBus(q("immu"),   decode, up_immediate, ul_immediate);   // Immediate from U format
+      immi    = C.subBits(q("immi"),   decode, ip_immediate, il_immediate);   // Imipac: the weapon that defends itself.
+      immu    = C.subBits(q("immu"),   decode, up_immediate, ul_immediate);   // Immediate from U format
       immb    = C.conCatBits(q("immb"),                                         // Immediate operand from B format
           zero.b(1),                                                            // First bit known to be 0.
           decode.b( 9), decode.b(10), decode.b(11), decode.b(12),               // Field offsets are one based: in riscv-spec-20191213.pdf they are zero based.
