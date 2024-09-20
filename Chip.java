@@ -1019,11 +1019,11 @@ public class Chip                                                               
    {return new BitBus2(Name, Bits);
    }
 
-  class SubBitBus extends Bits                                                  // A bit bus made out of part of another bit bus
+  class SubBits extends Bits                                                  // A bit bus made out of part of another bit bus
    {final Bits source;                                                          // The bit bus from which supplies the bits for this sub bit bus
     final int   start;                                                          // Start of this bus in the source bus
 
-    SubBitBus(CharSequence Name, Bits Source, int Start, int Bits)              // Create a new sub bit bus as part of an existing bit bus
+    SubBits(CharSequence Name, Bits Source, int Start, int Bits)              // Create a new sub bit bus as part of an existing bit bus
      {super(Name.toString(), Bits);
       source = Source; start = Start;
       bitBuses.put(name, this);
@@ -1032,8 +1032,8 @@ public class Chip                                                               
     public Bit b(int i)      {return source.b(start-1+i);}                      // Bit in the bus
    }
 
-  SubBitBus subBitBus(CharSequence Name, Bits Source, int Start, int Bits)      // Create a new sub bit bus as part of an existing bit bus
-   {return new SubBitBus(Name, Source, Start, Bits);                            // Create a new sub bit bus as part of an existing bit bus
+  SubBits subBits(CharSequence Name, Bits Source, int Start, int Bits)      // Create a new sub bit bus as part of an existing bit bus
+   {return new SubBits(Name, Source, Start, Bits);                            // Create a new sub bit bus as part of an existing bit bus
    }
 
   class ConCatBits extends Bits                                                 // Concatenate a sequence of bits
@@ -1231,7 +1231,7 @@ public class Chip                                                               
   Bit        orBits(Bits output, Bits input) {return       orBits(output.name(), input);}
   Bit       norBits(Bits output, Bits input) {return      norBits(output.name(), input);}
 
-//D3 Words                                                                      // An array of arrays of bits that can be manipulated via one name.
+//D3 Words                                                                      // An array of arrays of bits that can be manipulated via one name.  Deprecated through lack of  use.
 
   abstract class Words                                                          // Description of a word bus
    {final String  name;                                                         // Name of the word bus
@@ -1623,7 +1623,7 @@ public class Chip                                                               
     final Eq[]e = new Eq[N];
     for (int i = 1; i <= N; i++)                                                // Each possible world
      {final String n = n(i, Output, "sbb");
-      final Bits   b = subBitBus(n, memory, 1+(i-1)*wordSize, wordSize);
+      final Bits   b = subBits(n, memory, 1+(i-1)*wordSize, wordSize);
       e[i-1] = eq(bits(n(i, Output, "eq"), I, i-1), b);
      }
     return chooseEq(Output, index, e);
@@ -1794,6 +1794,7 @@ public class Chip                                                               
     final Pulse initPulse;                                                      // Initialize or load
     final Bits     choose;                                                      // Initialize or load
     final Bit     orPulse;                                                      // Or of pulses
+    final int       delay;                                                      // How long it takes the register to load
 
     Register(String Output, int Width, Pulse LoadPulse)                         // Load register from input on falling edge of load signal. The register is initialized to a default value
      {super(Output, Width);                                                     // Load from these bits
@@ -1801,9 +1802,10 @@ public class Chip                                                               
       reg        = this;                                                        // Bit bus created by register
 
       input      = n(Output, "input");                                          // Load bitbus name - use this name to load the register
-      inputBits  = new Bits(input, Width);                                        // Load bitbus
+      delay      = logTwo(Width);                                               // Steps to load the register
+      inputBits  = new Bits(input, Width);                                      // Load bits used to update the register
       initValue  = Chip.this.bits(n(Output, "initial"), Width, 0);              // Initial value
-      initPulse  = pulse (n(Output, "initPulse"), 0, logTwo(Width));            // Initialization pulse width - this happens once as the pulse does not repeat. A short delay is needed to let the input signal reach the memory gates
+      initPulse  = pulse (n(Output, "initPulse"), 0, delay);                    // Initialization pulse width - this happens once as the pulse does not repeat. A short delay is needed to let the input signal reach the memory gates
       orPulse    = Or(n(Output, "orPulse"), initPulse, LoadPulse);              // Combine the initial pulse with the load pulse
 
       choose     = chooseFromTwoWords                                           // Initialize or load
@@ -2025,7 +2027,7 @@ c8 =                                                 (a4 & b4)
     Bits[][]C = new Bits[N][];                                                  // Layers of additions, each layer containing N bits
     C[0] = new Bits[N];
     for(int i = 1; i <= N; ++i)                                                 // Convert N bits to array of N*1 bits
-     {C[0][i-1] = new SubBitBus(n(0, i, output, "bits"), B, i, 1);
+     {C[0][i-1] = new SubBits(n(0, i, output, "bits"), B, i, 1);
      }
     for(int i = 1, n = N >> 1; i <= L; ++i, n >>= 1)                            // Sum in successive layers by halving the number of layers and doubling their widths
      {C[i] = new Bits[n];
@@ -2263,9 +2265,9 @@ c8 =                                                 (a4 & b4)
   Bit binaryTCCompareLt(String output, Bits in1, Bits in2)                      // Twos complement less than comparison
    {in1.sameSize(in2);                                                          // Check bits to be added have the same size
     final int b = in1.bits();                                                   // Number of bits in first input
-    final Bits i1 = new SubBitBus(n(output, "n1"),  in1, 1, b - 1);             // Numeric part of first number
+    final Bits i1 = new SubBits(n(output, "n1"),  in1, 1, b - 1);             // Numeric part of first number
     final Bit  s1 = in1.b(b);                                                   // Sign of first number
-    final Bits i2 = new SubBitBus(n(output, "n2"),  in2, 1, b - 1);             // Numeric part of second number
+    final Bits i2 = new SubBits(n(output, "n2"),  in2, 1, b - 1);             // Numeric part of second number
     final Bit  s2 = in2.b(b);                                                   // Sign of second number
     final Bit   c = compareLt    (n(output, "cmp"), i1, i2);                    // Compare number
 
@@ -2344,7 +2346,7 @@ c8 =                                                 (a4 & b4)
    {final int B = input.bits(), W = width;                                      // Number of bits in input
     final String n = input.name();                                              // Name of input field
     if (B == width) return input;                                               // No need to extend
-    if (B >  width) return subBitBus(output, input, 1, width);                  // Field already wider
+    if (B >  width) return subBits(output, input, 1, width);                  // Field already wider
     final Bit[]s = new Bit[width];                                              // Result
     for (int i = 1;   i <= B; i++) s[i-1] = input.b(i);                         // Existing bits
     for (int i = B+1; i <= W; i++) s[i-1] = input.b(B);                         // Sign bit
@@ -5257,7 +5259,7 @@ Step  i     o     O
    {int   N = 8;
     Chip  c = chip();
     Bits  b = c.bits("b", N, 5<<2);
-    Bits  B = c.subBitBus("B", b, 3, 4);
+    Bits  B = c.subBits("B", b, 3, 4);
     Bits ob = c.outputBits("ob", b);
     Bits oB = c.outputBits("oB", B);
      c.simulate();
@@ -5270,9 +5272,9 @@ Step  i     o     O
    {int   N = 32;
     Chip  c = chip();
     Bits  b = c.bits("b", N, 0x228a23).anneal();
-    Bits  i = c.subBitBus("i", b, 1,  7).anneal();
-    Bits  s = c.subBitBus("s", b, 1+15, 5).anneal();
-    Bits  S = c.subBitBus("S", b, 1+20, 5).anneal();
+    Bits  i = c.subBits("i", b, 1,  7).anneal();
+    Bits  s = c.subBits("s", b, 1+15, 5).anneal();
+    Bits  S = c.subBits("S", b, 1+20, 5).anneal();
           c.simulate();
     i.ok(0x23);
     s.ok(5);
