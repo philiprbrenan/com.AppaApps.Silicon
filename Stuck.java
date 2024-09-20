@@ -47,19 +47,18 @@ class Stuck extends Memory.Structure                                            
     addField(array);                                                            // Array of nodes
     layout();                                                                   // Layout the structure of the stuck stack
 
-    chip = null;
-//  chip = stuck_chip();                                                        // Create a chip
+    chip = stuck_chip();                                                        // Create a chip
    }
 
-//  Chip stuck_chip()
-//   {final Chip      c = new Chip();
-//    final int       N = layout.width;
-//    final Bits      i = c.bits        ("i", W, T);
-//    final Pulse     p = c.pulse       ("p").period(0).delay(D).on(D).b();
-//    final Register stuckRegister = register(n(name, "register"), layout.width);
-//
-//    return c;
-//   }
+  Chip stuck_chip()
+   {final int      D = 12;
+    final Chip     c = new Chip();
+    final int      N = width;
+    final Pulse    p = c.pulse("p").period(0).delay(D).on(D).b();
+    final Register stuckRegister = c.register(n(name, "memory"), N, p);
+
+    return c;
+   }
 
   static Stuck stuck(int max, int width)                                        // Create a stuck stack
    {return new Stuck("Stuck", max, width);
